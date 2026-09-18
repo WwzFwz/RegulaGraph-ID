@@ -1,0 +1,15 @@
+// Operasi embedding/reranking/generation beserta model identity, deadline, dan ukuran batch.
+//
+// Peran dalam komponen:
+// Sumber kontrak wire bagi runtime produksi dan evaluator.
+//
+// Integrasi dan perhatian performa:
+// Belum mendefinisikan message atau service; field belum dibekukan. Hindari transfer per-record berulang dan ukur bytes/request serta serialization latency.
+//
+// Benchmark dan gate penerimaan:
+// Ukur p50/p95/p99, throughput, waktu antre, serta RSS/VRAM sesuai workload. Ambang wajib ada di configs/benchmark-targets.yaml (REQUIRED_UNMEASURED); ukur cold/warm terpisah dan pertahankan kualitas sumber/versi.
+//
+// Status: scaffold; belum ada pipeline atau layanan yang aktif.
+syntax = "proto3";
+
+package regulagraph.v1;
