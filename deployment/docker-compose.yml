@@ -1,0 +1,5 @@
+# Deployment lokal untuk Go server, Rust worker, inference native, dan database.
+# Peran: menyimpan wiring deployment setelah transport, image, dan runtime dipilih.
+# Integrasi: scaffold belum menyediakan endpoint aktif atau model; tidak ada image placeholder palsu.
+# Benchmark: batas resource serta prioritas job/query akan dicatat bersama workload.
+services: {}
