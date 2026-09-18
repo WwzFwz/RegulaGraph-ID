@@ -1,0 +1,13 @@
+# Konfigurasi benchmark offline dan referensi target wajib.
+# Peran: mengikat runner Python ke profil, dataset, corpus, dan angka target yang dibekukan.
+# Integrasi: path relatif terhadap root repositori; enforcement runner belum diimplementasikan.
+# Target tidak boleh diturunkan otomatis ketika test gagal; minta keputusan pengguna.
+schema_version: 1
+status: scaffold_only
+dataset: null
+corpus_snapshot: null
+target_file: configs/benchmark-targets.yaml
+target_suite: regulagraph-performance-v1
+target_status: REQUIRED_UNMEASURED
+release_profile: hybrid_graphrag
+automatic_target_relaxation: false

@@ -1,0 +1,648 @@
+# Target benchmark wajib RegulaGraph-ID, ditetapkan atas arahan pengguna.
+# Peran: satu sumber angka untuk evaluasi Go/Rust/C++/Python; bukan hasil pengukuran.
+# Integrasi: runner kelak membaca file ini; saat ini enforcement masih berupa kontrak scaffold.
+# Perubahan angka, workload, atau floor kualitas memerlukan persetujuan pengguna.
+schema_version: 1
+suite_id: regulagraph-performance-v1
+target_status: REQUIRED_UNMEASURED
+defined_on: "2026-09-19"
+required_for_release: hybrid_graphrag
+other_experiment_profiles: report_only
+target_change_authority: user
+automatic_relaxation: false
+on_gate_failure: continue_fixing_and_retesting_implementation
+implementation_fixes_require_approval: false
+benchmark_changes_require_user_approval: true
+runner_implemented: false
+
+reference:
+  application_node:
+    cpu_physical_cores: 16
+    ram_gib: 64
+    storage: local_nvme
+    gpu_count: 1
+    gpu_vram_gib: 24
+    gpu_role: embedding_and_reranker
+    database_placement: same_node
+    reference_os: linux_x86_64
+  generator:
+    placement: dedicated_separate_endpoint
+    network_rtt_p95_ms_max: 20
+    model_identity: pin_before_test
+    capacity: must_sustain_answer_workload
+    timing_includes_provider_and_network: true
+  note: "Profil asumsi, bukan hardware pengguna. Nama CPU/GPU, storage, OS, provider/model dan precision wajib dicatat; hardware berbeda tidak otomatis setara."
+  manifest_required:
+    - exact_hardware_and_resource_limits
+    - model_tokenizer_prompt_versions_and_precision
+    - runtime_driver_database_versions
+    - corpus_snapshot_and_dataset_hashes
+    - query_mix_and_input_output_length_histograms
+    - cache_policy
+    - configuration_and_suite_hashes
+  corpus:
+    documents_min: 10000
+    chunks_min: 100000
+    canonical_entities_min: 100000
+    graph_edges_min: 1000000
+    query_gold_path_hops: [2, 4]
+    note: "Ukuran adalah batas minimum profil ini, bukan maksimum kapasitas produk atau hard limit traversal."
+
+protocol:
+  performance_runs: 3
+  warmup_seconds: 120
+  measured_seconds_min: 1200
+  arrival_model: open_loop_constant_rate
+  latency_quantile: nearest_rank
+  failures: count_all_scheduled_arrivals
+  missing_latency: positive_infinity_for_unfinished_requests
+  confidence_reporting: "95% interval; quality bootstrap dikelompokkan berdasarkan base question."
+  pass_rule: "Semua gate applicable wajib terpenuhi pada setiap run yang valid; tidak merata-ratakan run gagal."
+  eligibility: "Manifest lengkap dan workload terpenuhi sebelum PASS; tanpa data NOT_MEASURED, prasyarat kurang BLOCKED."
+  quality_floor: "Kecepatan hanya dianggap lulus bersama quality dan invariants."
+  result_cache_enabled: false
+  query_embedding_cache_enabled: false
+  index_and_connection_warmup_allowed: true
+  precision_or_model_changes: require_parity_and_quality_revalidation
+
+workloads:
+  retrieval:
+    requests_per_second: 10
+    max_in_flight: 32
+    requests_per_run_min: 10000
+    completion_deadline_ms: 2000
+    query_tokens_max: 128
+    rerank_pairs: 50
+    tokens_per_pair_max: 512
+    generation_enabled: false
+    note: "10 RPS tetap berjalan saat lambat; max_in_flight bukan alasan melewatkan arrival."
+  answer:
+    requests_per_second: 2
+    max_in_flight: 32
+    requests_per_run_min: 2000
+    completion_deadline_ms: 30000
+    model_input_tokens_max: 8192
+    output_tokens_max: 256
+    output_tokens_p50_min: 128
+    output_tokens_p90_min: 224
+    note: "Gunakan query dengan jawaban lengkap dalam 256 token. Jangan menjadikan jawaban pendek/terpotong sebagai optimasi; kualitas wajib tetap lulus."
+  quality:
+    test_questions_min: 1000
+    answerable_questions_min: 900
+    unanswerable_questions_min: 100
+    questions_per_slice_min: 100
+    slices: [factual, procedural, multi_hop, temporal, typo, informal, code_switched, unanswerable]
+    split_group_key: base_question_id
+    gold_validation: human_reviewed
+    uncertainty: grouped_bootstrap_95_percent
+    note: "Label slice boleh tumpang tindih; pertanyaan/varian satu base group tidak boleh bocor antar split."
+  parsing_quality:
+    annotated_pages_min: 1000
+    standard_scan_pages_min: 500
+    difficult_scan_pages_min_report_only: 100
+    annotated_critical_tokens_min: 10000
+    note: "Gate CER hanya untuk scan cetak standar 300 DPI; scan sulit wajib dilaporkan sebagai strata terpisah."
+  pdf_text:
+    pages_min: 10000
+    workers: 8
+    page_size: A4
+    pages_with_tables_min_ratio: 0.20
+    multi_column_pages_min_ratio: 0.10
+    source: local_files
+    exclude: [ocr, embedding, llm_extraction]
+  pdf_scan:
+    pages_min: 1000
+    scan_dpi: 300
+    workers: 8
+    source: standard_printed_scans
+    exclude: [embedding, llm_extraction]
+  text_transform:
+    input_mib_min: 100
+    source: pre_parsed_text_in_memory
+    include: [normalization, structural_chunking, source_mapping]
+  graph_quality:
+    labeled_relations_min: 5000
+    labeled_mentions_min: 10000
+    same_entity_pairs_min: 5000
+    confusing_different_entity_pairs_min: 5000
+    gold_validation: human_reviewed
+  graph_batch:
+    resolved_relations: 1000000
+    source: in_memory
+    include: [deduplication, provenance_mapping, graph_delta_validation]
+  graph_commit:
+    edges: 1000000
+    batch_edges: 1000
+    include: [endpoint_constraints, provenance, commit_acknowledgement]
+  indexing:
+    chunks: 10000
+    tokens_per_chunk: 512
+    embedding_batch_size: 32
+    exclude: [database_persistence]
+  update:
+    events_min: 100
+    changed_documents_per_event: 1
+    document_pages_max: 10
+    chunks_per_document_max: 50
+    include: [all_invalidated_dependencies, parsing, inference, persistence, publication]
+  incremental:
+    changed_document_ratio: 0.01
+    baseline: full_rebuild_same_corpus
+    all_dependent_artifacts_included: true
+    logical_state_equivalence_required: true
+  mixed_load:
+    query_workload: retrieval
+    ingestion_workload: pdf_text
+    required_query_absolute_gates: [QUERY.EVIDENCE_P95, QUERY.EVIDENCE_P99, QUERY.SUCCESS]
+    note: "Ingestion benar-benar berjalan; laporkan juga stress OCR/model ingestion walau belum ada gate mixed khususnya."
+  invariants:
+    scope: all_published_records_and_deterministic_fixtures
+    required: [source_version_mapping, endpoint_integrity, snapshot_consistency, replay_idempotency, wire_parity]
+  model_parity:
+    dataset: same_frozen_quality_dataset
+    reference: pinned_reference_model
+    native: pinned_exported_model
+    quality_absolute_gates_also_required: true
+
+informational_metrics:
+  - cold_start_and_model_load
+  - monetary_cost_with_price_source_and_date
+  - larger_corpus_and_long_output_stress
+  - difficult_scans
+  - ocr_or_model_ingestion_mixed_load
+  - raw_tensor_error_with_precision_specific_tolerance
+# Informational tidak berarti boleh mengganti gate required dengan metrik ini.
+
+gates:
+  QUERY.EVIDENCE_P95:
+    required: true
+    workload: retrieval
+    statistic: p95
+    unit: ms
+    operator: lte
+    value: 500
+    definition: "Arrival sampai bukti, reranking, dan konteks induk siap; termasuk antrean, model, jaringan, dan database."
+  QUERY.EVIDENCE_P99:
+    required: true
+    workload: retrieval
+    statistic: p99
+    unit: ms
+    operator: lte
+    value: 800
+    definition: "Boundary sama dengan EVIDENCE_P95; diukur end-to-end, bukan penjumlahan percentile tahap."
+  QUERY.SUCCESS:
+    required: true
+    workload: retrieval
+    statistic: ratio
+    unit: ratio
+    operator: gte
+    value: 0.999
+    definition: "Evidence request sukses dibagi seluruh arrival terjadwal; dropped/rejected/timeout tetap dihitung."
+  QUERY.TTFT_P95:
+    required: true
+    workload: answer
+    statistic: p95
+    unit: ms
+    operator: lte
+    value: 2000
+    definition: "Arrival load generator sampai token jawaban substantif pertama; termasuk provider/network, retrieval, dan antrean."
+  QUERY.TTFT_P99:
+    required: true
+    workload: answer
+    statistic: p99
+    unit: ms
+    operator: lte
+    value: 3000
+    definition: "Heartbeat, loading, dan metadata tidak dihitung sebagai token jawaban pertama."
+  QUERY.FULL_P95:
+    required: true
+    workload: answer
+    statistic: p95
+    unit: ms
+    operator: lte
+    value: 10000
+    definition: "Arrival sampai jawaban lengkap dan citation tersedia; input <=8192 token, output <=256 token."
+  QUERY.FULL_P99:
+    required: true
+    workload: answer
+    statistic: p99
+    unit: ms
+    operator: lte
+    value: 15000
+    definition: "Jawaban terpotong sebelum lengkap bukan keberhasilan."
+  QUERY.INTER_TOKEN_P95:
+    required: true
+    workload: answer
+    statistic: p95
+    unit: ms
+    operator: lte
+    value: 50
+    definition: "Jeda token yang terlihat client; buffering dan waktu antre transport ikut diukur."
+  QUERY.ANSWER_SUCCESS:
+    required: true
+    workload: answer
+    statistic: ratio
+    unit: ratio
+    operator: gte
+    value: 0.999
+    definition: "Jawaban selesai dibagi seluruh arrival terjadwal, termasuk request ditolak atau dropped."
+  GO.OVERHEAD_P95:
+    required: true
+    workload: retrieval
+    statistic: p95
+    unit: ms
+    operator: lte
+    value: 20
+    definition: "Total span eksklusif Go per request, termasuk alokasi/GC/serialisasi; tidak termasuk menunggu backend."
+  GO.RSS_PEAK:
+    required: true
+    workload: retrieval
+    statistic: max
+    unit: MiB
+    operator: lte
+    value: 512
+    definition: "RSS proses server Go saat beban referensi; database dan model dicatat terpisah."
+  SEARCH.LEXICAL_P95:
+    required: true
+    workload: retrieval
+    statistic: p95
+    unit: ms
+    operator: lte
+    value: 40
+    definition: "Client Go sampai kandidat lexical diterima, termasuk antrean dan RPC."
+  SEARCH.DENSE_P95:
+    required: true
+    workload: retrieval
+    statistic: p95
+    unit: ms
+    operator: lte
+    value: 50
+    definition: "Pencarian dense setelah vector query siap, termasuk filter dan RPC."
+  SEARCH.GRAPH_P95:
+    required: true
+    workload: retrieval
+    statistic: p95
+    unit: ms
+    operator: lte
+    value: 80
+    definition: "Seluruh traversal dan pengambilan bukti graph untuk satu query; jangan mengukur hanya satu hop."
+  MODEL.QUERY_EMBED_P95:
+    required: true
+    workload: retrieval
+    statistic: p95
+    unit: ms
+    operator: lte
+    value: 50
+    definition: "Query <=128 token, termasuk tokenisasi, antrean, inference, dan transfer."
+  MODEL.RERANK_P95:
+    required: true
+    workload: retrieval
+    statistic: p95
+    unit: ms
+    operator: lte
+    value: 250
+    definition: "50 pasangan <=512 token/pasangan, termasuk semua batch internal, antrean, dan transfer."
+  MODEL.BATCH_WAIT_P99:
+    required: true
+    workload: retrieval
+    statistic: p99
+    unit: ms
+    operator: lte
+    value: 10
+    definition: "Waktu tunggu yang sengaja ditambahkan untuk pembentukan batch online."
+  MODEL.EMBED_THROUGHPUT:
+    required: true
+    workload: indexing
+    statistic: throughput
+    unit: chunks_per_s
+    operator: gte
+    value: 100
+    definition: "10000 chunk masing-masing 512 token, batch 32, warm; tokenisasi/transfer masuk, persistensi tidak."
+  MODEL.VRAM_PEAK:
+    required: true
+    workload: retrieval
+    statistic: max
+    unit: GiB
+    operator: lte
+    value: 22
+    definition: "Embedding dan reranker gabungan pada GPU 24 GiB; generation endpoint terpisah."
+  CONTEXT.BUILD_P95:
+    required: true
+    workload: retrieval
+    statistic: p95
+    unit: ms
+    operator: lte
+    value: 40
+    definition: "Pemulihan parent, fetch sumber, deduplikasi, dan serialisasi konteks."
+  QUALITY.RECALL_AT_20:
+    required: true
+    workload: quality
+    statistic: macro_mean
+    unit: ratio
+    operator: gte
+    value: 0.97
+    definition: "Fraction gold provision-version evidence dalam top-20 sebelum context packing, dirata-rata atas query answerable."
+  QUALITY.NDCG_AT_10:
+    required: true
+    workload: quality
+    statistic: macro_mean
+    unit: ratio
+    operator: gte
+    value: 0.9
+    definition: "Ranking akhir dengan relevance grade manusia 0..3; gold ranking dibekukan."
+  QUALITY.MULTIHOP_COMPLETE:
+    required: true
+    workload: quality
+    statistic: ratio
+    unit: ratio
+    operator: gte
+    value: 0.9
+    definition: "Query multi-hop yang seluruh gold evidence chain-nya tersedia dalam top-20."
+  QUALITY.CONTEXT_COMPLETE:
+    required: true
+    workload: quality
+    statistic: ratio
+    unit: ratio
+    operator: gte
+    value: 0.9
+    definition: "Query answerable dengan seluruh set bukti minimum yang sah bertahan setelah context packing."
+  QUALITY.ANSWER_CORRECT:
+    required: true
+    workload: quality
+    statistic: ratio
+    unit: ratio
+    operator: gte
+    value: 0.95
+    definition: "Jawaban answerable benar serta lengkap pada poin esensial menurut rubrik manusia; abstain dihitung salah."
+  QUALITY.SLICE_MIN:
+    required: true
+    workload: quality
+    statistic: minimum_slice_ratio
+    unit: ratio
+    operator: gte
+    value: 0.9
+    definition: "Minimum akurasi answerable per slice factual/procedural/multi-hop/temporal/typo/informal/code-switch."
+  QUALITY.CITATION_PRECISION:
+    required: true
+    workload: quality
+    statistic: micro_ratio
+    unit: ratio
+    operator: gte
+    value: 0.99
+    definition: "Citation-claim pairs dengan dukungan semantik dan versi tepat dibagi seluruh citation-claim pairs."
+  QUALITY.CITATION_COVERAGE:
+    required: true
+    workload: quality
+    statistic: micro_ratio
+    unit: ratio
+    operator: gte
+    value: 0.98
+    definition: "Klaim faktual yang membutuhkan sumber dan memiliki citation pendukung dibagi seluruh klaim yang membutuhkan sumber."
+  QUALITY.TEMPORAL_ACCURACY:
+    required: true
+    workload: quality
+    statistic: ratio
+    unit: ratio
+    operator: gte
+    value: 0.99
+    definition: "Query temporal dengan versi bukti yang seluruhnya tepat, atau unknown sesuai gold label."
+  QUALITY.ABSTENTION_RECALL:
+    required: true
+    workload: quality
+    statistic: ratio
+    unit: ratio
+    operator: gte
+    value: 0.98
+    definition: "Query unanswerable yang dilaporkan tidak cukup bukti dibagi seluruh query unanswerable."
+  QUALITY.FALSE_ABSTENTION:
+    required: true
+    workload: quality
+    statistic: ratio
+    unit: ratio
+    operator: lte
+    value: 0.02
+    definition: "Query answerable yang ditolak karena dianggap tanpa bukti dibagi seluruh query answerable."
+  PARSING.TEXT_THROUGHPUT:
+    required: true
+    workload: pdf_text
+    statistic: throughput
+    unit: pages_per_s
+    operator: gte
+    value: 100
+    definition: "Agregat 8 worker membaca PDF lokal, parsing, normalisasi, chunking, source mapping; tanpa OCR/model."
+  PARSING.TEXT_PAGE_P95:
+    required: true
+    workload: pdf_text
+    statistic: p95
+    unit: ms
+    operator: lte
+    value: 100
+    definition: "Service time per halaman PDF teks; antrean job dilaporkan terpisah."
+  PARSING.OCR_THROUGHPUT:
+    required: true
+    workload: pdf_scan
+    statistic: throughput
+    unit: pages_per_s
+    operator: gte
+    value: 2
+    definition: "Render 300 DPI, OCR, normalisasi, chunking, source mapping; tanpa embedding/LLM."
+  PARSING.STRUCTURE_F1:
+    required: true
+    workload: parsing_quality
+    statistic: micro_f1
+    unit: ratio
+    operator: gte
+    value: 0.99
+    definition: "F1 batas pasal/ayat/huruf pada halaman berlabel; laporkan per strata."
+  PARSING.OCR_CER:
+    required: true
+    workload: parsing_quality
+    statistic: corpus_cer
+    unit: ratio
+    operator: lte
+    value: 0.01
+    definition: "CER subset scan cetak 300 DPI yang ditetapkan sebelum run; scan sulit tetap dilaporkan terpisah."
+  PARSING.CRITICAL_TOKENS:
+    required: true
+    workload: parsing_quality
+    statistic: micro_ratio
+    unit: ratio
+    operator: gte
+    value: 0.999
+    definition: "Ketepatan nomor/tahun, negasi, dan pengecualian berlabel; exact match tanpa perubahan nilai."
+  CHUNKING.THROUGHPUT:
+    required: true
+    workload: text_transform
+    statistic: throughput
+    unit: MiB_per_s
+    operator: gte
+    value: 10
+    definition: "Normalisasi dan structural chunking teks parsed dalam memori; mapping sumber tetap lengkap."
+  RUST.RSS_PEAK:
+    required: true
+    workload: pdf_text
+    statistic: max
+    unit: GiB
+    operator: lte
+    value: 2
+    definition: "Peak RSS gabungan 8 worker Rust; model/database tidak termasuk."
+  EXTRACTION.PRECISION:
+    required: true
+    workload: graph_quality
+    statistic: micro_ratio
+    unit: ratio
+    operator: gte
+    value: 0.98
+    definition: "Relasi benar mencakup endpoint, predicate, arah, kondisi, serta dukungan sumber."
+  EXTRACTION.RECALL:
+    required: true
+    workload: graph_quality
+    statistic: micro_ratio
+    unit: ratio
+    operator: gte
+    value: 0.9
+    definition: "Gold relations yang ditemukan secara benar dibagi seluruh gold relations."
+  RESOLUTION.PAIR_PRECISION:
+    required: true
+    workload: graph_quality
+    statistic: pairwise_ratio
+    unit: ratio
+    operator: gte
+    value: 0.995
+    definition: "Pasangan yang benar-benar same-entity dibagi pasangan yang diprediksi satu canonical."
+  RESOLUTION.PAIR_RECALL:
+    required: true
+    workload: graph_quality
+    statistic: pairwise_ratio
+    unit: ratio
+    operator: gte
+    value: 0.97
+    definition: "Pasangan same-entity yang berhasil disatukan dibagi seluruh pasangan same-entity gold."
+  RESOLUTION.BLOCKING_RECALL:
+    required: true
+    workload: graph_quality
+    statistic: pairwise_ratio
+    unit: ratio
+    operator: gte
+    value: 0.995
+    definition: "Pasangan same-entity gold yang tercakup candidate blocking sebelum resolver."
+  GRAPH.ASSEMBLY_THROUGHPUT:
+    required: true
+    workload: graph_batch
+    statistic: throughput
+    unit: edges_per_s
+    operator: gte
+    value: 50000
+    definition: "1 juta relasi resolved menjadi GraphDelta tervalidasi dalam memori; bukan throughput database."
+  GRAPH.COMMIT_THROUGHPUT:
+    required: true
+    workload: graph_commit
+    statistic: throughput
+    unit: edges_per_s
+    operator: gte
+    value: 5000
+    definition: "Commit 1 juta relasi dengan endpoint/provenance melalui Go ke Neo4j; hitung sampai commit diakui."
+  UPDATE.PUBLICATION_P95:
+    required: true
+    workload: update
+    statistic: p95
+    unit: ms
+    operator: lte
+    value: 5000
+    definition: "Semua artefak siap sampai snapshot konsisten dapat dibaca; ekstraksi sebelumnya diukur terpisah."
+  UPDATE.DOCUMENT_P95:
+    required: true
+    workload: update
+    statistic: p95
+    unit: s
+    operator: lte
+    value: 60
+    definition: "Satu dokumen berubah <=10 halaman dan <=50 chunk sampai terlihat, termasuk model dan invalidasi."
+  UPDATE.REBUILD_RATIO:
+    required: true
+    workload: incremental
+    statistic: ratio
+    unit: ratio
+    operator: lte
+    value: 0.1
+    definition: "Waktu update 1% dokumen / full rebuild corpus sama, termasuk seluruh dependensi terdampak dan hasil logis setara."
+  ISOLATION.QUERY_P95_RATIO:
+    required: true
+    workload: mixed_load
+    statistic: ratio
+    unit: ratio
+    operator: lte
+    value: 1.2
+    definition: "p95 evidence dengan ingestion / tanpa ingestion; batas absolut QUERY.EVIDENCE_P95/P99 tetap berlaku."
+  ISOLATION.INGESTION_RATIO:
+    required: true
+    workload: mixed_load
+    statistic: ratio
+    unit: ratio
+    operator: gte
+    value: 0.5
+    definition: "Throughput ingestion mixed / ingestion-only; query cepat tidak boleh dicapai dengan menghentikan ingestion."
+  INVARIANT.SOURCE_MAPPING:
+    required: true
+    workload: invariants
+    statistic: ratio
+    unit: ratio
+    operator: gte
+    value: 1
+    definition: "Semua chunk/relasi/citation terbit memiliki referensi sumber dan versi yang tersedia."
+  INVARIANT.ORPHAN_EDGES:
+    required: true
+    workload: invariants
+    statistic: count
+    unit: count
+    operator: lte
+    value: 0
+    definition: "Jumlah edge terbit yang endpoint-nya hilang."
+  INVARIANT.SNAPSHOT_MISMATCH:
+    required: true
+    workload: invariants
+    statistic: count
+    unit: count
+    operator: lte
+    value: 0
+    definition: "Jumlah query sukses dengan snapshot bukti yang tidak kompatibel."
+  INVARIANT.UNCHANGED_REEXTRACTION:
+    required: true
+    workload: invariants
+    statistic: count
+    unit: count
+    operator: lte
+    value: 0
+    definition: "Replay sumber dan dependency identik tidak memanggil model ekstraksi ulang."
+  INVARIANT.REPLAY_DIFF:
+    required: true
+    workload: invariants
+    statistic: count
+    unit: count
+    operator: lte
+    value: 0
+    definition: "Perbedaan state logis setelah replay; normalisasi timestamp/run ID didefinisikan sebelum test."
+  INVARIANT.WIRE_PARITY:
+    required: true
+    workload: invariants
+    statistic: ratio
+    unit: ratio
+    operator: gte
+    value: 1
+    definition: "Semua golden fixture mempertahankan ID, versi, field, dan offset UTF-8 byte lintas bahasa."
+  PARITY.RECALL_DROP:
+    required: true
+    workload: model_parity
+    statistic: difference
+    unit: percentage_points
+    operator: lte
+    value: 0.5
+    definition: "Penurunan Recall@20 native dari referensi; 0.5 berarti setengah poin persentase."
+  PARITY.NDCG_DROP:
+    required: true
+    workload: model_parity
+    statistic: difference
+    unit: percentage_points
+    operator: lte
+    value: 0.5
+    definition: "Penurunan nDCG@10 native dari referensi; quality gates absolut tetap berlaku."

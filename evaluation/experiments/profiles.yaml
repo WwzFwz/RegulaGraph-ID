@@ -1,0 +1,23 @@
+# Definisi awal empat profil eksperimen, bukan konfigurasi runtime yang aktif.
+# Peran: membedakan kontribusi retrieval tanpa menyalin implementasi pipeline.
+# Integrasi: generator, corpus, prompt, dan context budget harus sebanding.
+# Benchmark: EVAL dan RETRIEVAL; reranking menjadi faktor ablation yang dinyatakan.
+schema_version: 1
+status: scaffold_only
+profiles:
+  vector_rag:
+    retrievers: [dense]
+  hybrid_rag:
+    retrievers: [lexical, dense]
+  graph_rag:
+    retrievers: [graph]
+  hybrid_graphrag:
+    retrievers: [lexical, dense, graph]
+# Seed linking pada graph_rag harus dilaporkan, termasuk bila memakai embedding.
+# Strategi fusion, routing, dan anggaran tiap retriever masih perlu ditentukan.
+
+# Acceptance release memakai target wajib; baseline tetap dilaporkan tanpa menyamakan FAIL dengan hasil release.
+acceptance:
+  target_file: configs/benchmark-targets.yaml
+  required_profile: hybrid_graphrag
+  baseline_policy: report_only

@@ -1,0 +1,8 @@
+# Spesifikasi konfigurasi ingestion yang belum dikonsumsi runtime Go/Rust/native.
+# Peran: parameter parsing, chunking struktural, graph engineering, dan update.
+# Integrasi: key aktual akan divalidasi loader Go; versi/fingerprint ikut manifest.
+# Benchmark: PARSING, CHUNKING, EXTRACTION, RESOLUTION, UPDATE; angka wajib di configs/benchmark-targets.yaml.
+schema_version: 1
+status: scaffold_only
+parameters: {}
+# Tidak ada ukuran chunk, overlap, model, atau concurrency default yang dipaksakan.
