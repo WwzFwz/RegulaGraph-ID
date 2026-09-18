@@ -1,0 +1,55 @@
+# Aturan kerja repositori RegulaGraph-ID
+
+File ini menampung aturan penempatan kode dan dokumentasi lintas repositori sesuai arahan pemilik proyek. Perannya adalah menjaga batas fungsional komponen ketika scaffold berkembang menjadi implementasi.
+
+## Baca cakupan sebelum mengubah
+
+Sebelum menambah atau memindahkan komponen, baca README.md pada folder tujuan dan seluruh induknya yang relevan. Setiap README mendefinisikan superset fungsi yang boleh berada di dalam folder serta kontrak integrasi anak-anaknya.
+
+Jika fungsi baru tidak termasuk cakupan tersebut, jangan menaruhnya di sana atau memperluas deskripsi folder secara sepihak. Siapkan penjelasan fungsi, lokasi yang diusulkan, dampak integrasi, dan alasan ketidaksesuaian, lalu tanyakan kepada pengguna apakah perlu membuat folder baru atau memasukkannya ke folder yang ada dengan memperbarui cakupannya. Persetujuan yang sudah diberikan pengguna tetap berlaku; pekerjaan lain yang tidak bergantung pada keputusan itu boleh berlanjut. Penambahan rutin yang sesuai cakupan tidak memerlukan konfirmasi ulang.
+
+## Dokumentasikan setiap folder dan file
+
+Setiap folder sumber, konfigurasi, dokumentasi, evaluasi, dan pengujian yang dikelola proyek wajib memiliki README.md. Penjelasan cakupan, peran arsitektur, dan integrasi harus berupa paragraf yang bermakna. Folder yang hanya dihasilkan otomatis oleh alat, seperti .git, cache, virtual environment, dan direktori build (termasuk .cache dan target), tidak termasuk struktur komponen yang dikelola.
+
+Setiap file kode baru diawali docstring atau komentar yang menjelaskan fungsi, peran dalam komponen, kontrak input/output atau integrasinya, dan perhatian performa yang relevan. File konfigurasi diawali komentar dengan tujuan dan status penggunaannya. File Markdown diawali penjelasan peran dokumen. Berkas biner dan referensi pihak ketiga dijelaskan dalam README pendamping, bukan diubah isinya.
+
+Bila implementasi menggantikan scaffold, perbarui docstring status dan README agar tidak mengklaim fungsi yang belum tersedia atau tetap menyebut fungsi aktif sebagai placeholder. Dokumentasikan anak baru dan perubahan dependency.
+
+## Integrasi dan arsitektur
+
+Pengelompokan kode produk dalam src dan konfigurasi deployment dalam deployment telah disetujui pengguna pada keputusan 0004. Folder src/server, src/ingestion, src/inference, dan src/contracts menggantikan pembungkus runtime di root. Workspace manifest tetap di root; evaluation, tooling, tests, configs, migrations, scripts, doc, data, dan artifacts tetap terpisah. Perubahan struktur ini tidak memerlukan persetujuan ulang.
+
+Struktur runtime telah disetujui pengguna: src/server adalah Go untuk API/CLI, workflow, retrieval, answering, serta adapter; src/ingestion adalah Rust untuk transformasi dokumen/graph/index batch; src/inference adalah C++ untuk wrapper inference; evaluation dan tooling adalah Python offline. src/contracts menjadi sumber schema wire bersama. Keputusan 0002 menggantikan pemilihan paket produksi Python pada keputusan 0001.
+
+Pertahankan pemisahan fungsi domain, ingestion, knowledge_graph, indexing, retrieval, answering, workflow, dan adapter di runtime pemiliknya. Go memiliki penjadwalan job serta commit/publication storage; Rust menghasilkan batch dan dependency manifest. Route dan CLI memanggil workflow; evaluator menggunakan endpoint atau artefak produksi, bukan salinan algoritmanya. Fusion/filter/context/citation tetap satu proses Go.
+
+Import/inisialisasi paket dan static initializer tidak boleh membuka koneksi atau memuat model. ID sumber, canonical ID, versi pasal, provenance, dan snapshot corpus harus diteruskan lintas komponen. Jangan menghapus versi lama atau bukti bersama ketika memperbarui satu sumber.
+
+Keputusan yang telah disepakati adalah chunk mengikuti struktur dengan konteks induk, entity resolution/canonical identity, pemilihan versi pasal yang sesuai, dan pemrosesan incremental. Latency dan throughput merupakan prioritas desain. Target numerik benchmark sudah diwajibkan dalam configs/benchmark-targets.yaml pada profil referensi asumsi. Provider/model serta parameter runtime dipilih dan dibekukan sebelum run yang dinilai. Jalur request memakai workflow Go dan tidak bergantung pada LangGraph Python. Jangan memaksakan pruning sebagai optimasi tanpa pengukuran.
+
+## Benchmark
+
+Untuk subkomponen yang memengaruhi akurasi, latency, throughput, biaya, memori, atau konsistensi, sertakan metrik dan cara pengukurannya pada dokumentasi file. Ikuti doc/benchmark-policy.md. Angka target desain yang ambisius telah ditetapkan atas arahan pengguna dalam configs/benchmark-targets.yaml, suite regulagraph-performance-v1. Gunakan asumsi hardware, corpus, dan workload yang dinyatakan. Status REQUIRED_UNMEASURED bukan hasil tercapai atau SLA empiris. Jangan mengarang hasil benchmark; prasyarat tidak lengkap menghasilkan BLOCKED/NOT_MEASURED, bukan PASS.
+
+Perbandingan model/retrieval menyatakan corpus snapshot, split dataset, konfigurasi, versi model/prompt, dan perbedaan anggaran konteks. Mock tidak membuktikan kualitas model. Catat hasil eksperimen dalam artifacts dan keputusan arsitektur dalam doc/decisions.
+
+## Verifikasi
+
+Lakukan pemeriksaan yang sesuai perubahan. Untuk scaffold, periksa build Go, cargo check, CMake C++, syntax Python, dokumentasi folder/file, tautan lokal, serta validitas metadata/config; tidak perlu menulis unit test yang hanya mencerminkan daftar file. Untuk perilaku yang diimplementasikan kemudian, pilih pengujian bermakna dan laporkan keterbatasan verifikasinya.
+
+## Kontrak lintas bahasa
+
+Setiap boundary batch atau inference menggunakan schema version serta source/canonical/provision-version/snapshot ID yang konsisten. src/contracts/proto adalah sumber wire schema; field belum dibekukan pada scaffold. Source offset yang dipertukarkan direncanakan sebagai byte UTF-8, start-inclusive/end-exclusive, disertai identitas teks asli/normalisasi; implementasi harus mempertahankan pemetaan keduanya. Jangan mendefinisikan kontrak paralel yang tidak sinkron di Go/Rust/Python.
+
+Gunakan batch untuk pekerjaan besar dan hindari RPC per langkah kecil retrieval. Jangan memuat model per request, mengulang graph extraction saat query, atau membiarkan job bulk menghabiskan kapasitas query. Ukur p95/p99 dan waktu antre selain throughput rata-rata. Generated binding/artefak compiler adalah keluaran alat; jangan menganggapnya komponen baru yang membutuhkan README per folder cache.
+
+## Target required dan negosiasi
+
+Setiap required gate applicable adalah syarat kelulusan profil release Hybrid GraphRAG. Latency, throughput, kualitas, dan invariant dinilai bersama. Agent tidak boleh menurunkan angka, mengurangi beban, mengganti denominator, membuang kasus sulit, atau melaporkan run gagal sebagai lulus agar target terlihat tercapai.
+
+Jika run valid gagal, terus perbaiki implementasi, lakukan profiling/optimasi, dan uji ulang sampai target tercapai. Kegagalan benchmark bukan alasan berhenti atau meminta izin untuk memperbaiki kode; pekerjaan tersebut sudah diotorisasi dalam scope. Jangan otomatis mengalihkan kegagalan menjadi negosiasi standar.
+
+Persetujuan pengguna diperlukan ketika mengusulkan perubahan benchmark: angka target, workload, asumsi penerimaan, atau kriteria lulus. Usulan harus memuat target vs hasil aktual, kondisi run, bottleneck, optimasi yang telah dicoba, opsi perbaikan, dan perubahan benchmark beserta dampaknya. Selama perubahan belum disetujui, benchmark lama tetap berlaku dan perbaikan yang tidak terblokir tetap dilanjutkan. Simpan raw results dan versi suite sebelumnya. Ini mengikuti klarifikasi pengguna pada 2026-09-19.
+
+Angka disimpan satu kali di YAML; dokumentasi dan header subkomponen merujuk sumber yang sama. Runner saat ini belum mengimplementasikan evaluasi gate, sehingga jangan mengklaim enforcement otomatis hanya karena konfigurasi tersedia.

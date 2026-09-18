@@ -1,0 +1,20 @@
+# Packaging tooling Python offline untuk evaluation dan persiapan model.
+# Peran: Python tidak lagi menjadi runtime API, retrieval, atau ingestion produksi.
+# Integrasi: runner berkomunikasi dengan kontrak/artefak Go-Rust-C++; dependency ML belum dipilih.
+# Performa: tooling tidak dimasukkan ke jalur request interaktif.
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "regulagraph-tooling"
+version = "0.0.1"
+description = "Offline evaluation and model tooling for RegulaGraph-ID"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["evaluation*", "tooling*"]
+namespaces = false

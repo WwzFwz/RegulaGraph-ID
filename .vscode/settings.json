@@ -1,0 +1,4 @@
+{
+    "cmake.sourceDirectory": "${workspaceFolder}/src/inference",
+    "cmake.buildDirectory": "${workspaceFolder}/.cache/inference-src"
+}

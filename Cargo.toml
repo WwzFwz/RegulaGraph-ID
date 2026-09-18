@@ -1,0 +1,6 @@
+# Workspace Rust untuk komponen pemrosesan native RegulaGraph-ID.
+# Peran: menyatukan crate worker dan konfigurasi build yang dapat direproduksi.
+# Integrasi: target build/benchmark berada di .cache; belum ada dependency jaringan.
+[workspace]
+members = ["src/ingestion"]
+resolver = "2"

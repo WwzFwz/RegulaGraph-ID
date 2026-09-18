@@ -1,0 +1,6 @@
+// Workspace Go untuk monorepo RegulaGraph-ID.
+// Peran: menghubungkan aplikasi server tanpa memindahkan Python evaluation ke serving.
+// Integrasi: hanya module aplikasi yang dikelola proyek terdaftar di sini.
+go 1.22.0
+
+use ./src/server

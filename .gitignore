@@ -1,0 +1,35 @@
+# Kebijakan version control untuk scaffold dan artefak lokal.
+# Peran: menjaga rahasia, cache, data besar, dan hasil run di luar kode sumber.
+# Integrasi: README data/artifacts tetap dilacak; dataset gold kecil ditinjau terpisah.
+# Pola ini tidak menghapus file dan tidak menjadi kontrol akses terhadap rahasia.
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+/data/*
+!/data/README.md
+/artifacts/*
+!/artifacts/README.md
+
+# Keluaran compiler, cache lokal, dan stackdump diagnostik tidak masuk source.
+.cache/
+target/
+*.exe
+*.dll
+*.lib
+*.a
+*.o
+*.obj
+*.pdb
+*.stackdump
