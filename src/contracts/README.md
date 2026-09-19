@@ -10,6 +10,8 @@ Fungsi di luar cakupan ini mengikuti komponen pemiliknya. Jika fungsi baru tidak
 
 Kontrak menyatukan ID, versi, snapshot, error/status, dan satuan offset. Generated binding tidak menjadi definisi independen; transport belum diimplementasikan.
 
+Rancangan seluruh record serta operasi berada pada [system-contracts](../../doc/system-contracts.md); publication dan identity semantics berada pada [storage-consistency](../../doc/storage-consistency.md). Desain tidak dibatasi ke kontrak minimum. File proto masih scaffold hingga paket C01 merealisasikan schema dan verifikasi kompatibilitasnya.
+
 Pertahankan source/canonical/provision-version/snapshot ID dan schema version lintas anak. Boundary runtime mengikuti [src/contracts](README.md), dengan pekerjaan batch atau inference yang jelas. Perubahan bentuk data, error/status, serta offset sumber harus didokumentasikan bersama konsumennya; jangan menggandakan kebijakan publikasi di beberapa runtime.
 
 ## Isi saat ini

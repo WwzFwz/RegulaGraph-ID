@@ -8,7 +8,7 @@ Fungsi di luar cakupan ini mengikuti komponen pemiliknya. Jika fungsi baru tidak
 
 ## Peran dan integrasi anak
 
-File saat ini hanya deklarasi syntax/package tanpa message/service. Sebelum codegen, tetapkan field, ownership, ID dan offset UTF-8 byte end-exclusive yang mengacu pada teks yang disebutkan kontrak.
+File saat ini hanya deklarasi syntax/package tanpa message/service. Katalog field semantik seluruh sistem telah dirancang pada [system-contracts](../../../../../doc/system-contracts.md), termasuk ownership, API/RPC/event, ID, presence, error, dan offset UTF-8 byte end-exclusive. Paket C01 pada [development-plan](../../../../../doc/development-plan.md) merealisasikan seluruh katalog menjadi schema, codegen, validator, dan golden fixtures sebelum konsumen produksi diimplementasikan.
 
 Pertahankan source/canonical/provision-version/snapshot ID dan schema version lintas anak. Boundary runtime mengikuti [src/contracts](../../../README.md), dengan pekerjaan batch atau inference yang jelas. Perubahan bentuk data, error/status, serta offset sumber harus didokumentasikan bersama konsumennya; jangan menggandakan kebijakan publikasi di beberapa runtime.
 

@@ -2,6 +2,8 @@
 
 Dokumen ini menjelaskan arsitektur monorepo Go/Rust/C++/Python yang telah disetujui pengguna dengan prioritas latency dan throughput. Struktur serta manifest build sudah dimigrasikan; pipeline, transport job, database, dan model belum diimplementasikan.
 
+Dokumen ini menjadi ringkasan pemilik komponen. Rancangan menyeluruh terdapat pada [system-design](system-design.md), [system-contracts](system-contracts.md), [storage-consistency](storage-consistency.md), dan [development-plan](development-plan.md), sesuai keputusan 0005. Bila ringkasan tidak memuat rincian failure/field, gunakan spesifikasi tersebut; jangan menganggap rincian itu di luar cakupan produk.
+
 ## Pemilik komponen
 
 | Runtime/lokasi | Tanggung jawab |
@@ -34,7 +36,7 @@ Perubahan isi maupun dependency fingerprint dapat menginvalidasi chunk, relasi, 
 
 PostgreSQL direncanakan untuk metadata/versi/manifest, Qdrant untuk indeks pencarian, Neo4j untuk graph dengan provenance, dan storage berkas untuk dokumen asli serta artefak batch. Tidak ada asumsi transaksi atomik lintas backend; staging/checkpoint/idempotensi dan publication marker menjaga pembacaan snapshot.
 
-Go-Rust dan Go/Rust-inference menggunakan operasi coarse-grained: satu job/batch, bukan RPC per edge atau token. Proto scaffold hanya memiliki package/syntax; message, service, codegen, transport, dan strategi deployment belum aktif. Inference C++ saat ini berupa target static library; wrapper transport akan diimplementasikan setelah kontrak matang.
+Go-Rust dan Go/Rust-inference dirancang memakai gRPC berukuran job/batch, bukan RPC per edge atau token. Semantic-model gateway di Go menerima operasi batch worker, sedangkan inference C++ melayani embedding/reranking. Proto scaffold hanya memiliki package/syntax; message, service, codegen, transport, dan strategi deployment belum aktif. Inference C++ saat ini berupa target static library; executable wrapper dan seluruh kontrak akan direalisasikan menurut paket C01/N01 pada rencana pengembangan.
 
 Offset wire menggunakan rencana byte UTF-8 start-inclusive/end-exclusive dengan identitas teks terkait. Parser mempertahankan mapping ke teks asli bila normalisasi mengubah posisi. Source/canonical/provision-version/snapshot ID diteruskan tanpa perubahan identitas berdasarkan nama tampilan.
 

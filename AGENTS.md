@@ -18,6 +18,8 @@ Bila implementasi menggantikan scaffold, perbarui docstring status dan README ag
 
 ## Integrasi dan arsitektur
 
+Pengguna meminta desain seluruh sistem sejak awal, bukan pembatasan ke kontrak minimum. Sebelum implementasi, ikuti doc/system-design.md, doc/system-contracts.md, doc/storage-consistency.md, doc/corpus-plan.md, dan doc/development-plan.md. Keputusan 0005 membedakan baseline desain menyeluruh dari implementasi scaffold. Seluruh kontrak direalisasikan pada paket C01; urutan coding mengikuti dependency, bukan urutan folder. Sumber corpus yang dipilih adalah Database Peraturan BPK, JDIH Kemkomdigi, dan JDIHN Nasional.
+
 Pengelompokan kode produk dalam src dan konfigurasi deployment dalam deployment telah disetujui pengguna pada keputusan 0004. Folder src/server, src/ingestion, src/inference, dan src/contracts menggantikan pembungkus runtime di root. Workspace manifest tetap di root; evaluation, tooling, tests, configs, migrations, scripts, doc, data, dan artifacts tetap terpisah. Perubahan struktur ini tidak memerlukan persetujuan ulang.
 
 Struktur runtime telah disetujui pengguna: src/server adalah Go untuk API/CLI, workflow, retrieval, answering, serta adapter; src/ingestion adalah Rust untuk transformasi dokumen/graph/index batch; src/inference adalah C++ untuk wrapper inference; evaluation dan tooling adalah Python offline. src/contracts menjadi sumber schema wire bersama. Keputusan 0002 menggantikan pemilihan paket produksi Python pada keputusan 0001.

@@ -1,7 +1,7 @@
 # Spesifikasi konfigurasi retrieval dan answering yang masih berupa scaffold.
 # Peran: tempat parameter jalur lexical/dense/graph, fusion, reranking, dan konteks.
 # Integrasi: snapshot/filter konsisten dan model query sesuai model indeks.
-# Benchmark: RETRIEVAL, RERANK, CONTEXT, ANSWER; tidak ada SLA yang sudah ditetapkan.
+# Benchmark: RETRIEVAL, RERANK, CONTEXT, ANSWER; target required di benchmark-targets.yaml, belum ada hasil terukur.
 schema_version: 1
 status: scaffold_only
 parameters: {}

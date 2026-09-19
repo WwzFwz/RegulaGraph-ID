@@ -14,7 +14,7 @@ Anak tidak boleh mengubah kontrak input/output secara tersembunyi. Perubahan ben
 
 ## Isi saat ini
 
-Berkas langsung: [0001-scaffold-boundaries.md](0001-scaffold-boundaries.md), [0002-polyglot-runtime.md](0002-polyglot-runtime.md), [0003-required-benchmark-targets.md](0003-required-benchmark-targets.md), [0004-product-source-layout.md](0004-product-source-layout.md).
+Berkas langsung: [0001-scaffold-boundaries.md](0001-scaffold-boundaries.md), [0002-polyglot-runtime.md](0002-polyglot-runtime.md), [0003-required-benchmark-targets.md](0003-required-benchmark-targets.md), [0004-product-source-layout.md](0004-product-source-layout.md), [0005-complete-system-design.md](0005-complete-system-design.md).
 
 ## Benchmark dan perhatian kualitas
 

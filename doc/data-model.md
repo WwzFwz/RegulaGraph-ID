@@ -2,6 +2,8 @@
 
 Dokumen ini menjelaskan rancangan konseptual identitas dan hubungan data lintas komponen. Definisi class, schema database, format ID konkret, dan migrasinya belum diimplementasikan; src/contracts/proto menjadi sumber bentuk wire; domain Go dan Rust merupakan representasi lokal yang mengacu padanya.
 
+Katalog lengkap record dan field semantik ada pada [system-contracts](system-contracts.md). Aturan fingerprint, registry ID, temporal visibility, persistensi, serta recovery ada pada [storage-consistency](storage-consistency.md). Keduanya adalah baseline desain seluruh sistem; dokumen ini mempertahankan ringkasan konsep.
+
 ## Dokumen dan ketentuan
 
 Source artifact adalah berkas atau halaman yang benar-benar diambil, dengan locator, content hash, format, dan waktu observasi. Regulation adalah identitas peraturan yang memerlukan tipe, penerbit atau yurisdiksi bila relevan, nomor, dan tahun. Jangan memakai nama tampilan atau filename sebagai satu-satunya kunci identitas.
@@ -34,4 +36,4 @@ Adapter persisten bertanggung jawab pada constraint lokal. Workflow bertanggung 
 
 Go server, Rust worker, C++ inference, dan Python evaluator mempertukarkan ID serta versi melalui src/contracts. Source range direncanakan sebagai offset byte UTF-8 start-inclusive/end-exclusive dengan identitas teks asli atau hasil normalisasi; mapping keduanya wajib dipertahankan. Jangan menyamakan byte offset dengan code point atau UTF-16 index.
 
-Rust menghasilkan GraphDelta dan batch record; Go coordinator memegang commit dan publikasi snapshot. Protobuf saat ini hanya mendeklarasikan syntax/package, belum message/service dan belum generated binding. Rincian field difinalisasi bersama implementasi agar tidak ada schema paralel yang berbeda.
+Rust menghasilkan GraphDelta dan batch record; Go coordinator memegang commit dan publikasi snapshot. Protobuf saat ini hanya mendeklarasikan syntax/package, belum message/service dan belum generated binding. Field semantik seluruh sistem telah dirancang pada system-contracts; realisasi tipe/tag/service, validator, serta codegen dilakukan sebagai paket C01 sebelum konsumen produksi diimplementasikan. Perbedaan yang ditemukan saat pembuktian diperbarui pada spesifikasi dan schema secara bersamaan.
