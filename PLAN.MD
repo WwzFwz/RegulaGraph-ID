@@ -69,3 +69,9 @@ BM25 Vector         Graph
 ## Keputusan runtime dan struktur
 
 Pembagian bahasa telah disetujui dengan prioritas latency dan throughput: Go di src/server, Rust di src/ingestion, C++ di src/inference, dan Python di evaluation/tooling. src/contracts menyimpan schema lintas runtime. Lihat [arsitektur](doc/architecture.md) dan [keputusan 0002](doc/decisions/0002-polyglot-runtime.md). Status proyek masih scaffold; deskripsi sistem di atas merupakan target, belum hasil implementasi atau benchmark.
+
+## Desain lengkap sebelum implementasi
+
+Pengguna memilih perancangan seluruh sistem sejak awal. [Desain menyeluruh](doc/system-design.md) menghubungkan use case, runtime, alur query/ingestion, graph, inference, deployment, dan evaluasi. [Kontrak sistem](doc/system-contracts.md) merancang seluruh record/API/RPC/event. [Storage dan konsistensi](doc/storage-consistency.md) menetapkan identity, temporal state, snapshot publication, incremental dependency, dan recovery.
+
+Sumber corpus yang dipilih adalah Database Peraturan BPK, JDIH Kemkomdigi, serta JDIHN Nasional; [rencana corpus](doc/corpus-plan.md) menjelaskan akuisisi, provenance, deduplikasi, serta gold dataset. [Rencana implementasi](doc/development-plan.md) memecah pekerjaan menurut dependency beserta syarat selesai. Desain lengkap tidak berarti schema/layanan sudah aktif atau benchmark sudah tercapai; target required tetap berlaku tanpa perubahan.
