@@ -10,6 +10,8 @@ Dokumen mentah besar berada di data; output model berada di artifacts. Komponen 
 
 Anak memiliki schema dan provenance label, reviewer, group ID, serta split. Parafrasa, typo, dan code-switch dari pertanyaan dasar yang sama harus berada pada split yang sama.
 
+Ikuti [rencana corpus dan gold](../../doc/corpus-plan.md) untuk sumber BPK/Kemkomdigi/JDIHN, acceptable evidence sets, temporal labels, dan review manusia. [Kontrak evaluasi](../../doc/system-contracts.md) menetapkan manifest dataset/run serta observasi/gate. Data mentah di data berbeda dari gold berlabel di sini; label test tidak dipakai untuk tuning.
+
 Anak tidak boleh mengubah kontrak input/output secara tersembunyi. Perubahan bentuk data, identitas, versi, atau penanganan error didokumentasikan bersama konsumennya. File implementasi menjelaskan perhatian spesifiknya pada docstring atau komentar pembuka; aturan induk tetap berlaku.
 
 ## Isi saat ini

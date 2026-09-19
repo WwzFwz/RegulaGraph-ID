@@ -10,6 +10,8 @@ Dataset gold berada di evaluation/datasets; laporan pengukuran berada di artifac
 
 Anak atau artefak data harus memiliki asal, hash, dan versi schema yang dapat ditelusuri. Path lokal bukan canonical ID; konten besar dan data sensitif tidak masuk version control.
 
+[Rencana corpus](../doc/corpus-plan.md) menetapkan sumber BPK, JDIH Kemkomdigi, dan JDIHN serta inventory, source observations, raw blob, mapping, dan staging. Folder ini tetap menampung data kerja lokal; pertanyaan/jawaban/bukti berlabel untuk penilaian berada di evaluation/datasets. Belum ada unduhan corpus massal atau gold set yang dihasilkan oleh dokumentasi ini.
+
 Anak tidak boleh mengubah kontrak input/output secara tersembunyi. Perubahan bentuk data, identitas, versi, atau penanganan error didokumentasikan bersama konsumennya. File implementasi menjelaskan perhatian spesifiknya pada docstring atau komentar pembuka; aturan induk tetap berlaku.
 
 ## Isi saat ini
