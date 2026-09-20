@@ -10,7 +10,7 @@ Fungsi di luar cakupan ini mengikuti komponen pemiliknya. Jika fungsi baru tidak
 
 Kontrak menyatukan ID, versi, snapshot, error/status, dan satuan offset. Generated binding tidak menjadi definisi independen; service Worker kini memakai binding gRPC Go dan Rust dari proto yang sama.
 
-Rancangan seluruh record serta operasi berada pada [system-contracts](../../doc/system-contracts.md); publication dan identity semantics berada pada [storage-consistency](../../doc/storage-consistency.md). File proto memiliki message/service descriptor C01 serta baseline kompatibilitas. Transport Worker loopback aktif untuk PARSE; inference/registry dan deployment TLS produksi belum aktif.
+Rancangan seluruh record serta operasi berada pada [system-contracts](../../doc/system-contracts.md); publication dan identity semantics berada pada [storage-consistency](../../doc/storage-consistency.md). File proto memiliki message/service descriptor C01 serta baseline kompatibilitas. Transport Worker loopback aktif untuk PARSE/STRUCTURE; inference/registry dan deployment TLS produksi belum aktif.
 
 Pertahankan source/canonical/provision-version/snapshot ID dan schema version lintas anak. Boundary runtime mengikuti [src/contracts](README.md), dengan pekerjaan batch atau inference yang jelas. Perubahan bentuk data, error/status, serta offset sumber harus didokumentasikan bersama konsumennya; jangan menggandakan kebijakan publikasi di beberapa runtime.
 

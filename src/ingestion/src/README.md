@@ -8,7 +8,7 @@ Logika di luar cakupan ini ditempatkan pada komponen pemiliknya. Jika fungsi bar
 
 ## Peran dan integrasi anak
 
-lib.rs mengekspos module tree, proyeksi wire C01, adapter artefak lokal, dan service worker Tonic. Worker menerima batch PARSE; Go tetap memegang job durable dan publication.
+lib.rs mengekspos module tree, proyeksi wire C01, adapter artefak lokal, dan service worker Tonic. Worker menerima batch PARSE dan STRUCTURE; Go tetap memegang job durable, registry identity, dan publication.
 
 Pertahankan source/canonical/provision-version/snapshot ID dan schema version lintas anak. Boundary runtime mengikuti [src/contracts](../../contracts/README.md), dengan pekerjaan batch atau inference yang jelas. Perubahan bentuk data, error/status, serta offset sumber harus didokumentasikan bersama konsumennya; jangan menggandakan kebijakan publikasi di beberapa runtime.
 
@@ -26,4 +26,4 @@ Ikuti [kebijakan benchmark](../../../doc/benchmark-policy.md). Angka wajib mengi
 
 ## Status
 
-Modul parsing, normalisasi, structural chunking, validator chunk, proyeksi/persistence `TextArtifact` dan `DocumentBatch`, incremental planner, serta selector timeline telah aktif. Worker gRPC menjalankan tahap PARSE dengan descriptor terverifikasi, batas resource agregat, provenance runtime, fencing/idempotency, completion parsial eksplisit, dan checkpoint yang mengikat artifact output; coordinator Go sudah menyimpan handoff tersebut. Stage lanjutan tanpa input identitas hukum tetap ditolak. Extraction change-event, registry canonical, table/OCR, graph, indexing, object storage, dan publication penuh masih belum aktif. Build serta fixture tidak membuktikan acceptance kualitas, durability, atau latency produksi.
+Modul parsing, normalisasi, structural chunking, validator chunk, proyeksi/persistence `TextArtifact` dan `DocumentBatch`, incremental planner, serta selector timeline telah aktif. Worker gRPC menjalankan PARSE dan STRUCTURE dengan descriptor terverifikasi, fencing/idempotency, completion eksplisit, serta checkpoint yang mengikat output; coordinator Go melakukan handoff durable keduanya. Chunk tetap menunggu assignment provision/version eksplisit dari registry Go. Extraction change-event, registry canonical, table/OCR, graph, indexing, object storage, dan publication penuh masih belum aktif. Build serta fixture tidak membuktikan acceptance kualitas, durability, atau latency produksi.

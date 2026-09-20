@@ -14,7 +14,7 @@ Baseline pertama ada di [schema-lock.json](../src/contracts/schema-lock.json), t
 
 Go, Rust, C++ dan Python memiliki validator aturan descriptor serta invariant dasar bersama. Fixture lintas bahasa menguji hasil valid/invalid, unknown binary fields, optional presence, uint64, tanggal, offset Unicode, vector, ukuran, graph path dan corpus scope. Validasi tidak berarti semua aturan bisnis identik diterapkan di setiap runtime.
 
-Go memiliki guard tambahan sesuai ownership: korelasi worker/model batch, publication receipts, evidence/context/answer dan urutan stream. Client Worker kini memanggil validasi wire dan `VerifyWorkerResponse` sebelum menerima output; workflow scheduler belum terhubung. Adapter lain wajib memanggil guard sebelum efek samping. Pemeriksaan authoritative registry, akses pengguna, visibilitas storage, artifact checksum nyata dan keberlakuan hukum tetap memerlukan pemilik S01/I01/K01/A01.
+Go memiliki guard tambahan sesuai ownership: korelasi worker/model batch, publication receipts, evidence/context/answer dan urutan stream. Client Worker memanggil validasi wire dan `VerifyWorkerResponse`; coordinator durable kini memakai guard tersebut untuk PARSE dan STRUCTURE sebelum mendaftarkan artefak/checkpoint. Adapter lain wajib memanggil guard sebelum efek samping. Pemeriksaan authoritative registry, akses pengguna, visibilitas storage, artifact checksum nyata dan keberlakuan hukum tetap memerlukan pemilik S01/I01/K01/A01.
 
 `VerifyCitationEvidence` membutuhkan lookup metadata sumber tepercaya yang dipin ke snapshot. URL dan page locator harus berasal dari source blob yang cocok dengan versi citation. Containment SourceSpan saat ini memeriksa ID artefak dan batas rentang pada evidence; pemetaan artefak teks ke blob/versi dan UTF-8 teks aktual harus disediakan I01/A01 sebelum penerbitan citation. Pemeriksaan struktur tidak membuktikan bahwa isi pasal mendukung klaim.
 
@@ -53,4 +53,4 @@ LIBUPB dinonaktifkan karena tidak dipakai binding C++ ini dan build C library te
 
 ## Pekerjaan berikutnya
 
-Ikuti [implementation-guide](implementation-guide.md) dan [verification](verification.md). E01 membangun evaluator required gate; S01 menghubungkan guard ke storage dan transaksi nyata. Transport Worker PARSE adalah konsumen awal C01, sedangkan N01/A01 masih perlu inference dan citation resolver. C01 belum membuktikan quality model, end-to-end performance atau seluruh invariant pada data produksi.
+Ikuti [implementation-guide](implementation-guide.md) dan [verification](verification.md). E01 membangun evaluator required gate; S01 menghubungkan guard ke storage dan transaksi nyata. Transport Worker PARSE/STRUCTURE adalah konsumen awal C01, sedangkan N01/A01 masih perlu inference dan citation resolver. C01 belum membuktikan quality model, end-to-end performance atau seluruh invariant pada data produksi.

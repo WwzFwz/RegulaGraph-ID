@@ -14,7 +14,7 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
-[repository.go](repository.go) mengelola lifecycle pool dan error boundary. [migrate.go](migrate.go) menerapkan migration terurut dengan advisory lock serta checksum. [jobs.go](jobs.go) mengelola idempotency, claim generik, claim khusus PARSE, lease/fence, polling cancellation, checkpoint, dan completion atomik yang memberi prioritas pada cancellation. [artifacts.go](artifacts.go) mengikat metadata immutable serta dependency lookup revision. [publication.go](publication.go) merealisasikan reservation, backend receipt, snapshot CAS, outbox, abort, dan read lease. [types.go](types.go) membawa record internal yang dipakai workflow. [repository_integration_test.go](repository_integration_test.go) adalah suite PostgreSQL aktual dan akan skip jika DSN test tidak tersedia.
+[repository.go](repository.go) mengelola lifecycle pool dan error boundary. [migrate.go](migrate.go) menerapkan migration terurut dengan advisory lock serta checksum. [jobs.go](jobs.go) mengelola idempotency, claim PARSE/STRUCTURE, attempt global dan budget retry per stage, lease/fence, polling cancellation, checkpoint, dan completion atomik yang memberi prioritas pada cancellation. [artifacts.go](artifacts.go) mengikat serta memuat metadata immutable untuk handoff checkpoint. [publication.go](publication.go) merealisasikan reservation, backend receipt, snapshot CAS, outbox, abort, dan read lease. [repository_integration_test.go](repository_integration_test.go) adalah suite PostgreSQL aktual dan akan skip jika DSN test tidak tersedia.
 
 ## Benchmark dan perhatian performa
 
@@ -26,7 +26,9 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Fondasi S01 untuk schema migration, artifact metadata/dependency, durable jobs, retry availability/max-attempt, publication ledger, active-snapshot pointer, dan read lease telah aktif. Ini adalah control-plane visibility/pinning; filter visibility per record pada Neo4j/Qdrant masih milik X01/Q01. Integration suite membuktikan jalur utama terhadap PostgreSQL aktual; hasil serta keterbatasannya dicatat dalam laporan verifikasi S01/I01. Canonical resolution tingkat lanjut, dependency closure U01, backend mutation, retention/GC, dan benchmark performa masih mengikuti paket pemiliknya. Build dan fixture tidak membuktikan target kualitas atau latency.
+Fondasi S01 untuk schema migration, artifact metadata/dependency, durable jobs, retry availability dan budget per stage, handoff PARSE→STRUCTURE, publication ledger, active-snapshot pointer, dan read lease telah aktif. Ini adalah control-plane visibility/pinning; filter visibility per record pada Neo4j/Qdrant masih milik X01/Q01. Integration suite membuktikan jalur utama terhadap PostgreSQL aktual; hasil serta keterbatasannya dicatat dalam laporan verifikasi S01/I01. Canonical resolution tingkat lanjut, dependency closure U01, backend mutation, retention/GC, dan benchmark performa masih mengikuti paket pemiliknya.
+
+Checkpoint STRUCTURE yang telah mengikat output dapat direkonsiliasi setelah lease kedaluwarsa tanpa menambah budget stage, termasuk pada attempt maksimum. PARSE belum memiliki terminal outcome durable yang membedakan batch lengkap dari batch parsial; checkpoint PARSE karena itu tidak mendapat jalur sukses recovery yang sama.
 
 ## Rekomendasi implementasi anak
 
@@ -35,6 +37,6 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
 | [repository.go](repository.go) dan [migrate.go](migrate.go) | Pertahankan pool eksplisit dan migration checksum; tambahkan rollout migration hanya melalui file bernomor baru. | Uji schema kosong, replay, checksum drift, timeout, serta upgrade snapshot produksi. |
-| [jobs.go](jobs.go) | Pertahankan claim PARSE, cancellation fenced, dan retry durable; tambah claim khusus untuk stage berikutnya serta API cancellation. | Failure injection pada expiry/renewal/checkpoint, verifikasi stage ownership, lock contention, serta ukur queue time dan pool saturation. |
+| [jobs.go](jobs.go) | Pertahankan claim PARSE/STRUCTURE, cancellation fenced, dan retry per-stage; tambah lease heartbeat, claim registry/CHUNK, serta API cancellation. | Failure injection pada expiry/renewal/checkpoint, verifikasi stage ownership dan attempt monotonic, lock contention, serta ukur queue time dan pool saturation. |
 | [artifacts.go](artifacts.go) | Gunakan dependency rows untuk closure U01 dan batch registration. | Bandingkan closure incremental dengan rebuild dan ukur reverse lookup pada corpus referensi. |
 | [publication.go](publication.go) | Sambungkan backend operations, compensation, retention, dan recovery U01/O01. | Injeksi crash di setiap langkah, verifikasi historical visibility, read lease, dan pool saturation. |

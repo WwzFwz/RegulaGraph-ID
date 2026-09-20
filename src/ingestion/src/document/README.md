@@ -32,7 +32,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-Parser PDFium I01 menghasilkan teks, locator, status halaman, dan manifest terikat hash. Normalizer menghasilkan mapping byte canonical; chunking library membentuk hierarki dan source-mapped chunk. Worker Tonic sudah menjalankan PARSE sampai `TextArtifact` dan `DocumentBatch` immutable, tetapi belum menjalankan structure/chunk karena request belum membawa identitas ketentuan. Planner incremental dan selector timeline aktif sebagai library. Extraction change-event, registry canonical, tabel, OCR, gold temporal, full-rebuild equivalence, dan acceptance produksi belum aktif.
+Parser PDFium I01 menghasilkan teks, locator, status halaman, dan manifest terikat hash. Normalizer menghasilkan mapping byte canonical serta manifest konfigurasi yang diverifikasi ulang ketika STRUCTURE membaca artefak. Worker Tonic menjalankan PARSE lalu STRUCTURE menjadi `DocumentBatch` immutable baru. Deteksi struktur tidak membutuhkan ID hukum; builder chunk kini menerima `provision_version_id` secara eksplisit dan belum dijalankan worker sampai registry Go memasok binding tersebut. Planner incremental dan selector timeline aktif sebagai library. Extraction change-event, registry canonical, tabel, OCR, gold temporal, full-rebuild equivalence, dan acceptance produksi belum aktif.
 
 ## Rekomendasi implementasi anak
 
