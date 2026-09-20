@@ -24,7 +24,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-Status lintas repositori: collector PDF dan kontrak/validator C01 sudah tersedia; lihat [cakupan implementasi C01](../../../../doc/contracts-implementation.md). Pipeline parsing/graph/retrieval, adapter storage, layanan model dan evaluator benchmark masih belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
+Publication coordinator S01 sudah aktif untuk reserve, stage, acknowledge, pre-commit validation, snapshot CAS, dan abort melalui durable store. Mutation batch Neo4j/Qdrant, BM25/vector generations, compensation menyeluruh, serta benchmark indexing/retrieval masih mengikuti X01/U01. Build dan fixture tidak membuktikan target kualitas atau latency.
 
 ## Rekomendasi implementasi anak
 
@@ -32,4 +32,4 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
-| [publication.go](publication.go) | Implement durable publication state machine: stage, verify receipts, CAS snapshot marker, reconcile and retire safely. | Call VerifyPublicationReady before committing; inject crash after each backend step and reject stale fences/search-unready acknowledgements. |
+| [publication.go](publication.go) | Sambungkan batch mutation X01 serta compensation/reconcile/retire U01/O01 pada state machine yang sudah aktif. | Pertahankan VerifyPublicationReady sebelum commit; injeksi crash setiap backend dan tolak fence/receipt stale. |

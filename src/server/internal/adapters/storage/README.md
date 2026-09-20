@@ -14,7 +14,7 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
-Berkas: [files.go](files.go).
+[files.go](files.go) menyediakan local FileStore dengan `os.Root` confinement, scoped relative key, streaming SHA-256, byte-count verification, cancellation, file fsync, atomic no-replace publish, immutable reuse, dan penolakan path traversal/symlink. Directory chain di-fsync pada platform yang mendukungnya. Windows tidak mengizinkan directory-handle sync melalui API ini, sehingga power-loss durability entry direktori adalah batas deployment/backup O01 dan tidak diklaim lulus oleh S01. [files_test.go](files_test.go) memeriksa jalur correctness utama tanpa mengklaim throughput produksi.
 
 ## Benchmark dan perhatian performa
 
@@ -26,7 +26,7 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Status lintas repositori: collector PDF dan kontrak/validator C01 sudah tersedia; lihat [cakupan implementasi C01](../../../../../doc/contracts-implementation.md). Pipeline parsing/graph/retrieval, adapter storage, layanan model dan evaluator benchmark masih belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
+Local artifact adapter S01 sudah aktif untuk write/read immutable terverifikasi. Retention-aware cleanup, object-store production, process-crash injection, dan benchmark bytes/detik/peak RSS masih belum diukur atau diimplementasikan sesuai paket U01/O01. Status anak dijelaskan pada header masing-masing; unit test tidak membuktikan target performa.
 
 ## Rekomendasi implementasi anak
 
@@ -34,4 +34,4 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
-| [files.go](files.go) | Resolve scoped ArtifactRef keys, stream hash-verified reads, atomically persist immutable content and support retention-aware cleanup. | Test traversal/symlink escapes, short writes, corrupt hashes and crash between temp/rename; measure bytes/s and peak buffers. |
+| [files.go](files.go) | Pertahankan write/read immutable; tambahkan retention-aware cleanup setelah read-lease policy O01 tersedia. | Perluas symlink/process-crash/short-write injection lintas platform; ukur bytes/s dan peak buffers. |

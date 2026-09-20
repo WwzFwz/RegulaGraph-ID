@@ -14,7 +14,7 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
-Berkas: [repository.go](repository.go).
+[repository.go](repository.go) mengelola lifecycle pool dan error boundary. [migrate.go](migrate.go) menerapkan migration terurut dengan advisory lock serta checksum. [jobs.go](jobs.go) mengelola idempotency, claim, lease/fence, checkpoint, dan transisi. [artifacts.go](artifacts.go) mengikat metadata immutable serta dependency lookup revision. [publication.go](publication.go) merealisasikan reservation, backend receipt, snapshot CAS, outbox, abort, dan read lease. [types.go](types.go) membawa record internal yang dipakai workflow. [repository_integration_test.go](repository_integration_test.go) adalah suite PostgreSQL aktual dan akan skip jika DSN test tidak tersedia.
 
 ## Benchmark dan perhatian performa
 
@@ -26,7 +26,7 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Status lintas repositori: collector PDF dan kontrak/validator C01 sudah tersedia; lihat [cakupan implementasi C01](../../../../../doc/contracts-implementation.md). Pipeline parsing/graph/retrieval, adapter storage, layanan model dan evaluator benchmark masih belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
+Fondasi S01 untuk schema migration, artifact metadata/dependency, durable jobs, publication ledger, active-snapshot pointer, dan read lease telah aktif. Ini adalah control-plane visibility/pinning; filter visibility per record pada Neo4j/Qdrant masih milik X01/Q01. Integration suite membuktikan jalur utama terhadap PostgreSQL aktual; hasil serta keterbatasannya dicatat dalam laporan verifikasi S01. Canonical resolution tingkat lanjut, dependency closure U01, backend mutation, retention/GC, dan benchmark performa masih mengikuti paket pemiliknya. Build dan fixture tidak membuktikan target kualitas atau latency.
 
 ## Rekomendasi implementasi anak
 
@@ -34,4 +34,7 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
-| [repository.go](repository.go) | Implement metadata/identity registry, jobs/fences, publication ledger and snapshot reads with transactions and migrations. | Test uniqueness and concurrent claims/CAS, crash recovery, historical visibility and pool saturation on actual PostgreSQL. |
+| [repository.go](repository.go) dan [migrate.go](migrate.go) | Pertahankan pool eksplisit dan migration checksum; tambahkan rollout migration hanya melalui file bernomor baru. | Uji schema kosong, replay, checksum drift, timeout, serta upgrade snapshot produksi. |
+| [jobs.go](jobs.go) | Sambungkan worker Rust dan cancellation tanpa melemahkan fence. | Failure injection pada expiry/renewal/checkpoint serta ukur queue time dan contention. |
+| [artifacts.go](artifacts.go) | Gunakan dependency rows untuk closure U01 dan batch registration. | Bandingkan closure incremental dengan rebuild dan ukur reverse lookup pada corpus referensi. |
+| [publication.go](publication.go) | Sambungkan backend operations, compensation, retention, dan recovery U01/O01. | Injeksi crash di setiap langkah, verifikasi historical visibility, read lease, dan pool saturation. |

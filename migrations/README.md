@@ -14,7 +14,7 @@ Anak tidak boleh mengubah kontrak input/output secara tersembunyi. Perubahan ben
 
 ## Isi saat ini
 
-Folder ini baru menyediakan kontrak dokumentasi. File implementasi ditambahkan ketika pekerjaannya dimulai; tidak ada perilaku runtime yang dijanjikan oleh keberadaan folder.
+[0001_storage_foundation.up.sql](0001_storage_foundation.up.sql) membentuk schema S01 untuk corpus state, artefak immutable, job/lease/fence/checkpoint, canonical identity dan resolution decision, dependency/lookup revision, publication generation/receipt/operation ledger, snapshot pointer, outbox, serta read lease. Runner Go mencatat checksum file dan menolak version drift.
 
 ## Benchmark dan perhatian kualitas
 
@@ -24,8 +24,8 @@ Lihat [kebijakan benchmark](../doc/benchmark-policy.md) untuk protokol pengukura
 
 ## Status implementasi
 
-Status lintas repositori: collector PDF dan kontrak/validator C01 sudah tersedia; lihat [cakupan implementasi C01](../doc/contracts-implementation.md). Pipeline parsing/graph/retrieval, adapter storage, layanan model dan evaluator benchmark masih belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
+Migration fondasi S01 sudah aktif dan telah diuji pada schema PostgreSQL kosong serta replay checksum. Migration ini hanya mencakup transaksi lokal PostgreSQL; mutation/rollback lintas Neo4j dan Qdrant memakai publication protocol. Upgrade dari schema produksi lama belum applicable karena belum ada release schema sebelumnya; benchmark performa tetap REQUIRED_UNMEASURED.
 
 ## Pekerjaan berikutnya dan integrasi
 
-S01 perlu migrasi metadata, canonical registry/revision, jobs/leases/fences, dependency lookup revision, publication ledger dan snapshot visibility. Buktikan uniqueness/CAS, upgrade dari schema lama dan recovery pada PostgreSQL nyata; jangan menganggap transaksi ini mencakup Neo4j/Qdrant.
+Migration berikutnya harus memakai nomor baru dan menjelaskan kompatibilitas, backfill, lock impact, serta recovery. Uji upgrade dari revision sebelumnya ketika schema telah dirilis; jangan mengedit checksum migration yang sudah diterapkan atau menganggap transaksi ini mencakup Neo4j/Qdrant.

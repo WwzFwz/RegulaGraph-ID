@@ -1,6 +1,6 @@
 # Storage, identitas, snapshot, dan recovery
 
-Dokumen ini merancang persistensi dan konsistensi lintas PostgreSQL, Qdrant, Neo4j, serta storage artefak. Perannya menetapkan cara data baru menjadi terlihat tanpa mencampur snapshot atau kehilangan provenance. Protokol berikut belum diimplementasikan; ia menjadi spesifikasi untuk adapter, workflow, migrasi, serta fault-injection tests pada [rencana pengembangan](development-plan.md).
+Dokumen ini merancang persistensi dan konsistensi lintas PostgreSQL, Qdrant, Neo4j, serta storage artefak. Perannya menetapkan cara data baru menjadi terlihat tanpa mencampur snapshot atau kehilangan provenance. Fondasi control-plane S01 sudah aktif untuk job durable, request/checkpoint recovery, operation ledger, receipt, active-snapshot CAS, pin pembaca, dan artefak lokal immutable. Visibility record di Qdrant/Neo4j, mutasi/kompensasi backend nyata, dependency closure lengkap, retention/GC, backup/restore, serta fault injection lintas proses tetap spesifikasi untuk X01/U01/O01 pada [rencana pengembangan](development-plan.md).
 
 ## 1. Identitas dan fingerprint
 
@@ -71,7 +71,7 @@ Rollback logis dari snapshot buruk dibuat sebagai publication baru yang merefere
 
 Request mem-pin snapshot serta generation sepanjang retrieval, parent hydration, streaming, dan terminal validation. Read lease dibatasi deadline; disconnect/cancel melepasnya. Long evaluation run memperoleh pin eksplisit. Garbage collector hanya menghapus data di luar retention policy yang tidak direferensikan snapshot retained, read lease, job aktif, atau artefak evaluasi yang wajib direproduksi.
 
-Retensi angka operasional belum ditentukan; konfigurasi wajib menyatakannya sebelum produksi. Tidak ada penghapusan fisik otomatis pada scaffold ini. Backup meliputi manifest PG, registry, model/config refs, immutable blobs, serta kemampuan restore/rebuild indeks yang sesuai. Restore drill harus membuktikan citation sumber, temporal query, counts, dan invariant, bukan hanya server database dapat start.
+Retensi angka operasional belum ditentukan; konfigurasi wajib menyatakannya sebelum produksi. Implementasi saat ini tidak melakukan penghapusan fisik otomatis. Backup meliputi manifest PG, registry, model/config refs, immutable blobs, serta kemampuan restore/rebuild indeks yang sesuai. Restore drill harus membuktikan citation sumber, temporal query, counts, dan invariant, bukan hanya server database dapat start.
 
 ## 8. BM25, generation, dan statistik corpus
 

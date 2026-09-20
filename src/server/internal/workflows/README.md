@@ -16,7 +16,7 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 Berkas: [answer.go](answer.go), [ingest.go](ingest.go), [update.go](update.go), [collect.go](collect.go), [collect_test.go](collect_test.go), [discover.go](discover.go), [discover_test.go](discover_test.go).
 
-collect menjalankan batch acquisition D01 melalui adapter sources dengan deduplikasi URL, jumlah worker terbatas, cancellation, progress, serta hitungan sukses/reuse/gagal. Ia belum membuat job persisten, memublikasikan snapshot, atau menjalankan pipeline pada ingest/update/answer yang masih scaffold. [Panduan collector](../../../../doc/acquisition.md) menjelaskan cara menjalankannya.
+collect menjalankan batch acquisition D01 melalui adapter sources dengan deduplikasi URL, jumlah worker terbatas, cancellation, progress, serta hitungan sukses/reuse/gagal. Scheduler pada ingest.go sekarang membuat job persisten S01 dengan idempotency, claim, lease/fence, checkpoint, dan transisi state; update.go membatasi submit pada operasi update. Collector belum otomatis mengubah hasil download menjadi job, dan pipeline Rust/model sampai publication belum tersambung. [Panduan collector](../../../../doc/acquisition.md) menjelaskan cara menjalankannya.
 
 discover.go menyimpan checkpoint discovery.json dan antrean queue.txt setelah setiap halaman baru; satu proses penulis per direktori. Seed diikuti breadth-first dengan batas halaman per run, URL dideduplikasi, error dipertahankan dan dicoba ulang pada run berikutnya. Checkpoint adalah inventaris D01 lokal, bukan durable job produksi. Hasil discover tidak membuktikan ketersediaan PDF atau canonical identity.
 
@@ -30,7 +30,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-Status lintas repositori: collector PDF dan kontrak/validator C01 sudah tersedia; lihat [cakupan implementasi C01](../../../../doc/contracts-implementation.md). Pipeline parsing/graph/retrieval, adapter storage, layanan model dan evaluator benchmark masih belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
+Collector D01, kontrak/validator C01, dan scheduler durable S01 sudah aktif. Parsing/graph/index runtime, worker dispatch, answering, dan evaluator benchmark end-to-end masih mengikuti paket berikutnya. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
 
 ## Rekomendasi implementasi anak
 
@@ -41,5 +41,5 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | [answer.go](answer.go) | Pin one snapshot, resolve temporal intent, coordinate retrieval/context/generation and validate terminal evidence; propagate cancellation. | Test unavailable dependencies, evidence conflicts and snapshot rollover mid-request; trace queue and stage durations. |
 | [collect.go](collect.go) | Retain resumable acquisition; integrate receipts into S01 jobs without changing PDF byte-cap accounting. | Test cancellation and budget stop with concurrent workers; reconcile completed/failed/deferred counts and no dangling producer. |
 | [discover.go](discover.go) | Retain durable queue checkpoints; add source-specific discovery only after inspecting real portal layouts. | Test cycles, duplicate seeds, resumed pagination and bounded new-page counts; report coverage gaps explicitly. |
-| [ingest.go](ingest.go) | Schedule typed worker stages with idempotency keys, leases/fences, checkpoints and bounded capacity; hand validated batches to publisher. | Test retry after crash, duplicate delivery, stale worker response and cancellation before publication with real storage. |
-| [update.go](update.go) | Build dependency closure including empty lookup revisions; stage replacements and publish while retaining old versions and shared supports. | Test source withdrawal, late references, canonical merge/split and interrupted reindex; compare incremental output to clean rebuild. |
+| [ingest.go](ingest.go) | Sambungkan scheduler S01 yang aktif ke worker stage I01/K01/X01 dan publication coordinator. | Pertahankan retry/duplicate/stale-fence tests; tambahkan cancellation dan bounded-capacity dispatch dengan storage nyata. |
+| [update.go](update.go) | Bangun dependency closure termasuk empty lookup revision; stage replacement dan pertahankan versi/bukti bersama. | Uji source withdrawal, late reference, canonical merge/split dan interrupted reindex; bandingkan dengan clean rebuild. |
