@@ -14,7 +14,7 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
-[files.go](files.go) menyediakan local FileStore dengan `os.Root` confinement, scoped relative key, streaming SHA-256, byte-count verification, cancellation, file fsync, atomic no-replace publish, immutable reuse, dan penolakan path traversal/symlink. Directory chain di-fsync pada platform yang mendukungnya. Windows tidak mengizinkan directory-handle sync melalui API ini, sehingga power-loss durability entry direktori adalah batas deployment/backup O01 dan tidak diklaim lulus oleh S01. [files_test.go](files_test.go) memeriksa jalur correctness utama tanpa mengklaim throughput produksi.
+[files.go](files.go) menyediakan local FileStore dengan `os.Root` confinement, scoped relative key, streaming SHA-256, byte-count verification, cancellation, file fsync, atomic no-replace publish, immutable reuse, dan penolakan path traversal/symlink. Pembacaan batch in-memory memeriksa ukuran file sebelum hashing, membatasi stream terhadap ukuran referensi, lalu memverifikasi hash kembali setelah alokasi terbatas; mismatch deterministik ditandai sebagai pelanggaran integritas. Directory chain di-fsync pada platform yang mendukungnya. Windows tidak mengizinkan directory-handle sync melalui API ini, sehingga power-loss durability entry direktori adalah batas deployment/backup O01 dan tidak diklaim lulus oleh S01. [files_test.go](files_test.go) memeriksa jalur correctness utama tanpa mengklaim throughput produksi.
 
 ## Benchmark dan perhatian performa
 

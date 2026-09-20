@@ -386,7 +386,7 @@ cmake -S src/inference -B .cache/inference-src
 cmake --build .cache/inference-src --config Release
 ```
 
-Build Go memvalidasi package, collector, storage/control-plane, client Worker, serta daemon coordinator PARSE→STRUCTURE; entry point API query tetap scaffold. Rust menyediakan executable worker Tonic untuk PARSE dengan PDFium dan STRUCTURE dari artefak text/mapping terverifikasi, termasuk deadline, fence, cancellation, dan checkpoint output. C++ masih static library tanpa ONNX runtime/model. C01 menyediakan 157 message, 31 enum, empat service descriptor, codegen dan validator. Binding registry untuk provision-version/CHUNK, stage EXTRACT–INDEX, inference, dan deployment produksi belum aktif. Packaging Python hanya mencakup evaluation dan tooling.
+Build Go memvalidasi package, collector, storage/control-plane, client Worker, serta daemon coordinator PARSE→STRUCTURE→BIND; entry point API query tetap scaffold. Rust menyediakan executable worker Tonic untuk PARSE dengan PDFium dan STRUCTURE dari artefak text/mapping terverifikasi, termasuk deadline, fence, cancellation, dan checkpoint output. Go BIND menyelesaikan exact canonical identity, materialisasi regulation/provision-version, dependency evidence, serta recovery fenced. C++ masih static library tanpa ONNX runtime/model. C01 menyediakan 157 message, 31 enum, empat service descriptor, codegen dan validator. CHUNK produksi, stage EXTRACT–INDEX, inference, dan deployment produksi belum aktif. Packaging Python hanya mencakup evaluation dan tooling.
 
 ## Performa dan benchmark
 

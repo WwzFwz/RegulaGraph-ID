@@ -18,7 +18,7 @@ Subfolder: [cmd/](cmd/README.md), [internal/](internal/README.md).
 
 Berkas: [go.mod](go.mod), [go.sum](go.sum).
 
-CLI discover/collect/audit sudah menjalankan acquisition D01: metadata halaman detail, unduhan PDF nyata, checksum, resume, discovery terbatas, serta inventory provenance terverifikasi. Scheduler/job dan publication control-plane S01 aktif. Coordinator PARSE→STRUCTURE membentuk request dari job durable, memanggil worker Rust, memvalidasi artifact/checkpoint, dan menyimpan handoff fenced. Planner exact regulation identity, allocator canonical PostgreSQL, dan materializer domain regulation/provision juga aktif. API query, retrieval/answering, stage EXTRACT–INDEX, workflow/persistence hasil binding, serta backend model belum tersambung. Lihat [panduan akuisisi](../../doc/acquisition.md).
+CLI discover/collect/audit sudah menjalankan acquisition D01: metadata halaman detail, unduhan PDF nyata, checksum, resume, discovery terbatas, serta inventory provenance terverifikasi. Scheduler/job dan publication control-plane S01 aktif. Coordinator PARSE→STRUCTURE membentuk request dari job durable dan memanggil worker Rust; executor BIND Go memverifikasi handoff, menyelesaikan exact identity issuer/regulasi/pasal, serta menyimpan output/dependency/checkpoint untuk CHUNK. API query, retrieval/answering, stage CHUNK dan EXTRACT–INDEX, serta backend model belum tersambung. Lihat [panduan akuisisi](../../doc/acquisition.md).
 
 ## Benchmark dan perhatian performa
 
@@ -28,4 +28,4 @@ Ikuti [kebijakan benchmark](../../doc/benchmark-policy.md). Angka wajib mengikut
 
 ## Status
 
-Collector/audit D01, kontrak/validator C01, evaluator E01, adapter control-plane S01, jalur PARSE→STRUCTURE Go–Rust, exact identity planner/allocator K01, serta binding domain ke record regulasi/provision sudah tersedia. Workflow/persistence binding, resolusi semantik/merge-split, graph extraction, index/retrieval, mutasi backend, dan layanan model masih belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity dan test correctness tidak membuktikan target kualitas atau latency.
+Collector/audit D01, kontrak/validator C01, evaluator E01, adapter control-plane S01, jalur PARSE→STRUCTURE Go–Rust, exact identity planner/allocator K01, serta workflow/persistence BIND ke record regulasi/provision sudah tersedia. Resolusi semantik/merge-split, CHUNK produksi, graph extraction, index/retrieval, mutasi backend, dan layanan model masih belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity dan test correctness tidak membuktikan target kualitas atau latency.

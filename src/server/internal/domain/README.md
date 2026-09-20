@@ -24,7 +24,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-Kontrak/validator C01, tipe boundary job/publication S01, planner exact regulation identity K01, serta transform assignment registry menjadi `Regulation`, `DocumentEdition`, `Provision`, dan `ProvisionVersion` sudah aktif sebagai library domain; lihat [cakupan implementasi C01](../../../../doc/contracts-implementation.md). Binding memeriksa ulang observation dan structural closure, mempertahankan legal date/status sebagai unknown, serta menandai source tanpa structured text sebagai partial. Allocator canonical PostgreSQL aktif, tetapi workflow job, persistence hasil binding, dan stage CHUNK produksi belum tersambung. Helper domain graph/retrieval/answer lain masih mengikuti paket pemiliknya. Build dan fixture tidak membuktikan target kualitas atau latency.
+Kontrak/validator C01, tipe boundary job/publication S01, planner exact regulation identity K01, serta transform assignment registry menjadi `Regulation`, `DocumentEdition`, `Provision`, dan `ProvisionVersion` sudah aktif; lihat [cakupan implementasi C01](../../../../doc/contracts-implementation.md). Binding memeriksa ulang observation dan structural closure, mempertahankan legal date/status sebagai unknown, serta menandai source tanpa structured text sebagai partial. Workflow job dan persistence hasil binding sudah terhubung melalui executor BIND, sedangkan stage CHUNK produksi belum tersambung. Helper domain graph/retrieval/answer lain masih mengikuti paket pemiliknya. Build dan fixture tidak membuktikan target kualitas atau latency.
 
 ## Rekomendasi implementasi anak
 
