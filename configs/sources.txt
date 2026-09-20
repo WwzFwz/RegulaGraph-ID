@@ -1,0 +1,6 @@
+# Seed URLs for real PDF acquisition, not a complete regulation corpus.
+# Role: repeatable smoke acquisition of public BPK and Kemkomdigi detail pages.
+# Integration: go run ./src/server/cmd/cli collect -input configs/sources.txt
+# Metadata and PDF checksums are stored under data/acquisition, outside Git.
+https://peraturan.bpk.go.id/Details/229798/uu-no-27-tahun-2022
+https://jdih.komdigi.go.id/produk_hukum/view/id/553/t/peraturan%2Bmenteri%2Bkomunikasi%2Bdan%2Binformatika%2Bnomor%2B20%2Btahun%2B2016%2Btanggal%2B1%2Bdesember%2B2016
