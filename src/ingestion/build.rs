@@ -34,7 +34,7 @@ fn main() {
         protoc_bin_vendored::include_path().expect("vendored protobuf includes are available");
     std::env::set_var("PROTOC", protoc);
     tonic_build::configure()
-        .build_client(false)
+        .build_client(true)
         .build_server(true)
         .compile_protos(
             &inputs,
