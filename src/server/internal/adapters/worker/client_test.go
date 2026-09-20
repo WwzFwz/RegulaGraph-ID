@@ -5,11 +5,16 @@ package worker
 import (
 	"context"
 	"errors"
+	"net"
 	"strings"
 	"testing"
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
+	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	pb "regulagraph.local/server/gen/regulagraph/v1"
 )
@@ -94,6 +99,48 @@ func TestExpiredDeadlinePreventsRPC(t *testing.T) {
 	if !errors.Is(err, context.DeadlineExceeded) || called {
 		t.Fatalf("expected local deadline rejection before RPC, called=%v err=%v", called, err)
 	}
+}
+
+func TestTransportRejectsOversizedRequestBeforeServerHandler(t *testing.T) {
+	listener := bufconn.Listen(64 << 10)
+	server := grpc.NewServer()
+	handler := &countingWorkerServer{}
+	pb.RegisterWorkerServer(server, handler)
+	go func() { _ = server.Serve(listener) }()
+	t.Cleanup(func() {
+		server.Stop()
+		_ = listener.Close()
+	})
+
+	client, err := newClient(
+		"passthrough:///worker-test",
+		insecure.NewCredentials(),
+		512,
+		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return listener.Dial() }),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = client.Close() })
+	req := processRequest(time.Now().Add(time.Minute))
+	req.Sources[0].StorageKey = "objects/" + strings.Repeat("a", 2048) + ".pdf"
+	_, err = client.ProcessBatch(context.Background(), req)
+	if status.Code(err) != codes.ResourceExhausted {
+		t.Fatalf("expected transport size rejection, got %v", err)
+	}
+	if handler.calls != 0 {
+		t.Fatalf("oversized request reached server handler %d times", handler.calls)
+	}
+}
+
+type countingWorkerServer struct {
+	pb.UnimplementedWorkerServer
+	calls int
+}
+
+func (s *countingWorkerServer) ProcessBatch(context.Context, *pb.ProcessBatchRequest) (*pb.ProcessBatchResponse, error) {
+	s.calls++
+	return nil, status.Error(codes.Internal, "unexpected handler call")
 }
 
 func processRequest(deadline time.Time) *pb.ProcessBatchRequest {

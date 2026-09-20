@@ -28,6 +28,10 @@ type Client struct {
 // New creates a lazy gRPC connection. Callers must choose transport credentials explicitly; use TLS in
 // deployment and insecure credentials only for a trusted local development listener.
 func New(target string, transportCredentials credentials.TransportCredentials, maxMessageBytes int) (*Client, error) {
+	return newClient(target, transportCredentials, maxMessageBytes)
+}
+
+func newClient(target string, transportCredentials credentials.TransportCredentials, maxMessageBytes int, extraOptions ...grpc.DialOption) (*Client, error) {
 	if target == "" {
 		return nil, errors.New("worker target is required")
 	}
@@ -37,14 +41,15 @@ func New(target string, transportCredentials credentials.TransportCredentials, m
 	if maxMessageBytes <= 0 {
 		maxMessageBytes = DefaultMaxMessageBytes
 	}
-	conn, err := grpc.NewClient(
-		target,
+	options := []grpc.DialOption{
 		grpc.WithTransportCredentials(transportCredentials),
 		grpc.WithDefaultCallOptions(
 			grpc.MaxCallSendMsgSize(maxMessageBytes),
 			grpc.MaxCallRecvMsgSize(maxMessageBytes),
 		),
-	)
+	}
+	options = append(options, extraOptions...)
+	conn, err := grpc.NewClient(target, options...)
 	if err != nil {
 		return nil, fmt.Errorf("create worker client: %w", err)
 	}
