@@ -5,6 +5,7 @@ syntax = "proto3";
 package regulagraph.v1;
 option go_package = "regulagraph.local/server/gen/regulagraph/v1;regulagraphv1";
 import "regulagraph/v1/common.proto";
+import "regulagraph/v1/documents.proto";
 import "regulagraph/v1/graph.proto";
 import "google/protobuf/timestamp.proto";
 enum JobOperation {
@@ -66,6 +67,7 @@ message IngestionRequest {
   JobOperation operation=3 [(rules).required=true];
   string idempotency_key=4 [(rules)={required:true ascii_id:true}];
   ProducerManifest config_manifest=5 [(rules).required=true];
+  repeated SourceObservation observations=6;
 }
 message Lease {
   string owner_id=1 [(rules)={required:true ascii_id:true}];
@@ -217,6 +219,7 @@ message ProcessBatchRequest {
   ProducerManifest manifest=7 [(rules).required=true];
   ArtifactRef checkpoint=8;
   repeated JobStage stages=9 [(rules)={required:true unique:true min_items:1}];
+  repeated SourceObservation observations=10;
 }
 message ProcessBatchResponse {
   string request_id=1 [(rules)={required:true ascii_id:true}];

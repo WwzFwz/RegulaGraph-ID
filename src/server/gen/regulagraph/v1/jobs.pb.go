@@ -431,6 +431,7 @@ type IngestionRequest struct {
 	Operation      JobOperation           `protobuf:"varint,3,opt,name=operation,proto3,enum=regulagraph.v1.JobOperation" json:"operation,omitempty"`
 	IdempotencyKey string                 `protobuf:"bytes,4,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
 	ConfigManifest *ProducerManifest      `protobuf:"bytes,5,opt,name=config_manifest,json=configManifest,proto3" json:"config_manifest,omitempty"`
+	Observations   []*SourceObservation   `protobuf:"bytes,6,rep,name=observations,proto3" json:"observations,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -496,6 +497,13 @@ func (x *IngestionRequest) GetIdempotencyKey() string {
 func (x *IngestionRequest) GetConfigManifest() *ProducerManifest {
 	if x != nil {
 		return x.ConfigManifest
+	}
+	return nil
+}
+
+func (x *IngestionRequest) GetObservations() []*SourceObservation {
+	if x != nil {
+		return x.Observations
 	}
 	return nil
 }
@@ -2011,6 +2019,7 @@ type ProcessBatchRequest struct {
 	Manifest      *ProducerManifest      `protobuf:"bytes,7,opt,name=manifest,proto3" json:"manifest,omitempty"`
 	Checkpoint    *ArtifactRef           `protobuf:"bytes,8,opt,name=checkpoint,proto3" json:"checkpoint,omitempty"`
 	Stages        []JobStage             `protobuf:"varint,9,rep,packed,name=stages,proto3,enum=regulagraph.v1.JobStage" json:"stages,omitempty"`
+	Observations  []*SourceObservation   `protobuf:"bytes,10,rep,name=observations,proto3" json:"observations,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2104,6 +2113,13 @@ func (x *ProcessBatchRequest) GetCheckpoint() *ArtifactRef {
 func (x *ProcessBatchRequest) GetStages() []JobStage {
 	if x != nil {
 		return x.Stages
+	}
+	return nil
+}
+
+func (x *ProcessBatchRequest) GetObservations() []*SourceObservation {
+	if x != nil {
+		return x.Observations
 	}
 	return nil
 }
@@ -2388,18 +2404,19 @@ var File_regulagraph_v1_jobs_proto protoreflect.FileDescriptor
 
 const file_regulagraph_v1_jobs_proto_rawDesc = "" +
 	"\n" +
-	"\x19regulagraph/v1/jobs.proto\x12\x0eregulagraph.v1\x1a\x1bregulagraph/v1/common.proto\x1a\x1aregulagraph/v1/graph.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x88\x01\n" +
+	"\x19regulagraph/v1/jobs.proto\x12\x0eregulagraph.v1\x1a\x1bregulagraph/v1/common.proto\x1a\x1eregulagraph/v1/documents.proto\x1a\x1aregulagraph/v1/graph.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x88\x01\n" +
 	"\rSourceLocator\x12\x12\n" +
 	"\x03url\x18\x01 \x01(\tH\x00R\x03url\x121\n" +
 	"\x04blob\x18\x02 \x01(\v2\x1b.regulagraph.v1.ArtifactRefH\x00R\x04blob\x12%\n" +
 	"\tportal_id\x18\x03 \x01(\tB\b\x8a\xb5\x18\x04\b\x01\x10\x01R\bportalIdB\t\n" +
-	"\alocator\"\xc4\x02\n" +
+	"\alocator\"\x8b\x03\n" +
 	"\x10IngestionRequest\x12%\n" +
 	"\tcorpus_id\x18\x01 \x01(\tB\b\x8a\xb5\x18\x04\b\x01\x10\x01R\bcorpusId\x12?\n" +
 	"\asources\x18\x02 \x03(\v2\x1d.regulagraph.v1.SourceLocatorB\x06\x8a\xb5\x18\x02@\x01R\asources\x12B\n" +
 	"\toperation\x18\x03 \x01(\x0e2\x1c.regulagraph.v1.JobOperationB\x06\x8a\xb5\x18\x02\b\x01R\toperation\x121\n" +
 	"\x0fidempotency_key\x18\x04 \x01(\tB\b\x8a\xb5\x18\x04\b\x01\x10\x01R\x0eidempotencyKey\x12Q\n" +
-	"\x0fconfig_manifest\x18\x05 \x01(\v2 .regulagraph.v1.ProducerManifestB\x06\x8a\xb5\x18\x02\b\x01R\x0econfigManifest\"\x8d\x01\n" +
+	"\x0fconfig_manifest\x18\x05 \x01(\v2 .regulagraph.v1.ProducerManifestB\x06\x8a\xb5\x18\x02\b\x01R\x0econfigManifest\x12E\n" +
+	"\fobservations\x18\x06 \x03(\v2!.regulagraph.v1.SourceObservationR\fobservations\"\x8d\x01\n" +
 	"\x05Lease\x12#\n" +
 	"\bowner_id\x18\x01 \x01(\tB\b\x8a\xb5\x18\x04\b\x01\x10\x01R\aownerId\x12\x1c\n" +
 	"\x05fence\x18\x02 \x01(\x04B\x06\x8a\xb5\x18\x02 \x01R\x05fence\x12A\n" +
@@ -2546,7 +2563,7 @@ const file_regulagraph_v1_jobs_proto_rawDesc = "" +
 	"\x04live\x18\x01 \x01(\bR\x04live\x12\x14\n" +
 	"\x05ready\x18\x02 \x01(\bR\x05ready\x12-\n" +
 	"\x12ready_capabilities\x18\x03 \x03(\tR\x11readyCapabilities\x126\n" +
-	"\x06errors\x18\x04 \x03(\v2\x1e.regulagraph.v1.OperationErrorR\x06errors\"\x88\x04\n" +
+	"\x06errors\x18\x04 \x03(\v2\x1e.regulagraph.v1.OperationErrorR\x06errors\"\xcf\x04\n" +
 	"\x13ProcessBatchRequest\x12@\n" +
 	"\acontext\x18\x01 \x01(\v2\x1e.regulagraph.v1.RequestContextB\x06\x8a\xb5\x18\x02\b\x01R\acontext\x12\x1f\n" +
 	"\x06job_id\x18\x02 \x01(\tB\b\x8a\xb5\x18\x04\b\x01\x10\x01R\x05jobId\x12 \n" +
@@ -2559,7 +2576,9 @@ const file_regulagraph_v1_jobs_proto_rawDesc = "" +
 	"checkpoint\x18\b \x01(\v2\x1b.regulagraph.v1.ArtifactRefR\n" +
 	"checkpoint\x12<\n" +
 	"\x06stages\x18\t \x03(\x0e2\x18.regulagraph.v1.JobStageB\n" +
-	"\x8a\xb5\x18\x06\b\x018\x01@\x01R\x06stages\"\x96\x04\n" +
+	"\x8a\xb5\x18\x06\b\x018\x01@\x01R\x06stages\x12E\n" +
+	"\fobservations\x18\n" +
+	" \x03(\v2!.regulagraph.v1.SourceObservationR\fobservations\"\x96\x04\n" +
 	"\x14ProcessBatchResponse\x12'\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\tB\b\x8a\xb5\x18\x04\b\x01\x10\x01R\trequestId\x12\x1f\n" +
@@ -2685,110 +2704,113 @@ var file_regulagraph_v1_jobs_proto_goTypes = []any{
 	(*WorkerStatusResponse)(nil),  // 29: regulagraph.v1.WorkerStatusResponse
 	(*ArtifactRef)(nil),           // 30: regulagraph.v1.ArtifactRef
 	(*ProducerManifest)(nil),      // 31: regulagraph.v1.ProducerManifest
-	(*timestamppb.Timestamp)(nil), // 32: google.protobuf.Timestamp
-	(*RecordMeta)(nil),            // 33: regulagraph.v1.RecordMeta
-	(*SnapshotRef)(nil),           // 34: regulagraph.v1.SnapshotRef
-	(*ContentHash)(nil),           // 35: regulagraph.v1.ContentHash
-	(*OperationError)(nil),        // 36: regulagraph.v1.OperationError
-	(CompletionStatus)(0),         // 37: regulagraph.v1.CompletionStatus
-	(*LookupScopeRevision)(nil),   // 38: regulagraph.v1.LookupScopeRevision
-	(*Counts)(nil),                // 39: regulagraph.v1.Counts
-	(*ValidationReport)(nil),      // 40: regulagraph.v1.ValidationReport
-	(*VisibilityClosure)(nil),     // 41: regulagraph.v1.VisibilityClosure
-	(*NamedValue)(nil),            // 42: regulagraph.v1.NamedValue
-	(ReviewState)(0),              // 43: regulagraph.v1.ReviewState
-	(*RequestContext)(nil),        // 44: regulagraph.v1.RequestContext
-	(*Pagination)(nil),            // 45: regulagraph.v1.Pagination
+	(*SourceObservation)(nil),     // 32: regulagraph.v1.SourceObservation
+	(*timestamppb.Timestamp)(nil), // 33: google.protobuf.Timestamp
+	(*RecordMeta)(nil),            // 34: regulagraph.v1.RecordMeta
+	(*SnapshotRef)(nil),           // 35: regulagraph.v1.SnapshotRef
+	(*ContentHash)(nil),           // 36: regulagraph.v1.ContentHash
+	(*OperationError)(nil),        // 37: regulagraph.v1.OperationError
+	(CompletionStatus)(0),         // 38: regulagraph.v1.CompletionStatus
+	(*LookupScopeRevision)(nil),   // 39: regulagraph.v1.LookupScopeRevision
+	(*Counts)(nil),                // 40: regulagraph.v1.Counts
+	(*ValidationReport)(nil),      // 41: regulagraph.v1.ValidationReport
+	(*VisibilityClosure)(nil),     // 42: regulagraph.v1.VisibilityClosure
+	(*NamedValue)(nil),            // 43: regulagraph.v1.NamedValue
+	(ReviewState)(0),              // 44: regulagraph.v1.ReviewState
+	(*RequestContext)(nil),        // 45: regulagraph.v1.RequestContext
+	(*Pagination)(nil),            // 46: regulagraph.v1.Pagination
 }
 var file_regulagraph_v1_jobs_proto_depIdxs = []int32{
 	30, // 0: regulagraph.v1.SourceLocator.blob:type_name -> regulagraph.v1.ArtifactRef
 	5,  // 1: regulagraph.v1.IngestionRequest.sources:type_name -> regulagraph.v1.SourceLocator
 	0,  // 2: regulagraph.v1.IngestionRequest.operation:type_name -> regulagraph.v1.JobOperation
 	31, // 3: regulagraph.v1.IngestionRequest.config_manifest:type_name -> regulagraph.v1.ProducerManifest
-	32, // 4: regulagraph.v1.Lease.expires_at:type_name -> google.protobuf.Timestamp
-	33, // 5: regulagraph.v1.Job.meta:type_name -> regulagraph.v1.RecordMeta
-	0,  // 6: regulagraph.v1.Job.type:type_name -> regulagraph.v1.JobOperation
-	1,  // 7: regulagraph.v1.Job.state:type_name -> regulagraph.v1.JobState
-	2,  // 8: regulagraph.v1.Job.stage:type_name -> regulagraph.v1.JobStage
-	34, // 9: regulagraph.v1.Job.base_snapshot:type_name -> regulagraph.v1.SnapshotRef
-	35, // 10: regulagraph.v1.Job.input_fingerprint:type_name -> regulagraph.v1.ContentHash
-	7,  // 11: regulagraph.v1.Job.lease:type_name -> regulagraph.v1.Lease
-	30, // 12: regulagraph.v1.Job.checkpoint_ref:type_name -> regulagraph.v1.ArtifactRef
-	36, // 13: regulagraph.v1.Job.errors:type_name -> regulagraph.v1.OperationError
-	33, // 14: regulagraph.v1.Checkpoint.meta:type_name -> regulagraph.v1.RecordMeta
-	2,  // 15: regulagraph.v1.Checkpoint.stage:type_name -> regulagraph.v1.JobStage
-	35, // 16: regulagraph.v1.Checkpoint.artifact_hashes:type_name -> regulagraph.v1.ContentHash
-	31, // 17: regulagraph.v1.Checkpoint.manifest:type_name -> regulagraph.v1.ProducerManifest
-	37, // 18: regulagraph.v1.Checkpoint.terminal_status:type_name -> regulagraph.v1.CompletionStatus
-	35, // 19: regulagraph.v1.SourceChange.previous_hash:type_name -> regulagraph.v1.ContentHash
-	35, // 20: regulagraph.v1.SourceChange.new_hash:type_name -> regulagraph.v1.ContentHash
-	33, // 21: regulagraph.v1.UpdatePlan.meta:type_name -> regulagraph.v1.RecordMeta
-	10, // 22: regulagraph.v1.UpdatePlan.source_changes:type_name -> regulagraph.v1.SourceChange
-	34, // 23: regulagraph.v1.UpdatePlan.base_snapshot:type_name -> regulagraph.v1.SnapshotRef
-	38, // 24: regulagraph.v1.UpdatePlan.lookup_revisions:type_name -> regulagraph.v1.LookupScopeRevision
-	4,  // 25: regulagraph.v1.BackendGeneration.backend:type_name -> regulagraph.v1.BackendKind
-	39, // 26: regulagraph.v1.BackendGeneration.expected_counts:type_name -> regulagraph.v1.Counts
-	35, // 27: regulagraph.v1.BackendGeneration.operations_checksum:type_name -> regulagraph.v1.ContentHash
-	4,  // 28: regulagraph.v1.BackendReceipt.backend:type_name -> regulagraph.v1.BackendKind
-	35, // 29: regulagraph.v1.BackendReceipt.operations_checksum:type_name -> regulagraph.v1.ContentHash
-	39, // 30: regulagraph.v1.BackendReceipt.counts:type_name -> regulagraph.v1.Counts
-	33, // 31: regulagraph.v1.PublicationManifest.meta:type_name -> regulagraph.v1.RecordMeta
-	34, // 32: regulagraph.v1.PublicationManifest.snapshot_ref:type_name -> regulagraph.v1.SnapshotRef
-	34, // 33: regulagraph.v1.PublicationManifest.parent_ref:type_name -> regulagraph.v1.SnapshotRef
-	12, // 34: regulagraph.v1.PublicationManifest.backend_generations:type_name -> regulagraph.v1.BackendGeneration
-	13, // 35: regulagraph.v1.PublicationManifest.acknowledgements:type_name -> regulagraph.v1.BackendReceipt
-	40, // 36: regulagraph.v1.PublicationManifest.validation_report:type_name -> regulagraph.v1.ValidationReport
-	41, // 37: regulagraph.v1.PublicationManifest.closures:type_name -> regulagraph.v1.VisibilityClosure
-	33, // 38: regulagraph.v1.Snapshot.meta:type_name -> regulagraph.v1.RecordMeta
-	3,  // 39: regulagraph.v1.Snapshot.state:type_name -> regulagraph.v1.SnapshotState
-	14, // 40: regulagraph.v1.Snapshot.publication:type_name -> regulagraph.v1.PublicationManifest
-	32, // 41: regulagraph.v1.Snapshot.created_at:type_name -> google.protobuf.Timestamp
-	32, // 42: regulagraph.v1.Snapshot.published_at:type_name -> google.protobuf.Timestamp
-	33, // 43: regulagraph.v1.PublicationOperation.meta:type_name -> regulagraph.v1.RecordMeta
-	4,  // 44: regulagraph.v1.PublicationOperation.backend:type_name -> regulagraph.v1.BackendKind
-	35, // 45: regulagraph.v1.PublicationOperation.payload_hash:type_name -> regulagraph.v1.ContentHash
-	30, // 46: regulagraph.v1.PublicationOperation.before_image:type_name -> regulagraph.v1.ArtifactRef
-	13, // 47: regulagraph.v1.PublicationOperation.receipt:type_name -> regulagraph.v1.BackendReceipt
-	33, // 48: regulagraph.v1.ReviewItem.meta:type_name -> regulagraph.v1.RecordMeta
-	42, // 49: regulagraph.v1.ReviewItem.proposed_values:type_name -> regulagraph.v1.NamedValue
-	43, // 50: regulagraph.v1.ReviewItem.status:type_name -> regulagraph.v1.ReviewState
-	44, // 51: regulagraph.v1.ReviewDecisionRequest.context:type_name -> regulagraph.v1.RequestContext
-	43, // 52: regulagraph.v1.ReviewDecisionRequest.decision:type_name -> regulagraph.v1.ReviewState
-	44, // 53: regulagraph.v1.ListReviewsRequest.context:type_name -> regulagraph.v1.RequestContext
-	45, // 54: regulagraph.v1.ListReviewsRequest.pagination:type_name -> regulagraph.v1.Pagination
-	43, // 55: regulagraph.v1.ListReviewsRequest.status:type_name -> regulagraph.v1.ReviewState
-	17, // 56: regulagraph.v1.ListReviewsResponse.items:type_name -> regulagraph.v1.ReviewItem
-	34, // 57: regulagraph.v1.ListReviewsResponse.snapshot:type_name -> regulagraph.v1.SnapshotRef
-	44, // 58: regulagraph.v1.GetJobRequest.context:type_name -> regulagraph.v1.RequestContext
-	1,  // 59: regulagraph.v1.CancelJobResponse.current_state:type_name -> regulagraph.v1.JobState
-	44, // 60: regulagraph.v1.GetSnapshotRequest.context:type_name -> regulagraph.v1.RequestContext
-	36, // 61: regulagraph.v1.HealthResponse.errors:type_name -> regulagraph.v1.OperationError
-	44, // 62: regulagraph.v1.ProcessBatchRequest.context:type_name -> regulagraph.v1.RequestContext
-	7,  // 63: regulagraph.v1.ProcessBatchRequest.lease:type_name -> regulagraph.v1.Lease
-	30, // 64: regulagraph.v1.ProcessBatchRequest.sources:type_name -> regulagraph.v1.ArtifactRef
-	30, // 65: regulagraph.v1.ProcessBatchRequest.registry:type_name -> regulagraph.v1.ArtifactRef
-	31, // 66: regulagraph.v1.ProcessBatchRequest.manifest:type_name -> regulagraph.v1.ProducerManifest
-	30, // 67: regulagraph.v1.ProcessBatchRequest.checkpoint:type_name -> regulagraph.v1.ArtifactRef
-	2,  // 68: regulagraph.v1.ProcessBatchRequest.stages:type_name -> regulagraph.v1.JobStage
-	9,  // 69: regulagraph.v1.ProcessBatchResponse.checkpoint:type_name -> regulagraph.v1.Checkpoint
-	30, // 70: regulagraph.v1.ProcessBatchResponse.document_batch:type_name -> regulagraph.v1.ArtifactRef
-	30, // 71: regulagraph.v1.ProcessBatchResponse.graph_delta:type_name -> regulagraph.v1.ArtifactRef
-	30, // 72: regulagraph.v1.ProcessBatchResponse.index_batch:type_name -> regulagraph.v1.ArtifactRef
-	37, // 73: regulagraph.v1.ProcessBatchResponse.status:type_name -> regulagraph.v1.CompletionStatus
-	36, // 74: regulagraph.v1.ProcessBatchResponse.errors:type_name -> regulagraph.v1.OperationError
-	44, // 75: regulagraph.v1.WorkerStatusRequest.context:type_name -> regulagraph.v1.RequestContext
-	2,  // 76: regulagraph.v1.WorkerStatusResponse.stage:type_name -> regulagraph.v1.JobStage
-	26, // 77: regulagraph.v1.Worker.ProcessBatch:input_type -> regulagraph.v1.ProcessBatchRequest
-	28, // 78: regulagraph.v1.Worker.GetStatus:input_type -> regulagraph.v1.WorkerStatusRequest
-	28, // 79: regulagraph.v1.Worker.Cancel:input_type -> regulagraph.v1.WorkerStatusRequest
-	27, // 80: regulagraph.v1.Worker.ProcessBatch:output_type -> regulagraph.v1.ProcessBatchResponse
-	29, // 81: regulagraph.v1.Worker.GetStatus:output_type -> regulagraph.v1.WorkerStatusResponse
-	29, // 82: regulagraph.v1.Worker.Cancel:output_type -> regulagraph.v1.WorkerStatusResponse
-	80, // [80:83] is the sub-list for method output_type
-	77, // [77:80] is the sub-list for method input_type
-	77, // [77:77] is the sub-list for extension type_name
-	77, // [77:77] is the sub-list for extension extendee
-	0,  // [0:77] is the sub-list for field type_name
+	32, // 4: regulagraph.v1.IngestionRequest.observations:type_name -> regulagraph.v1.SourceObservation
+	33, // 5: regulagraph.v1.Lease.expires_at:type_name -> google.protobuf.Timestamp
+	34, // 6: regulagraph.v1.Job.meta:type_name -> regulagraph.v1.RecordMeta
+	0,  // 7: regulagraph.v1.Job.type:type_name -> regulagraph.v1.JobOperation
+	1,  // 8: regulagraph.v1.Job.state:type_name -> regulagraph.v1.JobState
+	2,  // 9: regulagraph.v1.Job.stage:type_name -> regulagraph.v1.JobStage
+	35, // 10: regulagraph.v1.Job.base_snapshot:type_name -> regulagraph.v1.SnapshotRef
+	36, // 11: regulagraph.v1.Job.input_fingerprint:type_name -> regulagraph.v1.ContentHash
+	7,  // 12: regulagraph.v1.Job.lease:type_name -> regulagraph.v1.Lease
+	30, // 13: regulagraph.v1.Job.checkpoint_ref:type_name -> regulagraph.v1.ArtifactRef
+	37, // 14: regulagraph.v1.Job.errors:type_name -> regulagraph.v1.OperationError
+	34, // 15: regulagraph.v1.Checkpoint.meta:type_name -> regulagraph.v1.RecordMeta
+	2,  // 16: regulagraph.v1.Checkpoint.stage:type_name -> regulagraph.v1.JobStage
+	36, // 17: regulagraph.v1.Checkpoint.artifact_hashes:type_name -> regulagraph.v1.ContentHash
+	31, // 18: regulagraph.v1.Checkpoint.manifest:type_name -> regulagraph.v1.ProducerManifest
+	38, // 19: regulagraph.v1.Checkpoint.terminal_status:type_name -> regulagraph.v1.CompletionStatus
+	36, // 20: regulagraph.v1.SourceChange.previous_hash:type_name -> regulagraph.v1.ContentHash
+	36, // 21: regulagraph.v1.SourceChange.new_hash:type_name -> regulagraph.v1.ContentHash
+	34, // 22: regulagraph.v1.UpdatePlan.meta:type_name -> regulagraph.v1.RecordMeta
+	10, // 23: regulagraph.v1.UpdatePlan.source_changes:type_name -> regulagraph.v1.SourceChange
+	35, // 24: regulagraph.v1.UpdatePlan.base_snapshot:type_name -> regulagraph.v1.SnapshotRef
+	39, // 25: regulagraph.v1.UpdatePlan.lookup_revisions:type_name -> regulagraph.v1.LookupScopeRevision
+	4,  // 26: regulagraph.v1.BackendGeneration.backend:type_name -> regulagraph.v1.BackendKind
+	40, // 27: regulagraph.v1.BackendGeneration.expected_counts:type_name -> regulagraph.v1.Counts
+	36, // 28: regulagraph.v1.BackendGeneration.operations_checksum:type_name -> regulagraph.v1.ContentHash
+	4,  // 29: regulagraph.v1.BackendReceipt.backend:type_name -> regulagraph.v1.BackendKind
+	36, // 30: regulagraph.v1.BackendReceipt.operations_checksum:type_name -> regulagraph.v1.ContentHash
+	40, // 31: regulagraph.v1.BackendReceipt.counts:type_name -> regulagraph.v1.Counts
+	34, // 32: regulagraph.v1.PublicationManifest.meta:type_name -> regulagraph.v1.RecordMeta
+	35, // 33: regulagraph.v1.PublicationManifest.snapshot_ref:type_name -> regulagraph.v1.SnapshotRef
+	35, // 34: regulagraph.v1.PublicationManifest.parent_ref:type_name -> regulagraph.v1.SnapshotRef
+	12, // 35: regulagraph.v1.PublicationManifest.backend_generations:type_name -> regulagraph.v1.BackendGeneration
+	13, // 36: regulagraph.v1.PublicationManifest.acknowledgements:type_name -> regulagraph.v1.BackendReceipt
+	41, // 37: regulagraph.v1.PublicationManifest.validation_report:type_name -> regulagraph.v1.ValidationReport
+	42, // 38: regulagraph.v1.PublicationManifest.closures:type_name -> regulagraph.v1.VisibilityClosure
+	34, // 39: regulagraph.v1.Snapshot.meta:type_name -> regulagraph.v1.RecordMeta
+	3,  // 40: regulagraph.v1.Snapshot.state:type_name -> regulagraph.v1.SnapshotState
+	14, // 41: regulagraph.v1.Snapshot.publication:type_name -> regulagraph.v1.PublicationManifest
+	33, // 42: regulagraph.v1.Snapshot.created_at:type_name -> google.protobuf.Timestamp
+	33, // 43: regulagraph.v1.Snapshot.published_at:type_name -> google.protobuf.Timestamp
+	34, // 44: regulagraph.v1.PublicationOperation.meta:type_name -> regulagraph.v1.RecordMeta
+	4,  // 45: regulagraph.v1.PublicationOperation.backend:type_name -> regulagraph.v1.BackendKind
+	36, // 46: regulagraph.v1.PublicationOperation.payload_hash:type_name -> regulagraph.v1.ContentHash
+	30, // 47: regulagraph.v1.PublicationOperation.before_image:type_name -> regulagraph.v1.ArtifactRef
+	13, // 48: regulagraph.v1.PublicationOperation.receipt:type_name -> regulagraph.v1.BackendReceipt
+	34, // 49: regulagraph.v1.ReviewItem.meta:type_name -> regulagraph.v1.RecordMeta
+	43, // 50: regulagraph.v1.ReviewItem.proposed_values:type_name -> regulagraph.v1.NamedValue
+	44, // 51: regulagraph.v1.ReviewItem.status:type_name -> regulagraph.v1.ReviewState
+	45, // 52: regulagraph.v1.ReviewDecisionRequest.context:type_name -> regulagraph.v1.RequestContext
+	44, // 53: regulagraph.v1.ReviewDecisionRequest.decision:type_name -> regulagraph.v1.ReviewState
+	45, // 54: regulagraph.v1.ListReviewsRequest.context:type_name -> regulagraph.v1.RequestContext
+	46, // 55: regulagraph.v1.ListReviewsRequest.pagination:type_name -> regulagraph.v1.Pagination
+	44, // 56: regulagraph.v1.ListReviewsRequest.status:type_name -> regulagraph.v1.ReviewState
+	17, // 57: regulagraph.v1.ListReviewsResponse.items:type_name -> regulagraph.v1.ReviewItem
+	35, // 58: regulagraph.v1.ListReviewsResponse.snapshot:type_name -> regulagraph.v1.SnapshotRef
+	45, // 59: regulagraph.v1.GetJobRequest.context:type_name -> regulagraph.v1.RequestContext
+	1,  // 60: regulagraph.v1.CancelJobResponse.current_state:type_name -> regulagraph.v1.JobState
+	45, // 61: regulagraph.v1.GetSnapshotRequest.context:type_name -> regulagraph.v1.RequestContext
+	37, // 62: regulagraph.v1.HealthResponse.errors:type_name -> regulagraph.v1.OperationError
+	45, // 63: regulagraph.v1.ProcessBatchRequest.context:type_name -> regulagraph.v1.RequestContext
+	7,  // 64: regulagraph.v1.ProcessBatchRequest.lease:type_name -> regulagraph.v1.Lease
+	30, // 65: regulagraph.v1.ProcessBatchRequest.sources:type_name -> regulagraph.v1.ArtifactRef
+	30, // 66: regulagraph.v1.ProcessBatchRequest.registry:type_name -> regulagraph.v1.ArtifactRef
+	31, // 67: regulagraph.v1.ProcessBatchRequest.manifest:type_name -> regulagraph.v1.ProducerManifest
+	30, // 68: regulagraph.v1.ProcessBatchRequest.checkpoint:type_name -> regulagraph.v1.ArtifactRef
+	2,  // 69: regulagraph.v1.ProcessBatchRequest.stages:type_name -> regulagraph.v1.JobStage
+	32, // 70: regulagraph.v1.ProcessBatchRequest.observations:type_name -> regulagraph.v1.SourceObservation
+	9,  // 71: regulagraph.v1.ProcessBatchResponse.checkpoint:type_name -> regulagraph.v1.Checkpoint
+	30, // 72: regulagraph.v1.ProcessBatchResponse.document_batch:type_name -> regulagraph.v1.ArtifactRef
+	30, // 73: regulagraph.v1.ProcessBatchResponse.graph_delta:type_name -> regulagraph.v1.ArtifactRef
+	30, // 74: regulagraph.v1.ProcessBatchResponse.index_batch:type_name -> regulagraph.v1.ArtifactRef
+	38, // 75: regulagraph.v1.ProcessBatchResponse.status:type_name -> regulagraph.v1.CompletionStatus
+	37, // 76: regulagraph.v1.ProcessBatchResponse.errors:type_name -> regulagraph.v1.OperationError
+	45, // 77: regulagraph.v1.WorkerStatusRequest.context:type_name -> regulagraph.v1.RequestContext
+	2,  // 78: regulagraph.v1.WorkerStatusResponse.stage:type_name -> regulagraph.v1.JobStage
+	26, // 79: regulagraph.v1.Worker.ProcessBatch:input_type -> regulagraph.v1.ProcessBatchRequest
+	28, // 80: regulagraph.v1.Worker.GetStatus:input_type -> regulagraph.v1.WorkerStatusRequest
+	28, // 81: regulagraph.v1.Worker.Cancel:input_type -> regulagraph.v1.WorkerStatusRequest
+	27, // 82: regulagraph.v1.Worker.ProcessBatch:output_type -> regulagraph.v1.ProcessBatchResponse
+	29, // 83: regulagraph.v1.Worker.GetStatus:output_type -> regulagraph.v1.WorkerStatusResponse
+	29, // 84: regulagraph.v1.Worker.Cancel:output_type -> regulagraph.v1.WorkerStatusResponse
+	82, // [82:85] is the sub-list for method output_type
+	79, // [79:82] is the sub-list for method input_type
+	79, // [79:79] is the sub-list for extension type_name
+	79, // [79:79] is the sub-list for extension extendee
+	0,  // [0:79] is the sub-list for field type_name
 }
 
 func init() { file_regulagraph_v1_jobs_proto_init() }
@@ -2797,6 +2819,7 @@ func file_regulagraph_v1_jobs_proto_init() {
 		return
 	}
 	file_regulagraph_v1_common_proto_init()
+	file_regulagraph_v1_documents_proto_init()
 	file_regulagraph_v1_graph_proto_init()
 	file_regulagraph_v1_jobs_proto_msgTypes[0].OneofWrappers = []any{
 		(*SourceLocator_Url)(nil),
