@@ -109,7 +109,9 @@
       "4": "JOB_STAGE_EXTRACT",
       "5": "JOB_STAGE_RESOLVE",
       "6": "JOB_STAGE_ASSEMBLE",
-      "7": "JOB_STAGE_INDEX"
+      "7": "JOB_STAGE_INDEX",
+      "8": "JOB_STAGE_BIND",
+      "9": "JOB_STAGE_CHUNK"
     },
     "regulagraph.v1.JobState": {
       "0": "JOB_STATE_UNSPECIFIED",
@@ -1274,6 +1276,15 @@
         },
         "type": 4,
         "type_name": ""
+      },
+      "8": {
+        "label": 1,
+        "name": "terminal_status",
+        "oneof": null,
+        "optional": false,
+        "rules": {},
+        "type": 14,
+        "type_name": ".regulagraph.v1.CompletionStatus"
       }
     },
     "regulagraph.v1.Chunk": {
@@ -4163,6 +4174,15 @@
         },
         "type": 11,
         "type_name": ".regulagraph.v1.ProducerManifest"
+      },
+      "6": {
+        "label": 3,
+        "name": "observations",
+        "oneof": null,
+        "optional": false,
+        "rules": {},
+        "type": 11,
+        "type_name": ".regulagraph.v1.SourceObservation"
       }
     },
     "regulagraph.v1.Job": {
@@ -5173,6 +5193,15 @@
         },
         "type": 11,
         "type_name": ".regulagraph.v1.RequestContext"
+      },
+      "10": {
+        "label": 3,
+        "name": "observations",
+        "oneof": null,
+        "optional": false,
+        "rules": {},
+        "type": 11,
+        "type_name": ".regulagraph.v1.SourceObservation"
       },
       "2": {
         "label": 1,
@@ -8570,6 +8599,15 @@
         },
         "type": 11,
         "type_name": ".regulagraph.v1.PageResult"
+      },
+      "8": {
+        "label": 1,
+        "name": "normalizer_manifest",
+        "oneof": null,
+        "optional": false,
+        "rules": {},
+        "type": 11,
+        "type_name": ".regulagraph.v1.ProducerManifest"
       }
     },
     "regulagraph.v1.TextItem": {

@@ -162,6 +162,8 @@ const (
 	JobStage_JOB_STAGE_RESOLVE     JobStage = 5
 	JobStage_JOB_STAGE_ASSEMBLE    JobStage = 6
 	JobStage_JOB_STAGE_INDEX       JobStage = 7
+	JobStage_JOB_STAGE_BIND        JobStage = 8
+	JobStage_JOB_STAGE_CHUNK       JobStage = 9
 )
 
 // Enum value maps for JobStage.
@@ -175,6 +177,8 @@ var (
 		5: "JOB_STAGE_RESOLVE",
 		6: "JOB_STAGE_ASSEMBLE",
 		7: "JOB_STAGE_INDEX",
+		8: "JOB_STAGE_BIND",
+		9: "JOB_STAGE_CHUNK",
 	}
 	JobStage_value = map[string]int32{
 		"JOB_STAGE_UNSPECIFIED": 0,
@@ -185,6 +189,8 @@ var (
 		"JOB_STAGE_RESOLVE":     5,
 		"JOB_STAGE_ASSEMBLE":    6,
 		"JOB_STAGE_INDEX":       7,
+		"JOB_STAGE_BIND":        8,
+		"JOB_STAGE_CHUNK":       9,
 	}
 )
 
@@ -2627,7 +2633,7 @@ const file_regulagraph_v1_jobs_proto_rawDesc = "" +
 	"\x14JOB_STATE_RETRY_WAIT\x10\b\x12\x14\n" +
 	"\x10JOB_STATE_FAILED\x10\t\x12\x17\n" +
 	"\x13JOB_STATE_CANCELLED\x10\n" +
-	"*\xc5\x01\n" +
+	"*\xee\x01\n" +
 	"\bJobStage\x12\x19\n" +
 	"\x15JOB_STAGE_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11JOB_STAGE_ACQUIRE\x10\x01\x12\x13\n" +
@@ -2636,7 +2642,9 @@ const file_regulagraph_v1_jobs_proto_rawDesc = "" +
 	"\x11JOB_STAGE_EXTRACT\x10\x04\x12\x15\n" +
 	"\x11JOB_STAGE_RESOLVE\x10\x05\x12\x16\n" +
 	"\x12JOB_STAGE_ASSEMBLE\x10\x06\x12\x13\n" +
-	"\x0fJOB_STAGE_INDEX\x10\a*\xf7\x01\n" +
+	"\x0fJOB_STAGE_INDEX\x10\a\x12\x12\n" +
+	"\x0eJOB_STAGE_BIND\x10\b\x12\x13\n" +
+	"\x0fJOB_STAGE_CHUNK\x10\t*\xf7\x01\n" +
 	"\rSnapshotState\x12\x1e\n" +
 	"\x1aSNAPSHOT_STATE_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16SNAPSHOT_STATE_STAGING\x10\x01\x12\x1d\n" +

@@ -95,3 +95,38 @@ func AllowedJobTransition(from, to pb.JobState) bool {
 		return false
 	}
 }
+
+// JobStageRank defines pipeline order independently from append-only protobuf enum numbers.
+// BIND and CHUNK were added after the original EXTRACT→INDEX values, so numeric comparison would
+// reject valid CHUNK→EXTRACT checkpoints and must never own progression semantics.
+func JobStageRank(stage pb.JobStage) (int, bool) {
+	switch stage {
+	case pb.JobStage_JOB_STAGE_ACQUIRE:
+		return 1, true
+	case pb.JobStage_JOB_STAGE_PARSE:
+		return 2, true
+	case pb.JobStage_JOB_STAGE_STRUCTURE:
+		return 3, true
+	case pb.JobStage_JOB_STAGE_BIND:
+		return 4, true
+	case pb.JobStage_JOB_STAGE_CHUNK:
+		return 5, true
+	case pb.JobStage_JOB_STAGE_EXTRACT:
+		return 6, true
+	case pb.JobStage_JOB_STAGE_RESOLVE:
+		return 7, true
+	case pb.JobStage_JOB_STAGE_ASSEMBLE:
+		return 8, true
+	case pb.JobStage_JOB_STAGE_INDEX:
+		return 9, true
+	default:
+		return 0, false
+	}
+}
+
+// JobStagePrecedesOrEquals rejects unspecified/unknown values as well as semantic regressions.
+func JobStagePrecedesOrEquals(left, right pb.JobStage) bool {
+	leftRank, leftValid := JobStageRank(left)
+	rightRank, rightValid := JobStageRank(right)
+	return leftValid && rightValid && leftRank <= rightRank
+}

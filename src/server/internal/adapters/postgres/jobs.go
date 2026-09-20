@@ -6,8 +6,8 @@
 // Benchmark: ukur queue time, claim throughput, p50/p95/p99 query, pool saturation, retry,
 // dan contention pada concurrency profil referensi.
 // Target numerik required: configs/benchmark-targets.yaml; status REQUIRED_UNMEASURED.
-// Status: primitive job S01, claim/cancellation PARSE/STRUCTURE, retry availability, dan budget
-// attempt per-stage aktif; attempt/fence worker tetap monotonik lintas handoff.
+// Status: primitive job S01, claim/cancellation PARSE/STRUCTURE/BIND/CHUNK, retry availability,
+// dan budget attempt per-stage aktif; attempt/fence worker tetap monotonik lintas handoff.
 package postgres
 
 import (
@@ -107,8 +107,7 @@ func (r *Repository) ClaimJob(ctx context.Context, ownerID string, leaseDuration
 	}
 	row := r.pool.QueryRow(ctx, `WITH candidate AS (
         SELECT job_id FROM jobs
-		WHERE cancellation_requested=false AND stage<>$9
-		  AND (stage<>$10 OR state IN ($6,$7,$8)) AND (
+		WHERE cancellation_requested=false AND stage NOT IN ($9,$10,$11,$12) AND (
 		  state=$1 OR (state=$2 AND next_attempt_at <= clock_timestamp() AND stage_attempt < max_attempts)
 		  OR (state IN ($3,$6,$7,$8) AND lease_expires_at < clock_timestamp()))
         ORDER BY created_at, job_id
@@ -125,7 +124,8 @@ func (r *Repository) ClaimJob(ctx context.Context, ownerID string, leaseDuration
 		int16(pb.JobState_JOB_STATE_RUNNING), ownerID, leaseDuration.String(),
 		int16(pb.JobState_JOB_STATE_STAGED), int16(pb.JobState_JOB_STATE_VALIDATING),
 		int16(pb.JobState_JOB_STATE_PUBLISHING), int16(pb.JobStage_JOB_STAGE_PARSE),
-		int16(pb.JobStage_JOB_STAGE_STRUCTURE))
+		int16(pb.JobStage_JOB_STAGE_STRUCTURE), int16(pb.JobStage_JOB_STAGE_BIND),
+		int16(pb.JobStage_JOB_STAGE_CHUNK))
 	record, err := scanJob(row)
 	if err == pgx.ErrNoRows {
 		return JobRecord{}, ErrLeaseUnavailable
@@ -139,10 +139,35 @@ func (r *Repository) ClaimJob(ctx context.Context, ownerID string, leaseDuration
 // ClaimStructureJob owns the durable PARSE->STRUCTURE handoff. A successful PARSE checkpoint
 // advances the globally monotonic worker attempt and fence used by the Rust in-memory registry.
 func (r *Repository) ClaimStructureJob(ctx context.Context, ownerID string, leaseDuration time.Duration) (JobRecord, error) {
+	return r.claimHandoffJob(ctx, ownerID, leaseDuration, pb.JobStage_JOB_STAGE_PARSE, pb.JobStage_JOB_STAGE_STRUCTURE)
+}
+
+// ClaimBindJob transfers a completed STRUCTURE artifact into the Go-owned canonical binding stage.
+func (r *Repository) ClaimBindJob(ctx context.Context, ownerID string, leaseDuration time.Duration) (JobRecord, error) {
+	return r.claimHandoffJob(ctx, ownerID, leaseDuration, pb.JobStage_JOB_STAGE_STRUCTURE, pb.JobStage_JOB_STAGE_BIND)
+}
+
+// ClaimChunkJob transfers a registry-bound DocumentBatch to the Rust-owned CHUNK stage.
+func (r *Repository) ClaimChunkJob(ctx context.Context, ownerID string, leaseDuration time.Duration) (JobRecord, error) {
+	return r.claimHandoffJob(ctx, ownerID, leaseDuration, pb.JobStage_JOB_STAGE_BIND, pb.JobStage_JOB_STAGE_CHUNK)
+}
+
+func (r *Repository) claimHandoffJob(
+	ctx context.Context,
+	ownerID string,
+	leaseDuration time.Duration,
+	previousStage pb.JobStage,
+	targetStage pb.JobStage,
+) (JobRecord, error) {
 	if !storageIDPattern.MatchString(ownerID) || leaseDuration <= 0 {
 		return JobRecord{}, errors.New("valid owner and positive lease duration required")
 	}
-	if err := r.finalizeAbandonedCancellations(ctx, pb.JobStage_JOB_STAGE_STRUCTURE); err != nil {
+	previousRank, previousValid := domain.JobStageRank(previousStage)
+	targetRank, targetValid := domain.JobStageRank(targetStage)
+	if !previousValid || !targetValid || targetRank != previousRank+1 {
+		return JobRecord{}, errors.New("handoff stages must be adjacent in pipeline order")
+	}
+	if err := r.finalizeAbandonedCancellations(ctx, targetStage); err != nil {
 		return JobRecord{}, err
 	}
 	if _, err := r.pool.Exec(ctx, `WITH exhausted AS (
@@ -154,10 +179,10 @@ func (r *Repository) ClaimStructureJob(ctx context.Context, ownerID string, leas
 		UPDATE jobs j SET state=CASE WHEN j.cancellation_requested THEN $5::smallint ELSE $1::smallint END,
 		lease_owner=NULL,lease_expires_at=NULL,updated_at=clock_timestamp()
 		FROM exhausted e WHERE j.job_id=e.job_id`,
-		int16(pb.JobState_JOB_STATE_FAILED), int16(pb.JobStage_JOB_STAGE_STRUCTURE),
+		int16(pb.JobState_JOB_STATE_FAILED), int16(targetStage),
 		int16(pb.JobState_JOB_STATE_RETRY_WAIT), int16(pb.JobState_JOB_STATE_RUNNING),
 		int16(pb.JobState_JOB_STATE_CANCELLED)); err != nil {
-		return JobRecord{}, fmt.Errorf("finalize exhausted STRUCTURE jobs: %w", err)
+		return JobRecord{}, fmt.Errorf("finalize exhausted %s jobs: %w", targetStage, err)
 	}
 	row := r.pool.QueryRow(ctx, `WITH candidate AS (
 		SELECT job_id,stage,state,EXISTS (
@@ -184,14 +209,14 @@ func (r *Repository) ClaimStructureJob(ctx context.Context, ownerID string, leas
 		j.idempotency_key,j.request_hash,j.base_snapshot_id,j.latest_checkpoint_id,j.attempt,j.stage_attempt,j.lease_owner,
 		j.lease_fence,j.lease_expires_at,j.cancellation_requested,j.created_at,j.updated_at`,
 		int16(pb.JobState_JOB_STATE_RETRY_WAIT), int16(pb.JobState_JOB_STATE_RUNNING),
-		ownerID, leaseDuration.String(), int16(pb.JobStage_JOB_STAGE_PARSE),
-		int16(pb.JobState_JOB_STATE_STAGED), int16(pb.JobStage_JOB_STAGE_STRUCTURE))
+		ownerID, leaseDuration.String(), int16(previousStage),
+		int16(pb.JobState_JOB_STATE_STAGED), int16(targetStage))
 	record, err := scanJob(row)
 	if err == pgx.ErrNoRows {
 		return JobRecord{}, ErrLeaseUnavailable
 	}
 	if err != nil {
-		return JobRecord{}, fmt.Errorf("claim STRUCTURE job: %w", err)
+		return JobRecord{}, fmt.Errorf("claim %s job: %w", targetStage, err)
 	}
 	return record, nil
 }
@@ -393,7 +418,7 @@ func (r *Repository) SaveCheckpoint(ctx context.Context, checkpoint *pb.Checkpoi
 	if err != nil {
 		return fmt.Errorf("verify checkpoint fence: %w", err)
 	}
-	if int16(checkpoint.Stage) < currentStage {
+	if !domain.JobStagePrecedesOrEquals(pb.JobStage(currentStage), checkpoint.Stage) {
 		return fmt.Errorf("checkpoint stage regressed: %w", ErrConflict)
 	}
 	tag, err := tx.Exec(ctx, `INSERT INTO job_checkpoints(checkpoint_id,job_id,stage,fence,payload,payload_hash,terminal_status)

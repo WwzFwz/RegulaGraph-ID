@@ -8,7 +8,7 @@ Tujuh proto produksi pada [v1](../src/contracts/proto/regulagraph/v1/README.md) 
 
 `RecordMeta.record_id` adalah primary ID record pemiliknya, misalnya canonical ID pada CanonicalEntity, mention ID pada Mention, dan provision-version ID pada ProvisionVersion. ID referensi tetap memakai nama semantiknya. Jangan membuat ID baru ketika mengonversi bahasa. `DependencyManifest` ditempatkan di common agar import documents/graph/jobs tidak melingkar; Go jobs tetap pemilik pelaksanaan dependency dan publication.
 
-Baseline pertama ada di [schema-lock.json](../src/contracts/schema-lock.json), turunan descriptor, bukan schema lain untuk diedit. `check_contracts.py` menolak perubahan/penghapusan tag, tipe, presence, aturan field, nilai enum dan signature RPC yang sudah tercatat; penambahan masih memerlukan review semantik. Jangan menjalankan `--write-baseline` untuk menyembunyikan perubahan tidak kompatibel. Baseline ini belum merupakan matriks kompatibilitas dua versi rilis historis; tambahkan producer/consumer lama-baru ketika ada revisi kedua.
+Baseline pertama ada di [schema-lock.json](../src/contracts/schema-lock.json), turunan descriptor, bukan schema lain untuk diedit. `check_contracts.py` menolak perubahan/penghapusan tag, tipe, presence, aturan field, nilai enum dan signature RPC yang sudah tercatat; penambahan masih memerlukan review semantik. BIND dan CHUNK memakai nilai enum append-only 8/9 untuk kompatibilitas; rank domain menetapkannya setelah STRUCTURE dan sebelum EXTRACT. Jangan menjalankan `--write-baseline` untuk menyembunyikan perubahan tidak kompatibel. Baseline ini belum merupakan matriks kompatibilitas dua versi rilis historis; tambahkan producer/consumer lama-baru ketika ada revisi kedua.
 
 ## Pembagian validator
 

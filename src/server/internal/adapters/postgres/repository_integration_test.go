@@ -283,12 +283,15 @@ func TestStorageFoundationAgainstPostgres(t *testing.T) {
 	if err != nil || actual != pb.JobState_JOB_STATE_STAGED {
 		t.Fatalf("stage STRUCTURE job state=%s err=%v", actual, err)
 	}
-	if _, err = repo.pool.Exec(ctx, `UPDATE jobs SET lease_expires_at=clock_timestamp()-interval '1 second' WHERE job_id=$1`, jobID); err != nil {
+	// Publication primitives are exercised at terminal INDEX ownership. STRUCTURE now hands off
+	// exclusively to BIND and must not be reclaimed by the generic publication coordinator.
+	if _, err = repo.pool.Exec(ctx, `UPDATE jobs SET stage=$2,lease_expires_at=clock_timestamp()-interval '1 second' WHERE job_id=$1`,
+		jobID, int16(pb.JobStage_JOB_STAGE_INDEX)); err != nil {
 		t.Fatal(err)
 	}
 	reclaimed, err = repo.ClaimJob(ctx, "worker-staged-recovery", time.Minute)
-	if err != nil || reclaimed.State != pb.JobState_JOB_STATE_STAGED || reclaimed.Stage != pb.JobStage_JOB_STAGE_STRUCTURE {
-		t.Fatalf("reclaim staged STRUCTURE job=%+v err=%v", reclaimed, err)
+	if err != nil || reclaimed.State != pb.JobState_JOB_STATE_STAGED || reclaimed.Stage != pb.JobStage_JOB_STAGE_INDEX {
+		t.Fatalf("reclaim staged INDEX publication job=%+v err=%v", reclaimed, err)
 	}
 	foreignCorpus := "foreign-corpus-" + suffix
 	foreignRequest := ingestionRequestFixture(foreignCorpus, "foreign-request-"+suffix, "https://example.test/foreign.pdf")
