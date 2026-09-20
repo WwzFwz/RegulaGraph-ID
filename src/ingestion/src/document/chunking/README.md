@@ -24,7 +24,7 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Parser struktur hukum aktif pada worker STRUCTURE dan tidak menerima atau membuat `provision_version_id`. Builder chunk source-mapped, validator record, parent index acyclic, dan proyeksi chunk C01 aktif sebagai library; builder mewajibkan binding versi eksplisit dari caller sebelum chunk dibentuk. Builder mempertahankan preamble, memecah unit panjang pada batas UTF-8/kata/kalimat, memakai tokenizer yang disuntikkan, dan menyimpan ancestry sebagai ID. Table reconstruction, exception linking lintas dokumen, tokenizer produksi, stage CHUNK, gold structure set, dan acceptance benchmark belum aktif. Unit test membuktikan invariant deterministik kecil, bukan target kualitas atau latency corpus.
+Parser struktur hukum aktif pada worker STRUCTURE dan tidak menerima atau membuat `provision_version_id`. Builder chunk source-mapped, validator record, parent index acyclic, dan proyeksi chunk C01 aktif sebagai library. Jalur registry-bound mewajibkan tepat satu assignment provision-version valid untuk setiap structure node dan memeriksa seluruh map sebelum tokenisasi, sehingga preamble/container tidak mewarisi versi pasal yang salah. Builder mempertahankan preamble, memecah unit panjang pada batas UTF-8/kata/kalimat, memakai tokenizer yang disuntikkan, dan menyimpan ancestry sebagai ID. Table reconstruction, exception linking lintas dokumen, tokenizer produksi, stage CHUNK, gold structure set, dan acceptance benchmark belum aktif. Unit test membuktikan invariant deterministik kecil, bukan target kualitas atau latency corpus.
 
 ## Rekomendasi implementasi anak
 
@@ -32,6 +32,6 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Integrasikan keluaran anak mel
 
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
-| [builder.rs](builder.rs) | Integrasikan tokenizer produksi dan konversi `ChunkView` ke batch wire; tambahkan linking exception yang dibuktikan gold. | Uji parity token, tabel, exception lintas chunk, 100 MiB transform, RSS, dan dampak retrieval. |
+| [builder.rs](builder.rs) | Hubungkan API registry-bound ke stage CHUNK dan tokenizer produksi; tambahkan linking exception yang dibuktikan gold. | Uji parity token, missing/foreign binding sebelum inferensi, tabel, exception lintas chunk, 100 MiB transform, RSS, dan dampak retrieval. |
 | [parents.rs](parents.rs) | Integrasikan batch hydration dengan context builder Go memakai snapshot yang dipin. | Uji retrieval hydration order, missing backend record, context duplication, serta `CONTEXT.BUILD_P95`. |
 | [structural.rs](structural.rs) | Tambahkan struktur tabel/sel dan pola heading baru hanya berdasarkan gold corpus. | Ukur F1 batas pasal/ayat/huruf per strata dan simpan false-positive/false-negative. |

@@ -26,7 +26,7 @@ Ikuti [kebijakan benchmark](../../doc/benchmark-policy.md). Angka wajib mengikut
 
 ## Status
 
-Boundary parser PDFium, normalizer, structural chunking, proyeksi/persistence C01, incremental planner, dan selector timeline aktif sebagai library. Executable worker Tonic menjalankan PARSE dari PDF terverifikasi, mempertahankan source observation yang terikat blob, lalu STRUCTURE dari `DocumentBatch` immutable. STRUCTURE memverifikasi ulang raw/normalized/mapping beserta normalizer manifest, menghasilkan hierarki tanpa membuat ID ketentuan, dan mengembalikan batch baru yang terikat checkpoint. Binding provision/version sebelum CHUNK, extraction change-event, canonical registry, tabel, graph/index batch, OCR, gold temporal, object storage, full-rebuild equivalence, dan acceptance produksi belum aktif.
+Boundary parser PDFium, normalizer, structural chunking, proyeksi/persistence C01, incremental planner, dan selector timeline aktif sebagai library. Executable worker Tonic menjalankan PARSE dari PDF terverifikasi, mempertahankan source observation yang terikat blob, lalu STRUCTURE dari `DocumentBatch` immutable. STRUCTURE memverifikasi ulang raw/normalized/mapping beserta normalizer manifest, menghasilkan hierarki tanpa membuat ID ketentuan, dan mengembalikan batch baru yang terikat checkpoint. Builder/proyeksi library dapat menerima binding provision-version per node dari registry Go, tetapi stage CHUNK belum aktif. Extraction change-event, canonical registry Rust, tabel, graph/index batch, OCR, gold temporal, object storage, full-rebuild equivalence, dan acceptance produksi belum aktif.
 
 ## Penambahan C01 dan panduan verifikasi
 

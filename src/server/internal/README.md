@@ -16,7 +16,7 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 Subfolder: [adapters/](adapters/README.md), [answering/](answering/README.md), [api/](api/README.md), [config/](config/README.md), [domain/](domain/README.md), [indexing/](indexing/README.md), [ingestion/](ingestion/README.md), [retrieval/](retrieval/README.md), [workflows/](workflows/README.md).
 
-Akuisisi dan audit inventory D01 sudah aktif melalui CLI, workflow batch, serta adapter sources. Scheduler durable dan publication coordinator S01 juga aktif. Executor PARSE→STRUCTURE menyerahkan artifact ke worker Rust dan menyimpan checkpoint fenced. Domain planner exact identity dan adapter allocator PostgreSQL mengelola canonical identity K01 secara revisioned/idempotent. Binding record regulasi, graph/index backend, serta query/answer produksi masih scaffold.
+Akuisisi dan audit inventory D01 sudah aktif melalui CLI, workflow batch, serta adapter sources. Scheduler durable dan publication coordinator S01 juga aktif. Executor PARSE→STRUCTURE menyerahkan artifact ke worker Rust dan menyimpan checkpoint fenced. Domain planner exact identity, adapter allocator PostgreSQL, serta materializer regulation/provision mengelola boundary canonical identity K01 secara revisioned/idempotent. Workflow/persistence materializer, graph/index backend, serta query/answer produksi masih scaffold.
 
 ## Benchmark dan perhatian performa
 
@@ -26,4 +26,4 @@ Ikuti [kebijakan benchmark](../../../doc/benchmark-policy.md). Angka wajib mengi
 
 ## Status
 
-Collector/audit D01, kontrak/validator C01, evaluator E01, fondasi storage/publication S01, dispatch PARSE→STRUCTURE, serta exact identity planner/allocator K01 sudah tersedia. Binding record regulasi, graph/index/retrieval, mutasi backend, dan layanan model belum aktif. Status anak dijelaskan pada header masing-masing; test dan audit integrity belum membuktikan target kualitas atau latency.
+Collector/audit D01, kontrak/validator C01, evaluator E01, fondasi storage/publication S01, dispatch PARSE→STRUCTURE, exact identity planner/allocator K01, serta binding domain record regulasi/provision sudah tersedia. Workflow/persistence binding, graph/index/retrieval, mutasi backend, dan layanan model belum aktif. Status anak dijelaskan pada header masing-masing; test dan audit integrity belum membuktikan target kualitas atau latency.
