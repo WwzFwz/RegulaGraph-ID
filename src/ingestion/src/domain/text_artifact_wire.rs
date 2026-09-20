@@ -104,12 +104,19 @@ pub fn build_text_mapping(
     normalized: &NormalizedText,
     text_artifact_id: &str,
 ) -> Result<documents::TextMapping, TextArtifactWireError> {
-    if !valid_ascii_id(text_artifact_id) {
-        return Err(TextArtifactWireError::InvalidConfig("text_artifact_id"));
-    }
     normalized
         .validate_integrity()
         .map_err(|error| TextArtifactWireError::Normalization(error.to_string()))?;
+    build_validated_text_mapping(normalized, text_artifact_id)
+}
+
+fn build_validated_text_mapping(
+    normalized: &NormalizedText,
+    text_artifact_id: &str,
+) -> Result<documents::TextMapping, TextArtifactWireError> {
+    if !valid_ascii_id(text_artifact_id) {
+        return Err(TextArtifactWireError::InvalidConfig("text_artifact_id"));
+    }
     let mut original_spans = Vec::with_capacity(normalized.mapping.len());
     let mut normalized_spans = Vec::with_capacity(normalized.mapping.len());
     for span in &normalized.mapping {
@@ -154,6 +161,15 @@ pub fn serialize_text_mapping(
         .map_err(|error| TextArtifactWireError::Serialization(error.to_string()))
 }
 
+pub(crate) fn serialize_validated_text_mapping(
+    normalized: &NormalizedText,
+    text_artifact_id: &str,
+) -> Result<Vec<u8>, TextArtifactWireError> {
+    build_validated_text_mapping(normalized, text_artifact_id)?
+        .write_to_bytes()
+        .map_err(|error| TextArtifactWireError::Serialization(error.to_string()))
+}
+
 pub fn project_text_artifact(
     parsed: &PdfDocumentText,
     normalized: &NormalizedText,
@@ -166,8 +182,29 @@ pub fn project_text_artifact(
     normalized
         .validate_mapping(&parsed.raw_text, normalizer_config)
         .map_err(|error| TextArtifactWireError::Normalization(error.to_string()))?;
+    let mapping_bytes = serialize_validated_text_mapping(normalized, &config.text_artifact_id)?;
+    project_text_artifact_inner(parsed, normalized, &mapping_bytes, references, config)
+}
 
-    let mapping_bytes = serialize_text_mapping(normalized, &config.text_artifact_id)?;
+pub(crate) fn project_validated_text_artifact(
+    parsed: &PdfDocumentText,
+    normalized: &NormalizedText,
+    mapping_bytes: &[u8],
+    references: &TextArtifactRefs,
+    config: &TextArtifactWireConfig,
+) -> Result<documents::TextArtifact, TextArtifactWireError> {
+    validate_config(config)?;
+    validate_parsed_document(parsed, config.maximum_pages)?;
+    project_text_artifact_inner(parsed, normalized, mapping_bytes, references, config)
+}
+
+fn project_text_artifact_inner(
+    parsed: &PdfDocumentText,
+    normalized: &NormalizedText,
+    mapping_bytes: &[u8],
+    references: &TextArtifactRefs,
+    config: &TextArtifactWireConfig,
+) -> Result<documents::TextArtifact, TextArtifactWireError> {
     validate_reference(
         &references.raw_text,
         parsed.raw_text.as_bytes(),
@@ -182,7 +219,7 @@ pub fn project_text_artifact(
     )?;
     validate_reference(
         &references.mapping,
-        &mapping_bytes,
+        mapping_bytes,
         MAPPING_MEDIA_TYPE,
         "mapping_ref",
     )?;
