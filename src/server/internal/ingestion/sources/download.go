@@ -2,6 +2,11 @@
 // Peran: bytes PDF sungguhan disimpan bersama hash; HTML/error/unduhan terpotong ditolak.
 // Integrasi: file sementara di direktori tujuan, validasi sebelum rename; receipt menunjuk path relatif.
 // Performa: PDF tidak dimuat penuh ke RAM; batas ukuran, checksum reuse, dan waktu transfer terukur.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Preserve streamed hash/size/PDF envelope validation and durable receipts; integrate stronger PDF diagnostics through parser output.
+// Bukti verifikasi: Test short body, wrong media, corrupt existing blobs and disk errors; bound temporary bytes and report download throughput.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package sources
 
 import (
@@ -153,6 +158,13 @@ func (c *Collector) savePDF(resp *http.Response, body io.Reader, link PDFLink, s
 			return e
 		}
 		sum := hex.EncodeToString(h.Sum(nil))
+		c.blobMu.Lock()
+		defer c.blobMu.Unlock()
+		_, accounted := c.blobSizes[sum]
+		if !accounted && c.opts.MaxTotalPDFBytes > 0 && n > c.opts.MaxTotalPDFBytes-c.blobBytes {
+			c.budgetStopped = true
+			return ErrPDFBudget
+		}
 		dest := filepath.Join(folder, sum+".pdf")
 		if !verifyFile(dest, sum) {
 			if _, statErr := os.Stat(dest); statErr == nil {
@@ -169,6 +181,13 @@ func (c *Collector) savePDF(resp *http.Response, body io.Reader, link PDFLink, s
 			}
 		}
 		receipt.SHA256 = sum
+		if !accounted {
+			c.blobSizes[sum] = n
+			c.blobBytes += n
+		}
+		if c.opts.MaxTotalPDFBytes > 0 && c.blobBytes >= c.opts.MaxTotalPDFBytes {
+			c.budgetStopped = true
+		}
 		receipt.Bytes = n
 		receipt.Path = filepath.ToSlash(filepath.Join("blobs", sum+".pdf"))
 		return nil

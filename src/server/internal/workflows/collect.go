@@ -2,6 +2,11 @@
 // Peran: CLI tidak mengimplementasikan parsing/download sendiri; concurrency dibatasi di sini.
 // Integrasi: collector lokal menghasilkan inventory, belum job/registry/snapshot produksi.
 // Performa: deduplikasi URL dalam batch, worker bounded, pembatalan, dan hitungan kegagalan eksplisit.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Retain resumable acquisition; integrate receipts into S01 jobs without changing PDF byte-cap accounting.
+// Bukti verifikasi: Test cancellation and budget stop with concurrent workers; reconcile completed/failed/deferred counts and no dangling producer.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package workflows
 
 import (
@@ -21,10 +26,12 @@ type CollectionEvent struct {
 	Error  string         `json:"error,omitempty"`
 }
 type CollectionSummary struct {
-	Total     int `json:"total"`
-	Completed int `json:"completed"`
-	Reused    int `json:"reused"`
-	Failed    int `json:"failed"`
+	Total        int  `json:"total"`
+	Completed    int  `json:"completed"`
+	Reused       int  `json:"reused"`
+	Failed       int  `json:"failed"`
+	Deferred     int  `json:"deferred"`
+	LimitReached bool `json:"limit_reached"`
 }
 
 func CollectSources(ctx context.Context, c SourceCollector, urls []string, workers int, report func(CollectionEvent)) (CollectionSummary, error) {
@@ -44,6 +51,14 @@ func CollectSources(ctx context.Context, c SourceCollector, urls []string, worke
 		return CollectionSummary{}, errors.New("no source URLs supplied")
 	}
 	jobs := make(chan string)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	stopForBudget := func() bool {
+		if b, ok := c.(interface{ BudgetStopped() bool }); ok {
+			return b.BudgetStopped()
+		}
+		return false
+	}
 	events := make(chan CollectionEvent)
 	var wg sync.WaitGroup
 	for i := 0; i < workers; i++ {
@@ -51,6 +66,9 @@ func CollectSources(ctx context.Context, c SourceCollector, urls []string, worke
 		go func() {
 			defer wg.Done()
 			for u := range jobs {
+				if stopForBudget() {
+					return
+				}
 				r, e := c.Collect(ctx, u)
 				event := CollectionEvent{URL: u, Result: r}
 				if e != nil {
@@ -63,6 +81,9 @@ func CollectSources(ctx context.Context, c SourceCollector, urls []string, worke
 	go func() {
 		defer close(jobs)
 		for _, u := range unique {
+			if stopForBudget() {
+				return
+			}
 			select {
 			case <-ctx.Done():
 				return
@@ -75,7 +96,9 @@ func CollectSources(ctx context.Context, c SourceCollector, urls []string, worke
 	received := 0
 	for event := range events {
 		received++
-		if event.Error != "" {
+		if event.Error == sources.ErrPDFBudget.Error() {
+			summary.Deferred++
+		} else if event.Error != "" {
 			summary.Failed++
 		} else {
 			summary.Completed++
@@ -87,7 +110,12 @@ func CollectSources(ctx context.Context, c SourceCollector, urls []string, worke
 			report(event)
 		}
 	}
-	summary.Failed += summary.Total - received
+	summary.LimitReached = stopForBudget()
+	if summary.LimitReached {
+		summary.Deferred += summary.Total - received
+	} else {
+		summary.Failed += summary.Total - received
+	}
 	if summary.Failed > 0 {
 		return summary, errors.New("one or more documents failed or were cancelled; inspect records and retry")
 	}

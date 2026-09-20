@@ -2,6 +2,11 @@
 // Peran: menghubungkan fetch, parser metadata, blob store, dan receipt yang dapat dilanjutkan.
 // Integrasi: belum melakukan OCR/chunking/graph/publication; metadata portal belum fakta hukum tervalidasi.
 // Performa: bounded download, checksum reuse, record partial/error; benchmark SOURCE belum diklaim lulus.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Extend metadata/PDF extraction using captured layouts and preserve observation history; treat dates/status as unverified source assertions.
+// Bukti verifikasi: Test changed layouts, attachment vs regulation links and missing metadata; report per-source extraction coverage.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package sources
 
 import (
@@ -15,6 +20,9 @@ import (
 )
 
 func (c *Collector) Collect(ctx context.Context, rawURL string) (Result, error) {
+	if c.BudgetStopped() {
+		return Result{}, ErrPDFBudget
+	}
 	if err := validateURL(rawURL); err != nil {
 		return Result{}, err
 	}
@@ -93,6 +101,10 @@ func (c *Collector) Collect(ctx context.Context, rawURL string) (Result, error) 
 				}
 			}
 			for _, link := range links {
+				if c.BudgetStopped() {
+					r.PDFs = append(r.PDFs, PDFReceipt{URL: link.URL, Kind: link.Kind, Error: ErrPDFBudget.Error()})
+					continue
+				}
 				if p, ok := cached[link.URL]; ok {
 					r.PDFs = append(r.PDFs, p)
 				} else {
@@ -110,7 +122,12 @@ func (c *Collector) Collect(ctx context.Context, rawURL string) (Result, error) 
 			if successful > 0 {
 				r.Status = "partial"
 			}
-			return fmt.Errorf("downloaded %d/%d PDFs", successful, len(r.PDFs))
+			for _, p := range r.PDFs {
+				if p.Error != "" && p.Error != ErrPDFBudget.Error() {
+					return fmt.Errorf("downloaded %d/%d PDFs; non-budget failure: %s", successful, len(r.PDFs), p.Error)
+				}
+			}
+			return ErrPDFBudget
 		}
 		r.Status = "complete"
 		return nil

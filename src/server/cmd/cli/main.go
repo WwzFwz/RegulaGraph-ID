@@ -2,6 +2,11 @@
 // Integrasi: URL eksplisit/file/listing dibatasi; hasil lokal D01, belum ingestion/graph/query produksi.
 // Performa: worker, per-host interval, timeout dan batas bytes dikonfigurasi; failures menghasilkan exit 1.
 // Benchmark: hasil unduh bukan bukti target retrieval/model; angka required tidak berubah.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Keep commands as workflow adapters; expose job/status/update/query only as implementations become available.
+// Bukti verifikasi: Test exit codes, machine-readable output and cancellation; budget deferrals must not masquerade as completed acquisition.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package main
 
 import (
@@ -42,6 +47,7 @@ func run(ctx context.Context, args []string, out, errOut io.Writer) int {
 	interval := fs.Duration("interval", time.Second, "Minimum interval between requests to one host")
 	timeout := fs.Duration("timeout", 60*time.Second, "HTTP request timeout; total per-document budget is three times this")
 	maxMB := fs.Int64("max-pdf-mib", 100, "Maximum bytes per PDF in MiB, 1..4096")
+	maxTotal := fs.Int64("max-total-pdf-bytes", 0, "Collect only: cap unique PDF bytes including existing blobs; 0 disables; single writer required")
 	maxPages := fs.Int("max-pages", 5, "Listing page limit: collect per seed, discover total new pages/run; not a completeness claim")
 	maxDocuments := fs.Int("max-documents", 20, "Collect only: maximum discovered documents per listing seed")
 	refresh := fs.Bool("refresh", false, "Fetch again instead of reusing a complete checksum-verified record")
@@ -52,7 +58,7 @@ func run(ctx context.Context, args []string, out, errOut io.Writer) int {
 		}
 		return 2
 	}
-	if fs.NArg() != 0 || *workers < 1 || *workers > 16 || *maxMB < 1 || *maxMB > 4096 || *maxPages < 1 || *maxDocuments < 1 || *interval < 0 || *timeout <= 0 {
+	if fs.NArg() != 0 || *workers < 1 || *workers > 16 || *maxMB < 1 || *maxMB > 4096 || *maxPages < 1 || *maxDocuments < 1 || *interval < 0 || *timeout <= 0 || *maxTotal < 0 {
 		fmt.Fprintln(errOut, "Invalid limits or unexpected positional arguments")
 		return 2
 	}
@@ -77,7 +83,7 @@ func run(ctx context.Context, args []string, out, errOut io.Writer) int {
 			return 2
 		}
 	}
-	collector, e := sources.NewCollector(sources.Options{OutputDir: *output, Interval: *interval, Timeout: *timeout, MaxPDFBytes: *maxMB << 20, Refresh: *refresh, IncludeRelated: *related})
+	collector, e := sources.NewCollector(sources.Options{OutputDir: *output, Interval: *interval, Timeout: *timeout, MaxPDFBytes: *maxMB << 20, Refresh: *refresh, IncludeRelated: *related, MaxTotalPDFBytes: *maxTotal})
 	if e != nil {
 		fmt.Fprintln(errOut, e)
 		return 2
@@ -136,13 +142,15 @@ func run(ctx context.Context, args []string, out, errOut io.Writer) int {
 		if event.Result.Reused {
 			state = "reused"
 		}
-		if event.Error != "" {
+		if event.Error == sources.ErrPDFBudget.Error() {
+			state = "deferred: " + event.Error
+		} else if event.Error != "" {
 			state = "failed: " + event.Error
 		}
 		fmt.Fprintf(errOut, "%s %s\n", state, event.URL)
 	})
 	if outputErr == nil {
-		outputErr = encoder.Encode(map[string]any{"summary": summary})
+		outputErr = encoder.Encode(map[string]any{"summary": summary, "unique_pdf_bytes": collector.PDFBytes(), "max_total_pdf_bytes": *maxTotal})
 	}
 	if e != nil {
 		fmt.Fprintln(errOut, e)

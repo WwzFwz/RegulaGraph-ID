@@ -4,7 +4,7 @@ Dokumen ini menjelaskan collector D01 yang sudah dapat dijalankan dari CLI Go. P
 
 ## Keputusan sesi 2026-09-20 dan antrean untuk dilanjutkan
 
-Pengguna mengubah target awal dari 5 GB menjadi **3 GB PDF unik (3.000.000.000 bytes total, termasuk PDF valid yang sudah tersimpan)**, meminta daftar sumber diperbanyak dahulu, dan menunda unduhan PDF lanjutan sampai besok. Tidak ada penjadwalan otomatis. Angka ini target volume akuisisi, bukan perubahan required benchmark. Saat ini CLI collect belum memiliki penghentian otomatis berdasarkan total bytes; sebelum batch 3 GB dijalankan, tambahkan serta uji batas volume tersebut. Jangan menjalankan seluruh antrean tanpa batas dan menganggapnya berhenti sendiri pada 3 GB.
+Pengguna mengubah target awal dari 5 GB menjadi **3 GB PDF unik (3.000.000.000 bytes total, termasuk PDF valid yang sudah tersimpan)**, meminta daftar sumber diperbanyak dahulu, dan menunda unduhan PDF lanjutan sampai besok. Tidak ada penjadwalan otomatis. Angka ini target volume akuisisi, bukan perubahan required benchmark. Catatan ini merekam keputusan penundaan awal; pengguna kemudian mengotorisasi batch paralel. CLI kini memiliki batas total byte yang sudah diuji; hasil batch ada pada bagian akhir dokumen.
 
 Mode berikut hanya membaca halaman katalog dan menyimpan daftar; tidak menjalankan collect:
 
@@ -16,7 +16,7 @@ Discovery menghasilkan `discovery.json` berisi seed, halaman yang sudah dibaca, 
 
 Seed mencakup katalog Kemkomdigi, BPK berdasarkan jenis/tahun, serta homepage JDIHN. BPK memakai nomor halaman berurutan karena label Next pada layout teramati melompati kelompok sepuluh halaman. Discovery JDIHN mengenali tautan /doc/ di homepage; search JavaScript dan unduhan portal anggota belum tersedia. Judul berasal label tautan dan belum menggantikan metadata halaman detail. URL unik lintas portal belum berarti peraturan kanonis unik.
 
-Untuk kelanjutan besok: baca checkpoint/error, aktifkan batas total 3 GB terlebih dahulu, lalu gunakan queue.txt dengan resume checksum. Pertimbangkan timeout lebih panjang untuk PDF besar: smoke BPK UU 6/2023 sebelumnya gagal saat membaca body melewati timeout 60 detik. PDF berhasil yang sudah ada tetap disimpan.
+Untuk kelanjutan batch: baca checkpoint/error dan gunakan queue.txt dengan resume checksum serta -max-total-pdf-bytes yang eksplisit. Pertimbangkan timeout lebih panjang untuk PDF besar: smoke BPK UU 6/2023 sebelumnya gagal saat membaca body melewati timeout 60 detik. PDF berhasil yang sudah ada tetap disimpan.
 
 ## Menjalankan unduhan
 
@@ -61,7 +61,7 @@ Unduhan mengalir ke file sementara, dihitung SHA-256, dibatasi ukuran, dan diper
 
 Receipt menyimpan source/final URL, waktu observasi, content type, ETag/Last-Modified bila tersedia, bytes, checksum, durasi, serta error per PDF. Metadata BPK/Kemkomdigi menyimpan judul, nomor, tahun, tipe, tanggal, sumber dan field yang ditemukan. Tautan putusan uji materi BPK dipisahkan dari PDF peraturan; `-include-related` mengikutkan unduhannya dengan tipe `related_judgment`.
 
-Exit code: 0 seluruh input berhasil/valid reused; 1 ada unduhan/discovery gagal atau pembatalan; 2 argumen/input konfigurasi tidak valid. Progress ditulis ke stderr dan event/summary JSON Lines ke stdout. File partial atau HTML error tidak dihitung sebagai PDF berhasil.
+Exit code: 0 tidak ada kegagalan (dapat mencakup penghentian cap yang dilaporkan limit_reached/deferred); 1 ada unduhan/discovery gagal atau pembatalan; 2 argumen/input konfigurasi tidak valid. Progress ditulis ke stderr dan event/summary JSON Lines ke stdout. File partial atau HTML error tidak dihitung sebagai PDF berhasil.
 
 ## Batas akses dan resource
 
@@ -82,3 +82,15 @@ Tests offline mencakup metadata/layout, dedup preview/download, pemisahan putusa
 Run dibatasi 200 request halaman: 199 halaman berhasil disimpan dan satu seed BPK `Search?jenis=15` tidak menghasilkan tautan yang dikenali; error tetap tercatat, sehingga proses keluar dengan kode 1 (coverage parsial). Antrean berisi 3,160 URL detail unik, dengan distribusi jdih.komdigi.go.id: 435, peraturan.bpk.go.id: 2,715, jdihn.go.id: 10. Ini jumlah URL yang ditemukan, bukan jumlah PDF tersedia atau peraturan kanonis unik. Hasil mesin dan pekerjaan kelanjutan berada di `data/acquisition/handoff.json`.
 
 Tiga PDF lama berjumlah 11.975.669 bytes, seluruh checksum cocok dan dapat dibaca pypdf (50, 24, serta 19 halaman). Tidak ada PDF tambahan diunduh pada sesi discovery ini. Semua pengujian Go serta go vet lulus; benchmark retrieval/model belum dijalankan.
+
+## Hasil batch terbatas 3 GB, 2026-09-20
+
+Atas otorisasi lanjutan pengguna, batch berjalan paralel dengan C01 dan telah berhenti sebelum PDF berikutnya melampaui batas. Tersimpan **650 PDF unik, 2.999.240.002 bytes**, termasuk file yang sudah ada. Antrean 3.160 URL menghasilkan 593 completed (termasuk 1 reused), 19 failed dan 2.548 deferred; jumlah URL bukan jumlah PDF karena satu detail dapat memiliki beberapa lampiran. Error dan receipt dipertahankan. Proses sudah berhenti dan tidak ada jadwal unduh otomatis.
+
+```powershell
+go run ./src/server/cmd/cli collect -input data/acquisition/queue.txt -out data/acquisition -workers 2 -interval 1s -timeout 5m -max-pdf-mib 256 -max-total-pdf-bytes 3000000000
+```
+
+Cap menghitung bytes blob PDF unik yang telah dipromosikan, termasuk file lama dengan hash terverifikasi. Dedup tidak menambah total; promosi dikunci antar worker. File sementara, HTML dan traffic unduhan tidak termasuk cap ini. Satu proses penulis per direktori tetap wajib. Ketika PDF berikutnya tidak muat, batch berhenti dan menyimpan deferred; ia tidak memotong PDF atau mencari kombinasi file agar tepat 3 GB. Batas per PDF dan ruang disk sementara tetap perlu diperhitungkan.
+
+Ringkasan akhir berada di data/acquisition/handoff.json; raw progress/JSONL berada di .cache/download-batch.log dan .cache/download-batch.jsonl. File tersimpan lolos pemeriksaan envelope/header/EOF dan checksum downloader; bukan berarti seluruh 650 file sudah lolos parser PDF lengkap atau audit kualitas teks. D01 berikutnya mengaudit failures, strata scan/teks/tabel/lampiran dan kelengkapan metadata sebelum G01/I01.

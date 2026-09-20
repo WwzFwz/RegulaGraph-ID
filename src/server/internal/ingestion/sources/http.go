@@ -2,6 +2,11 @@
 // Peran: berbagi koneksi dan kebijakan jaringan untuk discovery, detail, serta PDF streaming.
 // Integrasi: hanya collector lokal D01; endpoint produksi, autentikasi dan publication belum aktif.
 // Performa: antrean context-aware; respons/body terbatas; kegagalan tidak disamarkan sebagai sukses.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Keep per-host throttling, connection reuse and redirect policy; propagate cancellation and retry budgets.
+// Bukti verifikasi: Test Retry-After, cross-host redirect rejection and transient failures; measure waiting separately from transferred bytes.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package sources
 
 import (
@@ -18,25 +23,33 @@ import (
 )
 
 type Options struct {
-	OutputDir      string
-	Interval       time.Duration
-	Timeout        time.Duration
-	MaxPDFBytes    int64
-	Refresh        bool
-	IncludeRelated bool
+	OutputDir        string
+	Interval         time.Duration
+	Timeout          time.Duration
+	MaxPDFBytes      int64
+	Refresh          bool
+	IncludeRelated   bool
+	MaxTotalPDFBytes int64
 }
 type Collector struct {
-	opts   Options
-	client *http.Client
-	mu     sync.Mutex
-	next   map[string]time.Time
+	opts          Options
+	client        *http.Client
+	mu            sync.Mutex
+	next          map[string]time.Time
+	blobMu        sync.Mutex
+	blobBytes     int64
+	blobSizes     map[string]int64
+	budgetStopped bool
 }
 
 func NewCollector(opts Options) (*Collector, error) {
-	if opts.OutputDir == "" || opts.Interval < 0 || opts.Timeout <= 0 || opts.MaxPDFBytes <= 0 {
+	if opts.OutputDir == "" || opts.Interval < 0 || opts.Timeout <= 0 || opts.MaxPDFBytes <= 0 || opts.MaxTotalPDFBytes < 0 {
 		return nil, errors.New("invalid collector output/interval/timeout/max size")
 	}
 	c := &Collector{opts: opts, next: map[string]time.Time{}}
+	if err := c.initializeBudget(); err != nil {
+		return nil, err
+	}
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.MaxIdleConnsPerHost = 4
 	c.client = &http.Client{Transport: transport, Timeout: opts.Timeout}
