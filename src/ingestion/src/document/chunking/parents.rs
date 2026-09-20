@@ -167,3 +167,130 @@ impl Display for ParentError {
 }
 
 impl Error for ParentError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::chunks::{ChunkView, SourceMappedSpan, CHUNK_SCHEMA_VERSION};
+
+    fn node(id: &str, kind: StructureKind, parent: Option<&str>) -> StructureNode {
+        StructureNode {
+            schema_version: 1,
+            id: id.to_owned(),
+            kind,
+            label: id.to_owned(),
+            parent_id: parent.map(str::to_owned),
+            ordered_children: Vec::new(),
+            normalized_span: 0..1,
+            raw_span: 0..1,
+        }
+    }
+
+    fn hierarchy() -> Vec<StructureNode> {
+        vec![
+            node("root", StructureKind::Document, None),
+            node("chapter", StructureKind::Chapter, Some("root")),
+            node("article", StructureKind::Article, Some("chapter")),
+            node("clause", StructureKind::Paragraph, Some("article")),
+            node("item-a", StructureKind::Item, Some("clause")),
+            node("item-b", StructureKind::Item, Some("clause")),
+        ]
+    }
+
+    fn chunk(structure_refs: &[&str]) -> ChunkView {
+        ChunkView {
+            schema_version: CHUNK_SCHEMA_VERSION,
+            id: "chunk:1".to_owned(),
+            source_blob_id: "source:1".to_owned(),
+            text_artifact_id: "text:1".to_owned(),
+            provision_version_refs: vec!["version:1".to_owned()],
+            structure_node_refs: structure_refs
+                .iter()
+                .map(|value| (*value).to_owned())
+                .collect(),
+            parent_refs: vec!["stale-parent".to_owned()],
+            exception_refs: Vec::new(),
+            text_span: SourceMappedSpan {
+                normalized: 0..1,
+                raw: 0..1,
+            },
+            text_sha256: "0".repeat(64),
+            chunker_config_sha256: "1".repeat(64),
+            token_counts: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn returns_root_to_direct_parent_without_document_node() {
+        let index = ParentIndex::build(&hierarchy(), &ParentIndexConfig::default())
+            .expect("valid parent index");
+
+        assert_eq!(
+            index.ancestors("item-a").expect("known item"),
+            ["chapter", "article", "clause"]
+        );
+        assert!(index
+            .ancestors("chapter")
+            .expect("known chapter")
+            .is_empty());
+    }
+
+    #[test]
+    fn attaches_deduplicated_parent_references_in_stable_order() {
+        let index = ParentIndex::build(&hierarchy(), &ParentIndexConfig::default())
+            .expect("valid parent index");
+        let mut chunk = chunk(&["item-a", "item-b"]);
+
+        index.attach_to_chunk(&mut chunk).expect("parents attach");
+
+        assert_eq!(chunk.parent_refs, ["chapter", "article", "clause"]);
+    }
+
+    #[test]
+    fn rejects_missing_duplicate_cyclic_and_too_deep_graphs() {
+        let missing = vec![node("orphan", StructureKind::Article, Some("absent"))];
+        assert_eq!(
+            ParentIndex::build(&missing, &ParentIndexConfig::default()).unwrap_err(),
+            ParentError::MissingParent {
+                node_id: "orphan".to_owned(),
+                parent_id: "absent".to_owned()
+            }
+        );
+
+        let duplicate = vec![
+            node("same", StructureKind::Document, None),
+            node("same", StructureKind::Article, None),
+        ];
+        assert_eq!(
+            ParentIndex::build(&duplicate, &ParentIndexConfig::default()).unwrap_err(),
+            ParentError::DuplicateNode("same".to_owned())
+        );
+
+        let cycle = vec![
+            node("a", StructureKind::Article, Some("b")),
+            node("b", StructureKind::Paragraph, Some("a")),
+        ];
+        assert!(matches!(
+            ParentIndex::build(&cycle, &ParentIndexConfig::default()),
+            Err(ParentError::Cycle(_))
+        ));
+
+        let limited = ParentIndexConfig { maximum_depth: 2 };
+        assert!(matches!(
+            ParentIndex::build(&hierarchy(), &limited),
+            Err(ParentError::DepthLimit { .. })
+        ));
+    }
+
+    #[test]
+    fn rejects_unknown_chunk_structure_reference() {
+        let index = ParentIndex::build(&hierarchy(), &ParentIndexConfig::default())
+            .expect("valid parent index");
+        let mut chunk = chunk(&["missing"]);
+
+        assert_eq!(
+            index.attach_to_chunk(&mut chunk),
+            Err(ParentError::UnknownNode("missing".to_owned()))
+        );
+    }
+}
