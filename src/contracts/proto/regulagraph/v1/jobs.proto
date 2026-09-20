@@ -93,6 +93,7 @@ message Checkpoint {
   repeated ContentHash artifact_hashes=5;
   ProducerManifest manifest=6 [(rules).required=true];
   uint64 fence=7 [(rules).positive=true];
+  CompletionStatus terminal_status=8;
 }
 message SourceChange {
   string source_id=1 [(rules)={required:true ascii_id:true}];

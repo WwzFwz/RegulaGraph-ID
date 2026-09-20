@@ -665,6 +665,14 @@ fn validate_process_response(
         ));
     }
     if let Some(checkpoint) = response.checkpoint.as_ref() {
+        if checkpoint.terminal_status.enum_value() != response.status.enum_value()
+            || checkpoint.terminal_status.enum_value()
+                == Ok(crate::wire::common::CompletionStatus::COMPLETION_STATUS_UNSPECIFIED)
+        {
+            return Err(Status::failed_precondition(
+                "processor checkpoint terminal status does not match response",
+            ));
+        }
         if checkpoint.job_id != expected.job_id
             || checkpoint.fence != expected.fence
             || checkpoint.meta.corpus_id != expected.corpus_id
@@ -976,6 +984,9 @@ mod tests {
                 artifact_hashes: vec![output.content_hash.as_ref().unwrap().clone()],
                 manifest: request.manifest.clone(),
                 fence: request.lease.fence,
+                terminal_status: EnumOrUnknown::new(
+                    common::CompletionStatus::COMPLETION_STATUS_SUCCEEDED,
+                ),
                 ..Default::default()
             }),
             document_batch: MessageField::some(output),
@@ -990,6 +1001,12 @@ mod tests {
             request.lease.fence,
         );
         validate_process_response(&expected, &response).unwrap();
+        response.checkpoint.as_mut().unwrap().terminal_status =
+            EnumOrUnknown::new(common::CompletionStatus::COMPLETION_STATUS_FAILED);
+        let error = validate_process_response(&expected, &response).unwrap_err();
+        assert_eq!(error.code(), Code::FailedPrecondition);
+        response.checkpoint.as_mut().unwrap().terminal_status =
+            EnumOrUnknown::new(common::CompletionStatus::COMPLETION_STATUS_SUCCEEDED);
         response.checkpoint.as_mut().unwrap().completed_batch_keys[0] = "forged-output".to_owned();
         let error = validate_process_response(&expected, &response).unwrap_err();
         assert_eq!(error.code(), Code::FailedPrecondition);

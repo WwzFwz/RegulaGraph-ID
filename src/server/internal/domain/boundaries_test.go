@@ -58,12 +58,18 @@ func TestWorkerCheckpointBindsRequestedStageAndOutputs(t *testing.T) {
 			Meta:  &pb.RecordMeta{SchemaVersion: 1, CorpusId: req.Context.CorpusId, RecordId: "checkpoint-1"},
 			JobId: req.JobId, Stage: pb.JobStage_JOB_STAGE_PARSE, CompletedBatchKeys: []string{output.ArtifactId},
 			ArtifactHashes: []*pb.ContentHash{proto.Clone(output.ContentHash).(*pb.ContentHash)}, Manifest: proto.Clone(req.Manifest).(*pb.ProducerManifest), Fence: req.Lease.Fence,
+			TerminalStatus: pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED,
 		},
 		DocumentBatch: output, Status: pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED,
 	}
 	if err := VerifyWorkerResponse(req, res); err != nil {
 		t.Fatal(err)
 	}
+	res.Checkpoint.TerminalStatus = pb.CompletionStatus_COMPLETION_STATUS_FAILED
+	if VerifyWorkerResponse(req, res) == nil {
+		t.Fatal("checkpoint terminal status mismatch was accepted")
+	}
+	res.Checkpoint.TerminalStatus = pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED
 	res.Checkpoint.CompletedBatchKeys[0] = "batch-forged"
 	if VerifyWorkerResponse(req, res) == nil {
 		t.Fatal("checkpoint referencing a different output was accepted")

@@ -119,7 +119,7 @@ Contoh bentuk JSON konseptual untuk satu jawaban, bukan output implementasi atau
 | --- | --- | --- |
 | IngestionRequest | corpus_id, source_locators/blob_refs, operation, idempotency_key, config_manifest | Go; key sama + payload berbeda menghasilkan CONFLICT |
 | Job | job_id, type, state, stage, base_snapshot, input_fingerprint, attempt, lease/fence, checkpoint_ref, errors | Job intent berbeda dari attempt eksekusi |
-| Checkpoint | job_id, stage, completed_batch_keys, artifact_hashes, manifest, fence | Output attempt kedaluwarsa tidak boleh commit |
+| Checkpoint | job_id, stage, completed_batch_keys, artifact_hashes, manifest, fence, terminal_status | Output attempt kedaluwarsa tidak boleh commit; response worker baru wajib mengikat outcome terminal yang sama |
 | DependencyManifest | artifact_id, dependency_ids/fingerprints, producer_manifest, lookup_scope_revisions | Lookup dengan hasil kosong juga dependency agar penambahan data dapat menginvalidasinya |
 | UpdatePlan | source_changes, affected_closure, reuse_set, recompute_set, review_set, base_snapshot | Closure meliputi registry/profile/versi/indeks dan dependency negatif |
 | PublicationManifest | snapshot_ref, parent_ref, backend_generations, expected_counts/hashes, acknowledgements, validation_report | Harus cocok seluruh backend sebelum pointer aktif berubah |

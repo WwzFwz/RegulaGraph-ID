@@ -24,6 +24,10 @@ func VerifyWorkerResponse(req *pb.ProcessBatchRequest, res *pb.ProcessBatchRespo
 		return errors.New("checkpoint context/fence mismatch")
 	}
 	if res.Checkpoint != nil {
+		if res.Checkpoint.TerminalStatus == pb.CompletionStatus_COMPLETION_STATUS_UNSPECIFIED ||
+			res.Checkpoint.TerminalStatus != res.Status {
+			return errors.New("checkpoint terminal status does not match worker response")
+		}
 		if !containsStage(req.Stages, res.Checkpoint.Stage) {
 			return errors.New("checkpoint stage was not requested")
 		}

@@ -250,6 +250,11 @@ impl BatchProcessor for ParseBatchProcessor {
             .as_ref()
             .cloned()
             .ok_or_else(|| ProcessError::new(Code::Internal, "document batch hash is missing"))?;
+        let completion = if complete {
+            common::CompletionStatus::COMPLETION_STATUS_SUCCEEDED
+        } else {
+            common::CompletionStatus::COMPLETION_STATUS_FAILED
+        };
         Ok(jobs::ProcessBatchResponse {
             request_id,
             job_id: request.job_id.clone(),
@@ -268,14 +273,11 @@ impl BatchProcessor for ParseBatchProcessor {
                 artifact_hashes: vec![document_batch_hash],
                 manifest: MessageField::some(checkpoint_manifest),
                 fence: request.lease.fence,
+                terminal_status: EnumOrUnknown::new(completion),
                 ..Default::default()
             }),
             document_batch: MessageField::some(document_batch_ref),
-            status: EnumOrUnknown::new(if complete {
-                common::CompletionStatus::COMPLETION_STATUS_SUCCEEDED
-            } else {
-                common::CompletionStatus::COMPLETION_STATUS_FAILED
-            }),
+            status: EnumOrUnknown::new(completion),
             errors: if complete {
                 Vec::new()
             } else {
@@ -498,6 +500,9 @@ impl ParseBatchProcessor {
                 artifact_hashes: vec![document_batch_hash],
                 manifest: MessageField::some(manifest),
                 fence: request.lease.fence,
+                terminal_status: EnumOrUnknown::new(
+                    common::CompletionStatus::COMPLETION_STATUS_SUCCEEDED,
+                ),
                 ..Default::default()
             }),
             document_batch: MessageField::some(document_batch_ref),
