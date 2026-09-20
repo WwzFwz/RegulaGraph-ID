@@ -319,14 +319,21 @@ pub fn validate_extraction_batch(
             }
         }
         for qualifier in &assertion.qualifiers {
-            if let Some(graph::qualifier::Value::CanonicalId(reference)) = qualifier.value.as_ref()
-            {
-                if !mention_ids.contains(reference) {
-                    return Err(ExtractionBatchError::MissingReference {
-                        field: "assertion.qualifier.canonical_id",
-                        id: reference.clone(),
-                    });
+            match qualifier.value.as_ref() {
+                Some(graph::qualifier::Value::MentionId(reference)) => {
+                    if !mention_ids.contains(reference) {
+                        return Err(ExtractionBatchError::MissingReference {
+                            field: "assertion.qualifier.mention_id",
+                            id: reference.clone(),
+                        });
+                    }
                 }
+                Some(graph::qualifier::Value::CanonicalId(_)) => {
+                    return Err(ExtractionBatchError::InvalidIdentity(
+                        "assertion.qualifier.canonical_id before resolution",
+                    ));
+                }
+                _ => {}
             }
         }
         for reference in &assertion.exception_refs {
@@ -897,6 +904,13 @@ pub(crate) mod tests {
                 subject_id: "mention:subject".to_owned(),
                 predicate_id: "requires".to_owned(),
                 object_id: "mention:object".to_owned(),
+                qualifiers: vec![graph::Qualifier {
+                    predicate_id: "scope".to_owned(),
+                    value: Some(graph::qualifier::Value::MentionId(
+                        "mention:object".to_owned(),
+                    )),
+                    ..Default::default()
+                }],
                 temporal_scope: MessageField::some(common::TemporalScope {
                     mode: EnumOrUnknown::new(common::TemporalMode::TEMPORAL_MODE_CURRENT),
                     unresolved_policy: EnumOrUnknown::new(
@@ -977,6 +991,18 @@ pub(crate) mod tests {
                 ..
             })
         ));
+
+        let mut parts = fixture_parts();
+        parts.assertions[0].qualifiers[0].value = Some(graph::qualifier::Value::CanonicalId(
+            "canonical:premature".to_owned(),
+        ));
+        assert_eq!(
+            assemble_extraction_batch(parts, &source, &ExtractionBatchConfig::default())
+                .unwrap_err(),
+            ExtractionBatchError::InvalidIdentity(
+                "assertion.qualifier.canonical_id before resolution"
+            )
+        );
 
         let mut parts = fixture_parts();
         parts.mentions[0].text_span.as_mut().unwrap().end_byte = 32;
