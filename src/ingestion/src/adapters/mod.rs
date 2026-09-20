@@ -13,6 +13,7 @@
 //! object storage, dan publication integration belum aktif.
 
 pub mod document_batches;
+pub mod extraction_batches;
 pub mod inference;
 pub mod pdf_engine;
 pub mod storage;
