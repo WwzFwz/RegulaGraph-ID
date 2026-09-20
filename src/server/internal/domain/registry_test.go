@@ -139,6 +139,92 @@ func TestRegulationCandidateRejectsStaleIdentityKey(t *testing.T) {
 	}
 }
 
+func TestCanonicalIssuerAndRegulationClaimsUseTwoStageRegistryBinding(t *testing.T) {
+	batch := identityBatch(identityObservation("observation:a", "source-blob:a", map[string][]string{
+		"regulation_type": {"Peraturan"}, "number": {"1"}, "year": {"2026"},
+		"issuer": {"Kementerian Contoh"}, "page_title": {"Peraturan Contoh"},
+	}))
+	plan, err := PlanRegulationIdentities(batch, RegulationIdentityPolicy{Jurisdiction: "ID", MaximumItems: 10})
+	if err != nil || len(plan.Candidates) != 1 {
+		t.Fatalf("fixture identity failed: plan=%#v err=%v", plan, err)
+	}
+	first := plan.Candidates[0]
+	second := first
+	second.SourceBlobID = "source-blob:b"
+	second.ObservationIDs = []string{"observation:b"}
+	firstIssuer, err := first.CanonicalIssuerClaim()
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondIssuer, err := second.CanonicalIssuerClaim()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if firstIssuer.IdentityKey != secondIssuer.IdentityKey || firstIssuer.ProposalKey == secondIssuer.ProposalKey {
+		t.Fatal("exact issuer did not share identity while retaining source-local correlation")
+	}
+	issuerID := "canonical:organization:a"
+	issuerAssignments := []CanonicalIdentityAssignment{
+		{ProposalKey: firstIssuer.ProposalKey, CanonicalID: issuerID, Revision: 9, Created: true},
+		{ProposalKey: secondIssuer.ProposalKey, CanonicalID: issuerID, Revision: 9},
+	}
+	canonical, err := PlanCanonicalRegulationClaims([]RegulationIdentityCandidate{second, first}, issuerAssignments)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(canonical) != 2 || canonical[0].Candidate.SourceBlobID != "source-blob:a" ||
+		canonical[0].Claim.IdentityKey != canonical[1].Claim.IdentityKey || canonical[0].Claim.ProposalKey == canonical[1].Claim.ProposalKey {
+		t.Fatalf("canonical regulation planning drifted: %#v", canonical)
+	}
+	regulationID := "canonical:regulation:a"
+	regulationAssignments := []CanonicalIdentityAssignment{
+		{ProposalKey: canonical[0].Claim.ProposalKey, CanonicalID: regulationID, Revision: 10, Created: true},
+		{ProposalKey: canonical[1].Claim.ProposalKey, CanonicalID: regulationID, Revision: 10},
+	}
+	bindings, err := BuildRegulationDocumentBindings(canonical, issuerAssignments, regulationAssignments)
+	if err != nil || len(bindings) != 2 || bindings[0].IssuerID != issuerID ||
+		bindings[0].RegulationID != regulationID || bindings[0].RegistryRevision != 10 {
+		t.Fatalf("regulation bindings invalid: %#v err=%v", bindings, err)
+	}
+
+	differentIssuer := issuerAssignments
+	differentIssuer = append([]CanonicalIdentityAssignment(nil), differentIssuer...)
+	differentIssuer[0].CanonicalID = "canonical:organization:other"
+	differentPlan, err := PlanCanonicalRegulationClaims([]RegulationIdentityCandidate{first, second}, differentIssuer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if differentPlan[0].Claim.IdentityKey == canonical[0].Claim.IdentityKey {
+		t.Fatal("canonical issuer change did not separate regulation identity")
+	}
+}
+
+func TestCanonicalRegulationPlanningRejectsPartialOrDriftedAssignments(t *testing.T) {
+	batch := identityBatch(identityObservation("observation:a", "source-blob:a", map[string][]string{
+		"regulation_type": {"Peraturan"}, "number": {"1"}, "year": {"2026"},
+		"issuer": {"Kementerian Contoh"}, "page_title": {"Peraturan Contoh"},
+	}))
+	plan, err := PlanRegulationIdentities(batch, RegulationIdentityPolicy{Jurisdiction: "ID", MaximumItems: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = PlanCanonicalRegulationClaims(plan.Candidates, nil); err == nil {
+		t.Fatal("missing issuer assignment was accepted")
+	}
+	issuerClaim, _ := plan.Candidates[0].CanonicalIssuerClaim()
+	issuerAssignments := []CanonicalIdentityAssignment{{ProposalKey: issuerClaim.ProposalKey, CanonicalID: "canonical:organization:a", Revision: 2}}
+	canonical, err := PlanCanonicalRegulationClaims(plan.Candidates, issuerAssignments)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrong := []CanonicalIdentityAssignment{{ProposalKey: canonical[0].Claim.ProposalKey, CanonicalID: "canonical:regulation:a", Revision: 3}}
+	driftedIssuer := append([]CanonicalIdentityAssignment(nil), issuerAssignments...)
+	driftedIssuer[0].CanonicalID = "canonical:organization:other"
+	if _, err = BuildRegulationDocumentBindings(canonical, driftedIssuer, wrong); err == nil {
+		t.Fatal("issuer assignment drift was accepted")
+	}
+}
+
 func identityBatch(observations ...*pb.SourceObservation) *pb.DocumentBatch {
 	return &pb.DocumentBatch{
 		Meta:    &pb.RecordMeta{SchemaVersion: 1, CorpusId: "corpus:fixture", RecordId: "batch:fixture"},

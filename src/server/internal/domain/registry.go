@@ -23,7 +23,10 @@ import (
 )
 
 const RegulationIdentityKeyNamespace = "regulation-natural-key:v1"
+const RegulationCanonicalIdentityKeyNamespace = "regulation-canonical-issuer-key:v2"
+const IssuerIdentityKeyNamespace = "issuer-exact-label-jurisdiction:v1"
 const CanonicalEntityTypeRegulation int16 = 1
+const CanonicalEntityTypeOrganization int16 = 2
 
 // RegulationIdentityPolicy holds facts configured at the corpus boundary. Jurisdiction is not
 // derived from a portal hostname because one portal may contain national and regional rules.
@@ -71,6 +74,16 @@ type CanonicalIdentityAssignment struct {
 	Created     bool
 }
 
+// RegulationCanonicalCandidate replaces a sourced issuer label with a registry-owned issuer ID
+// before the final regulation identity is allocated. The source candidate remains attached for
+// edition metadata and review provenance.
+type RegulationCanonicalCandidate struct {
+	Candidate   RegulationIdentityCandidate
+	IssuerID    string
+	IssuerClaim CanonicalIdentityClaim
+	Claim       CanonicalIdentityClaim
+}
+
 // CanonicalClaim binds this sourced proposal for idempotent allocation in the registry. It
 // recomputes the natural key so a caller cannot mutate fields while retaining a stale key.
 func (candidate RegulationIdentityCandidate) CanonicalClaim() (CanonicalIdentityClaim, error) {
@@ -90,6 +103,166 @@ func (candidate RegulationIdentityCandidate) CanonicalClaim() (CanonicalIdentity
 		ProposalKey: "regulation-proposal:" + hex.EncodeToString(proposalSum[:]),
 		EntityType:  CanonicalEntityTypeRegulation, IdentityScope: RegulationIdentityKeyNamespace,
 		IdentityKey: candidate.IdentityKey, PayloadHash: hex.EncodeToString(payloadSum[:]),
+	}, nil
+}
+
+// CanonicalIssuerClaim proposes a conservative issuer identity from exact label and jurisdiction.
+// Its assignment is still unresolved legal identity and may later be split by a revisioned review;
+// it must never be presented as a verified organization solely because the label matched.
+func (candidate RegulationIdentityCandidate) CanonicalIssuerClaim() (CanonicalIdentityClaim, error) {
+	if _, err := candidate.CanonicalClaim(); err != nil {
+		return CanonicalIdentityClaim{}, err
+	}
+	payload := struct {
+		Namespace    string `json:"namespace"`
+		Label        string `json:"label"`
+		Jurisdiction string `json:"jurisdiction"`
+	}{IssuerIdentityKeyNamespace, normalizeIdentityText(candidate.IssuerLabel), normalizeIdentityText(candidate.Jurisdiction)}
+	raw, _ := json.Marshal(payload)
+	identityHash := sha256.Sum256(raw)
+	identityKey := hex.EncodeToString(identityHash[:])
+	proposalHash := sha256.Sum256([]byte(candidate.SourceBlobID + "\x00" + identityKey))
+	return CanonicalIdentityClaim{
+		ProposalKey: "issuer-proposal:" + hex.EncodeToString(proposalHash[:]),
+		EntityType:  CanonicalEntityTypeOrganization, IdentityScope: IssuerIdentityKeyNamespace,
+		IdentityKey: identityKey, PayloadHash: identityKey,
+	}, nil
+}
+
+// PlanCanonicalRegulationClaims binds exact source candidates to canonical issuer assignments,
+// then derives v2 regulation claims. Input and output ordering are deterministic by source blob.
+func PlanCanonicalRegulationClaims(
+	candidates []RegulationIdentityCandidate,
+	issuerAssignments []CanonicalIdentityAssignment,
+) ([]RegulationCanonicalCandidate, error) {
+	issuerByProposal := make(map[string]CanonicalIdentityAssignment, len(issuerAssignments))
+	for _, assignment := range issuerAssignments {
+		if !validDocumentID(assignment.ProposalKey) || !validDocumentID(assignment.CanonicalID) || assignment.Revision == 0 {
+			return nil, errors.New("invalid issuer registry assignment")
+		}
+		if _, exists := issuerByProposal[assignment.ProposalKey]; exists {
+			return nil, errors.New("duplicate issuer registry assignment")
+		}
+		issuerByProposal[assignment.ProposalKey] = assignment
+	}
+	if len(issuerByProposal) != len(candidates) {
+		return nil, errors.New("issuer assignment cardinality mismatch")
+	}
+
+	ordered := append([]RegulationIdentityCandidate(nil), candidates...)
+	sort.Slice(ordered, func(i, j int) bool { return ordered[i].SourceBlobID < ordered[j].SourceBlobID })
+	result := make([]RegulationCanonicalCandidate, 0, len(ordered))
+	seenSources := make(map[string]bool, len(ordered))
+	for _, candidate := range ordered {
+		if seenSources[candidate.SourceBlobID] {
+			return nil, errors.New("duplicate regulation source candidate")
+		}
+		seenSources[candidate.SourceBlobID] = true
+		issuerClaim, err := candidate.CanonicalIssuerClaim()
+		if err != nil {
+			return nil, err
+		}
+		issuer, exists := issuerByProposal[issuerClaim.ProposalKey]
+		if !exists {
+			return nil, errors.New("missing issuer registry assignment")
+		}
+		claim, err := candidate.canonicalRegulationClaim(issuer.CanonicalID)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, RegulationCanonicalCandidate{
+			Candidate: candidate, IssuerID: issuer.CanonicalID, IssuerClaim: issuerClaim, Claim: claim,
+		})
+	}
+	return result, nil
+}
+
+// BuildRegulationDocumentBindings closes the second registry handoff and produces the identities
+// consumed by provision planning. Every provided regulation assignment must match exactly one plan.
+func BuildRegulationDocumentBindings(
+	planned []RegulationCanonicalCandidate,
+	issuerAssignments []CanonicalIdentityAssignment,
+	regulationAssignments []CanonicalIdentityAssignment,
+) ([]RegulationDocumentBinding, error) {
+	issuerByProposal := make(map[string]CanonicalIdentityAssignment, len(issuerAssignments))
+	for _, assignment := range issuerAssignments {
+		if !validDocumentID(assignment.ProposalKey) || !validDocumentID(assignment.CanonicalID) || assignment.Revision == 0 {
+			return nil, errors.New("invalid issuer registry assignment")
+		}
+		if _, exists := issuerByProposal[assignment.ProposalKey]; exists {
+			return nil, errors.New("duplicate issuer registry assignment")
+		}
+		issuerByProposal[assignment.ProposalKey] = assignment
+	}
+	regulationByProposal := make(map[string]CanonicalIdentityAssignment, len(regulationAssignments))
+	for _, assignment := range regulationAssignments {
+		if !validDocumentID(assignment.ProposalKey) || !validDocumentID(assignment.CanonicalID) || assignment.Revision == 0 {
+			return nil, errors.New("invalid regulation registry assignment")
+		}
+		if _, exists := regulationByProposal[assignment.ProposalKey]; exists {
+			return nil, errors.New("duplicate regulation registry assignment")
+		}
+		regulationByProposal[assignment.ProposalKey] = assignment
+	}
+	if len(regulationByProposal) != len(planned) || len(issuerByProposal) != len(planned) {
+		return nil, errors.New("regulation binding assignment cardinality mismatch")
+	}
+	bindings := make([]RegulationDocumentBinding, 0, len(planned))
+	for _, item := range planned {
+		expectedIssuer, issuerErr := item.Candidate.CanonicalIssuerClaim()
+		expectedRegulation, regulationErr := item.Candidate.canonicalRegulationClaim(item.IssuerID)
+		if issuerErr != nil || regulationErr != nil || expectedIssuer != item.IssuerClaim || expectedRegulation != item.Claim {
+			return nil, errors.New("regulation plan is stale or forged")
+		}
+		issuer, issuerExists := issuerByProposal[item.IssuerClaim.ProposalKey]
+		regulation, regulationExists := regulationByProposal[item.Claim.ProposalKey]
+		if !issuerExists || !regulationExists || issuer.CanonicalID != item.IssuerID {
+			return nil, errors.New("registry assignments differ from the regulation plan")
+		}
+		revision := issuer.Revision
+		if regulation.Revision > revision {
+			revision = regulation.Revision
+		}
+		bindings = append(bindings, RegulationDocumentBinding{
+			Candidate: item.Candidate, RegulationID: regulation.CanonicalID,
+			IssuerID: item.IssuerID, IssuerProposalKey: item.IssuerClaim.ProposalKey,
+			RegulationProposalKey: item.Claim.ProposalKey, RegistryRevision: revision,
+		})
+	}
+	return bindings, nil
+}
+
+func (candidate RegulationIdentityCandidate) canonicalRegulationClaim(issuerID string) (CanonicalIdentityClaim, error) {
+	if _, err := candidate.CanonicalClaim(); err != nil {
+		return CanonicalIdentityClaim{}, err
+	}
+	if !validDocumentID(issuerID) {
+		return CanonicalIdentityClaim{}, errors.New("canonical issuer ID is required")
+	}
+	identityPayload := struct {
+		Namespace      string `json:"namespace"`
+		Kind           string `json:"kind"`
+		IssuerID       string `json:"issuer_id"`
+		Jurisdiction   string `json:"jurisdiction"`
+		OfficialNumber string `json:"official_number"`
+		Year           uint32 `json:"year"`
+	}{
+		RegulationCanonicalIdentityKeyNamespace, normalizeIdentityText(candidate.Kind), issuerID,
+		normalizeIdentityText(candidate.Jurisdiction), normalizeIdentityText(candidate.OfficialNumber), candidate.Year,
+	}
+	identityRaw, _ := json.Marshal(identityPayload)
+	identityHash := sha256.Sum256(identityRaw)
+	identityKey := hex.EncodeToString(identityHash[:])
+	payloadRaw, _ := json.Marshal(struct {
+		Candidate RegulationIdentityCandidate `json:"candidate"`
+		IssuerID  string                      `json:"issuer_id"`
+	}{candidate, issuerID})
+	payloadHash := sha256.Sum256(payloadRaw)
+	proposalHash := sha256.Sum256([]byte(candidate.SourceBlobID + "\x00" + identityKey))
+	return CanonicalIdentityClaim{
+		ProposalKey: "regulation-v2-proposal:" + hex.EncodeToString(proposalHash[:]),
+		EntityType:  CanonicalEntityTypeRegulation, IdentityScope: RegulationCanonicalIdentityKeyNamespace,
+		IdentityKey: identityKey, PayloadHash: hex.EncodeToString(payloadHash[:]),
 	}, nil
 }
 
