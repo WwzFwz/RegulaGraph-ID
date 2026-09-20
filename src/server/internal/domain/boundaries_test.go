@@ -41,6 +41,39 @@ func TestEmbeddingCorrelation(t *testing.T) {
 		t.Fatal("model drift accepted")
 	}
 }
+
+func TestWorkerCheckpointBindsRequestedStageAndOutputs(t *testing.T) {
+	req := &pb.ProcessBatchRequest{
+		Context: &pb.RequestContext{SchemaVersion: 1, RequestId: "request-1", TraceId: "trace-1", CorpusId: "corpus-1", Deadline: timestamppb.New(time.Now().Add(time.Minute)), ConfigFingerprint: hashFixture(), AuthScopeRef: "scope-test"},
+		JobId:   "job-1", Attempt: 1,
+		Lease:    &pb.Lease{OwnerId: "worker-1", Fence: 7, ExpiresAt: timestamppb.New(time.Now().Add(2 * time.Minute))},
+		Sources:  []*pb.ArtifactRef{{ArtifactId: "source-1", ContentHash: hashFixture(), StorageKey: "inputs/source.pdf", MediaType: "application/pdf", ByteSize: 1, SchemaVersion: 1}},
+		Manifest: &pb.ProducerManifest{Software: "test", Build: "test", SchemaVersion: 1, ConfigHash: hashFixture()},
+		Stages:   []pb.JobStage{pb.JobStage_JOB_STAGE_PARSE},
+	}
+	output := &pb.ArtifactRef{ArtifactId: "batch-1", ContentHash: hashFixture(), StorageKey: "batches/batch.pb", MediaType: "application/x-protobuf", ByteSize: 1, SchemaVersion: 1}
+	res := &pb.ProcessBatchResponse{
+		RequestId: req.Context.RequestId, JobId: req.JobId, Attempt: req.Attempt, Fence: req.Lease.Fence,
+		Checkpoint: &pb.Checkpoint{
+			Meta:  &pb.RecordMeta{SchemaVersion: 1, CorpusId: req.Context.CorpusId, RecordId: "checkpoint-1"},
+			JobId: req.JobId, Stage: pb.JobStage_JOB_STAGE_PARSE, CompletedBatchKeys: []string{output.ArtifactId},
+			ArtifactHashes: []*pb.ContentHash{proto.Clone(output.ContentHash).(*pb.ContentHash)}, Manifest: proto.Clone(req.Manifest).(*pb.ProducerManifest), Fence: req.Lease.Fence,
+		},
+		DocumentBatch: output, Status: pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED,
+	}
+	if err := VerifyWorkerResponse(req, res); err != nil {
+		t.Fatal(err)
+	}
+	res.Checkpoint.CompletedBatchKeys[0] = "batch-forged"
+	if VerifyWorkerResponse(req, res) == nil {
+		t.Fatal("checkpoint referencing a different output was accepted")
+	}
+	res.Checkpoint.CompletedBatchKeys[0] = output.ArtifactId
+	res.Checkpoint.Stage = pb.JobStage_JOB_STAGE_INDEX
+	if VerifyWorkerResponse(req, res) == nil {
+		t.Fatal("checkpoint for an unrequested stage was accepted")
+	}
+}
 func TestPublicationRequiresAcknowledgedMatchingBackend(t *testing.T) {
 	m := &pb.PublicationManifest{Meta: &pb.RecordMeta{SchemaVersion: 1, CorpusId: "c", RecordId: "publication-1"}, SnapshotRef: &pb.SnapshotRef{CorpusId: "c", SnapshotId: "snapshot-1", Sequence: 1, ManifestHash: hashFixture(), RepresentationGeneration: "generation-1"}, Fence: 1, ValidationReport: &pb.ValidationReport{Valid: true}, BackendGenerations: []*pb.BackendGeneration{{Backend: pb.BackendKind_BACKEND_KIND_NEO4J, Generation: "generation-1", ExpectedCounts: &pb.Counts{Expected: 2, Accepted: 2}, OperationsChecksum: hashFixture()}}}
 	if VerifyPublicationReady(m, nil, 1) == nil {

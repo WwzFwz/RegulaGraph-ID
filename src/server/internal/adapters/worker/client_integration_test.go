@@ -74,6 +74,10 @@ func TestRustWorkerInteroperability(t *testing.T) {
 	if response.GetDocumentBatch() == nil || response.GetDocumentBatch().GetByteSize() == 0 {
 		t.Fatal("Rust worker did not return a persisted document batch")
 	}
+	if response.GetCheckpoint() == nil || len(response.GetCheckpoint().GetCompletedBatchKeys()) != 1 ||
+		response.GetCheckpoint().GetCompletedBatchKeys()[0] != response.GetDocumentBatch().GetArtifactId() {
+		t.Fatal("Rust worker did not bind its document batch to a checkpoint")
+	}
 	statusResponse, err := client.GetStatus(context.Background(), &pb.WorkerStatusRequest{
 		Context: integrationContext("interop-status", time.Now().Add(10*time.Second)),
 		JobId:   request.JobId, Attempt: request.Attempt, Fence: request.Lease.Fence,

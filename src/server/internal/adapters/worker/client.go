@@ -13,7 +13,10 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 	pb "regulagraph.local/server/gen/regulagraph/v1"
 	"regulagraph.local/server/internal/domain"
 )
@@ -21,8 +24,9 @@ import (
 const DefaultMaxMessageBytes = 16 << 20
 
 type Client struct {
-	rpc    pb.WorkerClient
-	closer io.Closer
+	rpc             pb.WorkerClient
+	closer          io.Closer
+	maxMessageBytes int
 }
 
 // New creates a lazy gRPC connection. Callers must choose transport credentials explicitly; use TLS in
@@ -53,7 +57,7 @@ func newClient(target string, transportCredentials credentials.TransportCredenti
 	if err != nil {
 		return nil, fmt.Errorf("create worker client: %w", err)
 	}
-	return &Client{rpc: pb.NewWorkerClient(conn), closer: conn}, nil
+	return &Client{rpc: pb.NewWorkerClient(conn), closer: conn, maxMessageBytes: maxMessageBytes}, nil
 }
 
 // NewWithRPC injects a generated client for tests or an already managed connection.
@@ -61,7 +65,7 @@ func NewWithRPC(rpc pb.WorkerClient) (*Client, error) {
 	if rpc == nil {
 		return nil, errors.New("worker RPC client is required")
 	}
-	return &Client{rpc: rpc}, nil
+	return &Client{rpc: rpc, maxMessageBytes: DefaultMaxMessageBytes}, nil
 }
 
 func (c *Client) Close() error {
@@ -78,6 +82,9 @@ func (c *Client) ProcessBatch(ctx context.Context, request *pb.ProcessBatchReque
 	if err := domain.ValidateWire(request, domain.DefaultWireLimits); err != nil {
 		return nil, fmt.Errorf("validate process batch request: %w", err)
 	}
+	if proto.Size(request) > c.maxMessageBytes {
+		return nil, status.Error(codes.OutOfRange, "process batch request exceeds configured message limit")
+	}
 	callCtx, cancel, err := boundedContext(ctx, request.GetContext())
 	if err != nil {
 		return nil, err
@@ -89,7 +96,7 @@ func (c *Client) ProcessBatch(ctx context.Context, request *pb.ProcessBatchReque
 		return nil, fmt.Errorf("process worker batch: %w", err)
 	}
 	if err := domain.VerifyWorkerResponse(request, response); err != nil {
-		return nil, fmt.Errorf("verify worker response: %w", err)
+		return nil, status.Error(codes.DataLoss, fmt.Sprintf("verify worker response: %v", err))
 	}
 	return response, nil
 }
@@ -125,7 +132,7 @@ func (c *Client) statusCall(ctx context.Context, request *pb.WorkerStatusRequest
 		return nil, fmt.Errorf("%s: %w", operation, err)
 	}
 	if err := verifyStatusResponse(request, response); err != nil {
-		return nil, fmt.Errorf("verify worker status response: %w", err)
+		return nil, status.Error(codes.DataLoss, fmt.Sprintf("verify worker status response: %v", err))
 	}
 	return response, nil
 }

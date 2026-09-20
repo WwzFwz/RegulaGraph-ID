@@ -152,6 +152,18 @@ fn pdfium_boundary_parses_and_binds_real_inputs() {
         Ok(common::CompletionStatus::COMPLETION_STATUS_SUCCEEDED)
     );
     let output = response.document_batch.as_ref().unwrap();
+    let checkpoint = response.checkpoint.as_ref().unwrap();
+    assert_eq!(checkpoint.job_id, "job:pdf-worker-test");
+    assert_eq!(
+        checkpoint.completed_batch_keys,
+        [output.artifact_id.clone()]
+    );
+    assert_eq!(
+        checkpoint.artifact_hashes,
+        [output.content_hash.as_ref().unwrap().clone()]
+    );
+    assert_eq!(checkpoint.manifest.software, "regulagraph-ingestion");
+    assert_ne!(checkpoint.manifest.build, "pdf-worker-test");
     let output_descriptor = ArtifactDescriptor {
         artifact_id: output.artifact_id.clone(),
         sha256: output.content_hash.sha256.clone(),

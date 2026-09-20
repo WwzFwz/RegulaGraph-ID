@@ -161,12 +161,10 @@ impl BatchProcessor for ParseBatchProcessor {
                 .map_err(|error| ProcessError::new(Code::InvalidArgument, error.to_string()))?;
             accumulated_pages = accumulated_pages
                 .checked_add(parsed.pages.len())
-                .ok_or_else(|| {
-                    ProcessError::new(Code::ResourceExhausted, "batch page count overflow")
-                })?;
+                .ok_or_else(|| ProcessError::new(Code::OutOfRange, "batch page count overflow"))?;
             if accumulated_pages > self.config.maximum_batch_pages {
                 return Err(ProcessError::new(
-                    Code::ResourceExhausted,
+                    Code::OutOfRange,
                     format!(
                         "batch page count {accumulated_pages} exceeds limit {}",
                         self.config.maximum_batch_pages
@@ -210,6 +208,7 @@ impl BatchProcessor for ParseBatchProcessor {
             request.lease.fence,
         );
         let producer_manifest = runtime_manifest(&text_artifacts, &dependencies, &self.config)?;
+        let checkpoint_manifest = producer_manifest.clone();
         let batch = assemble_document_batch(
             DocumentBatchParts {
                 batch_id: format!("document-batch:{identity}"),
@@ -231,12 +230,33 @@ impl BatchProcessor for ParseBatchProcessor {
             batch.completeness.enum_value() == Ok(common::Completeness::COMPLETENESS_COMPLETE);
         let artifact = persist_document_batch(&self.store, &batch)
             .map_err(|error| ProcessError::new(Code::Internal, error.to_string()))?;
+        let document_batch_ref = artifact.reference;
+        let document_batch_hash = document_batch_ref
+            .content_hash
+            .as_ref()
+            .cloned()
+            .ok_or_else(|| ProcessError::new(Code::Internal, "document batch hash is missing"))?;
         Ok(jobs::ProcessBatchResponse {
             request_id,
-            job_id: request.job_id,
+            job_id: request.job_id.clone(),
             attempt: request.attempt,
             fence: request.lease.fence,
-            document_batch: MessageField::some(artifact.reference),
+            checkpoint: MessageField::some(jobs::Checkpoint {
+                meta: MessageField::some(common::RecordMeta {
+                    schema_version: 1,
+                    corpus_id,
+                    record_id: format!("checkpoint:{identity}"),
+                    ..Default::default()
+                }),
+                job_id: request.job_id.clone(),
+                stage: EnumOrUnknown::new(jobs::JobStage::JOB_STAGE_PARSE),
+                completed_batch_keys: vec![document_batch_ref.artifact_id.clone()],
+                artifact_hashes: vec![document_batch_hash],
+                manifest: MessageField::some(checkpoint_manifest),
+                fence: request.lease.fence,
+                ..Default::default()
+            }),
+            document_batch: MessageField::some(document_batch_ref),
             status: EnumOrUnknown::new(if complete {
                 common::CompletionStatus::COMPLETION_STATUS_SUCCEEDED
             } else {
@@ -265,7 +285,7 @@ fn preflight_sources(
 ) -> Result<(), ProcessError> {
     if sources.len() > config.maximum_sources {
         return Err(ProcessError::new(
-            Code::ResourceExhausted,
+            Code::OutOfRange,
             format!(
                 "source count {} exceeds batch limit {}",
                 sources.len(),
@@ -283,13 +303,13 @@ fn preflight_sources(
         ));
     }
     let total_bytes = sources.iter().try_fold(0u64, |total, source| {
-        total.checked_add(source.byte_size).ok_or_else(|| {
-            ProcessError::new(Code::ResourceExhausted, "batch input byte count overflow")
-        })
+        total
+            .checked_add(source.byte_size)
+            .ok_or_else(|| ProcessError::new(Code::OutOfRange, "batch input byte count overflow"))
     })?;
     if total_bytes > config.maximum_input_bytes {
         return Err(ProcessError::new(
-            Code::ResourceExhausted,
+            Code::OutOfRange,
             format!(
                 "batch input bytes {total_bytes} exceed limit {}",
                 config.maximum_input_bytes

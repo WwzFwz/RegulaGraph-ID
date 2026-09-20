@@ -664,14 +664,34 @@ fn validate_process_response(
             "processor returned a stale or mismatched response",
         ));
     }
-    if response.checkpoint.is_some()
-        && (response.checkpoint.job_id != expected.job_id
-            || response.checkpoint.fence != expected.fence
-            || response.checkpoint.meta.corpus_id != expected.corpus_id)
-    {
-        return Err(Status::failed_precondition(
-            "processor checkpoint context or fence is mismatched",
-        ));
+    if let Some(checkpoint) = response.checkpoint.as_ref() {
+        if checkpoint.job_id != expected.job_id
+            || checkpoint.fence != expected.fence
+            || checkpoint.meta.corpus_id != expected.corpus_id
+        {
+            return Err(Status::failed_precondition(
+                "processor checkpoint context or fence is mismatched",
+            ));
+        }
+        let outputs = [
+            response.document_batch.as_ref(),
+            response.graph_delta.as_ref(),
+            response.index_batch.as_ref(),
+        ]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+        if checkpoint.completed_batch_keys.len() != outputs.len()
+            || checkpoint.artifact_hashes.len() != outputs.len()
+            || outputs.iter().enumerate().any(|(index, output)| {
+                checkpoint.completed_batch_keys[index] != output.artifact_id
+                    || checkpoint.artifact_hashes.get(index) != output.content_hash.as_ref()
+            })
+        {
+            return Err(Status::failed_precondition(
+                "processor checkpoint does not bind its returned outputs",
+            ));
+        }
     }
     if response.status.enum_value()
         == Ok(crate::wire::common::CompletionStatus::COMPLETION_STATUS_SUCCEEDED)
@@ -932,6 +952,47 @@ mod tests {
         assert_eq!(first.code(), Code::FailedPrecondition);
         assert_eq!(second.code(), first.code());
         assert_eq!(calls.load(Ordering::Acquire), 1);
+    }
+
+    #[test]
+    fn rejects_checkpoint_that_does_not_bind_returned_output() {
+        let request = domain_request(60);
+        let output = artifact("output-1", "outputs/batch.pb");
+        let mut response = jobs::ProcessBatchResponse {
+            request_id: request.context.request_id.clone(),
+            job_id: request.job_id.clone(),
+            attempt: request.attempt,
+            fence: request.lease.fence,
+            checkpoint: MessageField::some(jobs::Checkpoint {
+                meta: MessageField::some(common::RecordMeta {
+                    schema_version: 1,
+                    corpus_id: request.context.corpus_id.clone(),
+                    record_id: "checkpoint-1".to_owned(),
+                    ..Default::default()
+                }),
+                job_id: request.job_id.clone(),
+                stage: EnumOrUnknown::new(jobs::JobStage::JOB_STAGE_PARSE),
+                completed_batch_keys: vec![output.artifact_id.clone()],
+                artifact_hashes: vec![output.content_hash.as_ref().unwrap().clone()],
+                manifest: request.manifest.clone(),
+                fence: request.lease.fence,
+                ..Default::default()
+            }),
+            document_batch: MessageField::some(output),
+            status: EnumOrUnknown::new(common::CompletionStatus::COMPLETION_STATUS_SUCCEEDED),
+            ..Default::default()
+        };
+        let expected = domain_request_identity(
+            &request.context.request_id,
+            &request.context.corpus_id,
+            &request.job_id,
+            request.attempt,
+            request.lease.fence,
+        );
+        validate_process_response(&expected, &response).unwrap();
+        response.checkpoint.as_mut().unwrap().completed_batch_keys[0] = "forged-output".to_owned();
+        let error = validate_process_response(&expected, &response).unwrap_err();
+        assert_eq!(error.code(), Code::FailedPrecondition);
     }
 
     #[tokio::test]

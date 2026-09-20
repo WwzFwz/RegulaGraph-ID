@@ -44,7 +44,7 @@ func TestProcessBatchRejectsStaleFence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = client.ProcessBatch(context.Background(), req); err == nil || !strings.Contains(err.Error(), "stale or mismatched") {
+	if _, err = client.ProcessBatch(context.Background(), req); status.Code(err) != codes.DataLoss || !strings.Contains(err.Error(), "stale or mismatched") {
 		t.Fatalf("expected stale fence rejection, got %v", err)
 	}
 }
@@ -101,7 +101,7 @@ func TestExpiredDeadlinePreventsRPC(t *testing.T) {
 	}
 }
 
-func TestTransportRejectsOversizedRequestBeforeServerHandler(t *testing.T) {
+func TestClientRejectsOversizedRequestBeforeServerHandler(t *testing.T) {
 	listener := bufconn.Listen(64 << 10)
 	server := grpc.NewServer()
 	handler := &countingWorkerServer{}
@@ -125,8 +125,8 @@ func TestTransportRejectsOversizedRequestBeforeServerHandler(t *testing.T) {
 	req := processRequest(time.Now().Add(time.Minute))
 	req.Sources[0].StorageKey = "objects/" + strings.Repeat("a", 2048) + ".pdf"
 	_, err = client.ProcessBatch(context.Background(), req)
-	if status.Code(err) != codes.ResourceExhausted {
-		t.Fatalf("expected transport size rejection, got %v", err)
+	if status.Code(err) != codes.OutOfRange {
+		t.Fatalf("expected deterministic size rejection, got %v", err)
 	}
 	if handler.calls != 0 {
 		t.Fatalf("oversized request reached server handler %d times", handler.calls)

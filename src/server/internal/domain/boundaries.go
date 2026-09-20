@@ -5,6 +5,7 @@ package domain
 
 import (
 	"errors"
+	"fmt"
 	"google.golang.org/protobuf/proto"
 	pb "regulagraph.local/server/gen/regulagraph/v1"
 )
@@ -22,10 +23,56 @@ func VerifyWorkerResponse(req *pb.ProcessBatchRequest, res *pb.ProcessBatchRespo
 	if res.Checkpoint != nil && (res.Checkpoint.JobId != req.JobId || res.Checkpoint.Fence != req.Lease.Fence || res.Checkpoint.Meta.CorpusId != req.Context.CorpusId) {
 		return errors.New("checkpoint context/fence mismatch")
 	}
+	if res.Checkpoint != nil {
+		if !containsStage(req.Stages, res.Checkpoint.Stage) {
+			return errors.New("checkpoint stage was not requested")
+		}
+		outputs := responseArtifacts(res)
+		if len(res.Checkpoint.CompletedBatchKeys) != len(outputs) || len(res.Checkpoint.ArtifactHashes) != len(outputs) {
+			return errors.New("checkpoint output cardinality mismatch")
+		}
+		for index, output := range outputs {
+			if output == nil || output.ContentHash == nil || res.Checkpoint.CompletedBatchKeys[index] != output.ArtifactId || !proto.Equal(res.Checkpoint.ArtifactHashes[index], output.ContentHash) {
+				return fmt.Errorf("checkpoint output binding mismatch at index %d", index)
+			}
+		}
+	}
+	if res.DocumentBatch != nil && !containsStage(req.Stages, pb.JobStage_JOB_STAGE_PARSE) {
+		return errors.New("document batch returned without requested PARSE stage")
+	}
+	if res.GraphDelta != nil && !containsStage(req.Stages, pb.JobStage_JOB_STAGE_ASSEMBLE) {
+		return errors.New("graph delta returned without requested ASSEMBLE stage")
+	}
+	if res.IndexBatch != nil && !containsStage(req.Stages, pb.JobStage_JOB_STAGE_INDEX) {
+		return errors.New("index batch returned without requested INDEX stage")
+	}
 	if res.Status == pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED && (len(res.Errors) > 0 || res.DocumentBatch == nil && res.GraphDelta == nil && res.IndexBatch == nil) {
 		return errors.New("successful worker response requires output and no errors")
 	}
 	return nil
+}
+
+func containsStage(stages []pb.JobStage, expected pb.JobStage) bool {
+	for _, stage := range stages {
+		if stage == expected {
+			return true
+		}
+	}
+	return false
+}
+
+func responseArtifacts(response *pb.ProcessBatchResponse) []*pb.ArtifactRef {
+	outputs := make([]*pb.ArtifactRef, 0, 3)
+	if response.DocumentBatch != nil {
+		outputs = append(outputs, response.DocumentBatch)
+	}
+	if response.GraphDelta != nil {
+		outputs = append(outputs, response.GraphDelta)
+	}
+	if response.IndexBatch != nil {
+		outputs = append(outputs, response.IndexBatch)
+	}
+	return outputs
 }
 
 func VerifyRerankResults(req *pb.RerankBatchRequest, res *pb.RerankBatchResponse) error {
