@@ -485,3 +485,301 @@ fn valid_sha256(value: &str) -> bool {
             .bytes()
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::document::normalization::text::normalize_text;
+    use crate::document::parsing::pdf::{NormalizedBoundingBox, PdfParserManifest, PdfTextBlock};
+
+    fn parser_manifest() -> PdfParserManifest {
+        PdfParserManifest {
+            schema_version: 1,
+            engine: "pdfium",
+            binding: "pdfium-render",
+            binding_version: "0.8.37",
+            api_feature: "pdfium_latest",
+            declared_core_version: "test-core-v1".to_owned(),
+            library_sha256: sha256(b"pdfium library"),
+            config_sha256: sha256(b"parser config"),
+            input_sha256: sha256(b"source PDF"),
+        }
+    }
+
+    fn parsed_document(second_status: PdfPageStatus) -> PdfDocumentText {
+        let raw_text = "Pasal 1\r\nWajib.\x0cPasal 2\r\nScan".to_owned();
+        let separator = raw_text.find('\x0c').expect("fixture has separator");
+        let second_start = separator + 1;
+        let status = if matches!(second_status, PdfPageStatus::Text) {
+            PdfDocumentStatus::Complete
+        } else {
+            PdfDocumentStatus::Partial
+        };
+        PdfDocumentText {
+            source_id: "source:fixture".to_owned(),
+            source_blob_id: "source-blob:fixture".to_owned(),
+            blocks: vec![
+                PdfTextBlock {
+                    page_number: 1,
+                    start_byte: 0,
+                    end_byte: separator as u64,
+                    bounding_box: NormalizedBoundingBox {
+                        x0: 0.1,
+                        y0: 0.1,
+                        x1: 0.9,
+                        y1: 0.4,
+                    },
+                },
+                PdfTextBlock {
+                    page_number: 2,
+                    start_byte: second_start as u64,
+                    end_byte: raw_text.len() as u64,
+                    bounding_box: NormalizedBoundingBox {
+                        x0: 0.1,
+                        y0: 0.1,
+                        x1: 0.9,
+                        y1: 0.4,
+                    },
+                },
+            ],
+            pages: vec![
+                PdfPageResult {
+                    page_number: 1,
+                    start_byte: 0,
+                    end_byte: separator as u64,
+                    image_objects: 0,
+                    elapsed_microseconds: 10,
+                    status: PdfPageStatus::Text,
+                },
+                PdfPageResult {
+                    page_number: 2,
+                    start_byte: second_start as u64,
+                    end_byte: raw_text.len() as u64,
+                    image_objects: 1,
+                    elapsed_microseconds: 20,
+                    status: second_status,
+                },
+            ],
+            raw_text,
+            status,
+            manifest: parser_manifest(),
+        }
+    }
+
+    fn artifact_ref(namespace: &str, bytes: &[u8], media_type: &str) -> common::ArtifactRef {
+        let hash = sha256(bytes);
+        common::ArtifactRef {
+            artifact_id: format!("artifact:{namespace}:{hash}"),
+            content_hash: MessageField::some(content_hash(&hash)),
+            storage_key: format!("sha256/{}/{}/{}.bin", &hash[..2], &hash[2..4], hash),
+            media_type: media_type.to_owned(),
+            byte_size: bytes.len() as u64,
+            schema_version: 1,
+            ..Default::default()
+        }
+    }
+
+    fn fixture(
+        second_status: PdfPageStatus,
+    ) -> (
+        PdfDocumentText,
+        NormalizedText,
+        TextNormalizerConfig,
+        TextArtifactRefs,
+        TextArtifactWireConfig,
+    ) {
+        let parsed = parsed_document(second_status);
+        let normalizer_config = TextNormalizerConfig::default();
+        let normalized = normalize_text(&parsed.raw_text, &normalizer_config).unwrap();
+        let config = TextArtifactWireConfig {
+            text_artifact_id: "text:fixture".to_owned(),
+            ..Default::default()
+        };
+        let mapping = serialize_text_mapping(&normalized, &config.text_artifact_id).unwrap();
+        let references = TextArtifactRefs {
+            raw_text: artifact_ref("raw-text", parsed.raw_text.as_bytes(), TEXT_MEDIA_TYPE),
+            normalized_text: artifact_ref(
+                "normalized-text",
+                normalized.text.as_bytes(),
+                TEXT_MEDIA_TYPE,
+            ),
+            mapping: artifact_ref("text-mapping", &mapping, MAPPING_MEDIA_TYPE),
+        };
+        (parsed, normalized, normalizer_config, references, config)
+    }
+
+    #[test]
+    fn projects_hash_bound_text_artifact_and_roundtrips() {
+        let (parsed, normalized, normalizer_config, references, config) =
+            fixture(PdfPageStatus::Text);
+
+        let artifact = project_text_artifact(
+            &parsed,
+            &normalized,
+            &normalizer_config,
+            &references,
+            &config,
+        )
+        .expect("text artifact projects");
+
+        assert_eq!(artifact.meta.record_id, "text:fixture");
+        assert_eq!(artifact.source_blob_id, parsed.source_blob_id);
+        assert_eq!(artifact.raw_text_ref.as_ref(), Some(&references.raw_text));
+        assert_eq!(
+            artifact.normalized_text_ref.as_ref(),
+            Some(&references.normalized_text)
+        );
+        assert_eq!(artifact.mapping_ref.as_ref(), Some(&references.mapping));
+        assert_eq!(artifact.page_results.len(), 2);
+        assert!(artifact.page_results.iter().all(|page| {
+            page.status.value() == common::CompletionStatus::COMPLETION_STATUS_SUCCEEDED as i32
+                && page.errors.is_empty()
+        }));
+        assert_eq!(artifact.parser_manifest.input_hashes.len(), 2);
+
+        let encoded = artifact.write_to_bytes().expect("artifact serializes");
+        let decoded = documents::TextArtifact::parse_from_bytes(&encoded).unwrap();
+        assert_eq!(decoded, artifact);
+        validate_wire(&decoded).expect("roundtrip remains valid");
+    }
+
+    #[test]
+    fn keeps_ocr_requirement_explicit_without_exposing_native_detail() {
+        let (parsed, normalized, normalizer_config, references, config) =
+            fixture(PdfPageStatus::NeedsOcr);
+
+        let artifact = project_text_artifact(
+            &parsed,
+            &normalized,
+            &normalizer_config,
+            &references,
+            &config,
+        )
+        .expect("partial artifact projects");
+
+        let page = &artifact.page_results[1];
+        assert_eq!(
+            page.status.value(),
+            common::CompletionStatus::COMPLETION_STATUS_FAILED as i32
+        );
+        assert!(!page.used_ocr);
+        assert_eq!(page.errors.len(), 1);
+        assert_eq!(
+            page.errors[0].code.value(),
+            common::ErrorCode::ERROR_CODE_NOT_IMPLEMENTED as i32
+        );
+        assert!(page.errors[0].retryable);
+        assert_eq!(page.errors[0].safe_message, "page requires OCR");
+    }
+
+    #[test]
+    fn rejects_reference_page_status_and_block_corruption() {
+        let (parsed, normalized, normalizer_config, mut references, config) =
+            fixture(PdfPageStatus::Text);
+        references.normalized_text.content_hash = MessageField::some(content_hash(&"0".repeat(64)));
+        assert_eq!(
+            project_text_artifact(
+                &parsed,
+                &normalized,
+                &normalizer_config,
+                &references,
+                &config,
+            )
+            .unwrap_err(),
+            TextArtifactWireError::InvalidReference("normalized_text_ref")
+        );
+
+        let (mut parsed, normalized, normalizer_config, references, config) =
+            fixture(PdfPageStatus::Text);
+        parsed.pages[1].page_number = 3;
+        assert_eq!(
+            project_text_artifact(
+                &parsed,
+                &normalized,
+                &normalizer_config,
+                &references,
+                &config,
+            )
+            .unwrap_err(),
+            TextArtifactWireError::InvalidDocument("page_sequence")
+        );
+
+        let (mut parsed, normalized, normalizer_config, references, config) =
+            fixture(PdfPageStatus::NeedsOcr);
+        parsed.status = PdfDocumentStatus::Complete;
+        assert_eq!(
+            project_text_artifact(
+                &parsed,
+                &normalized,
+                &normalizer_config,
+                &references,
+                &config,
+            )
+            .unwrap_err(),
+            TextArtifactWireError::InvalidDocument("status")
+        );
+
+        let (mut parsed, normalized, normalizer_config, references, config) =
+            fixture(PdfPageStatus::Text);
+        parsed.blocks[0].bounding_box.x1 = f32::INFINITY;
+        assert_eq!(
+            project_text_artifact(
+                &parsed,
+                &normalized,
+                &normalizer_config,
+                &references,
+                &config,
+            )
+            .unwrap_err(),
+            TextArtifactWireError::InvalidDocument("block")
+        );
+    }
+
+    #[test]
+    fn represents_empty_extracted_text_with_a_zero_length_mapping_pair() {
+        let parsed = PdfDocumentText {
+            source_id: "source:empty".to_owned(),
+            source_blob_id: "source-blob:empty".to_owned(),
+            raw_text: String::new(),
+            blocks: Vec::new(),
+            pages: vec![PdfPageResult {
+                page_number: 1,
+                start_byte: 0,
+                end_byte: 0,
+                image_objects: 1,
+                elapsed_microseconds: 1,
+                status: PdfPageStatus::NeedsOcr,
+            }],
+            status: PdfDocumentStatus::Partial,
+            manifest: parser_manifest(),
+        };
+        let normalizer_config = TextNormalizerConfig::default();
+        let normalized = normalize_text("", &normalizer_config).unwrap();
+        let config = TextArtifactWireConfig {
+            text_artifact_id: "text:empty".to_owned(),
+            ..Default::default()
+        };
+        let mapping_message = build_text_mapping(&normalized, &config.text_artifact_id).unwrap();
+        assert_eq!(mapping_message.original_spans.len(), 1);
+        assert_eq!(mapping_message.normalized_spans.len(), 1);
+        assert_eq!(mapping_message.original_spans[0].start_byte, 0);
+        assert_eq!(mapping_message.original_spans[0].end_byte, 0);
+        let mapping_bytes = mapping_message.write_to_bytes().unwrap();
+        let references = TextArtifactRefs {
+            raw_text: artifact_ref("raw-text", b"", TEXT_MEDIA_TYPE),
+            normalized_text: artifact_ref("normalized-text", b"", TEXT_MEDIA_TYPE),
+            mapping: artifact_ref("text-mapping", &mapping_bytes, MAPPING_MEDIA_TYPE),
+        };
+
+        let artifact = project_text_artifact(
+            &parsed,
+            &normalized,
+            &normalizer_config,
+            &references,
+            &config,
+        )
+        .expect("empty OCR candidate remains representable");
+        assert_eq!(artifact.page_results[0].spans[0].start_byte, 0);
+        assert_eq!(artifact.page_results[0].spans[0].end_byte, 0);
+    }
+}
