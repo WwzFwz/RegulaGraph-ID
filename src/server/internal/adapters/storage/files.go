@@ -36,6 +36,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path"
 	"path/filepath"
@@ -43,12 +44,13 @@ import (
 	"strings"
 
 	pb "regulagraph.local/server/gen/regulagraph/v1"
+	"regulagraph.local/server/internal/domain"
 )
 
 var (
-	ErrInvalidStorageKey = errors.New("invalid artifact storage key")
-	ErrArtifactMismatch  = errors.New("artifact content does not match its reference")
-	ErrSymlinkPath       = errors.New("artifact path contains a symbolic link")
+	ErrInvalidStorageKey = errors.Join(errors.New("invalid artifact storage key"), domain.ErrPersistentIntegrity)
+	ErrArtifactMismatch  = errors.Join(errors.New("artifact content does not match its reference"), domain.ErrPersistentIntegrity)
+	ErrSymlinkPath       = errors.Join(errors.New("artifact path contains a symbolic link"), domain.ErrPersistentIntegrity)
 )
 
 type FileStore struct {
@@ -185,17 +187,26 @@ func (s *FileStore) OpenVerified(ctx context.Context, ref *pb.ArtifactRef) (*os.
 	}
 	info, err := s.root.Lstat(target)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, errors.Join(fmt.Errorf("inspect artifact: %w", err), domain.ErrPersistentIntegrity)
+		}
 		return nil, fmt.Errorf("inspect artifact: %w", err)
 	}
 	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
 		return nil, ErrSymlinkPath
 	}
+	if info.Size() < 0 || uint64(info.Size()) != ref.ByteSize {
+		return nil, ErrArtifactMismatch
+	}
 	file, err := s.root.Open(target)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, errors.Join(fmt.Errorf("open artifact: %w", err), domain.ErrPersistentIntegrity)
+		}
 		return nil, fmt.Errorf("open artifact: %w", err)
 	}
 	hasher := sha256.New()
-	read, verifyErr := io.CopyBuffer(hasher, &contextReader{ctx: ctx, reader: file}, make([]byte, 128*1024))
+	read, verifyErr := io.CopyBuffer(hasher, &contextReader{ctx: ctx, reader: io.LimitReader(file, info.Size()+1)}, make([]byte, 128*1024))
 	if verifyErr == nil && (uint64(read) != ref.ByteSize || hex.EncodeToString(hasher.Sum(nil)) != ref.ContentHash.Sha256) {
 		verifyErr = ErrArtifactMismatch
 	}
@@ -208,6 +219,46 @@ func (s *FileStore) OpenVerified(ctx context.Context, ref *pb.ArtifactRef) (*os.
 		return nil, fmt.Errorf("rewind artifact: %w", err)
 	}
 	return file, nil
+}
+
+// ReadVerified loads one bounded immutable artifact after the same confinement, size, and hash
+// checks as OpenVerified. Callers choose the bound before allocation; large streaming consumers
+// should continue using OpenVerified to avoid retaining the full payload in memory.
+func (s *FileStore) ReadVerified(ctx context.Context, ref *pb.ArtifactRef, maximumBytes uint64) ([]byte, error) {
+	if maximumBytes == 0 || ref == nil || ref.ByteSize > maximumBytes {
+		return nil, errors.Join(errors.New("artifact exceeds configured read bound"), domain.ErrPersistentIntegrity)
+	}
+	file, err := s.OpenVerified(ctx, ref)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	capacity, err := sizeToInt(ref.ByteSize)
+	if err != nil {
+		return nil, err
+	}
+	buffer := make([]byte, 0, capacity)
+	limited := io.LimitReader(file, int64(capacity)+1)
+	buffer, err = io.ReadAll(&contextReader{ctx: ctx, reader: limited})
+	if err != nil {
+		return nil, fmt.Errorf("read verified artifact: %w", err)
+	}
+	digest := sha256.Sum256(buffer)
+	if uint64(len(buffer)) != ref.ByteSize || hex.EncodeToString(digest[:]) != ref.ContentHash.Sha256 {
+		return nil, ErrArtifactMismatch
+	}
+	return buffer, nil
+}
+
+func sizeToInt(size uint64) (int, error) {
+	if size > math.MaxInt {
+		return 0, errors.Join(errors.New("artifact size exceeds addressable memory"), domain.ErrPersistentIntegrity)
+	}
+	converted := int(size)
+	if converted < 0 || uint64(converted) != size {
+		return 0, errors.Join(errors.New("artifact size exceeds addressable memory"), domain.ErrPersistentIntegrity)
+	}
+	return converted, nil
 }
 
 func (s *FileStore) resolve(key string) (string, error) {
@@ -226,6 +277,9 @@ func (s *FileStore) rejectSymlinks(directory string) error {
 		current = filepath.Join(current, component)
 		info, statErr := s.root.Lstat(current)
 		if statErr != nil {
+			if errors.Is(statErr, os.ErrNotExist) {
+				return errors.Join(fmt.Errorf("inspect artifact directory: %w", statErr), domain.ErrPersistentIntegrity)
+			}
 			return fmt.Errorf("inspect artifact directory: %w", statErr)
 		}
 		if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
@@ -238,7 +292,7 @@ func (s *FileStore) rejectSymlinks(directory string) error {
 func validateRef(ref *pb.ArtifactRef) error {
 	if ref == nil || ref.ContentHash == nil || ref.ArtifactId == "" || ref.MediaType == "" ||
 		ref.SchemaVersion == 0 || !sha256Pattern.MatchString(ref.ContentHash.Sha256) {
-		return errors.New("complete ArtifactRef with SHA-256 is required")
+		return errors.Join(errors.New("complete ArtifactRef with SHA-256 is required"), domain.ErrPersistentIntegrity)
 	}
 	return nil
 }

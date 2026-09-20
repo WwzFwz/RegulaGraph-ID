@@ -12,12 +12,15 @@ package postgres
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math"
 	"strconv"
 
 	"github.com/jackc/pgx/v5"
+	"google.golang.org/protobuf/proto"
 	pb "regulagraph.local/server/gen/regulagraph/v1"
 	"regulagraph.local/server/internal/domain"
 )
@@ -26,7 +29,41 @@ type ArtifactDependency struct {
 	Kind         string
 	Key          string
 	Revision     uint64
+	EmptyResult  bool
+	Fingerprint  string
 	ProducerHash string
+}
+
+// ReplaceArtifactDependencyManifest persists the wire manifest attached to a derived artifact.
+// The adapter computes one deterministic producer hash and retains zero-revision empty lookups so
+// later scope advances can invalidate outputs that previously observed no registry candidates.
+func (r *Repository) ReplaceArtifactDependencyManifest(ctx context.Context, corpusID, artifactID string, manifest *pb.DependencyManifest) error {
+	if manifest == nil || manifest.GetProducerManifest() == nil {
+		return errors.New("dependency manifest and producer are required")
+	}
+	if err := domain.ValidateWire(manifest, domain.DefaultWireLimits); err != nil {
+		return fmt.Errorf("validate dependency manifest: %w", err)
+	}
+	producer, err := proto.MarshalOptions{Deterministic: true}.Marshal(manifest.ProducerManifest)
+	if err != nil {
+		return fmt.Errorf("marshal dependency producer: %w", err)
+	}
+	digest := sha256.Sum256(producer)
+	producerHash := hex.EncodeToString(digest[:])
+	dependencies := make([]ArtifactDependency, 0, len(manifest.Dependencies)+len(manifest.LookupScopeRevisions))
+	for _, dependency := range manifest.Dependencies {
+		dependencies = append(dependencies, ArtifactDependency{
+			Kind: "fingerprint", Key: dependency.DependencyId,
+			Fingerprint: dependency.GetFingerprint().GetSha256(), ProducerHash: producerHash,
+		})
+	}
+	for _, lookup := range manifest.LookupScopeRevisions {
+		dependencies = append(dependencies, ArtifactDependency{
+			Kind: "lookup_scope", Key: lookup.ScopeId, Revision: lookup.Revision,
+			EmptyResult: lookup.EmptyResult, ProducerHash: producerHash,
+		})
+	}
+	return r.ReplaceArtifactDependencies(ctx, corpusID, artifactID, dependencies)
 }
 
 func (r *Repository) RegisterArtifact(ctx context.Context, corpusID string, ref *pb.ArtifactRef) error {
@@ -119,6 +156,13 @@ func (r *Repository) ReplaceArtifactDependencies(ctx context.Context, corpusID, 
 		if dependency.Key == "" || !sha256Pattern.MatchString(dependency.ProducerHash) {
 			return errors.New("dependency key and producer hash required")
 		}
+		if dependency.EmptyResult && dependency.Kind != "lookup_scope" {
+			return errors.New("only lookup-scope dependencies may mark an empty result")
+		}
+		if (dependency.Kind == "fingerprint" && !sha256Pattern.MatchString(dependency.Fingerprint)) ||
+			(dependency.Kind != "fingerprint" && dependency.Fingerprint != "") {
+			return errors.New("fingerprint dependency requires exactly one SHA-256 value")
+		}
 		var revision any
 		if dependency.Revision > 0 {
 			if dependency.Revision > math.MaxInt64 {
@@ -126,9 +170,14 @@ func (r *Repository) ReplaceArtifactDependencies(ctx context.Context, corpusID, 
 			}
 			revision = int64(dependency.Revision)
 		}
+		var fingerprint any
+		if dependency.Fingerprint != "" {
+			fingerprint = dependency.Fingerprint
+		}
 		if _, err = tx.Exec(ctx, `INSERT INTO artifact_dependencies(corpus_id,artifact_id,dependency_kind,
-          dependency_key,dependency_revision,producer_manifest_hash) VALUES ($1,$2,$3,$4,$5,$6)`,
-			corpusID, artifactID, dependency.Kind, dependency.Key, revision, dependency.ProducerHash); err != nil {
+		  dependency_key,dependency_revision,producer_manifest_hash,empty_result,dependency_fingerprint)
+		  VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`, corpusID, artifactID, dependency.Kind, dependency.Key,
+			revision, dependency.ProducerHash, dependency.EmptyResult, fingerprint); err != nil {
 			return fmt.Errorf("insert artifact dependency: %w", err)
 		}
 	}

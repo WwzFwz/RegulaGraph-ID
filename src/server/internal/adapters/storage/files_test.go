@@ -21,10 +21,12 @@ import (
 	"testing"
 
 	pb "regulagraph.local/server/gen/regulagraph/v1"
+	"regulagraph.local/server/internal/domain"
 )
 
 func TestFileStorePutReuseAndVerifiedOpen(t *testing.T) {
-	store, err := NewFileStore(t.TempDir())
+	root := t.TempDir()
+	store, err := NewFileStore(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,6 +50,23 @@ func TestFileStorePutReuseAndVerifiedOpen(t *testing.T) {
 	actual, err := io.ReadAll(file)
 	if err != nil || !bytes.Equal(actual, content) {
 		t.Fatalf("read=%q err=%v", actual, err)
+	}
+	bounded, err := store.ReadVerified(context.Background(), ref, uint64(len(content)))
+	if err != nil || !bytes.Equal(bounded, content) {
+		t.Fatalf("bounded read=%q err=%v", bounded, err)
+	}
+	if _, err = store.ReadVerified(context.Background(), ref, uint64(len(content)-1)); err == nil {
+		t.Fatal("bounded read accepted an artifact above its allocation limit")
+	}
+	if !errors.Is(err, domain.ErrPersistentIntegrity) {
+		t.Fatalf("deterministic bound violation was marked retryable: %v", err)
+	}
+	if err = os.WriteFile(filepath.Join(root, filepath.FromSlash(ref.StorageKey)), bytes.Repeat([]byte("x"), 4<<20), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.ReadVerified(context.Background(), ref, uint64(len(content))); !errors.Is(err, ErrArtifactMismatch) ||
+		!errors.Is(err, domain.ErrPersistentIntegrity) {
+		t.Fatalf("oversized backing file was not rejected before bounded allocation: %v", err)
 	}
 }
 

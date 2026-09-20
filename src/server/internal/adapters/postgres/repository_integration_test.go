@@ -191,6 +191,30 @@ func TestStorageFoundationAgainstPostgres(t *testing.T) {
 	}}); err != nil {
 		t.Fatal(err)
 	}
+	dependencyManifest := &pb.DependencyManifest{
+		ArtifactId:   "dependency-manifest-" + suffix,
+		Dependencies: []*pb.Dependency{{DependencyId: "source-fixture", Fingerprint: &pb.ContentHash{Sha256: hashA}}},
+		ProducerManifest: &pb.ProducerManifest{
+			Software: "integration-test", Build: "test", SchemaVersion: 1, ConfigHash: &pb.ContentHash{Sha256: hashB},
+		},
+		LookupScopeRevisions: []*pb.LookupScopeRevision{{ScopeId: "canonical-registry", EmptyResult: true}},
+	}
+	if err = repo.ReplaceArtifactDependencyManifest(ctx, corpusID, artifact.ArtifactId, dependencyManifest); err != nil {
+		t.Fatal(err)
+	}
+	var emptyResult bool
+	var revisionValue *int64
+	if err = repo.pool.QueryRow(ctx, `SELECT dependency_revision,empty_result FROM artifact_dependencies
+		WHERE artifact_id=$1 AND dependency_kind='lookup_scope' AND dependency_key='canonical-registry'`, artifact.ArtifactId).
+		Scan(&revisionValue, &emptyResult); err != nil || revisionValue != nil || !emptyResult {
+		t.Fatalf("empty lookup dependency was not retained: revision=%v empty=%v err=%v", revisionValue, emptyResult, err)
+	}
+	var dependencyFingerprint string
+	if err = repo.pool.QueryRow(ctx, `SELECT dependency_fingerprint FROM artifact_dependencies
+		WHERE artifact_id=$1 AND dependency_kind='fingerprint' AND dependency_key='source-fixture'`, artifact.ArtifactId).
+		Scan(&dependencyFingerprint); err != nil || dependencyFingerprint != hashA {
+		t.Fatalf("dependency fingerprint was not retained: fingerprint=%q err=%v", dependencyFingerprint, err)
+	}
 	if revision, scopeErr := repo.AdvanceLookupScope(ctx, corpusID, "regulation-number:2026", 0); scopeErr != nil || revision != 1 {
 		t.Fatalf("first lookup revision=%d err=%v", revision, scopeErr)
 	}
