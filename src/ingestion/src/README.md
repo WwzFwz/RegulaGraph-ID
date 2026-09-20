@@ -26,4 +26,4 @@ Ikuti [kebijakan benchmark](../../../doc/benchmark-policy.md). Angka wajib mengi
 
 ## Status
 
-Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. Pipeline parsing/graph/retrieval, mutasi backend, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan target kualitas atau latency.
+Modul `document::parsing::pdf` telah menjadi boundary parser PDFium I01 aktif di library. Modul Rust lain masih scaffold sampai normalisasi, chunking, versioning, knowledge graph, indexing, adapter, dan worker batch diimplementasikan. Build dan fixture native parser tidak membuktikan target kualitas corpus atau latency produksi.

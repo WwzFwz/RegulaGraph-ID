@@ -32,7 +32,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. Pipeline parsing/graph/retrieval, mutasi backend, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan target kualitas atau latency.
+Parser PDFium I01 aktif di [parsing/pdf.rs](parsing/pdf.rs) dan menghasilkan teks, locator ternormalisasi terhadap intersection CropBox/MediaBox serta rotasi halaman, status halaman, dan manifest yang terikat hash. Normalisasi, struktur hukum, chunking, versioning, OCR, worker batch, gold dataset, dan acceptance produksi belum aktif. Fixture native membuktikan boundary dasar, bukan kualitas corpus atau target latency.
 
 ## Rekomendasi implementasi anak
 

@@ -24,7 +24,10 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. Pipeline parsing/graph/retrieval, mutasi backend, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan target kualitas atau latency.
+Parser PDFium di [pdf.rs](pdf.rs) sekarang memverifikasi binary/input hash dan menghasilkan raw text, block span,
+bounding box top-left terhadap intersection CropBox/MediaBox dan rotasi halaman, status halaman, serta manifest lokal. Worker isolation, OCR, normalisasi, struktur, mapping wire,
+gold quality, dan benchmark produksi belum aktif. Build serta fixture native tidak membuktikan target kualitas
+atau latency.
 
 ## Rekomendasi implementasi anak
 
@@ -34,4 +37,4 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | --- | --- | --- |
 | [html.rs](html.rs) | Parse regulatory HTML content into source-mapped blocks without treating navigation as law text. | Test lists/tables/encoded characters and malformed markup; preserve raw artifact and mapping provenance. |
 | [ocr.rs](ocr.rs) | OCR selected pages with engine/model/config identity, coordinates, confidence and explicit unreadable-page status. | Measure CER/WER and accuracy of numbers/negation plus pages/s and RSS; retain original page images/locators. |
-| [pdf.rs](pdf.rs) | Extract page text, reading order, blocks/tables and source locators; route only insufficient-text pages to OCR. | Evaluate digital/scanned/mixed strata, multi-column ordering and page failures; measure throughput and memory on large files. |
+| [pdf.rs](pdf.rs) | Integrasikan hasil aktif ke worker/batch, tambah table/layout evidence, dan route halaman insufficient-text ke OCR. | Evaluate digital/scanned/mixed strata, multi-column ordering and page failures; measure throughput and memory on large files. |
