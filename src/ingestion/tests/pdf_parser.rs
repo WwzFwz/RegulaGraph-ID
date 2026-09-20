@@ -4,12 +4,25 @@
 //! Input/output: environment menunjuk binary PDFium; fixture ditulis ke target/test-fixtures dan dihapus.
 //! Performa: correctness fixture bukan benchmark; corpus throughput/RSS tetap REQUIRED_UNMEASURED.
 
+use protobuf::well_known_types::timestamp::Timestamp;
+use protobuf::{EnumOrUnknown, MessageField};
+use regulagraph_ingestion::adapters::document_batches::load_document_batch;
+use regulagraph_ingestion::adapters::storage::{
+    ArtifactDescriptor, ArtifactStore, ArtifactStoreConfig,
+};
+use regulagraph_ingestion::document::normalization::text::TextNormalizerConfig;
 use regulagraph_ingestion::document::parsing::pdf::{
     PdfDocumentStatus, PdfParseError, PdfParseRequest, PdfParser, PdfParserConfig,
+};
+use regulagraph_ingestion::domain::document_batch::DocumentBatchConfig;
+use regulagraph_ingestion::wire::{common, jobs};
+use regulagraph_ingestion::worker::{
+    BatchProcessor, ParseBatchProcessor, ParseBatchProcessorConfig,
 };
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::AtomicBool;
 
 #[test]
 fn pdfium_boundary_parses_and_binds_real_inputs() {
@@ -97,8 +110,118 @@ fn pdfium_boundary_parses_and_binds_real_inputs() {
     });
     assert!(matches!(malformed_result, Err(PdfParseError::Open(_))));
 
+    let artifact_root = fixture_dir.join(format!("worker-artifacts-{}", std::process::id()));
+    let store = ArtifactStore::open(
+        &artifact_root,
+        ArtifactStoreConfig {
+            maximum_artifact_bytes: 16 * 1024 * 1024,
+            sync_data: false,
+        },
+    )
+    .expect("worker artifact store opens");
+    let input = store
+        .put_bytes(
+            "source-pdf",
+            "application/pdf",
+            1,
+            &fs::read(&fixture).unwrap(),
+        )
+        .expect("source PDF enters shared artifact store")
+        .to_wire_ref()
+        .unwrap();
+    let processor = ParseBatchProcessor::new(
+        store,
+        parser,
+        ParseBatchProcessorConfig {
+            normalizer: TextNormalizerConfig::default(),
+            document_batch: DocumentBatchConfig::default(),
+            maximum_pages: 100,
+        },
+    )
+    .unwrap();
+    let response = processor
+        .process(
+            worker_request(input),
+            &AtomicBool::new(false),
+            &|_, _, _| {},
+        )
+        .expect("parse batch produces an immutable document batch");
+    assert_eq!(
+        response.status.enum_value(),
+        Ok(common::CompletionStatus::COMPLETION_STATUS_SUCCEEDED)
+    );
+    let output = response.document_batch.as_ref().unwrap();
+    let output_descriptor = ArtifactDescriptor {
+        artifact_id: output.artifact_id.clone(),
+        sha256: output.content_hash.sha256.clone(),
+        storage_key: output.storage_key.clone(),
+        media_type: output.media_type.clone(),
+        byte_size: output.byte_size,
+        schema_version: output.schema_version,
+    };
+    let reopened = ArtifactStore::open(
+        &artifact_root,
+        ArtifactStoreConfig {
+            maximum_artifact_bytes: 16 * 1024 * 1024,
+            sync_data: false,
+        },
+    )
+    .unwrap();
+    let batch = load_document_batch(&reopened, &output_descriptor).unwrap();
+    assert_eq!(batch.sources.len(), 1);
+    assert_eq!(batch.text_artifacts.len(), 1);
+    assert!(batch.structures.is_empty());
+    assert!(batch.provisions.is_empty());
+    assert!(batch.versions.is_empty());
+    assert!(batch.chunks.is_empty());
+
     fs::remove_file(fixture).expect("fixture PDF must be removable");
     fs::remove_file(malformed).expect("malformed fixture must be removable");
+    fs::remove_dir_all(artifact_root).expect("worker artifact fixture must be removable");
+}
+
+fn worker_request(source: common::ArtifactRef) -> jobs::ProcessBatchRequest {
+    let hash = |character: char| common::ContentHash {
+        sha256: character.to_string().repeat(64),
+        ..Default::default()
+    };
+    jobs::ProcessBatchRequest {
+        context: MessageField::some(common::RequestContext {
+            schema_version: 1,
+            request_id: "request:pdf-worker-test".to_owned(),
+            trace_id: "trace:pdf-worker-test".to_owned(),
+            corpus_id: "regulagraph-id".to_owned(),
+            deadline: MessageField::some(Timestamp {
+                seconds: 1_900_000_000,
+                ..Default::default()
+            }),
+            config_fingerprint: MessageField::some(hash('a')),
+            auth_scope_ref: "scope:ingestion-test".to_owned(),
+            ..Default::default()
+        }),
+        job_id: "job:pdf-worker-test".to_owned(),
+        attempt: 1,
+        lease: MessageField::some(jobs::Lease {
+            owner_id: "worker:test".to_owned(),
+            fence: 1,
+            expires_at: MessageField::some(Timestamp {
+                seconds: 1_900_000_060,
+                ..Default::default()
+            }),
+            ..Default::default()
+        }),
+        sources: vec![source],
+        manifest: MessageField::some(common::ProducerManifest {
+            software: "regulagraph-ingestion".to_owned(),
+            build: "pdf-worker-test".to_owned(),
+            schema_version: 1,
+            parser_version: Some("pdfium-test".to_owned()),
+            config_hash: MessageField::some(hash('b')),
+            ..Default::default()
+        }),
+        stages: vec![EnumOrUnknown::new(jobs::JobStage::JOB_STAGE_PARSE)],
+        ..Default::default()
+    }
 }
 
 fn sha256_file(path: &Path) -> String {

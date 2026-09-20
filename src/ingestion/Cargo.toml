@@ -1,6 +1,6 @@
 # Metadata crate Rust untuk transformasi batch ingestion dan knowledge graph.
-# Integrasi: library menyediakan module tree, generated protobuf dan validator C01; transport worker belum aktif.
-# Performa: PDFium dimuat sekali melalui boundary parser; model inference dan executable worker belum aktif.
+# Integrasi: library menyediakan validator rust-protobuf dan transport Tonic yang dihasilkan dari schema C01 yang sama.
+# Performa: executable worker memuat PDFium sekali, membatasi concurrency/message, dan mengirim referensi artefak.
 [package]
 name = "regulagraph-ingestion"
 version = "0.0.1"
@@ -14,8 +14,14 @@ path = "src/lib.rs"
 # pdfium-render menerima libloading 0.x; pin ini mempertahankan kompatibilitas MSRV Rust 1.87.
 libloading = "=0.8.9"
 pdfium-render = { version = "=0.9.4", default-features = false, features = ["pdfium_6406", "thread_safe"] }
+prost = "=0.13.5"
+prost-types = "=0.13.5"
 protobuf = "=3.7.2"
 sha2 = "=0.10.9"
+tokio = { version = "=1.47.1", features = ["macros", "rt-multi-thread", "signal", "sync", "time"] }
+tonic = "=0.13.1"
 
 [build-dependencies]
+protoc-bin-vendored = "=3.2.0"
 protobuf-codegen = "=3.7.2"
+tonic-build = "=0.13.1"

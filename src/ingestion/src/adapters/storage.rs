@@ -277,6 +277,25 @@ impl ArtifactStore {
         Ok(bytes)
     }
 
+    /// Resolves an input `ArtifactRef` produced by the Go coordinator to a verified confined file.
+    /// Input keys may use any safe relative layout; worker outputs remain content-addressed.
+    pub fn verified_input_path(
+        &self,
+        reference: &common::ArtifactRef,
+    ) -> Result<PathBuf, ArtifactStoreError> {
+        wire::validate(reference, Limits::default()).map_err(ArtifactStoreError::WireValidation)?;
+        if reference.byte_size > self.config.maximum_artifact_bytes as u64 {
+            return Err(ArtifactStoreError::ArtifactTooLarge {
+                actual: reference.byte_size,
+                maximum: self.config.maximum_artifact_bytes,
+            });
+        }
+        let path = self.resolve_key(&reference.storage_key)?;
+        self.verify_existing_file(&path)?;
+        self.verify_file(&path, &reference.content_hash.sha256, reference.byte_size)?;
+        Ok(path)
+    }
+
     fn write_temporary(&self, path: &Path, bytes: &[u8]) -> Result<(), ArtifactStoreError> {
         let file = OpenOptions::new()
             .write(true)
@@ -585,6 +604,39 @@ mod tests {
         let mut files = Vec::new();
         list_files(&store.root, &mut files);
         assert_eq!(files, [artifact_path(&store, &first)]);
+    }
+
+    #[test]
+    fn verifies_coordinator_input_with_non_content_addressed_key() {
+        let root = TestDir::new();
+        let store = store(&root.0);
+        let bytes = b"pdf fixture";
+        let relative = "incoming/source.pdf";
+        fs::create_dir_all(root.0.join("incoming")).unwrap();
+        fs::write(root.0.join(relative), bytes).unwrap();
+        let reference = common::ArtifactRef {
+            artifact_id: "source-artifact-1".to_owned(),
+            content_hash: MessageField::some(common::ContentHash {
+                sha256: sha256_bytes(bytes),
+                ..Default::default()
+            }),
+            storage_key: relative.to_owned(),
+            media_type: "application/pdf".to_owned(),
+            byte_size: bytes.len() as u64,
+            schema_version: 1,
+            ..Default::default()
+        };
+
+        assert_eq!(
+            store.verified_input_path(&reference).unwrap(),
+            fs::canonicalize(root.0.join(relative)).unwrap()
+        );
+        let mut tampered = reference;
+        tampered.content_hash.as_mut().unwrap().sha256 = "0".repeat(64);
+        assert!(matches!(
+            store.verified_input_path(&tampered),
+            Err(ArtifactStoreError::HashMismatch { .. })
+        ));
     }
 
     #[test]
