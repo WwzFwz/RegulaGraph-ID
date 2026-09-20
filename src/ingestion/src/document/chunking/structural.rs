@@ -559,3 +559,161 @@ fn valid_ascii_id(value: &str) -> bool {
             byte.is_ascii_alphanumeric() || matches!(byte, b':' | b'_' | b'-' | b'.' | b'/')
         })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::document::normalization::text::{normalize_text, TextNormalizerConfig};
+
+    fn identity() -> StructureIdentity {
+        StructureIdentity {
+            source_blob_id: "source:fixture".to_owned(),
+            text_artifact_id: "text:fixture".to_owned(),
+            provision_version_id: "provision-version:fixture".to_owned(),
+        }
+    }
+
+    fn normalized(raw: &str) -> NormalizedText {
+        normalize_text(raw, &TextNormalizerConfig::default()).expect("fixture normalizes")
+    }
+
+    #[test]
+    fn builds_ordered_nested_hierarchy_and_closes_sibling_spans() {
+        let text = normalized(
+            "PEMBUKAAN\nBAB I\nKETENTUAN UMUM\nBagian Kesatu\nPasal 1\n\
+             (1) Setiap orang wajib patuh.\na. memenuhi syarat;\n1. menunjukkan bukti;\n\
+             (2) Kewajiban dikecualikan.\nPasal 2\nKetentuan berikutnya.\n",
+        );
+
+        let tree = parse_structure(&text, &identity(), &StructureParserConfig::default())
+            .expect("hierarchy parses");
+        let labels: Vec<_> = tree.nodes.iter().map(|node| node.label.as_str()).collect();
+        assert_eq!(
+            labels,
+            [
+                "document",
+                "BAB I",
+                "Bagian Kesatu",
+                "Pasal 1",
+                "(1)",
+                "a.",
+                "1.",
+                "(2)",
+                "Pasal 2"
+            ]
+        );
+        let article_one = &tree.nodes[3];
+        let clause_one = &tree.nodes[4];
+        let letter_item = &tree.nodes[5];
+        let numeric_item = &tree.nodes[6];
+        let clause_two = &tree.nodes[7];
+        let article_two = &tree.nodes[8];
+        assert_eq!(article_one.parent_id, Some(tree.nodes[2].id.clone()));
+        assert_eq!(clause_one.parent_id, Some(article_one.id.clone()));
+        assert_eq!(letter_item.parent_id, Some(clause_one.id.clone()));
+        assert_eq!(numeric_item.parent_id, Some(letter_item.id.clone()));
+        assert_eq!(clause_two.parent_id, Some(article_one.id.clone()));
+        assert_eq!(article_two.parent_id, Some(tree.nodes[2].id.clone()));
+        assert_eq!(
+            article_one.normalized_span.end,
+            article_two.normalized_span.start
+        );
+        tree.validate(&text).expect("generated tree remains valid");
+    }
+
+    #[test]
+    fn ignores_inline_references_and_orphan_list_markers() {
+        let text = normalized(
+            "1. metadata halaman\nKetentuan sebagaimana dimaksud dalam Pasal 5 tetap berlaku.\n\
+             Pasal 6 ayat (1) bukan heading.\nPasal 7\nIsi sah.\n",
+        );
+        let tree = parse_structure(&text, &identity(), &StructureParserConfig::default())
+            .expect("conservative structure parses");
+
+        assert_eq!(tree.nodes.len(), 2);
+        assert_eq!(tree.nodes[1].label, "Pasal 7");
+    }
+
+    #[test]
+    fn maps_unicode_nodes_back_to_crlf_raw_offsets() {
+        let raw = "BAB I\r\nPasal 1\r\n(1) Warga wajib menjaga aksesibilitas ﬂeksibel.\r\n";
+        let text = normalized(raw);
+        let tree = parse_structure(&text, &identity(), &StructureParserConfig::default())
+            .expect("mapped structure parses");
+
+        for node in &tree.nodes {
+            assert_eq!(
+                node.raw_span,
+                text.raw_cover(node.normalized_span.clone())
+                    .expect("node is source mapped")
+            );
+            assert!(raw.is_char_boundary(node.raw_span.start));
+            assert!(raw.is_char_boundary(node.raw_span.end));
+        }
+        assert!(tree.nodes[3].normalized_span.start < tree.nodes[3].normalized_span.end);
+    }
+
+    #[test]
+    fn stable_ids_depend_on_artifact_and_hierarchy_not_raw_line_endings() {
+        let unix = normalized("BAB I\nPasal 1\nIsi.\n");
+        let windows = normalized("BAB I\r\nPasal 1\r\nIsi.\r\n");
+        let first = parse_structure(&unix, &identity(), &StructureParserConfig::default())
+            .expect("first tree");
+        let second = parse_structure(&windows, &identity(), &StructureParserConfig::default())
+            .expect("second tree");
+        assert_eq!(
+            first.nodes.iter().map(|node| &node.id).collect::<Vec<_>>(),
+            second.nodes.iter().map(|node| &node.id).collect::<Vec<_>>()
+        );
+
+        let mut other_identity = identity();
+        other_identity.text_artifact_id = "text:other".to_owned();
+        let other = parse_structure(&unix, &other_identity, &StructureParserConfig::default())
+            .expect("other artifact tree");
+        assert_ne!(first.root().id, other.root().id);
+    }
+
+    #[test]
+    fn recognizes_annex_without_identifier_and_respects_item_switch() {
+        let text = normalized("LAMPIRAN\nPasal 1\n(1) Isi.\na. butir.\n");
+        let config = StructureParserConfig {
+            recognize_list_items: false,
+            ..StructureParserConfig::default()
+        };
+        let tree = parse_structure(&text, &identity(), &config).expect("annex parses");
+
+        assert_eq!(tree.nodes[1].kind, StructureKind::Annex);
+        assert!(tree
+            .nodes
+            .iter()
+            .all(|node| node.kind != StructureKind::Item));
+    }
+
+    #[test]
+    fn rejects_invalid_identity_limits_and_tampered_links() {
+        let text = normalized("BAB I\nPasal 1\nIsi.\n");
+        let mut invalid_identity = identity();
+        invalid_identity.source_blob_id = "contains whitespace".to_owned();
+        assert_eq!(
+            parse_structure(&text, &invalid_identity, &StructureParserConfig::default()),
+            Err(StructureError::InvalidIdentity("source_blob_id"))
+        );
+
+        let limited = StructureParserConfig {
+            maximum_nodes: 2,
+            ..StructureParserConfig::default()
+        };
+        assert_eq!(
+            parse_structure(&text, &identity(), &limited),
+            Err(StructureError::NodeLimit { maximum: 2 })
+        );
+
+        let mut tree = parse_structure(&text, &identity(), &StructureParserConfig::default())
+            .expect("valid tree");
+        tree.nodes[0].ordered_children.clear();
+        assert_eq!(
+            tree.validate(&text),
+            Err(StructureError::InvalidTree("parent containment"))
+        );
+    }
+}
