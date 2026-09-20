@@ -14,11 +14,13 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
-Berkas: [local.go](local.go), [official.go](official.go), [inventory.go](inventory.go), [http.go](http.go), [html.go](html.go), [download.go](download.go), [collector_test.go](collector_test.go), [listing.go](listing.go).
+Berkas: [local.go](local.go), [official.go](official.go), [inventory.go](inventory.go), [http.go](http.go), [html.go](html.go), [download.go](download.go), [collector_test.go](collector_test.go), [listing.go](listing.go), [audit.go](audit.go), dan [audit_test.go](audit_test.go).
 
 Collector D01 aktif untuk metadata detail dan PDF sumber: official mengatur satu sumber, http mengatur akses/retry/rate serta discovery terbatas, html membaca metadata/tautan, download menyimpan blob/checksum/receipt, dan inventory mendefinisikan format artefak lokal. Workflow Go memanggil collector ini dengan concurrency terbatas. Adapter local.go dan kontrak produksi C01 tetap belum diimplementasikan. Lihat [panduan penggunaan](../../../../../doc/acquisition.md).
 
 listing.go mengambil HTML katalog saja, menyimpan hash/HTML sumber serta judul tautan untuk workflow discover. Tidak mengikuti tautan PDF. Parser mendukung link detail /doc/ JDIHN; ini belum berarti adapter unduhan/metadata JDIHN lengkap.
+
+audit.go mengurung akses melalui `os.Root`, memverifikasi latest record terhadap observation byte-identik, seluruh historical receipt, HTML provenance, ukuran/hash/envelope PDF, queue coverage, dan reference gaps. Output JSONL diurutkan; inventory ID mengikat record, observation, queue, dan blob set. Candidate identity hanya label `unverified`, bukan canonical merge.
 
 ## Benchmark dan perhatian performa
 
@@ -28,7 +30,7 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Status lintas repositori: collector PDF dan kontrak/validator C01 sudah tersedia; lihat [cakupan implementasi C01](../../../../../doc/contracts-implementation.md). Pipeline parsing/graph/retrieval, adapter storage, layanan model dan evaluator benchmark masih belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
+Collector, discovery, serta audit inventory D01 sudah aktif dan audit corpus lokal 3 GB lulus integrity. Connector JDIHN, queue/reference coverage, PDF format strata, dan gold set belum lengkap. Pipeline parsing/graph/retrieval dan layanan model belum aktif; audit hash tidak membuktikan kualitas hukum atau target performa.
 
 ## Rekomendasi implementasi anak
 
@@ -41,6 +43,7 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | [html.go](html.go) | Maintain deterministic source HTML parsing with canonical URL resolution and explicit unsupported-layout failures. | Test malformed markup, relative URLs, duplicate links and script-driven pages; do not infer PDFs from absent links. |
 | [http.go](http.go) | Keep per-host throttling, connection reuse and redirect policy; propagate cancellation and retry budgets. | Test Retry-After, cross-host redirect rejection and transient failures; measure waiting separately from transferred bytes. |
 | [inventory.go](inventory.go) | Preserve versioned receipt/history and checksum-based reuse; map acquisition observations into production source records at S01/D01 integration. | Test metadata schema change, missing/corrupt artifacts and atomic latest-pointer update; never drop historical receipts. |
+| [audit.go](audit.go) | Pertahankan manifest deterministik dan confinement; integrasikan inventory yang sudah dibekukan ke pemilihan sample M01/G01. | Uji concurrent collector exclusion/crash, cold-cache throughput/peak RSS, dan perubahan provenance selalu mengubah inventory ID. |
 | [listing.go](listing.go) | Extend bounded listing discovery with source-specific pagination and persistent page provenance. | Test next-page cycles, duplicate URLs and incremental resume; distinguish URL count from unique regulations/PDFs. |
 | [local.go](local.go) | Import explicitly selected local files through the same hash/receipt contracts as official acquisition. | Test invalid paths, corrupt/duplicate PDFs and interruption; avoid interpreting file timestamps as legal effective dates. |
 | [official.go](official.go) | Extend metadata/PDF extraction using captured layouts and preserve observation history; treat dates/status as unverified source assertions. | Test changed layouts, attachment vs regulation links and missing metadata; report per-source extraction coverage. |

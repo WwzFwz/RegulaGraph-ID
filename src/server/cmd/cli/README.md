@@ -8,13 +8,13 @@ Logika di luar cakupan ini ditempatkan pada komponen pemiliknya. Jika fungsi bar
 
 ## Peran dan integrasi anak
 
-Perintah collect sudah tersedia dan memanggil internal/workflows.CollectSources; CLI hanya memuat argumen/seed, merakit dependency, dan melaporkan output. Ia mengunduh PDF nyata serta metadata ke data/acquisition. Exit code 0 berarti seluruh input sukses/reused, 1 ada kegagalan, dan 2 kesalahan argumen. Perintah ingestion/update/query produksi belum tersedia. Lihat [panduan collector](../../../../doc/acquisition.md).
+Perintah collect memanggil internal/workflows.CollectSources dan mengunduh PDF nyata serta metadata ke data/acquisition. Perintah audit memanggil sources.AuditAcquisition untuk memverifikasi inventory lokal secara streaming dan menulis manifest deterministik. CLI hanya memuat argumen, merakit dependency, dan melaporkan output JSON. Exit code 0 berarti operasi/integrity sukses, 1 berarti kegagalan atau integrity error, dan 2 berarti argumen salah. Perintah ingestion/update/query produksi belum tersedia. Lihat [panduan collector](../../../../doc/acquisition.md).
 
 Pertahankan source/canonical/provision-version/snapshot ID dan schema version lintas anak. Boundary runtime mengikuti [src/contracts](../../../contracts/README.md), dengan pekerjaan batch atau inference yang jelas. Perubahan bentuk data, error/status, serta offset sumber harus didokumentasikan bersama konsumennya; jangan menggandakan kebijakan publikasi di beberapa runtime.
 
 ## Isi saat ini
 
-Berkas: [main.go](main.go), [main_test.go](main_test.go).
+Berkas: [main.go](main.go), [main_test.go](main_test.go), [audit.go](audit.go), dan [audit_test.go](audit_test.go).
 
 Perintah discover menerima seed katalog dan memanggil workflows.DiscoverSources untuk menghasilkan antrean persisten tanpa unduhan PDF. Input collect tetap URL detail/PDF; jangan menukar kedua jenis file. Lihat configs/listings.txt untuk seed katalog.
 
@@ -26,7 +26,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-Status lintas repositori: collector PDF dan kontrak/validator C01 sudah tersedia; lihat [cakupan implementasi C01](../../../../doc/contracts-implementation.md). Pipeline parsing/graph/retrieval, adapter storage, layanan model dan evaluator benchmark masih belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
+Perintah discover, collect, dan audit inventory D01 sudah aktif. Kontrak/validator C01, evaluator E01, serta fondasi storage S01 juga tersedia pada komponen pemiliknya. Ingest/update/query end-to-end, parsing/graph/retrieval, dan layanan model belum aktif. Audit integrity tidak membuktikan kualitas isi PDF, canonical identity, atau target performa.
 
 ## Rekomendasi implementasi anak
 
@@ -34,4 +34,5 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
-| [main.go](main.go) | Keep commands as workflow adapters; expose job/status/update/query only as implementations become available. | Test exit codes, machine-readable output and cancellation; budget deferrals must not masquerade as completed acquisition. |
+| [main.go](main.go) | Pertahankan routing command tipis; expose job/status/update/query hanya setelah workflow pemilik aktif. | Uji exit code, machine-readable output, cancellation, dan Ctrl+C pada proses aktif. |
+| [audit.go](audit.go) | Pertahankan flag bounded dan exit integrity; tambahkan opsi output hanya bila format manifest tetap kompatibel. | Uji root/write/stdout failure, cancellation, dan invalid inventory tidak pernah exit 0. |

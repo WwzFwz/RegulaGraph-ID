@@ -16,7 +16,7 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 Subfolder: [sources/](sources/README.md).
 
-Akuisisi sumber D01 sudah aktif melalui CLI collect, workflow batch, dan adapter sources. Pipeline ingestion/query produksi lainnya masih scaffold.
+Discovery, akuisisi, dan audit inventory D01 sudah aktif melalui CLI, workflow batch, dan adapter sources. Audit menghasilkan inventory deterministic untuk pemilihan sample M01/G01 tanpa melakukan parsing PDF atau canonical resolution. Pipeline ingestion transform produksi lainnya masih scaffold.
 
 ## Benchmark dan perhatian performa
 
@@ -26,4 +26,4 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-Status lintas repositori: collector PDF dan kontrak/validator C01 sudah tersedia; lihat [cakupan implementasi C01](../../../../doc/contracts-implementation.md). Pipeline parsing/graph/retrieval, adapter storage, layanan model dan evaluator benchmark masih belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
+Collector dan audit inventory D01 sudah aktif; kontrak C01, evaluator E01, serta control-plane S01 tersedia pada komponen pemiliknya. Parsing/chunking Rust, graph/index, dan layanan model belum aktif. Audit integrity tidak membuktikan kualitas ekstraksi atau benchmark produksi.

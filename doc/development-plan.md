@@ -4,7 +4,7 @@ Dokumen ini memecah desain lengkap RegulaGraph-ID menjadi pekerjaan komponen dan
 
 ## 1. Prinsip pelaksanaan
 
-Status D01 diperbarui: [collector PDF](acquisition.md) sudah dapat mengambil detail/metadata serta PDF nyata dari contoh BPK dan Kemkomdigi, memakai resume dan discovery terbatas. Inventory seluruh corpus, connector katalog JDIHN, dan gold dataset belum selesai. C01, E01, dan control-plane S01 sudah direalisasikan sesuai laporan milestone; record inventory lokal collector tetap bukan canonical registry atau gold corpus.
+Status D01 diperbarui: [collector dan audit PDF](acquisition.md) sudah memverifikasi integrity manifest 616 record, 619 observation, serta 650 PDF unik/2.999.240.002 byte dari batch BPK/Kemkomdigi dan percobaan JDIHN. Inventory seluruh corpus, connector JDIHN, 2.545 URL queue pending, 526 missing document reference, klasifikasi format M01, dan gold dataset belum selesai. C01, E01, serta control-plane S01 sudah direalisasikan sesuai laporan milestone; candidate identity inventory tetap unverified dan bukan canonical registry.
 
 Folder tree menentukan pemilik kode; dependency menentukan urutan pelaksanaan. Satu milestone dapat mengubah contracts, Rust, Go, inference, dan evaluation bersama. Implementasi komponen yang terpisah dapat dikerjakan paralel setelah kontrak terkait stabil, tetapi setiap integrasi mempunyai satu owner hasil dan syarat selesai. Dokumen ini bukan instruksi menambah microservice atau agent kerja otomatis.
 

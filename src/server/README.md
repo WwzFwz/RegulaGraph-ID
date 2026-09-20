@@ -18,7 +18,7 @@ Subfolder: [cmd/](cmd/README.md), [internal/](internal/README.md).
 
 Berkas: [go.mod](go.mod), [go.sum](go.sum).
 
-CLI collect sudah menjalankan acquisition D01: metadata halaman detail, unduhan PDF nyata, checksum, resume, dan discovery terbatas. Runtime memakai golang.org/x/net/html yang dipin dengan Go 1.26.8. API, retrieval/answering, job persisten, dan kontrak produksi masih scaffold. Lihat [panduan akuisisi](../../doc/acquisition.md).
+CLI discover/collect/audit sudah menjalankan acquisition D01: metadata halaman detail, unduhan PDF nyata, checksum, resume, discovery terbatas, serta inventory provenance terverifikasi. Runtime memakai golang.org/x/net/html yang dipin dengan Go 1.26.8. Scheduler/job serta publication control-plane S01 juga aktif; API query, retrieval/answering, worker Rust, dan backend model masih belum tersambung. Lihat [panduan akuisisi](../../doc/acquisition.md).
 
 ## Benchmark dan perhatian performa
 
@@ -28,4 +28,4 @@ Ikuti [kebijakan benchmark](../../doc/benchmark-policy.md). Angka wajib mengikut
 
 ## Status
 
-Status lintas repositori: collector PDF dan kontrak/validator C01 sudah tersedia; lihat [cakupan implementasi C01](../../doc/contracts-implementation.md). Pipeline parsing/graph/retrieval, adapter storage, layanan model dan evaluator benchmark masih belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
+Collector/audit D01, kontrak/validator C01, evaluator E01, serta adapter control-plane storage/publication S01 sudah tersedia. Pipeline parsing/graph/retrieval, mutasi backend, dan layanan model masih belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity dan test correctness tidak membuktikan target kualitas atau latency.

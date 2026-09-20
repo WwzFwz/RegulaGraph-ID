@@ -1,10 +1,10 @@
 # Rencana corpus dan dataset evaluasi
 
-Dokumen ini merancang akuisisi, provenance, kurasi, dan evaluasi data dari sumber yang dipilih pengguna: Database Peraturan BPK, JDIH Kemkomdigi, dan JDIHN Nasional. Perannya memastikan desain pipeline dan kontrak diuji terhadap bentuk dokumen nyata. Belum ada crawling massal, dataset berlabel, atau klaim kelengkapan corpus yang dihasilkan oleh dokumen ini.
+Dokumen ini merancang akuisisi, provenance, kurasi, dan evaluasi data dari sumber yang dipilih pengguna: Database Peraturan BPK, JDIH Kemkomdigi, dan JDIHN Nasional. Perannya memastikan desain pipeline dan kontrak diuji terhadap bentuk dokumen nyata. Batch eksplorasi 3 GB serta inventory audit lokal sudah tersedia; dataset berlabel dan klaim kelengkapan corpus belum tersedia.
 
 ## 1. Sumber pilihan dan perannya
 
-Implementasi pendukung D01 sekarang tersedia sebagai [CLI collector PDF](acquisition.md). Dua contoh BPK/Kemkomdigi telah diunduh untuk smoke verification; ini belum inventory lengkap, crawling massal, validasi keberlakuan, atau gold dataset. Discovery katalog JDIHN belum diverifikasi.
+Implementasi pendukung D01 tersedia sebagai [CLI collector dan audit PDF](acquisition.md). Inventory lokal mengikat 616 record, 619 observation, serta 650 PDF unik/2.999.240.002 byte. Ini belum inventory lengkap: 2.545 URL queue dan 526 document reference belum tersedia lokal, seluruh 10 record JDIHN masih gagal, klasifikasi text/scan/table menunggu M01, dan belum ada validasi keberlakuan atau gold dataset.
 
 | Source ID desain | Portal | Peran dalam corpus |
 | --- | --- | --- |

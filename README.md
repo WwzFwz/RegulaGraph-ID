@@ -2,7 +2,7 @@
 
 Repositori ini menampung pengembangan Hybrid GraphRAG untuk regulasi Indonesia dengan pemisahan runtime berdasarkan latency dan throughput. README ini menjadi peta fungsi, pemilik komponen, dan cara memeriksa struktur build.
 
-**Status: collector PDF, kontrak/validator C01, evaluator offline E01, dan fondasi storage/publication S01 tersedia; pipeline GraphRAG dan layanan inference belum aktif.** Go/Rust/C++ memegang runtime produk; Python untuk evaluasi/tooling offline. S01 menyediakan job/lease/fence/checkpoint durable, metadata artefak immutable, publication ledger, active-snapshot CAS, dan read pin pada PostgreSQL; adapter backend Qdrant/Neo4j serta benchmark produksi masih belum aktif. E01 menolak false PASS melalui eligibility, raw evidence, dan telemetry validation, tetapi belum ada target benchmark atau SLA yang diklaim tercapai. Mulai kelanjutan dari [panduan implementasi](doc/implementation-guide.md), [runner evaluasi](doc/evaluation-runner.md), dan [protokol verifikasi](doc/verification.md).
+**Status: collector dan audit inventory D01, kontrak/validator C01, evaluator offline E01, serta fondasi storage/publication S01 tersedia; pipeline GraphRAG dan layanan inference belum aktif.** Go/Rust/C++ memegang runtime produk; Python untuk evaluasi/tooling offline. Audit D01 telah memverifikasi provenance dan seluruh blob lokal 3 GB, tetapi coverage queue/reference, connector JDIHN, stratifikasi format, dan gold data masih belum lengkap. S01 menyediakan job/lease/fence/checkpoint durable, metadata artefak immutable, publication ledger, active-snapshot CAS, dan read pin pada PostgreSQL; adapter backend Qdrant/Neo4j serta benchmark produksi masih belum aktif. E01 menolak false PASS melalui eligibility, raw evidence, dan telemetry validation, tetapi belum ada target benchmark atau SLA yang diklaim tercapai. Mulai kelanjutan dari [panduan implementasi](doc/implementation-guide.md), [runner evaluasi](doc/evaluation-runner.md), dan [protokol verifikasi](doc/verification.md).
 
 ## Struktur dan cakupan
 
@@ -372,7 +372,7 @@ Fusion, filter, context builder, serta citation tetap di proses Go yang sama. Pa
 
 ## Akuisisi PDF dan metadata
 
-Collector D01 sudah aktif untuk input batch URL dan discovery terbatas BPK/Kemkomdigi. Jalankan `go run ./src/server/cmd/cli collect -input configs/sources.txt` untuk mengunduh contoh PDF ke data/acquisition beserta metadata dan checksum. Run ulang memakai resume; `-refresh` memeriksa sumber kembali. Lihat [panduan akuisisi](doc/acquisition.md) untuk opsi dan batas dukungan JDIHN. Pipeline OCR/graph/retrieval belum aktif. Batch lokal sudah menyimpan 650 PDF unik (2.999.240.002 bytes) dan berhenti pada cap 3 GB; 19 URL gagal dan sisanya deferred tetap tercatat.
+Collector D01 sudah aktif untuk input batch URL dan discovery terbatas BPK/Kemkomdigi. Jalankan `go run ./src/server/cmd/cli collect -input configs/sources.txt` untuk mengunduh sumber, lalu `go run ./src/server/cmd/cli audit -out data/acquisition` untuk memverifikasi queue, record, observation history, HTML, receipt, dan seluruh hash PDF. Run ulang collector memakai resume; `-refresh` memeriksa sumber kembali. Lihat [panduan akuisisi](doc/acquisition.md) untuk opsi dan batas dukungan JDIHN. Pipeline OCR/graph/retrieval belum aktif. Inventory lokal saat ini mengikat 616 record, 619 observation, dan 650 PDF unik (2.999.240.002 bytes); 21 record incomplete tetap terlihat sebagai warning dan 2.545 URL queue belum diambil.
 
 ## Build dan verifikasi
 

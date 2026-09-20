@@ -2,6 +2,14 @@
 
 Dokumen ini menjelaskan collector D01 yang sudah dapat dijalankan dari CLI Go. Perannya mengumpulkan file PDF nyata, HTML sumber, metadata portal, checksum, dan receipt akuisisi. Collector belum menjalankan parser isi PDF, OCR, chunking, canonical registry, graph, atau publication produksi; schema inventory lokal tidak menggantikan seluruh kontrak C01.
 
+Perintah audit D01 memeriksa keluaran collector tanpa mengunduh ulang sumber:
+
+```powershell
+go run ./src/server/cmd/cli audit -out data/acquisition -workers 8
+```
+
+Audit mengurung akses path melalui `os.Root`, mencocokkan latest record dengan observation immutable yang byte-identik, memeriksa seluruh historical receipt, HTML provenance, ukuran/SHA-256/envelope PDF, queue coverage, dan missing document references. Ia menulis `inventory.json` serta `inventory.records.jsonl`; inventory ID mengikat record, observation, semantic queue set, dan blob set. Exit 0 berarti integrity artifact/provenance lulus, bukan metadata hukum, canonical identity, parsing PDF, atau corpus completeness telah benar.
+
 ## Keputusan sesi 2026-09-20 dan antrean untuk dilanjutkan
 
 Pengguna mengubah target awal dari 5 GB menjadi **3 GB PDF unik (3.000.000.000 bytes total, termasuk PDF valid yang sudah tersimpan)**, meminta daftar sumber diperbanyak dahulu, dan menunda unduhan PDF lanjutan sampai besok. Tidak ada penjadwalan otomatis. Angka ini target volume akuisisi, bukan perubahan required benchmark. Catatan ini merekam keputusan penundaan awal; pengguna kemudian mengotorisasi batch paralel. CLI kini memiliki batas total byte yang sudah diuji; hasil batch ada pada bagian akhir dokumen.
@@ -93,4 +101,12 @@ go run ./src/server/cmd/cli collect -input data/acquisition/queue.txt -out data/
 
 Cap menghitung bytes blob PDF unik yang telah dipromosikan, termasuk file lama dengan hash terverifikasi. Dedup tidak menambah total; promosi dikunci antar worker. File sementara, HTML dan traffic unduhan tidak termasuk cap ini. Satu proses penulis per direktori tetap wajib. Ketika PDF berikutnya tidak muat, batch berhenti dan menyimpan deferred; ia tidak memotong PDF atau mencari kombinasi file agar tepat 3 GB. Batas per PDF dan ruang disk sementara tetap perlu diperhitungkan.
 
-Ringkasan akhir berada di data/acquisition/handoff.json; raw progress/JSONL berada di .cache/download-batch.log dan .cache/download-batch.jsonl. File tersimpan lolos pemeriksaan envelope/header/EOF dan checksum downloader; bukan berarti seluruh 650 file sudah lolos parser PDF lengkap atau audit kualitas teks. D01 berikutnya mengaudit failures, strata scan/teks/tabel/lampiran dan kelengkapan metadata sebelum G01/I01.
+Ringkasan akhir berada di data/acquisition/handoff.json; raw progress/JSONL berada di .cache/download-batch.log dan .cache/download-batch.jsonl. File tersimpan lolos pemeriksaan envelope/header/EOF dan checksum downloader; bukan berarti seluruh 650 file sudah lolos parser PDF lengkap atau audit kualitas teks. Audit inventory di bawah memeriksa integrity/provenance; strata scan/teks/tabel/lampiran tetap dilanjutkan pada M01 sebelum G01/I01.
+
+## Hasil audit inventory 3 GB, 2026-09-20
+
+Inventory `0dff5a00c9344bbc84d11b58de9c80ba0de3cbe900747ab7ab5dc3a580576b8e` memverifikasi 616 latest record, 619 observation, serta seluruh 650 PDF unik/2.999.240.002 byte. Semua referenced PDF tersedia dan cocok hash/ukuran/envelope; tidak ada orphan blob atau integrity error. Terdapat 595 record complete, 2 partial, dan 19 failed. Status partial/failed disimpan sebagai 21 warning, bukan dihapus agar denominator coverage tetap jujur.
+
+Queue memiliki 3.160 URL: 615 mempunyai latest record dan 2.545 masih pending. Satu record lokal berasal dari input di luar queue. Dari 1.690 document reference, 526 belum mempunyai latest record lokal. Per portal, BPK mempunyai 516 record (513 complete), Komdigi 90 (82 complete), sedangkan seluruh 10 percobaan JDIHN belum complete. Candidate identity dari metadata tersedia untuk 516 record dan tetap berstatus unverified.
+
+Run binary dengan page cache hangat selesai 2,330 ms memakai delapan hash worker; run pertama melalui `go run` selesai 48,681 ms dan mencampur kompilasi serta kondisi cache awal. Angka tersebut dicatat sebagai observasi diagnostik, bukan benchmark required, karena hardware, cold-cache protocol, peak RSS, dan repeated-run workload belum dibekukan. Klasifikasi text/scan/table tetap `unknown_until_m01` agar audit tidak menebak isi PDF dari metadata.
