@@ -14,3 +14,4 @@
 pub mod inference;
 pub mod pdf_engine;
 pub mod storage;
+pub mod text_artifacts;
