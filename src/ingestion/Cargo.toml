@@ -1,6 +1,6 @@
 # Metadata crate Rust untuk transformasi batch ingestion dan knowledge graph.
 # Integrasi: library menyediakan module tree, generated protobuf dan validator C01; transport worker belum aktif.
-# Performa: belum ada dependency model/parser atau executable worker yang aktif.
+# Performa: PDFium dimuat sekali melalui boundary parser; model inference dan executable worker belum aktif.
 [package]
 name = "regulagraph-ingestion"
 version = "0.0.1"
@@ -11,7 +11,11 @@ publish = false
 path = "src/lib.rs"
 
 [dependencies]
+# pdfium-render menerima libloading 0.x; pin ini mempertahankan kompatibilitas MSRV Rust 1.87.
+libloading = "=0.8.9"
+pdfium-render = { version = "=0.9.4", default-features = false, features = ["pdfium_6406", "thread_safe"] }
 protobuf = "=3.7.2"
+sha2 = "=0.10.9"
 
 [build-dependencies]
 protobuf-codegen = "=3.7.2"
