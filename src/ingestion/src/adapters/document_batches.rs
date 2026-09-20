@@ -110,3 +110,185 @@ pub fn load_document_batch(
 fn validate_wire(message: &dyn protobuf::MessageDyn) -> Result<(), DocumentBatchArtifactError> {
     wire::validate(message, Limits::default()).map_err(DocumentBatchArtifactError::WireValidation)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::adapters::storage::ArtifactStoreConfig;
+    use crate::domain::document_batch::{
+        assemble_document_batch, build_source_blob, DocumentBatchConfig, DocumentBatchParts,
+    };
+    use protobuf::well_known_types::timestamp::Timestamp;
+    use protobuf::{EnumOrUnknown, MessageField};
+    use std::fs;
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static TEST_SEQUENCE: AtomicU64 = AtomicU64::new(1);
+
+    struct TestDir(PathBuf);
+
+    impl TestDir {
+        fn new() -> Self {
+            let sequence = TEST_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+            let path = std::env::temp_dir().join(format!(
+                "regulagraph-document-batch-test-{}-{sequence}",
+                std::process::id()
+            ));
+            fs::create_dir_all(&path).expect("test root is created");
+            Self(path)
+        }
+    }
+
+    impl Drop for TestDir {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn hash(character: char) -> String {
+        character.to_string().repeat(64)
+    }
+
+    fn content_hash(character: char) -> common::ContentHash {
+        common::ContentHash {
+            sha256: hash(character),
+            ..Default::default()
+        }
+    }
+
+    fn producer() -> common::ProducerManifest {
+        common::ProducerManifest {
+            software: "regulagraph-ingestion".to_owned(),
+            build: "test-build".to_owned(),
+            schema_version: 1,
+            config_hash: MessageField::some(content_hash('a')),
+            ..Default::default()
+        }
+    }
+
+    fn batch() -> documents::DocumentBatch {
+        let source_hash = hash('b');
+        let source_ref = common::ArtifactRef {
+            artifact_id: "artifact:source:fixture".to_owned(),
+            content_hash: MessageField::some(common::ContentHash {
+                sha256: source_hash.clone(),
+                ..Default::default()
+            }),
+            storage_key: format!(
+                "sha256/{}/{}/{}.bin",
+                &source_hash[..2],
+                &source_hash[2..4],
+                source_hash
+            ),
+            media_type: "application/pdf".to_owned(),
+            byte_size: 100,
+            schema_version: 1,
+            ..Default::default()
+        };
+        let source = build_source_blob("regulagraph-id", "source-blob:fixture", source_ref)
+            .expect("source fixture builds");
+        assemble_document_batch(
+            DocumentBatchParts {
+                batch_id: "document-batch:persistence".to_owned(),
+                context: common::RequestContext {
+                    schema_version: 1,
+                    request_id: "request:persistence".to_owned(),
+                    trace_id: "trace:persistence".to_owned(),
+                    corpus_id: "regulagraph-id".to_owned(),
+                    deadline: MessageField::some(Timestamp {
+                        seconds: 1_900_000_000,
+                        nanos: 0,
+                        ..Default::default()
+                    }),
+                    config_fingerprint: MessageField::some(content_hash('c')),
+                    auth_scope_ref: "scope:ingestion".to_owned(),
+                    ..Default::default()
+                },
+                sources: vec![source],
+                dependency_manifest: common::DependencyManifest {
+                    artifact_id: "dependency-manifest:persistence".to_owned(),
+                    producer_manifest: MessageField::some(producer()),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            &DocumentBatchConfig::default(),
+        )
+        .expect("batch fixture assembles")
+    }
+
+    fn store(root: &TestDir) -> ArtifactStore {
+        ArtifactStore::open(
+            &root.0,
+            ArtifactStoreConfig {
+                maximum_artifact_bytes: 1024 * 1024,
+                sync_data: false,
+            },
+        )
+        .expect("store opens")
+    }
+
+    #[test]
+    fn persists_loads_and_deduplicates_document_batch() {
+        let root = TestDir::new();
+        let store = store(&root);
+        let batch = batch();
+
+        let first = persist_document_batch(&store, &batch).expect("batch persists");
+        let second = persist_document_batch(&store, &batch).expect("retry deduplicates");
+        assert_eq!(first, second);
+        assert_eq!(first.reference, first.descriptor.to_wire_ref().unwrap());
+        assert_eq!(first.reference.media_type, DOCUMENT_BATCH_MEDIA_TYPE);
+        assert_eq!(
+            load_document_batch(&store, &first.descriptor).unwrap(),
+            batch
+        );
+
+        let files = fs::read_dir(root.0.join("sha256"))
+            .expect("hash root exists")
+            .count();
+        assert_eq!(files, 1, "one first-level content shard is expected");
+    }
+
+    #[test]
+    fn rejects_invalid_batch_descriptor_and_payload() {
+        let root = TestDir::new();
+        let store = store(&root);
+        assert!(matches!(
+            persist_document_batch(&store, &documents::DocumentBatch::default()),
+            Err(DocumentBatchArtifactError::WireValidation(_))
+        ));
+
+        let persisted = persist_document_batch(&store, &batch()).unwrap();
+        let mut wrong_media = persisted.descriptor.clone();
+        wrong_media.media_type = "application/octet-stream".to_owned();
+        assert_eq!(
+            load_document_batch(&store, &wrong_media).unwrap_err(),
+            DocumentBatchArtifactError::InvalidDescriptor("media_type")
+        );
+
+        let malformed = store
+            .put_bytes("document-batch", DOCUMENT_BATCH_MEDIA_TYPE, 1, &[0xff])
+            .unwrap();
+        assert!(matches!(
+            load_document_batch(&store, &malformed),
+            Err(DocumentBatchArtifactError::Serialization(_))
+        ));
+    }
+
+    #[test]
+    fn stored_batch_preserves_explicit_none_completeness() {
+        let root = TestDir::new();
+        let store = store(&root);
+        let loaded = load_document_batch(
+            &store,
+            &persist_document_batch(&store, &batch()).unwrap().descriptor,
+        )
+        .unwrap();
+        assert_eq!(
+            loaded.completeness,
+            EnumOrUnknown::new(common::Completeness::COMPLETENESS_NONE)
+        );
+    }
+}
