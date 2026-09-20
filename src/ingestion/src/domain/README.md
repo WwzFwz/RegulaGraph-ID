@@ -24,7 +24,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-`chunks.rs` menyediakan record lokal dan validator provenance/source mapping/token count. `document_wire.rs` memproyeksikan structure/chunk, `text_artifact_wire.rs` memproyeksikan mapping/page/parser output, dan `document_batch.rs` merakit batch dengan reference closure serta completeness eksplisit. Wire validator C01 juga aktif. Reconstruction versioning, graph/index pipeline, dan executable worker belum diimplementasikan. Fixture unit tidak membuktikan target kualitas atau latency produksi.
+`chunks.rs` menyediakan record lokal dan validator provenance/source mapping/token count. `document_wire.rs` memproyeksikan structure/chunk, `text_artifact_wire.rs` memproyeksikan mapping/page/parser output dengan offset normalized, dan `document_batch.rs` merakit serta memvalidasi ulang batch dengan typed reference closure, batas span, page issue, dan completeness eksplisit. Wire validator C01 juga aktif. Reconstruction versioning, graph/index pipeline, dan executable worker belum diimplementasikan. Fixture unit tidak membuktikan target kualitas atau latency produksi.
 
 ## Rekomendasi implementasi anak
 

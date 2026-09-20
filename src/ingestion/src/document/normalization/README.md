@@ -24,7 +24,7 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-[text.rs](text.rs) menyediakan normalisasi line ending, whitespace horizontal, ligature Unicode, dan soft hyphen dengan mapping byte raw-normalized yang lengkap, hash/fingerprint, limit input/mapping, canonical replay, serta proyeksi span normalized ke raw. Mapping sudah dapat diproyeksikan dan disimpan sebagai artefak C01 melalui domain/adapter. Dehyphenation lintas baris, penghapusan header/footer, executable worker, benchmark 100 MiB, dan acceptance produksi belum aktif karena transformasi tambahan memerlukan gold agar tidak mengubah istilah atau struktur hukum.
+[text.rs](text.rs) menyediakan normalisasi line ending, whitespace horizontal, ligature Unicode, dan soft hyphen dengan mapping byte raw-normalized yang lengkap, hash/fingerprint, limit input/mapping, canonical replay, proyeksi span normalized ke raw, serta proyeksi rentang halaman raw ke offset normalized. Mapping sudah dapat diproyeksikan dan disimpan sebagai artefak C01 melalui domain/adapter. Dehyphenation lintas baris, penghapusan header/footer, executable worker, benchmark 100 MiB, dan acceptance produksi belum aktif karena transformasi tambahan memerlukan gold agar tidak mengubah istilah atau struktur hukum.
 
 ## Rekomendasi implementasi anak
 
@@ -32,4 +32,4 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
-| [text.rs](text.rs) | Integrasikan mapping aktif ke artefak C01; evaluasi dehyphenation dan header/footer hanya dengan gold serta policy versioned. | Uji locator end-to-end dari chunk ke raw PDF, critical token, adversarial layout, throughput 100 MiB, dan peak RSS. |
+| [text.rs](text.rs) | Evaluasi dehyphenation dan header/footer hanya dengan gold serta policy versioned; pertahankan mapping dua arah ketika transform baru ditambah. | Uji locator end-to-end dari chunk ke raw PDF, critical token, adversarial layout, throughput 100 MiB, dan peak RSS. |

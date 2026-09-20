@@ -8,7 +8,7 @@ Logika di luar cakupan ini ditempatkan pada komponen pemiliknya. Jika fungsi bar
 
 ## Peran dan integrasi anak
 
-Boundary native menjelaskan kepemilikan buffer dan lifetime; boundary inference memakai batch serta model/snapshot identity. Adapter storage menyediakan penyimpanan lokal immutable dan content-addressed bagi artefak worker, sedangkan commit dan publication tetap dimiliki coordinator Go.
+Boundary native menjelaskan kepemilikan buffer dan lifetime; boundary inference memakai batch serta model/snapshot identity. Adapter storage menyediakan penyimpanan lokal immutable dan content-addressed bagi artefak worker, menolak symlink/reparse point pada jalur object, serta membatasi pembacaan sesuai descriptor. Commit dan publication tetap dimiliki coordinator Go.
 
 Pertahankan source/canonical/provision-version/snapshot ID dan schema version lintas anak. Boundary runtime mengikuti [src/contracts](../../../contracts/README.md), dengan pekerjaan batch atau inference yang jelas. Perubahan bentuk data, error/status, serta offset sumber harus didokumentasikan bersama konsumennya; jangan menggandakan kebijakan publikasi di beberapa runtime.
 
@@ -24,7 +24,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. `storage.rs` menulis dan membaca object lokal immutable dengan key SHA-256; `text_artifacts.rs` menyimpan raw/normalized/mapping; `document_batches.rs` menyimpan dan memuat batch protobuf terverifikasi. Object storage jarak jauh, lifecycle orphan, worker RPC, pipeline graph/retrieval, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan durability atau target latency produksi.
+Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. `storage.rs` menulis dan membaca object lokal immutable dengan key SHA-256 serta confinement jalur; `text_artifacts.rs` menyimpan raw/normalized/mapping; `document_batches.rs` menyimpan dan memuat batch protobuf setelah replay validasi wire, reference closure bertipe, batas span, page issue, dan completeness. Object storage jarak jauh, lifecycle orphan, worker RPC, pipeline graph/retrieval, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan durability atau target latency produksi.
 
 ## Rekomendasi implementasi anak
 
