@@ -18,6 +18,9 @@
 //!
 //! Status: immutable local artifact store aktif; remote/object storage dan publication belum aktif.
 
+use crate::domain::wire::{self, Limits};
+use crate::wire::common;
+use protobuf::MessageField;
 use sha2::{Digest, Sha256};
 use std::error::Error;
 use std::fmt::{Display, Formatter};
@@ -53,6 +56,28 @@ pub struct ArtifactDescriptor {
     pub schema_version: u32,
 }
 
+impl ArtifactDescriptor {
+    /// Memproyeksikan descriptor lokal ke kontrak C01 dan memvalidasinya sebelum keluar dari worker.
+    pub fn to_wire_ref(&self) -> Result<common::ArtifactRef, ArtifactStoreError> {
+        validate_descriptor(self)?;
+        let reference = common::ArtifactRef {
+            artifact_id: self.artifact_id.clone(),
+            content_hash: MessageField::some(common::ContentHash {
+                sha256: self.sha256.clone(),
+                ..Default::default()
+            }),
+            storage_key: self.storage_key.clone(),
+            media_type: self.media_type.clone(),
+            byte_size: self.byte_size,
+            schema_version: self.schema_version,
+            ..Default::default()
+        };
+        wire::validate(&reference, Limits::default())
+            .map_err(ArtifactStoreError::WireValidation)?;
+        Ok(reference)
+    }
+}
+
 #[derive(Debug)]
 pub struct ArtifactStore {
     root: PathBuf,
@@ -76,6 +101,7 @@ pub enum ArtifactStoreError {
         expected: u64,
         actual: u64,
     },
+    WireValidation(String),
     Io {
         operation: &'static str,
         detail: String,
@@ -104,6 +130,9 @@ impl Display for ArtifactStoreError {
                     formatter,
                     "artifact size mismatch: expected {expected}, got {actual}"
                 )
+            }
+            Self::WireValidation(detail) => {
+                write!(formatter, "artifact wire validation failed: {detail}")
             }
             Self::Io { operation, detail } => {
                 write!(formatter, "artifact {operation} failed: {detail}")
@@ -185,24 +214,7 @@ impl ArtifactStore {
         &self,
         descriptor: &ArtifactDescriptor,
     ) -> Result<Vec<u8>, ArtifactStoreError> {
-        let mut id_parts = descriptor.artifact_id.split(':');
-        let prefix = id_parts.next();
-        let namespace = id_parts.next();
-        let id_hash = id_parts.next();
-        if prefix != Some("artifact") || id_parts.next().is_some() {
-            return Err(ArtifactStoreError::InvalidMetadata("artifact_id"));
-        }
-        let namespace = namespace.ok_or(ArtifactStoreError::InvalidMetadata("artifact_id"))?;
-        validate_metadata(namespace, &descriptor.media_type, descriptor.schema_version)?;
-        if !is_sha256(&descriptor.sha256) {
-            return Err(ArtifactStoreError::InvalidMetadata("sha256"));
-        }
-        if id_hash != Some(descriptor.sha256.as_str()) {
-            return Err(ArtifactStoreError::InvalidMetadata("artifact_id hash"));
-        }
-        if descriptor.storage_key != storage_key(&descriptor.sha256) {
-            return Err(ArtifactStoreError::UnsafeStorageKey);
-        }
+        validate_descriptor(descriptor)?;
         if descriptor.byte_size > self.config.maximum_artifact_bytes as u64 {
             return Err(ArtifactStoreError::ArtifactTooLarge {
                 actual: descriptor.byte_size,
@@ -324,6 +336,28 @@ fn validate_metadata(
     }
     if schema_version == 0 {
         return Err(ArtifactStoreError::InvalidMetadata("schema_version"));
+    }
+    Ok(())
+}
+
+fn validate_descriptor(descriptor: &ArtifactDescriptor) -> Result<(), ArtifactStoreError> {
+    let mut id_parts = descriptor.artifact_id.split(':');
+    let prefix = id_parts.next();
+    let namespace = id_parts.next();
+    let id_hash = id_parts.next();
+    if prefix != Some("artifact") || id_parts.next().is_some() {
+        return Err(ArtifactStoreError::InvalidMetadata("artifact_id"));
+    }
+    let namespace = namespace.ok_or(ArtifactStoreError::InvalidMetadata("artifact_id"))?;
+    validate_metadata(namespace, &descriptor.media_type, descriptor.schema_version)?;
+    if !is_sha256(&descriptor.sha256) {
+        return Err(ArtifactStoreError::InvalidMetadata("sha256"));
+    }
+    if id_hash != Some(descriptor.sha256.as_str()) {
+        return Err(ArtifactStoreError::InvalidMetadata("artifact_id hash"));
+    }
+    if descriptor.storage_key != storage_key(&descriptor.sha256) {
+        return Err(ArtifactStoreError::UnsafeStorageKey);
     }
     Ok(())
 }
@@ -462,6 +496,13 @@ mod tests {
         assert_eq!(store.read_verified(&first).unwrap(), bytes);
         assert_eq!(first.byte_size, bytes.len() as u64);
         assert_eq!(first.storage_key, storage_key(&first.sha256));
+        let wire = first.to_wire_ref().expect("descriptor projects to C01");
+        assert_eq!(wire.artifact_id, first.artifact_id);
+        assert_eq!(wire.content_hash.sha256, first.sha256);
+        assert_eq!(wire.storage_key, first.storage_key);
+        assert_eq!(wire.media_type, first.media_type);
+        assert_eq!(wire.byte_size, first.byte_size);
+        assert_eq!(wire.schema_version, first.schema_version);
         let mut files = Vec::new();
         list_files(&store.root, &mut files);
         assert_eq!(files, [artifact_path(&store, &first)]);
@@ -536,6 +577,10 @@ mod tests {
         wrong_id.artifact_id = format!("artifact:batch:{}", "0".repeat(64));
         assert_eq!(
             store.read_verified(&wrong_id).unwrap_err(),
+            ArtifactStoreError::InvalidMetadata("artifact_id hash")
+        );
+        assert_eq!(
+            wrong_id.to_wire_ref().unwrap_err(),
             ArtifactStoreError::InvalidMetadata("artifact_id hash")
         );
     }
