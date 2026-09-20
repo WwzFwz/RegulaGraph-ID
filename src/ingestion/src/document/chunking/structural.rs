@@ -259,6 +259,7 @@ pub fn parse_structure(
         let trimmed = line_without_newline.trim();
         let heading = if !trimmed.is_empty() && trimmed.len() <= config.maximum_heading_line_bytes {
             detect_heading(trimmed, config.recognize_list_items)
+                .filter(|candidate| marker_parent_is_valid(candidate, &pending, &stack))
         } else {
             None
         };
@@ -385,7 +386,9 @@ fn detect_heading(line: &str, recognize_list_items: bool) -> Option<Heading> {
             level: 10,
         });
     }
-    if strict_prefixed_identifier(&uppercase, "LAMPIRAN", annex_identifier) {
+    if uppercase == "LAMPIRAN"
+        || strict_prefixed_identifier(&uppercase, "LAMPIRAN", annex_identifier)
+    {
         return Some(Heading {
             kind: StructureKind::Annex,
             label: line.to_owned(),
@@ -514,6 +517,30 @@ fn list_marker(line: &str) -> Option<(&str, u8)> {
         return Some((marker, 70));
     }
     None
+}
+
+fn marker_parent_is_valid(heading: &Heading, nodes: &[PendingNode], stack: &[usize]) -> bool {
+    if heading.level < 50 {
+        return true;
+    }
+    let Some(parent) = stack
+        .iter()
+        .rev()
+        .map(|index| &nodes[*index])
+        .find(|candidate| candidate.level < heading.level)
+    else {
+        return false;
+    };
+    match heading.level {
+        50 => matches!(
+            parent.kind,
+            StructureKind::Article | StructureKind::Paragraph
+        ),
+        _ => matches!(
+            parent.kind,
+            StructureKind::Article | StructureKind::Paragraph | StructureKind::Item
+        ),
+    }
 }
 
 fn stable_id(parts: &[&str]) -> String {
