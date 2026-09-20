@@ -19,20 +19,25 @@ import (
 )
 
 type parseStoreFake struct {
-	job               domain.JobRecord
-	request           *pb.IngestionRequest
-	registered        *pb.ArtifactRef
-	checkpoint        *pb.Checkpoint
-	transitions       []pb.JobState
-	cancelled         bool
-	cancelOnSave      bool
-	loadErr           error
-	retryDelay        time.Duration
-	claimParseErr     error
-	claimStructureErr error
-	claimOrder        []string
-	priorCheckpoint   *pb.Checkpoint
-	priorArtifact     *pb.ArtifactRef
+	job                domain.JobRecord
+	request            *pb.IngestionRequest
+	registered         *pb.ArtifactRef
+	checkpoint         *pb.Checkpoint
+	transitions        []pb.JobState
+	cancelled          bool
+	cancelOnSave       bool
+	loadErr            error
+	retryDelay         time.Duration
+	claimParseErr      error
+	claimStructureErr  error
+	claimChunkErr      error
+	claimOrder         []string
+	priorCheckpoint    *pb.Checkpoint
+	priorArtifact      *pb.ArtifactRef
+	dependencies       *pb.DependencyManifest
+	outputCompleteness pb.Completeness
+	readErr            error
+	mutateBatch        func(*pb.DocumentBatch)
 }
 
 func (s *parseStoreFake) SubmitJob(context.Context, domain.JobIntent) (domain.JobRecord, bool, error) {
@@ -52,6 +57,13 @@ func (s *parseStoreFake) ClaimStructureJob(context.Context, string, time.Duratio
 	s.claimOrder = append(s.claimOrder, "structure")
 	if s.claimStructureErr != nil {
 		return domain.JobRecord{}, s.claimStructureErr
+	}
+	return s.job, nil
+}
+func (s *parseStoreFake) ClaimChunkJob(context.Context, string, time.Duration) (domain.JobRecord, error) {
+	s.claimOrder = append(s.claimOrder, "chunk")
+	if s.claimChunkErr != nil {
+		return domain.JobRecord{}, s.claimChunkErr
 	}
 	return s.job, nil
 }
@@ -90,6 +102,24 @@ func (s *parseStoreFake) LoadArtifact(context.Context, string, string) (*pb.Arti
 func (s *parseStoreFake) RegisterArtifact(_ context.Context, _ string, artifact *pb.ArtifactRef) error {
 	s.registered = proto.Clone(artifact).(*pb.ArtifactRef)
 	return nil
+}
+func (s *parseStoreFake) ReplaceArtifactDependencyManifest(_ context.Context, _, _ string, manifest *pb.DependencyManifest) error {
+	s.dependencies = proto.Clone(manifest).(*pb.DependencyManifest)
+	return nil
+}
+func (s *parseStoreFake) ReadVerified(context.Context, *pb.ArtifactRef, uint64) ([]byte, error) {
+	if s.readErr != nil {
+		return nil, s.readErr
+	}
+	completeness := s.outputCompleteness
+	if completeness == pb.Completeness_COMPLETENESS_UNSPECIFIED {
+		completeness = pb.Completeness_COMPLETENESS_COMPLETE
+	}
+	batch := documentBatchFixture(s.job.Stage, s.job.CorpusID, completeness)
+	if s.mutateBatch != nil {
+		s.mutateBatch(batch)
+	}
+	return proto.Marshal(batch)
 }
 func (s *parseStoreFake) CancellationRequested(context.Context, string, string, uint64) (bool, error) {
 	return s.cancelled, nil
@@ -145,6 +175,7 @@ func (w *parseWorkerFake) ProcessBatch(ctx context.Context, request *pb.ProcessB
 		return nil, w.err
 	}
 	artifact := parseArtifact("document-batch:fixture", "batches/fixture.pb", "b")
+	artifact.MediaType = documentBatchMediaType
 	checkpoint := &pb.Checkpoint{
 		Meta:  &pb.RecordMeta{SchemaVersion: 1, CorpusId: request.Context.CorpusId, RecordId: "checkpoint:fixture"},
 		JobId: request.JobId, Stage: request.Stages[0],
@@ -194,6 +225,127 @@ func TestStructureExecutorUsesCheckpointBoundDocumentBatch(t *testing.T) {
 	}
 }
 
+func TestChunkExecutorUsesSuccessfulBindCheckpointAndPersistsDependencies(t *testing.T) {
+	store := parseFixtureStore(false)
+	store.claimParseErr = domain.ErrLeaseUnavailable
+	store.claimStructureErr = domain.ErrLeaseUnavailable
+	store.job.Stage = pb.JobStage_JOB_STAGE_CHUNK
+	store.job.Attempt = 3
+	store.job.StageAttempt = 1
+	store.job.LeaseFence = 3
+	store.priorArtifact = parseArtifact("document-batch:bound", "objects/bound.pb", "e")
+	store.priorArtifact.MediaType = documentBatchMediaType
+	store.priorCheckpoint = &pb.Checkpoint{
+		Meta:  &pb.RecordMeta{SchemaVersion: 1, CorpusId: store.job.CorpusID, RecordId: "checkpoint:bind"},
+		JobId: store.job.JobID, Stage: pb.JobStage_JOB_STAGE_BIND, Fence: 2,
+		CompletedBatchKeys: []string{store.priorArtifact.ArtifactId},
+		ArtifactHashes:     []*pb.ContentHash{proto.Clone(store.priorArtifact.ContentHash).(*pb.ContentHash)},
+		Manifest:           parseManifest(), TerminalStatus: pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED,
+	}
+	worker := &parseWorkerFake{completion: pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED}
+	executor, err := NewParseExecutor(store, worker, parseExecutorConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, response, err := executor.RunOnce(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if worker.lastRequest.GetStages()[0] != pb.JobStage_JOB_STAGE_CHUNK ||
+		worker.lastRequest.GetSources()[0].GetArtifactId() != store.priorArtifact.ArtifactId ||
+		response.GetCheckpoint().GetStage() != pb.JobStage_JOB_STAGE_CHUNK {
+		t.Fatalf("CHUNK handoff did not preserve BIND input: request=%v response=%v", worker.lastRequest, response)
+	}
+	if store.dependencies == nil || store.dependencies.GetProducerManifest() == nil {
+		t.Fatal("CHUNK dependency manifest was not persisted")
+	}
+}
+
+func TestChunkExecutorRejectsFailedBindCheckpointBeforeCallingWorker(t *testing.T) {
+	store := parseFixtureStore(false)
+	store.claimParseErr = domain.ErrLeaseUnavailable
+	store.claimStructureErr = domain.ErrLeaseUnavailable
+	store.job.Stage = pb.JobStage_JOB_STAGE_CHUNK
+	store.job.LeaseFence = 3
+	store.priorArtifact = parseArtifact("document-batch:bound", "objects/bound.pb", "e")
+	store.priorArtifact.MediaType = documentBatchMediaType
+	store.priorCheckpoint = &pb.Checkpoint{
+		Meta:  &pb.RecordMeta{SchemaVersion: 1, CorpusId: store.job.CorpusID, RecordId: "checkpoint:bind:failed"},
+		JobId: store.job.JobID, Stage: pb.JobStage_JOB_STAGE_BIND, Fence: 2,
+		CompletedBatchKeys: []string{store.priorArtifact.ArtifactId},
+		ArtifactHashes:     []*pb.ContentHash{proto.Clone(store.priorArtifact.ContentHash).(*pb.ContentHash)},
+		Manifest:           parseManifest(), TerminalStatus: pb.CompletionStatus_COMPLETION_STATUS_FAILED,
+	}
+	worker := &parseWorkerFake{}
+	executor, _ := NewParseExecutor(store, worker, parseExecutorConfig())
+	_, _, err := executor.RunOnce(context.Background())
+	if status.Code(err) != codes.FailedPrecondition || worker.calls != 0 {
+		t.Fatalf("failed BIND output reached CHUNK worker: calls=%d err=%v", worker.calls, err)
+	}
+}
+
+func TestChunkExecutorRejectsStructurallyIncompleteOutputBeforePersistence(t *testing.T) {
+	store := parseFixtureStore(false)
+	store.claimParseErr = domain.ErrLeaseUnavailable
+	store.claimStructureErr = domain.ErrLeaseUnavailable
+	store.job.Stage = pb.JobStage_JOB_STAGE_CHUNK
+	store.job.LeaseFence = 3
+	store.priorArtifact = parseArtifact("document-batch:bound", "objects/bound.pb", "e")
+	store.priorArtifact.MediaType = documentBatchMediaType
+	store.priorCheckpoint = &pb.Checkpoint{
+		Meta:  &pb.RecordMeta{SchemaVersion: 1, CorpusId: store.job.CorpusID, RecordId: "checkpoint:bind"},
+		JobId: store.job.JobID, Stage: pb.JobStage_JOB_STAGE_BIND, Fence: 2,
+		CompletedBatchKeys: []string{store.priorArtifact.ArtifactId},
+		ArtifactHashes:     []*pb.ContentHash{proto.Clone(store.priorArtifact.ContentHash).(*pb.ContentHash)},
+		Manifest:           parseManifest(), TerminalStatus: pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED,
+	}
+	store.mutateBatch = func(batch *pb.DocumentBatch) { batch.Chunks = nil }
+	worker := &parseWorkerFake{completion: pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED}
+	executor, _ := NewParseExecutor(store, worker, parseExecutorConfig())
+	_, _, err := executor.RunOnce(context.Background())
+	if status.Code(err) != codes.FailedPrecondition || store.registered != nil || store.checkpoint != nil {
+		t.Fatalf("incomplete CHUNK output was persisted: err=%v", err)
+	}
+}
+
+func TestChunkExecutorRejectsDanglingVersionReferenceBeforePersistence(t *testing.T) {
+	store := parseFixtureStore(false)
+	store.claimParseErr = domain.ErrLeaseUnavailable
+	store.claimStructureErr = domain.ErrLeaseUnavailable
+	store.job.Stage = pb.JobStage_JOB_STAGE_CHUNK
+	store.job.LeaseFence = 3
+	store.priorArtifact = parseArtifact("document-batch:bound", "objects/bound.pb", "e")
+	store.priorArtifact.MediaType = documentBatchMediaType
+	store.priorCheckpoint = &pb.Checkpoint{
+		Meta:  &pb.RecordMeta{SchemaVersion: 1, CorpusId: store.job.CorpusID, RecordId: "checkpoint:bind"},
+		JobId: store.job.JobID, Stage: pb.JobStage_JOB_STAGE_BIND, Fence: 2,
+		CompletedBatchKeys: []string{store.priorArtifact.ArtifactId},
+		ArtifactHashes:     []*pb.ContentHash{proto.Clone(store.priorArtifact.ContentHash).(*pb.ContentHash)},
+		Manifest:           parseManifest(), TerminalStatus: pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED,
+	}
+	store.mutateBatch = func(batch *pb.DocumentBatch) {
+		batch.Chunks[0].ProvisionVersionRefs[0] = "version:missing"
+	}
+	executor, _ := NewParseExecutor(store, &parseWorkerFake{completion: pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED}, parseExecutorConfig())
+	_, _, err := executor.RunOnce(context.Background())
+	if status.Code(err) != codes.FailedPrecondition || store.registered != nil || store.checkpoint != nil {
+		t.Fatalf("dangling CHUNK output was persisted: err=%v", err)
+	}
+}
+
+func TestParseExecutorRetriesTransientArtifactReadFailure(t *testing.T) {
+	store := parseFixtureStore(false)
+	store.readErr = errors.New("temporary artifact backend outage")
+	executor, _ := NewParseExecutor(store, &parseWorkerFake{completion: pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED}, parseExecutorConfig())
+	_, _, err := executor.RunOnce(context.Background())
+	if err == nil || len(store.transitions) != 1 || store.transitions[0] != pb.JobState_JOB_STATE_RETRY_WAIT {
+		t.Fatalf("transient output read was not retried: transitions=%v err=%v", store.transitions, err)
+	}
+	if store.retryDelay != time.Second || store.registered != nil || store.checkpoint != nil {
+		t.Fatalf("transient output read crossed persistence boundary: delay=%s", store.retryDelay)
+	}
+}
+
 func TestStructureExecutorRecoversCheckpointWithoutRerunningWorker(t *testing.T) {
 	store := parseFixtureStore(false)
 	store.claimParseErr = domain.ErrLeaseUnavailable
@@ -229,6 +381,7 @@ func TestStructureExecutorRecoversCheckpointWithoutRerunningWorker(t *testing.T)
 
 func TestParseExecutorRecoversFailedOutcomeWithoutRerunningWorker(t *testing.T) {
 	store := parseFixtureStore(false)
+	store.outputCompleteness = pb.Completeness_COMPLETENESS_PARTIAL
 	store.job.Attempt = 2
 	store.job.StageAttempt = 1
 	store.job.LeaseFence = 2
@@ -361,6 +514,7 @@ func TestParseExecutorForwardsOnlySourceBoundObservations(t *testing.T) {
 
 func TestParseExecutorRoutesIncompleteBatchToReview(t *testing.T) {
 	store := parseFixtureStore(false)
+	store.outputCompleteness = pb.Completeness_COMPLETENESS_PARTIAL
 	worker := &parseWorkerFake{completion: pb.CompletionStatus_COMPLETION_STATUS_FAILED}
 	executor, _ := NewParseExecutor(store, worker, parseExecutorConfig())
 	if _, _, err := executor.RunOnce(context.Background()); err != nil {
@@ -534,6 +688,71 @@ func parseFixtureStore(url bool) *parseStoreFake {
 
 func parseExecutorConfig() ParseExecutorConfig {
 	return ParseExecutorConfig{OwnerID: "executor:fixture", AuthScope: "scope:ingestion", Lease: 10 * time.Second, CallTimeout: 2 * time.Second}
+}
+
+func documentBatchFixture(stage pb.JobStage, corpusID string, completeness pb.Completeness) *pb.DocumentBatch {
+	context := &pb.RequestContext{
+		SchemaVersion: 1, RequestId: "document-output:fixture", TraceId: "document-output:fixture", CorpusId: corpusID,
+		Deadline: timestamppb.New(time.Now().Add(time.Hour)), ConfigFingerprint: parseHash("c"), AuthScopeRef: "scope:ingestion",
+	}
+	batch := &pb.DocumentBatch{
+		Meta: &pb.RecordMeta{SchemaVersion: 1, CorpusId: corpusID, RecordId: "document-batch:fixture"}, Context: context,
+		DependencyManifest: &pb.DependencyManifest{ArtifactId: "dependency-manifest:fixture", ProducerManifest: parseManifest()},
+		Completeness:       completeness,
+	}
+	sourceRef := parseArtifact("source:fixture", "sources/fixture.pdf", "a")
+	sourceRef.ByteSize = 4
+	normalizedRef := parseArtifact("normalized:fixture", "text/normalized.txt", "d")
+	normalizedRef.MediaType = "text/plain"
+	normalizedRef.ByteSize = 4
+	batch.Sources = []*pb.SourceBlob{{
+		Meta:      &pb.RecordMeta{SchemaVersion: 1, CorpusId: corpusID, RecordId: "source:fixture"},
+		RawSha256: sourceRef.ContentHash, MediaType: "application/pdf", ByteSize: 4, ArtifactRef: sourceRef,
+	}}
+	batch.TextArtifacts = []*pb.TextArtifact{{
+		Meta:         &pb.RecordMeta{SchemaVersion: 1, CorpusId: corpusID, RecordId: "text:fixture"},
+		SourceBlobId: "source:fixture", ParserManifest: parseManifest(),
+		RawTextRef: parseArtifact("raw-text:fixture", "text/raw.txt", "b"), NormalizedTextRef: normalizedRef,
+		MappingRef: parseArtifact("mapping:fixture", "text/mapping.pb", "e"), NormalizerManifest: parseManifest(),
+		PageResults: []*pb.PageResult{{PageNumber: 1, Status: pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED, Spans: []*pb.TextSpan{{TextArtifactId: "text:fixture", EndByte: 4}}}},
+	}}
+	if stage == pb.JobStage_JOB_STAGE_STRUCTURE || stage == pb.JobStage_JOB_STAGE_CHUNK {
+		batch.Structures = []*pb.StructureNode{{
+			Meta: &pb.RecordMeta{SchemaVersion: 1, CorpusId: corpusID, RecordId: "structure:fixture"},
+			Kind: pb.StructureKind_STRUCTURE_KIND_DOCUMENT, Label: "document",
+			SourceSpans: []*pb.TextSpan{{TextArtifactId: "text:fixture", StartByte: 0, EndByte: 4}},
+		}}
+	}
+	if stage == pb.JobStage_JOB_STAGE_CHUNK {
+		batch.DependencyManifest.Dependencies = []*pb.Dependency{{DependencyId: "organization:fixture", Fingerprint: parseHash("f")}}
+		batch.Regulations = []*pb.Regulation{{
+			Meta: &pb.RecordMeta{SchemaVersion: 1, CorpusId: corpusID, RecordId: "regulation:fixture"},
+			Kind: "peraturan", IssuerId: "organization:fixture", Jurisdiction: "ID", OfficialNumber: "1", Year: 2026,
+			Title: "Fixture", IdentityStatus: pb.IdentityStatus_IDENTITY_STATUS_VERIFIED,
+		}}
+		batch.Provisions = []*pb.Provision{{
+			Meta:         &pb.RecordMeta{SchemaVersion: 1, CorpusId: corpusID, RecordId: "provision:fixture"},
+			RegulationId: "regulation:fixture", StructuralPath: []string{"1:document"},
+		}}
+		batch.Versions = []*pb.ProvisionVersion{{
+			Meta:        &pb.RecordMeta{SchemaVersion: 1, CorpusId: corpusID, RecordId: "version:fixture"},
+			ProvisionId: "provision:fixture", TextRef: proto.Clone(normalizedRef).(*pb.ArtifactRef),
+			Spans: []*pb.TextSpan{{TextArtifactId: "text:fixture", StartByte: 0, EndByte: 4}},
+			LegalInterval: &pb.LegalInterval{
+				Start: &pb.DateAssertion{Knowledge: pb.DateKnowledge_DATE_KNOWLEDGE_UNKNOWN},
+				End:   &pb.DateAssertion{Knowledge: pb.DateKnowledge_DATE_KNOWLEDGE_UNKNOWN},
+			},
+			LegalStatus: pb.LegalStatus_LEGAL_STATUS_UNKNOWN, ReviewState: pb.ReviewState_REVIEW_STATE_UNREVIEWED,
+		}}
+		batch.Chunks = []*pb.Chunk{{
+			Meta:                 &pb.RecordMeta{SchemaVersion: 1, CorpusId: corpusID, RecordId: "chunk:fixture"},
+			ProvisionVersionRefs: []string{"version:fixture"},
+			TextSpan:             &pb.TextSpan{TextArtifactId: "text:fixture", StartByte: 0, EndByte: 4},
+			StructureNodeRefs:    []string{"structure:fixture"}, ChunkerManifest: parseManifest(),
+			TokenCounts: []*pb.TokenUsage{{InputTokens: 1, TokenizerId: "hf-json:fixture"}},
+		}}
+	}
+	return batch
 }
 
 func parseManifest() *pb.ProducerManifest {

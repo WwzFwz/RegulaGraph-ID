@@ -1,4 +1,4 @@
-// Dispatches durable PARSE and STRUCTURE leases to the Rust worker and persists each fenced handoff.
+// Dispatches durable PARSE, STRUCTURE, and CHUNK leases to the Rust worker and persists each fenced handoff.
 //
 // The executor rebuilds ProcessBatchRequest only from the claimed PostgreSQL job and its immutable
 // IngestionRequest, binds corpus/attempt/fence/deadline, registers the returned artifact, saves the
@@ -24,16 +24,43 @@ import (
 	"regulagraph.local/server/internal/domain"
 )
 
-type ParseExecutionStore interface {
+type ParseMetadataStore interface {
 	JobStore
 	ClaimParseJob(context.Context, string, time.Duration) (domain.JobRecord, error)
 	ClaimStructureJob(context.Context, string, time.Duration) (domain.JobRecord, error)
+	ClaimChunkJob(context.Context, string, time.Duration) (domain.JobRecord, error)
 	LoadIngestionRequest(context.Context, string) (*pb.IngestionRequest, error)
 	LoadLatestCheckpoint(context.Context, string) (*pb.Checkpoint, error)
 	LoadArtifact(context.Context, string, string) (*pb.ArtifactRef, error)
 	RegisterArtifact(context.Context, string, *pb.ArtifactRef) error
+	ReplaceArtifactDependencyManifest(context.Context, string, string, *pb.DependencyManifest) error
 	CancellationRequested(context.Context, string, string, uint64) (bool, error)
 	CompleteWorkerAttempt(context.Context, string, string, uint64, pb.JobState, time.Duration) (pb.JobState, error)
+}
+
+type DocumentArtifactReader interface {
+	ReadVerified(context.Context, *pb.ArtifactRef, uint64) ([]byte, error)
+}
+
+type ParseExecutionStore interface {
+	ParseMetadataStore
+	DocumentArtifactReader
+}
+
+type combinedParseExecutionStore struct {
+	ParseMetadataStore
+	reader DocumentArtifactReader
+}
+
+func (store combinedParseExecutionStore) ReadVerified(ctx context.Context, ref *pb.ArtifactRef, maximumBytes uint64) ([]byte, error) {
+	return store.reader.ReadVerified(ctx, ref, maximumBytes)
+}
+
+func CombineParseExecutionStore(metadata ParseMetadataStore, reader DocumentArtifactReader) (ParseExecutionStore, error) {
+	if metadata == nil || reader == nil {
+		return nil, errors.New("document metadata store and artifact reader are required")
+	}
+	return combinedParseExecutionStore{ParseMetadataStore: metadata, reader: reader}, nil
 }
 
 type ParseWorker interface {
@@ -42,13 +69,15 @@ type ParseWorker interface {
 }
 
 type ParseExecutorConfig struct {
-	OwnerID          string
-	AuthScope        string
-	Lease            time.Duration
-	CallTimeout      time.Duration
-	CancellationPoll time.Duration
-	RetryBase        time.Duration
-	RetryMax         time.Duration
+	OwnerID           string
+	AuthScope         string
+	Lease             time.Duration
+	CallTimeout       time.Duration
+	CancellationPoll  time.Duration
+	RetryBase         time.Duration
+	RetryMax          time.Duration
+	MaximumBatchBytes uint64
+	WireLimits        domain.WireLimits
 }
 
 type ParseExecutor struct {
@@ -77,11 +106,17 @@ func NewParseExecutor(store ParseExecutionStore, worker ParseWorker, config Pars
 	if config.RetryMax < config.RetryBase {
 		return nil, errors.New("parse retry maximum must not be shorter than retry base")
 	}
+	if config.MaximumBatchBytes == 0 {
+		config.MaximumBatchBytes = 512 << 20
+	}
+	if config.WireLimits.MaxBytes <= 0 || config.WireLimits.MaxDepth <= 0 || config.WireLimits.MaxItems <= 0 {
+		config.WireLimits = domain.DefaultWireLimits
+	}
 	return &ParseExecutor{store: store, worker: worker, config: config}, nil
 }
 
-// RunOnce claims at most one durable job and alternates first preference between PARSE and
-// STRUCTURE so a sustained input backlog cannot starve completed PARSE handoffs.
+// RunOnce rotates first preference across PARSE, STRUCTURE, and CHUNK so no ready stage can be
+// starved by a sustained backlog in another stage.
 func (e *ParseExecutor) RunOnce(ctx context.Context) (domain.JobRecord, *pb.ProcessBatchResponse, error) {
 	claimParse := func() (domain.JobRecord, error) {
 		return e.store.ClaimParseJob(ctx, e.config.OwnerID, e.config.Lease)
@@ -89,13 +124,18 @@ func (e *ParseExecutor) RunOnce(ctx context.Context) (domain.JobRecord, *pb.Proc
 	claimStructure := func() (domain.JobRecord, error) {
 		return e.store.ClaimStructureJob(ctx, e.config.OwnerID, e.config.Lease)
 	}
-	first, second := claimParse, claimStructure
-	if e.claimSequence.Add(1)%2 == 0 {
-		first, second = claimStructure, claimParse
+	claimChunk := func() (domain.JobRecord, error) {
+		return e.store.ClaimChunkJob(ctx, e.config.OwnerID, e.config.Lease)
 	}
-	job, err := first()
-	if errors.Is(err, domain.ErrLeaseUnavailable) {
-		job, err = second()
+	claims := [3]func() (domain.JobRecord, error){claimParse, claimStructure, claimChunk}
+	start := int((e.claimSequence.Add(1) - 1) % uint64(len(claims)))
+	var job domain.JobRecord
+	var err error
+	for offset := 0; offset < len(claims); offset++ {
+		job, err = claims[(start+offset)%len(claims)]()
+		if !errors.Is(err, domain.ErrLeaseUnavailable) {
+			break
+		}
 	}
 	if err != nil {
 		return domain.JobRecord{}, nil, err
@@ -149,6 +189,14 @@ func (e *ParseExecutor) executeClaimed(ctx context.Context, job domain.JobRecord
 		cause := status.Error(codes.FailedPrecondition, "document worker response requires only checkpoint and document batch outputs")
 		return nil, e.finishAfterError(attemptCtx, job, cause)
 	}
+	outputBatch, err := e.verifyDocumentOutput(attemptCtx, job.Stage, job.CorpusID, response.DocumentBatch, response.Checkpoint.Manifest, response.Status)
+	if err != nil {
+		cause := fmt.Errorf("verify document output artifact: %w", err)
+		if errors.Is(err, errInvalidDocumentOutput) {
+			cause = status.Error(codes.FailedPrecondition, cause.Error())
+		}
+		return nil, e.finishAfterError(attemptCtx, job, cause)
+	}
 	if requested, pollErr := e.store.CancellationRequested(attemptCtx, job.JobID, job.LeaseOwner, job.LeaseFence); pollErr != nil {
 		return nil, e.finishAfterError(attemptCtx, job, fmt.Errorf("confirm job cancellation: %w", pollErr))
 	} else if requested {
@@ -156,6 +204,9 @@ func (e *ParseExecutor) executeClaimed(ctx context.Context, job domain.JobRecord
 	}
 	if err = e.store.RegisterArtifact(attemptCtx, job.CorpusID, response.DocumentBatch); err != nil {
 		return nil, e.finishAfterError(attemptCtx, job, fmt.Errorf("register document batch: %w", err))
+	}
+	if err = e.store.ReplaceArtifactDependencyManifest(attemptCtx, job.CorpusID, response.DocumentBatch.ArtifactId, outputBatch.DependencyManifest); err != nil {
+		return nil, e.finishAfterError(attemptCtx, job, fmt.Errorf("register document batch dependencies: %w", err))
 	}
 	if err = e.store.SaveCheckpoint(attemptCtx, response.Checkpoint, job.LeaseOwner); err != nil {
 		return nil, e.finishAfterError(attemptCtx, job, fmt.Errorf("save document checkpoint: %w", err))
@@ -209,6 +260,13 @@ func (e *ParseExecutor) recoverDocumentOutput(ctx context.Context, job domain.Jo
 	if artifact.GetContentHash() == nil || !proto.Equal(artifact.ContentHash, checkpoint.ArtifactHashes[0]) {
 		return nil, false, status.Error(codes.FailedPrecondition, "recovered document artifact differs from checkpoint")
 	}
+	recoveredBatch, verifyErr := e.verifyDocumentOutput(ctx, job.Stage, job.CorpusID, artifact, checkpoint.Manifest, checkpoint.TerminalStatus)
+	if verifyErr != nil {
+		if errors.Is(verifyErr, errInvalidDocumentOutput) {
+			return nil, false, status.Error(codes.FailedPrecondition, fmt.Sprintf("verify recovered document artifact: %v", verifyErr))
+		}
+		return nil, false, fmt.Errorf("verify recovered document artifact: %w", verifyErr)
+	}
 	if requested, pollErr := e.store.CancellationRequested(ctx, job.JobID, job.LeaseOwner, job.LeaseFence); pollErr != nil {
 		return nil, false, fmt.Errorf("confirm document recovery cancellation: %w", pollErr)
 	} else if requested {
@@ -228,6 +286,9 @@ func (e *ParseExecutor) recoverDocumentOutput(ctx context.Context, job domain.Jo
 	if err = domain.ValidateWire(response, domain.DefaultWireLimits); err != nil {
 		return nil, false, status.Error(codes.FailedPrecondition, fmt.Sprintf("recovered document response is invalid: %v", err))
 	}
+	if err = e.store.ReplaceArtifactDependencyManifest(ctx, job.CorpusID, artifact.ArtifactId, recoveredBatch.DependencyManifest); err != nil {
+		return nil, false, fmt.Errorf("restore recovered document dependencies: %w", err)
+	}
 	if err = e.store.SaveCheckpoint(ctx, recoveredCheckpoint, job.LeaseOwner); err != nil {
 		return nil, false, fmt.Errorf("save recovered document checkpoint: %w", err)
 	}
@@ -243,6 +304,67 @@ func (e *ParseExecutor) recoverDocumentOutput(ctx context.Context, job domain.Jo
 		return response, true, errJobCancellationRequested
 	}
 	return response, true, nil
+}
+
+func (e *ParseExecutor) verifyDocumentOutput(
+	ctx context.Context,
+	stage pb.JobStage,
+	corpusID string,
+	ref *pb.ArtifactRef,
+	manifest *pb.ProducerManifest,
+	terminal pb.CompletionStatus,
+) (*pb.DocumentBatch, error) {
+	if ref == nil || ref.GetContentHash() == nil || ref.MediaType != documentBatchMediaType || ref.SchemaVersion != 1 || manifest == nil {
+		return nil, invalidDocumentOutput("complete DocumentBatch reference and producer manifest are required")
+	}
+	raw, err := e.store.ReadVerified(ctx, ref, e.config.MaximumBatchBytes)
+	if err != nil {
+		return nil, err
+	}
+	batch := &pb.DocumentBatch{}
+	if err = proto.Unmarshal(raw, batch); err != nil {
+		return nil, invalidDocumentOutput(fmt.Sprintf("decode DocumentBatch: %v", err))
+	}
+	if err = domain.ValidateWire(batch, e.config.WireLimits); err != nil {
+		return nil, invalidDocumentOutput(fmt.Sprintf("validate DocumentBatch: %v", err))
+	}
+	if err = domain.ValidateDocumentBatchClosure(batch, e.config.WireLimits.MaxItems); err != nil {
+		return nil, invalidDocumentOutput(fmt.Sprintf("validate DocumentBatch reference closure: %v", err))
+	}
+	if batch.GetMeta().GetCorpusId() != corpusID || batch.GetContext().GetCorpusId() != corpusID ||
+		batch.GetDependencyManifest().GetProducerManifest() == nil ||
+		!proto.Equal(batch.DependencyManifest.ProducerManifest, manifest) {
+		return nil, invalidDocumentOutput("DocumentBatch corpus or producer manifest differs from its checkpoint")
+	}
+	switch stage {
+	case pb.JobStage_JOB_STAGE_PARSE:
+		if len(batch.Sources) == 0 || len(batch.TextArtifacts) == 0 || len(batch.Structures) != 0 || len(batch.Provisions) != 0 || len(batch.Versions) != 0 || len(batch.Chunks) != 0 {
+			return nil, invalidDocumentOutput("PARSE output contains records owned by a later stage")
+		}
+	case pb.JobStage_JOB_STAGE_STRUCTURE:
+		if len(batch.Sources) == 0 || len(batch.TextArtifacts) == 0 || len(batch.Structures) == 0 || len(batch.Provisions) != 0 || len(batch.Versions) != 0 || len(batch.Chunks) != 0 {
+			return nil, invalidDocumentOutput("STRUCTURE output has invalid stage-owned records")
+		}
+	case pb.JobStage_JOB_STAGE_CHUNK:
+		if len(batch.Sources) == 0 || len(batch.TextArtifacts) == 0 || len(batch.Structures) == 0 || len(batch.Regulations) == 0 || len(batch.Provisions) == 0 || len(batch.Versions) == 0 || len(batch.Chunks) == 0 {
+			return nil, invalidDocumentOutput("CHUNK output lacks bound structure, version, or chunk records")
+		}
+	default:
+		return nil, invalidDocumentOutput("unsupported document output stage")
+	}
+	if terminal == pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED && batch.Completeness != pb.Completeness_COMPLETENESS_COMPLETE {
+		return nil, invalidDocumentOutput("successful document output is not complete")
+	}
+	if terminal == pb.CompletionStatus_COMPLETION_STATUS_FAILED && batch.Completeness == pb.Completeness_COMPLETENESS_COMPLETE {
+		return nil, invalidDocumentOutput("failed document output is marked complete")
+	}
+	return batch, nil
+}
+
+var errInvalidDocumentOutput = errors.New("invalid immutable document output")
+
+func invalidDocumentOutput(message string) error {
+	return errors.Join(errors.New(message), errInvalidDocumentOutput)
 }
 
 func (e *ParseExecutor) monitorCancellation(ctx context.Context, cancel context.CancelFunc, job domain.JobRecord, result chan<- error) {
@@ -281,7 +403,7 @@ func (e *ParseExecutor) processRequest(ctx context.Context, job domain.JobRecord
 		return nil, status.Error(codes.FailedPrecondition, fmt.Sprintf("invalid persisted ingestion request: %v", err))
 	}
 	if request.ConfigManifest == nil || request.ConfigManifest.ConfigHash == nil || job.State != pb.JobState_JOB_STATE_RUNNING ||
-		(job.Stage != pb.JobStage_JOB_STAGE_PARSE && job.Stage != pb.JobStage_JOB_STAGE_STRUCTURE) ||
+		(job.Stage != pb.JobStage_JOB_STAGE_PARSE && job.Stage != pb.JobStage_JOB_STAGE_STRUCTURE && job.Stage != pb.JobStage_JOB_STAGE_CHUNK) ||
 		job.Attempt == 0 || job.LeaseFence == 0 || job.LeaseOwner != e.config.OwnerID || job.CorpusID != request.GetCorpusId() {
 		return nil, status.Error(codes.FailedPrecondition, "claimed job and ingestion request are inconsistent")
 	}
@@ -309,25 +431,34 @@ func (e *ParseExecutor) processRequest(ctx context.Context, job domain.JobRecord
 			return nil, status.Error(codes.FailedPrecondition, observationErr.Error())
 		}
 	} else {
+		expectedInputStage := pb.JobStage_JOB_STAGE_PARSE
+		inputLabel := "PARSE"
+		outputLabel := "STRUCTURE"
+		if job.Stage == pb.JobStage_JOB_STAGE_CHUNK {
+			expectedInputStage = pb.JobStage_JOB_STAGE_BIND
+			inputLabel = "BIND"
+			outputLabel = "CHUNK"
+		}
 		checkpoint, checkpointErr := e.store.LoadLatestCheckpoint(ctx, job.JobID)
 		if checkpointErr != nil {
 			if errors.Is(checkpointErr, domain.ErrNotFound) || errors.Is(checkpointErr, domain.ErrPersistentIntegrity) {
-				return nil, status.Error(codes.FailedPrecondition, fmt.Sprintf("load PARSE checkpoint: %v", checkpointErr))
+				return nil, status.Error(codes.FailedPrecondition, fmt.Sprintf("load %s checkpoint: %v", inputLabel, checkpointErr))
 			}
-			return nil, fmt.Errorf("load PARSE checkpoint: %w", checkpointErr)
+			return nil, fmt.Errorf("load %s checkpoint: %w", inputLabel, checkpointErr)
 		}
-		if checkpoint.Stage != pb.JobStage_JOB_STAGE_PARSE || len(checkpoint.CompletedBatchKeys) != 1 || len(checkpoint.ArtifactHashes) != 1 {
-			return nil, status.Error(codes.FailedPrecondition, "STRUCTURE requires one PARSE checkpoint output")
+		if checkpoint.Stage != expectedInputStage || checkpoint.TerminalStatus != pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED ||
+			len(checkpoint.CompletedBatchKeys) != 1 || len(checkpoint.ArtifactHashes) != 1 {
+			return nil, status.Errorf(codes.FailedPrecondition, "%s requires one successful %s checkpoint output", outputLabel, inputLabel)
 		}
 		artifact, artifactErr := e.store.LoadArtifact(ctx, job.CorpusID, checkpoint.CompletedBatchKeys[0])
 		if artifactErr != nil {
 			if errors.Is(artifactErr, domain.ErrNotFound) || errors.Is(artifactErr, domain.ErrPersistentIntegrity) {
-				return nil, status.Error(codes.FailedPrecondition, fmt.Sprintf("load STRUCTURE input artifact: %v", artifactErr))
+				return nil, status.Error(codes.FailedPrecondition, fmt.Sprintf("load %s input artifact: %v", outputLabel, artifactErr))
 			}
-			return nil, fmt.Errorf("load STRUCTURE input artifact: %w", artifactErr)
+			return nil, fmt.Errorf("load %s input artifact: %w", outputLabel, artifactErr)
 		}
 		if artifact.GetContentHash() == nil || !proto.Equal(artifact.ContentHash, checkpoint.ArtifactHashes[0]) {
-			return nil, status.Error(codes.FailedPrecondition, "STRUCTURE input artifact is missing or differs from PARSE checkpoint")
+			return nil, status.Errorf(codes.FailedPrecondition, "%s input artifact is missing or differs from %s checkpoint", outputLabel, inputLabel)
 		}
 		sources = []*pb.ArtifactRef{artifact}
 	}
@@ -423,6 +554,9 @@ func (e *ParseExecutor) finishAfterError(ctx context.Context, job domain.JobReco
 		next = pb.JobState_JOB_STATE_CANCELLED
 	}
 	if errors.Is(cause, domain.ErrPersistentIntegrity) {
+		next = pb.JobState_JOB_STATE_FAILED
+	}
+	if errors.Is(cause, errInvalidDocumentOutput) {
 		next = pb.JobState_JOB_STATE_FAILED
 	}
 	transitionCtx := ctx

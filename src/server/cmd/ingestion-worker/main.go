@@ -1,8 +1,8 @@
 // Runs the durable Go ingestion coordinator against PostgreSQL and the loopback Rust document worker.
 //
 // Configuration is loaded explicitly from REGULAGRAPH_* environment variables. Startup opens each
-// dependency once; the loop advances PARSE→STRUCTURE→BIND jobs, emits JSON operational events, and drains through
-// signal cancellation. Migrations, CHUNK, and snapshot publication remain separate operational stages. Measure queue and
+// dependency once; the loop advances PARSE→STRUCTURE→BIND→CHUNK jobs, emits JSON operational events, and drains through
+// signal cancellation. Migrations, EXTRACT+, and snapshot publication remain separate operational stages. Measure queue and
 // stage p95/p99 plus retry/cancellation behavior against configs/benchmark-targets.yaml.
 package main
 
@@ -85,10 +85,16 @@ func run(ctx context.Context) error {
 		return err
 	}
 	defer worker.Close()
-	parseExecutor, err := workflows.NewParseExecutor(repository, worker, workflows.ParseExecutorConfig{
+	documentStore, err := workflows.CombineParseExecutionStore(repository, artifacts)
+	if err != nil {
+		return err
+	}
+	parseExecutor, err := workflows.NewParseExecutor(documentStore, worker, workflows.ParseExecutorConfig{
 		OwnerID: config.ownerID, AuthScope: config.authScope, Lease: config.lease,
 		CallTimeout: config.callTimeout, CancellationPoll: config.cancellationPoll,
 		RetryBase: config.retryBase, RetryMax: config.retryMax,
+		MaximumBatchBytes: uint64(config.bindMaxBytes),
+		WireLimits:        domain.WireLimits{MaxBytes: config.bindMaxBytes, MaxDepth: 64, MaxItems: config.bindMaxRecords},
 	})
 	if err != nil {
 		return err
