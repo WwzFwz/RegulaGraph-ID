@@ -22,8 +22,9 @@ menerbitkan run secara bersamaan; lock yang tersisa setelah proses mati menandak
 
 ## Isi saat ini
 
-[profile_pdfs.py](profile_pdfs.py) menyediakan baseline pypdf terisolasi per dokumen dengan timeout keras,
-bounded concurrency, klasifikasi heuristic text/scan-candidate/mixed/sparse, serta JSONL/result manifest.
+[profile_pdfs.py](profile_pdfs.py) membandingkan pypdf dan binding MuPDF melalui proses terisolasi per dokumen
+dengan timeout keras, bounded concurrency, klasifikasi heuristic text/scan-candidate/mixed/sparse, serta
+JSONL/result manifest yang memakai sampel identik.
 [__init__.py](__init__.py) menandai package offline tanpa side effect.
 
 ## Benchmark dan perhatian kualitas
@@ -31,9 +32,9 @@ bounded concurrency, klasifikasi heuristic text/scan-candidate/mixed/sparse, ser
 Ukur elapsed per dokumen/halaman, throughput, timeout/error, page count, dan text-character coverage. Jalankan
 cold/warm terpisah dan jangan memakai heuristic strata sebagai label gold. Target required tetap berada di
 [benchmark-targets.yaml](../../configs/benchmark-targets.yaml); baseline pypdf ini berstatus
-**REQUIRED_UNMEASURED** sampai dibandingkan dengan engine native dan gold parsing.
+**REQUIRED_UNMEASURED** sampai engine terpilih diintegrasikan ke Rust dan dinilai dengan gold parsing.
 
 ## Status
 
-Profiler baseline M01 aktif. Perbandingan MuPDF/PDFium, OCR, peak RSS, layout/source mapping, CER/WER,
-table/column gold, serta pemilihan engine produksi belum selesai.
+Pembanding pypdf/MuPDF M01 aktif. Perbandingan OCR, peak RSS, layout/source mapping, CER/WER, table/column
+gold, binding Rust, serta pemilihan engine produksi belum selesai.

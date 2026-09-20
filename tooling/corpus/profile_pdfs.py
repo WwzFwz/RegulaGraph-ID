@@ -1,8 +1,8 @@
 """Profil PDF corpus nyata secara deterministik untuk pembuktian parser/OCR M01.
 
 Peran dalam komponen:
-Memilih blob dari inventory D01 menurut portal dan bucket ukuran, menjalankan pypdf dalam proses terisolasi,
-dan menulis hasil per dokumen beserta manifest run untuk perbandingan engine berikutnya.
+Memilih blob dari inventory D01 menurut portal dan bucket ukuran, menjalankan engine PDF terpilih dalam proses
+terisolasi, dan menulis hasil per dokumen beserta manifest run untuk perbandingan engine yang setara.
 
 Kontrak integrasi dan perhatian implementasi:
 Input wajib inventory integrity-valid dan records hash-nya cocok. Storage key harus tetap di bawah root.
@@ -14,7 +14,7 @@ Catat inventory/config/engine version, pages, elapsed, throughput, error, serta 
 engine pada sampel dan budget yang sama. Target PARSING.* tetap configs/benchmark-targets.yaml dengan status
 REQUIRED_UNMEASURED sampai native parser, source mapping, gold structure/CER, RSS, dan workload penuh tersedia.
 
-Status: baseline pypdf M01 aktif untuk eksperimen offline; bukan parser produksi.
+Status: pembanding pypdf dan MuPDF M01 aktif untuk eksperimen offline; bukan parser produksi.
 """
 
 from __future__ import annotations
@@ -188,29 +188,7 @@ def _count_page_images(page: Any) -> int:
         return 0
 
 
-def analyze_pdf(path: Path) -> dict[str, Any]:
-    started = time.perf_counter_ns()
-    reader = pypdf.PdfReader(str(path), strict=False)
-    if reader.is_encrypted and reader.decrypt("") == 0:
-        raise ValueError("encrypted PDF cannot be opened with empty password")
-    page_results: list[dict[str, Any]] = []
-    for index, page in enumerate(reader.pages, 1):
-        page_started = time.perf_counter_ns()
-        try:
-            text = page.extract_text() or ""
-            characters = len("".join(text.split()))
-            images = _count_page_images(page)
-            if characters >= TEXT_PAGE_MIN_CHARS:
-                page_class = "text"
-            elif characters <= SCAN_PAGE_MAX_CHARS and images > 0:
-                page_class = "scan_candidate"
-            else:
-                page_class = "sparse"
-            page_results.append({"page": index, "status": "ok", "class": page_class, "text_chars": characters,
-                                 "image_xobjects": images, "elapsed_ms": (time.perf_counter_ns() - page_started) / 1_000_000})
-        except Exception as exc:
-            page_results.append({"page": index, "status": "error", "error_type": type(exc).__name__,
-                                 "error": str(exc)[:500], "elapsed_ms": (time.perf_counter_ns() - page_started) / 1_000_000})
+def _summarize_pages(page_results: list[dict[str, Any]], started: int) -> dict[str, Any]:
     text_pages = sum(page.get("class") == "text" for page in page_results)
     scan_pages = sum(page.get("class") == "scan_candidate" for page in page_results)
     sparse_pages = sum(page.get("class") == "sparse" for page in page_results)
@@ -222,8 +200,80 @@ def analyze_pdf(path: Path) -> dict[str, Any]:
             "elapsed_ms": (time.perf_counter_ns() - started) / 1_000_000}
 
 
-def _worker_command(pdf_path: Path, timeout_seconds: float) -> dict[str, Any]:
-    command = [sys.executable, "-m", "tooling.corpus.profile_pdfs", "--worker", str(pdf_path)]
+def _classify_page(characters: int, images: int) -> str:
+    if characters >= TEXT_PAGE_MIN_CHARS:
+        return "text"
+    if characters <= SCAN_PAGE_MAX_CHARS and images > 0:
+        return "scan_candidate"
+    return "sparse"
+
+
+def analyze_pypdf(path: Path) -> dict[str, Any]:
+    started = time.perf_counter_ns()
+    reader = pypdf.PdfReader(str(path), strict=False)
+    if reader.is_encrypted and reader.decrypt("") == 0:
+        raise ValueError("encrypted PDF cannot be opened with empty password")
+    page_results: list[dict[str, Any]] = []
+    for index, page in enumerate(reader.pages, 1):
+        page_started = time.perf_counter_ns()
+        try:
+            text = page.extract_text() or ""
+            characters = len("".join(text.split()))
+            images = _count_page_images(page)
+            page_class = _classify_page(characters, images)
+            page_results.append({"page": index, "status": "ok", "class": page_class, "text_chars": characters,
+                                 "image_xobjects": images, "elapsed_ms": (time.perf_counter_ns() - page_started) / 1_000_000})
+        except Exception as exc:
+            page_results.append({"page": index, "status": "error", "error_type": type(exc).__name__,
+                                 "error": str(exc)[:500], "elapsed_ms": (time.perf_counter_ns() - page_started) / 1_000_000})
+    return _summarize_pages(page_results, started)
+
+
+def analyze_pymupdf(path: Path) -> dict[str, Any]:
+    import pymupdf
+
+    started = time.perf_counter_ns()
+    page_results: list[dict[str, Any]] = []
+    with pymupdf.open(path) as document:
+        if document.needs_pass and document.authenticate("") == 0:
+            raise ValueError("encrypted PDF cannot be opened with empty password")
+        for index in range(document.page_count):
+            page_started = time.perf_counter_ns()
+            try:
+                page = document.load_page(index)
+                text = page.get_text("text", sort=True) or ""
+                characters = len("".join(text.split()))
+                images = len(page.get_images(full=True))
+                page_results.append({"page": index + 1, "status": "ok", "class": _classify_page(characters, images),
+                                     "text_chars": characters, "image_xobjects": images,
+                                     "elapsed_ms": (time.perf_counter_ns() - page_started) / 1_000_000})
+            except Exception as exc:
+                page_results.append({"page": index + 1, "status": "error", "error_type": type(exc).__name__,
+                                     "error": str(exc)[:500],
+                                     "elapsed_ms": (time.perf_counter_ns() - page_started) / 1_000_000})
+    return _summarize_pages(page_results, started)
+
+
+def analyze_pdf(path: Path, engine: str = "pypdf") -> dict[str, Any]:
+    if engine == "pypdf":
+        return analyze_pypdf(path)
+    if engine == "pymupdf":
+        return analyze_pymupdf(path)
+    raise ValueError(f"unsupported PDF engine: {engine}")
+
+
+def engine_version(engine: str) -> str:
+    if engine == "pypdf":
+        return pypdf.__version__
+    if engine == "pymupdf":
+        import pymupdf
+
+        return pymupdf.__version__
+    raise ValueError(f"unsupported PDF engine: {engine}")
+
+
+def _worker_command(pdf_path: Path, timeout_seconds: float, engine: str) -> dict[str, Any]:
+    command = [sys.executable, "-m", "tooling.corpus.profile_pdfs", "--worker", str(pdf_path), "--engine", engine]
     creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     started = time.perf_counter_ns()
     try:
@@ -271,20 +321,21 @@ def _claim_output_directory(output_dir: Path) -> Path:
     return claim
 
 
-def profile(inventory_path: Path, output_dir: Path, limit: int, seed: str, workers: int, timeout_seconds: float) -> dict[str, Any]:
+def profile(inventory_path: Path, output_dir: Path, limit: int, seed: str, workers: int, timeout_seconds: float,
+            engine: str = "pypdf") -> dict[str, Any]:
     claim = _claim_output_directory(output_dir)
     try:
-        return _profile_claimed(inventory_path, output_dir, limit, seed, workers, timeout_seconds)
+        return _profile_claimed(inventory_path, output_dir, limit, seed, workers, timeout_seconds, engine)
     finally:
         claim.unlink(missing_ok=True)
 
 
 def _profile_claimed(inventory_path: Path, output_dir: Path, limit: int, seed: str, workers: int,
-                     timeout_seconds: float) -> dict[str, Any]:
+                     timeout_seconds: float, engine: str) -> dict[str, Any]:
     inventory, candidates = load_candidates(inventory_path)
     selected = select_candidates(candidates, limit, seed)
-    config = {"schema_version": SCHEMA_VERSION, "inventory_id": inventory["inventory_id"], "engine": "pypdf",
-              "engine_version": pypdf.__version__, "sample_limit": limit, "seed": seed, "workers": workers,
+    config = {"schema_version": SCHEMA_VERSION, "inventory_id": inventory["inventory_id"], "engine": engine,
+              "engine_version": engine_version(engine), "sample_limit": limit, "seed": seed, "workers": workers,
               "document_timeout_seconds": timeout_seconds, "text_page_min_chars": TEXT_PAGE_MIN_CHARS,
               "scan_page_max_chars": SCAN_PAGE_MAX_CHARS}
     config_hash = _sha256(_canonical_json(config))
@@ -295,7 +346,7 @@ def _profile_claimed(inventory_path: Path, output_dir: Path, limit: int, seed: s
     def run(candidate: Candidate) -> dict[str, Any]:
         base = dataclasses.asdict(candidate) | {"size_bucket": candidate.size_bucket}
         try:
-            return base | _worker_command(_safe_pdf_path(root, candidate), timeout_seconds)
+            return base | _worker_command(_safe_pdf_path(root, candidate), timeout_seconds, engine)
         except Exception as exc:
             return base | {"status": "error", "error": str(exc)[:1000], "elapsed_ms": 0.0}
 
@@ -346,11 +397,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--seed", default="m01-pdf-profile-v1")
     parser.add_argument("--workers", type=int, default=min(8, os.cpu_count() or 1))
     parser.add_argument("--timeout", type=float, default=120.0, help="hard timeout seconds per document")
+    parser.add_argument("--engine", choices=("pypdf", "pymupdf"), default="pypdf")
     parser.add_argument("--worker", type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if args.worker is not None:
         try:
-            print(json.dumps(analyze_pdf(args.worker), ensure_ascii=False, separators=(",", ":")))
+            print(json.dumps(analyze_pdf(args.worker, args.engine), ensure_ascii=False, separators=(",", ":")))
             return 0
         except Exception as exc:
             print(f"{type(exc).__name__}: {exc}", file=sys.stderr)
@@ -358,7 +410,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.limit < 0 or not 1 <= args.workers <= 32 or not math.isfinite(args.timeout) or args.timeout <= 0:
         parser.error("limit must be >=0, workers 1..32, and timeout must be finite and >0")
     try:
-        manifest = profile(args.inventory, args.output, args.limit, args.seed, args.workers, args.timeout)
+        manifest = profile(args.inventory, args.output, args.limit, args.seed, args.workers, args.timeout, args.engine)
     except Exception as exc:
         print(f"profile failed: {exc}", file=sys.stderr)
         return 1
