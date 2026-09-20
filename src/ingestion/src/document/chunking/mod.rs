@@ -9,8 +9,9 @@
 //! Benchmark dan gate penerimaan:
 //! Ukur p50/p95/p99, throughput, waktu antre, serta RSS/VRAM sesuai workload. Ambang wajib ada di configs/benchmark-targets.yaml (REQUIRED_UNMEASURED); ukur cold/warm terpisah dan pertahankan kualitas sumber/versi.
 //!
-//! Status: parser struktur, structural chunk builder, parent index, dan proyeksi wire aktif sebagai
-//! library; stage STRUCTURE/CHUNK worker, benchmark corpus, dan publikasi belum aktif.
+//! Status: parser struktur aktif pada worker STRUCTURE; chunk builder, parent index, dan proyeksi
+//! chunk aktif sebagai library. Binding provision-version, stage CHUNK, benchmark corpus, dan
+//! publikasi belum aktif.
 
 pub mod builder;
 pub mod parents;

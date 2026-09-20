@@ -17,8 +17,8 @@
 //! fixture lintas Go/Rust/Python. Target configs/benchmark-targets.yaml tetap REQUIRED_UNMEASURED;
 //! unit roundtrip tidak membuktikan throughput atau parity seluruh `DocumentBatch`.
 //!
-//! Status: proyeksi StructureNode/Chunk aktif; TextArtifact/DocumentBatch dipakai worker PARSE,
-//! sedangkan stage STRUCTURE/CHUNK pada worker belum tersambung.
+//! Status: proyeksi StructureNode dipakai worker STRUCTURE dan proyeksi Chunk aktif sebagai library;
+//! stage CHUNK menunggu binding provision-version dari registry Go.
 
 use crate::document::chunking::builder::ChunkBatch;
 use crate::document::chunking::structural::{StructureKind, StructureTree};
@@ -60,6 +60,40 @@ pub struct DocumentWireProjection {
     pub chunks: Vec<documents::Chunk>,
 }
 
+/// Projects a validated structure tree without requiring legal provision identities.
+/// Provision/version binding is intentionally deferred until the Go registry has assigned opaque IDs.
+pub fn project_structures(
+    tree: &StructureTree,
+    config: &DocumentWireConfig,
+) -> Result<Vec<documents::StructureNode>, DocumentWireError> {
+    validate_config(config)?;
+    if tree.nodes.len() > config.maximum_records {
+        return Err(DocumentWireError::RecordLimit {
+            actual: tree.nodes.len(),
+            maximum: config.maximum_records,
+        });
+    }
+    let mut structures = Vec::with_capacity(tree.nodes.len());
+    for node in &tree.nodes {
+        let message = documents::StructureNode {
+            meta: MessageField::some(record_meta(&config.corpus_id, &node.id)),
+            kind: EnumOrUnknown::new(wire_structure_kind(node.kind)),
+            label: node.label.clone(),
+            parent_id: node.parent_id.clone(),
+            ordered_children: node.ordered_children.clone(),
+            source_spans: vec![text_span(
+                &tree.text_artifact_id,
+                node.normalized_span.start,
+                node.normalized_span.end,
+            )?],
+            ..Default::default()
+        };
+        validate_wire(&message)?;
+        structures.push(message);
+    }
+    Ok(structures)
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DocumentWireError {
     InvalidConfig(&'static str),
@@ -96,6 +130,7 @@ impl Error for DocumentWireError {}
 pub fn project_structure_and_chunks(
     tree: &StructureTree,
     batch: &ChunkBatch,
+    provision_version_id: &str,
     config: &DocumentWireConfig,
 ) -> Result<DocumentWireProjection, DocumentWireError> {
     validate_config(config)?;
@@ -117,24 +152,7 @@ pub fn project_structure_and_chunks(
         });
     }
     let structure_ids: HashSet<&str> = tree.nodes.iter().map(|node| node.id.as_str()).collect();
-    let mut structures = Vec::with_capacity(tree.nodes.len());
-    for node in &tree.nodes {
-        let message = documents::StructureNode {
-            meta: MessageField::some(record_meta(&config.corpus_id, &node.id)),
-            kind: EnumOrUnknown::new(wire_structure_kind(node.kind)),
-            label: node.label.clone(),
-            parent_id: node.parent_id.clone(),
-            ordered_children: node.ordered_children.clone(),
-            source_spans: vec![text_span(
-                &tree.text_artifact_id,
-                node.normalized_span.start,
-                node.normalized_span.end,
-            )?],
-            ..Default::default()
-        };
-        validate_wire(&message)?;
-        structures.push(message);
-    }
+    let structures = project_structures(tree, config)?;
 
     let manifest = producer_manifest(tree, batch, config);
     validate_wire(&manifest)?;
@@ -149,7 +167,7 @@ pub fn project_structure_and_chunks(
         if chunk.chunker_config_sha256 != batch.chunker_config_sha256 {
             return Err(DocumentWireError::IdentityMismatch("chunker_config_sha256"));
         }
-        if chunk.provision_version_refs != [tree.provision_version_id.as_str()] {
+        if chunk.provision_version_refs != [provision_version_id] {
             return Err(DocumentWireError::IdentityMismatch(
                 "provision_version_refs",
             ));
@@ -320,22 +338,31 @@ mod tests {
             &StructureIdentity {
                 source_blob_id: "source:fixture".to_owned(),
                 text_artifact_id: "text:fixture".to_owned(),
-                provision_version_id: "version:fixture".to_owned(),
             },
             &StructureParserConfig::default(),
         )
         .expect("fixture structure parses");
-        let batch = build_chunks(&normalized, &tree, &ChunkerConfig::default(), &Words)
-            .expect("fixture chunks build");
+        let batch = build_chunks(
+            &normalized,
+            &tree,
+            "version:fixture",
+            &ChunkerConfig::default(),
+            &Words,
+        )
+        .expect("fixture chunks build");
         (tree, batch)
     }
 
     #[test]
     fn projects_ids_offsets_manifest_and_token_usage() {
         let (tree, batch) = fixture();
-        let projection =
-            project_structure_and_chunks(&tree, &batch, &DocumentWireConfig::default())
-                .expect("wire projection succeeds");
+        let projection = project_structure_and_chunks(
+            &tree,
+            &batch,
+            "version:fixture",
+            &DocumentWireConfig::default(),
+        )
+        .expect("wire projection succeeds");
 
         assert_eq!(projection.structures.len(), tree.nodes.len());
         assert_eq!(projection.chunks.len(), batch.chunks.len());
@@ -380,9 +407,13 @@ mod tests {
     #[test]
     fn protobuf_roundtrip_preserves_contract_fields() {
         let (tree, batch) = fixture();
-        let projection =
-            project_structure_and_chunks(&tree, &batch, &DocumentWireConfig::default())
-                .expect("wire projection succeeds");
+        let projection = project_structure_and_chunks(
+            &tree,
+            &batch,
+            "version:fixture",
+            &DocumentWireConfig::default(),
+        )
+        .expect("wire projection succeeds");
         let chunk = &projection.chunks[0];
 
         let encoded = chunk.write_to_bytes().expect("chunk serializes");
@@ -401,24 +432,39 @@ mod tests {
         let (tree, mut batch) = fixture();
         batch.normalized_sha256 = "0".repeat(64);
         assert_eq!(
-            project_structure_and_chunks(&tree, &batch, &DocumentWireConfig::default())
-                .unwrap_err(),
+            project_structure_and_chunks(
+                &tree,
+                &batch,
+                "version:fixture",
+                &DocumentWireConfig::default(),
+            )
+            .unwrap_err(),
             DocumentWireError::IdentityMismatch("normalized_sha256")
         );
 
         let (tree, mut batch) = fixture();
         batch.chunks[0].source_blob_id = "source:other".to_owned();
         assert_eq!(
-            project_structure_and_chunks(&tree, &batch, &DocumentWireConfig::default())
-                .unwrap_err(),
+            project_structure_and_chunks(
+                &tree,
+                &batch,
+                "version:fixture",
+                &DocumentWireConfig::default(),
+            )
+            .unwrap_err(),
             DocumentWireError::IdentityMismatch("source_blob_id")
         );
 
         let (tree, mut batch) = fixture();
         batch.chunks[0].structure_node_refs = vec!["structure:missing".to_owned()];
         assert_eq!(
-            project_structure_and_chunks(&tree, &batch, &DocumentWireConfig::default())
-                .unwrap_err(),
+            project_structure_and_chunks(
+                &tree,
+                &batch,
+                "version:fixture",
+                &DocumentWireConfig::default(),
+            )
+            .unwrap_err(),
             DocumentWireError::UnknownStructureReference("structure:missing".to_owned())
         );
     }
@@ -431,7 +477,7 @@ mod tests {
             ..DocumentWireConfig::default()
         };
         assert_eq!(
-            project_structure_and_chunks(&tree, &batch, &invalid).unwrap_err(),
+            project_structure_and_chunks(&tree, &batch, "version:fixture", &invalid).unwrap_err(),
             DocumentWireError::InvalidConfig("corpus_id")
         );
 
@@ -440,7 +486,7 @@ mod tests {
             ..DocumentWireConfig::default()
         };
         assert_eq!(
-            project_structure_and_chunks(&tree, &batch, &limited).unwrap_err(),
+            project_structure_and_chunks(&tree, &batch, "version:fixture", &limited).unwrap_err(),
             DocumentWireError::RecordLimit {
                 actual: tree.nodes.len() + batch.chunks.len(),
                 maximum: 1

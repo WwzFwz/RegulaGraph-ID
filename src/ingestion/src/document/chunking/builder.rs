@@ -104,10 +104,14 @@ impl Error for ChunkBuildError {}
 pub fn build_chunks<T: TokenCounter>(
     normalized: &NormalizedText,
     tree: &StructureTree,
+    provision_version_id: &str,
     config: &ChunkerConfig,
     tokenizer: &T,
 ) -> Result<ChunkBatch, ChunkBuildError> {
     validate_config(config)?;
+    if !valid_ascii_id(provision_version_id) {
+        return Err(ChunkBuildError::InvalidConfig("provision_version_id"));
+    }
     if !valid_ascii_id(tokenizer.tokenizer_id()) {
         return Err(ChunkBuildError::InvalidTokenizerId);
     }
@@ -146,7 +150,7 @@ pub fn build_chunks<T: TokenCounter>(
                     .map_err(ChunkBuildError::SourceMapping)?;
                 let id = stable_chunk_id(
                     &tree.text_artifact_id,
-                    &tree.provision_version_id,
+                    provision_version_id,
                     &node.id,
                     &config_sha256,
                     &split,
@@ -156,7 +160,7 @@ pub fn build_chunks<T: TokenCounter>(
                     id,
                     source_blob_id: tree.source_blob_id.clone(),
                     text_artifact_id: tree.text_artifact_id.clone(),
-                    provision_version_refs: vec![tree.provision_version_id.clone()],
+                    provision_version_refs: vec![provision_version_id.to_owned()],
                     structure_node_refs: vec![node.id.clone()],
                     parent_refs: Vec::new(),
                     exception_refs: Vec::new(),
@@ -437,7 +441,6 @@ mod tests {
             &StructureIdentity {
                 source_blob_id: "source:fixture".to_owned(),
                 text_artifact_id: "text:fixture".to_owned(),
-                provision_version_id: "version:fixture".to_owned(),
             },
             &StructureParserConfig::default(),
         )
@@ -462,8 +465,14 @@ mod tests {
              (1) Setiap warga memenuhi syarat utama.\r\na. membawa identitas sah;\r\n\
              (2) Kewajiban berlaku, kecuali keadaan darurat yang dapat dibuktikan.\r\n",
         );
-        let batch = build_chunks(&normalized, &tree, &small_config(), &Words)
-            .expect("chunks build successfully");
+        let batch = build_chunks(
+            &normalized,
+            &tree,
+            "version:fixture",
+            &small_config(),
+            &Words,
+        )
+        .expect("chunks build successfully");
 
         assert!(!batch.chunks.is_empty());
         assert!(batch.chunks.iter().all(|chunk| {
@@ -504,8 +513,10 @@ mod tests {
         let (normalized, tree) = fixture(&raw);
         let config = small_config();
 
-        let first = build_chunks(&normalized, &tree, &config, &Words).expect("first build");
-        let second = build_chunks(&normalized, &tree, &config, &Words).expect("second build");
+        let first = build_chunks(&normalized, &tree, "version:fixture", &config, &Words)
+            .expect("first build");
+        let second = build_chunks(&normalized, &tree, "version:fixture", &config, &Words)
+            .expect("second build");
 
         assert_eq!(first, second);
         assert!(first.chunks.len() > 2);
@@ -529,8 +540,14 @@ mod tests {
     #[test]
     fn chunks_unstructured_document_through_root_node() {
         let (normalized, tree) = fixture("Dokumen tanpa heading tetapi tetap dapat dicari.");
-        let batch = build_chunks(&normalized, &tree, &small_config(), &Words)
-            .expect("root fallback chunks");
+        let batch = build_chunks(
+            &normalized,
+            &tree,
+            "version:fixture",
+            &small_config(),
+            &Words,
+        )
+        .expect("root fallback chunks");
 
         assert_eq!(batch.chunks.len(), 1);
         assert_eq!(
@@ -553,13 +570,26 @@ mod tests {
         }
 
         let (normalized, tree) = fixture("Pasal 1\nIsi ketentuan.\n");
-        let base = build_chunks(&normalized, &tree, &small_config(), &Words).expect("base");
-        let other_tokenizer = build_chunks(&normalized, &tree, &small_config(), &OtherWords)
-            .expect("other tokenizer");
+        let base = build_chunks(
+            &normalized,
+            &tree,
+            "version:fixture",
+            &small_config(),
+            &Words,
+        )
+        .expect("base");
+        let other_tokenizer = build_chunks(
+            &normalized,
+            &tree,
+            "version:fixture",
+            &small_config(),
+            &OtherWords,
+        )
+        .expect("other tokenizer");
         let mut changed = small_config();
         changed.overlap_bytes += 1;
-        let other_config =
-            build_chunks(&normalized, &tree, &changed, &Words).expect("other config");
+        let other_config = build_chunks(&normalized, &tree, "version:fixture", &changed, &Words)
+            .expect("other config");
 
         assert_ne!(
             base.chunker_config_sha256,
@@ -579,13 +609,14 @@ mod tests {
             ..small_config()
         };
         assert_eq!(
-            build_chunks(&normalized, &tree, &invalid, &Words),
+            build_chunks(&normalized, &tree, "version:fixture", &invalid, &Words),
             Err(ChunkBuildError::InvalidConfig("maximum_chunk_bytes"))
         );
         assert_eq!(
             build_chunks(
                 &normalized,
                 &tree,
+                "version:fixture",
                 &small_config(),
                 &BrokenTokenizer { mode: "id" }
             ),
@@ -595,6 +626,7 @@ mod tests {
             build_chunks(
                 &normalized,
                 &tree,
+                "version:fixture",
                 &small_config(),
                 &BrokenTokenizer { mode: "error" }
             ),
@@ -604,6 +636,7 @@ mod tests {
             build_chunks(
                 &normalized,
                 &tree,
+                "version:fixture",
                 &small_config(),
                 &BrokenTokenizer { mode: "zero" }
             ),
@@ -616,7 +649,13 @@ mod tests {
         };
         let (multi_normalized, multi_tree) = fixture("PEMBUKAAN\nPasal 1\nIsi ketentuan.\n");
         assert_eq!(
-            build_chunks(&multi_normalized, &multi_tree, &limited, &Words),
+            build_chunks(
+                &multi_normalized,
+                &multi_tree,
+                "version:fixture",
+                &limited,
+                &Words,
+            ),
             Err(ChunkBuildError::ChunkLimit { maximum: 1 })
         );
     }

@@ -7,7 +7,8 @@
 //!
 //! Kontrak integrasi dan perhatian implementasi:
 //! Offset adalah byte UTF-8 start-inclusive/end-exclusive. Identitas input wajib berupa ASCII ID
-//! stabil milik source blob, text artifact, dan provision version. Pencocokan selalu berjangkar di
+//! stabil milik source blob dan text artifact. Identitas ketentuan tidak dibutuhkan untuk mendeteksi
+//! struktur; binding ke provision version diberikan kemudian sebelum chunk dibentuk. Pencocokan berjangkar di
 //! awal baris dan sengaja konservatif agar frasa seperti "sebagaimana dimaksud dalam Pasal 5"
 //! tidak menjadi heading palsu. Tabel dan rekonstruksi urutan baca tetap tanggung jawab parser.
 //!
@@ -59,7 +60,6 @@ impl StructureKind {
 pub struct StructureIdentity {
     pub source_blob_id: String,
     pub text_artifact_id: String,
-    pub provision_version_id: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -96,7 +96,6 @@ pub struct StructureTree {
     pub schema_version: u32,
     pub source_blob_id: String,
     pub text_artifact_id: String,
-    pub provision_version_id: String,
     pub normalized_sha256: String,
     pub nodes: Vec<StructureNode>,
 }
@@ -117,7 +116,6 @@ impl StructureTree {
         if self.schema_version != STRUCTURE_SCHEMA_VERSION
             || self.source_blob_id.is_empty()
             || self.text_artifact_id.is_empty()
-            || self.provision_version_id.is_empty()
             || self.normalized_sha256 != normalized.normalized_sha256
             || self.nodes.is_empty()
         {
@@ -359,7 +357,6 @@ pub fn parse_structure(
         schema_version: STRUCTURE_SCHEMA_VERSION,
         source_blob_id: identity.source_blob_id.clone(),
         text_artifact_id: identity.text_artifact_id.clone(),
-        provision_version_id: identity.provision_version_id.clone(),
         normalized_sha256: normalized.normalized_sha256.clone(),
         nodes,
     };
@@ -378,10 +375,6 @@ fn validate_inputs(
     for (name, value) in [
         ("source_blob_id", identity.source_blob_id.as_str()),
         ("text_artifact_id", identity.text_artifact_id.as_str()),
-        (
-            "provision_version_id",
-            identity.provision_version_id.as_str(),
-        ),
     ] {
         if !valid_ascii_id(value) {
             return Err(StructureError::InvalidIdentity(name));
@@ -595,7 +588,6 @@ mod tests {
         StructureIdentity {
             source_blob_id: "source:fixture".to_owned(),
             text_artifact_id: "text:fixture".to_owned(),
-            provision_version_id: "provision-version:fixture".to_owned(),
         }
     }
 

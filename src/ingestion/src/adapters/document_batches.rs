@@ -15,8 +15,8 @@
 //! dan dedup ratio pada batch resmi. Target `configs/benchmark-targets.yaml` tetap REQUIRED_UNMEASURED;
 //! roundtrip unit tidak membuktikan throughput, durability, atau wire parity lintas bahasa.
 //!
-//! Status: persistence dan verified load DocumentBatch lokal aktif pada worker PARSE; publication Go
-//! serta stage worker lanjutan belum terhubung.
+//! Status: persistence dan verified load DocumentBatch lokal aktif pada worker PARSE/STRUCTURE;
+//! publication Go serta binding provision-version/CHUNK belum terhubung.
 
 use crate::adapters::storage::{ArtifactDescriptor, ArtifactStore, ArtifactStoreError};
 use crate::domain::document_batch::{

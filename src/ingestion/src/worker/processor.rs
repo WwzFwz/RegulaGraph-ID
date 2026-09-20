@@ -1,17 +1,22 @@
-//! Parse-stage batch processor backed by PDFium, conservative normalization and immutable artifacts.
+//! PARSE/STRUCTURE batch processor backed by PDFium, conservative normalization and immutable artifacts.
 //!
-//! Legal structure/version stages are rejected until their required identities are explicit in the
-//! request contract. This processor never fabricates provisions, canonical entities or publication state.
+//! STRUCTURE consumes the immutable PARSE `DocumentBatch` and emits derived hierarchy only. Legal
+//! provision/version binding remains a later registry-owned step; this processor never fabricates
+//! provisions, canonical entities, or publication state.
 
 use super::service::{BatchProcessor, ProcessError};
-use crate::adapters::document_batches::persist_document_batch;
-use crate::adapters::storage::ArtifactStore;
-use crate::adapters::text_artifacts::persist_text_artifact;
+use crate::adapters::document_batches::{load_document_batch, persist_document_batch};
+use crate::adapters::storage::{ArtifactDescriptor, ArtifactStore};
+use crate::adapters::text_artifacts::{load_normalized_text, persist_text_artifact};
+use crate::document::chunking::structural::{
+    parse_structure, StructureIdentity, StructureParserConfig,
+};
 use crate::document::normalization::text::{normalize_text, TextNormalizerConfig};
 use crate::document::parsing::pdf::{PdfParseRequest, PdfParser};
 use crate::domain::document_batch::{
     assemble_document_batch, build_source_blob, DocumentBatchConfig, DocumentBatchParts,
 };
+use crate::domain::document_wire::{project_structures, DocumentWireConfig};
 use crate::domain::text_artifact_wire::TextArtifactWireConfig;
 use crate::wire::{common, jobs};
 use protobuf::{EnumOrUnknown, MessageField};
@@ -28,6 +33,8 @@ pub struct ParseBatchProcessorConfig {
     pub maximum_batch_pages: usize,
     pub maximum_sources: usize,
     pub maximum_input_bytes: u64,
+    pub structure: StructureParserConfig,
+    pub document_wire: DocumentWireConfig,
 }
 
 impl Default for ParseBatchProcessorConfig {
@@ -39,6 +46,8 @@ impl Default for ParseBatchProcessorConfig {
             maximum_batch_pages: 100_000,
             maximum_sources: 256,
             maximum_input_bytes: 2 * 1024 * 1024 * 1024,
+            structure: StructureParserConfig::default(),
+            document_wire: DocumentWireConfig::default(),
         }
     }
 }
@@ -86,12 +95,17 @@ impl BatchProcessor for ParseBatchProcessor {
         cancelled: &AtomicBool,
         progress: &dyn Fn(jobs::JobStage, u64, u64),
     ) -> Result<jobs::ProcessBatchResponse, ProcessError> {
+        if request.stages.len() == 1
+            && request.stages[0].enum_value() == Ok(jobs::JobStage::JOB_STAGE_STRUCTURE)
+        {
+            return self.process_structure(request, cancelled, progress);
+        }
         if request.stages.len() != 1
             || request.stages[0].enum_value() != Ok(jobs::JobStage::JOB_STAGE_PARSE)
         {
             return Err(ProcessError::new(
                 Code::Unimplemented,
-                "worker currently accepts exactly the PARSE stage; legal identities are required before later stages",
+                "worker accepts exactly one PARSE or STRUCTURE stage",
             ));
         }
         let context = request
@@ -277,6 +291,247 @@ impl BatchProcessor for ParseBatchProcessor {
             ..Default::default()
         })
     }
+}
+
+impl ParseBatchProcessor {
+    fn process_structure(
+        &self,
+        request: jobs::ProcessBatchRequest,
+        cancelled: &AtomicBool,
+        progress: &dyn Fn(jobs::JobStage, u64, u64),
+    ) -> Result<jobs::ProcessBatchResponse, ProcessError> {
+        let context = request
+            .context
+            .as_ref()
+            .ok_or_else(|| ProcessError::new(Code::InvalidArgument, "request context is required"))?
+            .clone();
+        if request.sources.len() != 1 {
+            return Err(ProcessError::new(
+                Code::InvalidArgument,
+                "STRUCTURE requires exactly one PARSE DocumentBatch input",
+            ));
+        }
+        let input_ref = &request.sources[0];
+        let descriptor = ArtifactDescriptor::from_wire_ref(input_ref)
+            .map_err(|error| ProcessError::new(Code::InvalidArgument, error.to_string()))?;
+        let mut input = load_document_batch(&self.store, &descriptor)
+            .map_err(|error| ProcessError::new(Code::FailedPrecondition, error.to_string()))?;
+        if input.context.corpus_id != context.corpus_id {
+            return Err(ProcessError::new(
+                Code::FailedPrecondition,
+                "STRUCTURE input corpus differs from request corpus",
+            ));
+        }
+        if !input.structures.is_empty() || !input.chunks.is_empty() {
+            return Err(ProcessError::new(
+                Code::FailedPrecondition,
+                "STRUCTURE input must be a PARSE batch without structure or chunks",
+            ));
+        }
+        if input.completeness.enum_value() != Ok(common::Completeness::COMPLETENESS_COMPLETE) {
+            return Err(ProcessError::new(
+				Code::FailedPrecondition,
+				"STRUCTURE requires a complete PARSE DocumentBatch; incomplete input remains in review",
+			));
+        }
+        let total = input.text_artifacts.len() as u64;
+        let mut structures = Vec::new();
+        let fixed_records = [
+            1usize,
+            input.sources.len(),
+            input.text_artifacts.len(),
+            input.provisions.len(),
+            input.versions.len(),
+            input.chunks.len(),
+            input.issues.len(),
+            input.editions.len(),
+            input.regulations.len(),
+            input.observations.len(),
+            input.changes.len(),
+        ]
+        .into_iter()
+        .try_fold(0usize, |sum, count| sum.checked_add(count))
+        .ok_or_else(|| ProcessError::new(Code::OutOfRange, "STRUCTURE record count overflow"))?;
+        let structure_budget = self
+            .config
+            .document_batch
+            .maximum_records
+            .checked_sub(fixed_records)
+            .ok_or_else(|| {
+                ProcessError::new(
+                    Code::OutOfRange,
+                    "STRUCTURE input already exceeds the DocumentBatch record limit",
+                )
+            })?;
+        for (index, artifact) in input.text_artifacts.iter().enumerate() {
+            if cancelled.load(Ordering::Acquire) {
+                return Err(ProcessError::new(
+                    Code::Cancelled,
+                    "batch cancellation acknowledged",
+                ));
+            }
+            let normalized = load_normalized_text(&self.store, artifact, &self.config.normalizer)
+                .map_err(|error| {
+                ProcessError::new(Code::FailedPrecondition, error.to_string())
+            })?;
+            let remaining = structure_budget
+                .checked_sub(structures.len())
+                .ok_or_else(|| {
+                    ProcessError::new(
+                        Code::OutOfRange,
+                        "STRUCTURE output exceeds the DocumentBatch record limit",
+                    )
+                })?;
+            if remaining == 0 {
+                return Err(ProcessError::new(
+                    Code::OutOfRange,
+                    "STRUCTURE output exhausts the DocumentBatch record limit",
+                ));
+            }
+            let parser_config = StructureParserConfig {
+                maximum_nodes: self.config.structure.maximum_nodes.min(remaining),
+                ..self.config.structure.clone()
+            };
+            let tree = parse_structure(
+                &normalized,
+                &StructureIdentity {
+                    source_blob_id: artifact.source_blob_id.clone(),
+                    text_artifact_id: artifact.meta.record_id.clone(),
+                },
+                &parser_config,
+            )
+            .map_err(|error| ProcessError::new(Code::InvalidArgument, error.to_string()))?;
+            let mut projected = project_structures(
+                &tree,
+                &DocumentWireConfig {
+                    corpus_id: context.corpus_id.clone(),
+                    ..self.config.document_wire.clone()
+                },
+            )
+            .map_err(|error| ProcessError::new(Code::FailedPrecondition, error.to_string()))?;
+            if projected.len() > remaining {
+                return Err(ProcessError::new(
+                    Code::OutOfRange,
+                    "STRUCTURE projection exceeds the remaining DocumentBatch record limit",
+                ));
+            }
+            structures.append(&mut projected);
+            progress(
+                jobs::JobStage::JOB_STAGE_STRUCTURE,
+                (index + 1) as u64,
+                total,
+            );
+        }
+        if structures.is_empty() {
+            return Err(ProcessError::new(
+                Code::FailedPrecondition,
+                "STRUCTURE input contains no text artifacts",
+            ));
+        }
+
+        let request_id = context.request_id.clone();
+        let identity = response_identity(
+            &request_id,
+            &request.job_id,
+            request.attempt,
+            request.lease.fence,
+        );
+        let manifest = structure_runtime_manifest(input_ref, &self.config)?;
+        let lookup_scope_revisions = input
+            .dependency_manifest
+            .as_ref()
+            .map(|manifest| manifest.lookup_scope_revisions.clone())
+            .unwrap_or_default();
+        let output = assemble_document_batch(
+            DocumentBatchParts {
+                batch_id: format!("document-batch:{identity}"),
+                context,
+                sources: std::mem::take(&mut input.sources),
+                text_artifacts: std::mem::take(&mut input.text_artifacts),
+                structures,
+                provisions: std::mem::take(&mut input.provisions),
+                versions: std::mem::take(&mut input.versions),
+                chunks: Vec::new(),
+                issues: std::mem::take(&mut input.issues),
+                editions: std::mem::take(&mut input.editions),
+                regulations: std::mem::take(&mut input.regulations),
+                observations: std::mem::take(&mut input.observations),
+                changes: std::mem::take(&mut input.changes),
+                dependency_manifest: common::DependencyManifest {
+                    artifact_id: format!("dependency-manifest:{identity}"),
+                    dependencies: vec![common::Dependency {
+                        dependency_id: input_ref.artifact_id.clone(),
+                        fingerprint: input_ref.content_hash.clone(),
+                        ..Default::default()
+                    }],
+                    producer_manifest: MessageField::some(manifest.clone()),
+                    lookup_scope_revisions,
+                    ..Default::default()
+                },
+            },
+            &self.config.document_batch,
+        )
+        .map_err(|error| ProcessError::new(Code::FailedPrecondition, error.to_string()))?;
+        let artifact = persist_document_batch(&self.store, &output)
+            .map_err(|error| ProcessError::new(Code::Internal, error.to_string()))?;
+        let document_batch_ref = artifact.reference;
+        let document_batch_hash = document_batch_ref
+            .content_hash
+            .as_ref()
+            .cloned()
+            .ok_or_else(|| ProcessError::new(Code::Internal, "document batch hash is missing"))?;
+        Ok(jobs::ProcessBatchResponse {
+            request_id,
+            job_id: request.job_id.clone(),
+            attempt: request.attempt,
+            fence: request.lease.fence,
+            checkpoint: MessageField::some(jobs::Checkpoint {
+                meta: MessageField::some(common::RecordMeta {
+                    schema_version: 1,
+                    corpus_id: output.context.corpus_id.clone(),
+                    record_id: format!("checkpoint:{identity}"),
+                    ..Default::default()
+                }),
+                job_id: request.job_id,
+                stage: EnumOrUnknown::new(jobs::JobStage::JOB_STAGE_STRUCTURE),
+                completed_batch_keys: vec![document_batch_ref.artifact_id.clone()],
+                artifact_hashes: vec![document_batch_hash],
+                manifest: MessageField::some(manifest),
+                fence: request.lease.fence,
+                ..Default::default()
+            }),
+            document_batch: MessageField::some(document_batch_ref),
+            status: EnumOrUnknown::new(common::CompletionStatus::COMPLETION_STATUS_SUCCEEDED),
+            ..Default::default()
+        })
+    }
+}
+
+fn structure_runtime_manifest(
+    input: &common::ArtifactRef,
+    config: &ParseBatchProcessorConfig,
+) -> Result<common::ProducerManifest, ProcessError> {
+    let input_hash = input.content_hash.as_ref().cloned().ok_or_else(|| {
+        ProcessError::new(Code::InvalidArgument, "STRUCTURE input hash is required")
+    })?;
+    let mut hasher = Sha256::new();
+    hasher.update(b"regulagraph-structure-config-v1\0");
+    hasher.update(config.structure.maximum_nodes.to_le_bytes());
+    hasher.update(config.structure.maximum_heading_line_bytes.to_le_bytes());
+    hasher.update([config.structure.recognize_list_items as u8]);
+    hasher.update(config.document_wire.maximum_records.to_le_bytes());
+    Ok(common::ProducerManifest {
+        software: "regulagraph-ingestion".to_owned(),
+        build: env!("CARGO_PKG_VERSION").to_owned(),
+        schema_version: 1,
+        parser_version: Some("structure-v1".to_owned()),
+        config_hash: MessageField::some(common::ContentHash {
+            sha256: format!("{:x}", hasher.finalize()),
+            ..Default::default()
+        }),
+        input_hashes: vec![input_hash],
+        ..Default::default()
+    })
 }
 
 fn preflight_sources(
