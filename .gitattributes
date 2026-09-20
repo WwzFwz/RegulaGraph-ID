@@ -1,0 +1,4 @@
+# Menjaga byte prompt dan schema yang masuk manifest tetap identik lintas checkout Windows/Linux.
+# File lain mengikuti kebijakan Git pengguna; hanya input yang di-hash runtime dipaksa LF.
+configs/prompts/*.md text eol=lf
+src/contracts/jsonschema/*.json text eol=lf
