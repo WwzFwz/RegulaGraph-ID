@@ -1,18 +1,534 @@
-//! Membentuk chunk sesuai hierarki dokumen, bab, pasal, ayat, dan huruf.
+//! Mendeteksi hierarki hukum Indonesia dari teks ternormalisasi secara deterministik.
 //!
 //! Peran dalam komponen:
-//! Menyediakan unit pencarian serta unit sumber ekstraksi graph.
+//! Tahap ini mengubah baris heading yang ketat menjadi pohon dokumen, bab, bagian, paragraf,
+//! pasal, ayat, butir, lampiran, dan penjelasan. Pohon menjadi batas semantik bagi chunker dan
+//! mempertahankan mapping byte normalized-ke-raw untuk citation serta audit.
 //!
 //! Kontrak integrasi dan perhatian implementasi:
-//! Pecah unit yang terlalu panjang dengan referensi induk; ukuran dan overlap konfigurabel. Unit ekstraksi boleh lebih luas daripada unit retrieval.
+//! Offset adalah byte UTF-8 start-inclusive/end-exclusive. Identitas input wajib berupa ASCII ID
+//! stabil milik source blob, text artifact, dan provision version. Pencocokan selalu berjangkar di
+//! awal baris dan sengaja konservatif agar frasa seperti "sebagaimana dimaksud dalam Pasal 5"
+//! tidak menjadi heading palsu. Tabel dan rekonstruksi urutan baca tetap tanggung jawab parser.
 //!
 //! Benchmark dan gate penerimaan:
-//! [CHUNKING] Ukur cakupan pemetaan chunk ke sumber/induk, proporsi ketentuan-pengecualian yang terpisah, Recall@k bukti, jumlah token, serta waktu ingestion. Gate: tiap chunk terbit punya parent/source/version yang valid. Bandingkan struktur+konteks induk dengan baseline pada corpus yang sama; ambang kualitas/latency wajib mengikuti configs/benchmark-targets.yaml.
-//! Target numerik required: configs/benchmark-targets.yaml; status REQUIRED_UNMEASURED.
-//! Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
+//! Ukur `PARSING.STRUCTURE_F1`, `PARSING.CRITICAL_TOKENS`, `CHUNKING.THROUGHPUT`, dan
+//! `INVARIANT.SOURCE_MAPPING` menurut configs/benchmark-targets.yaml. Status target tetap
+//! REQUIRED_UNMEASURED sampai gold set dan workload resmi dijalankan.
 //!
-//! Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
-//! Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
-//! Build hierarchy-aware chunks from provision/version structures; split oversized units with stable parent and span references.
-//! Bukti verifikasi: Test nested clauses, exceptions and tables; measure source/parent coverage, token budget and retrieval impact together.
-//! Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+//! Status: parser hierarki deterministik aktif; integrasi worker/wire dan acceptance corpus belum aktif.
+
+use crate::document::normalization::text::{NormalizeError, NormalizedText};
+use sha2::{Digest, Sha256};
+use std::error::Error;
+use std::fmt::{Display, Formatter};
+use std::ops::Range;
+
+const STRUCTURE_SCHEMA_VERSION: u32 = 1;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum StructureKind {
+    Document,
+    Chapter,
+    Part,
+    Article,
+    Paragraph,
+    Item,
+    Annex,
+    Explanation,
+}
+
+impl StructureKind {
+    fn wire_name(self) -> &'static str {
+        match self {
+            Self::Document => "DOCUMENT",
+            Self::Chapter => "CHAPTER",
+            Self::Part => "PART",
+            Self::Article => "ARTICLE",
+            Self::Paragraph => "PARAGRAPH",
+            Self::Item => "ITEM",
+            Self::Annex => "ANNEX",
+            Self::Explanation => "EXPLANATION",
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StructureIdentity {
+    pub source_blob_id: String,
+    pub text_artifact_id: String,
+    pub provision_version_id: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StructureParserConfig {
+    pub maximum_nodes: usize,
+    pub maximum_heading_line_bytes: usize,
+    pub recognize_list_items: bool,
+}
+
+impl Default for StructureParserConfig {
+    fn default() -> Self {
+        Self {
+            maximum_nodes: 1_000_000,
+            maximum_heading_line_bytes: 512,
+            recognize_list_items: true,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StructureNode {
+    pub schema_version: u32,
+    pub id: String,
+    pub kind: StructureKind,
+    pub label: String,
+    pub parent_id: Option<String>,
+    pub ordered_children: Vec<String>,
+    pub normalized_span: Range<usize>,
+    pub raw_span: Range<usize>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StructureTree {
+    pub schema_version: u32,
+    pub source_blob_id: String,
+    pub text_artifact_id: String,
+    pub provision_version_id: String,
+    pub normalized_sha256: String,
+    pub nodes: Vec<StructureNode>,
+}
+
+impl StructureTree {
+    pub fn root(&self) -> &StructureNode {
+        &self.nodes[0]
+    }
+
+    pub fn node(&self, id: &str) -> Option<&StructureNode> {
+        self.nodes.iter().find(|node| node.id == id)
+    }
+
+    pub fn validate(&self, normalized: &NormalizedText) -> Result<(), StructureError> {
+        if self.schema_version != STRUCTURE_SCHEMA_VERSION
+            || self.source_blob_id.is_empty()
+            || self.text_artifact_id.is_empty()
+            || self.provision_version_id.is_empty()
+            || self.normalized_sha256 != normalized.normalized_sha256
+            || self.nodes.is_empty()
+        {
+            return Err(StructureError::InvalidTree("tree metadata"));
+        }
+        let root = &self.nodes[0];
+        if root.kind != StructureKind::Document
+            || root.parent_id.is_some()
+            || root.normalized_span != (0..normalized.text.len())
+        {
+            return Err(StructureError::InvalidTree("root"));
+        }
+        for (index, node) in self.nodes.iter().enumerate() {
+            if node.schema_version != STRUCTURE_SCHEMA_VERSION
+                || !valid_ascii_id(&node.id)
+                || node.normalized_span.is_empty()
+                || node.normalized_span.end > normalized.text.len()
+                || !normalized.text.is_char_boundary(node.normalized_span.start)
+                || !normalized.text.is_char_boundary(node.normalized_span.end)
+                || node.raw_span.is_empty()
+            {
+                return Err(StructureError::InvalidTree("node"));
+            }
+            if index > 0 {
+                let parent_id = node
+                    .parent_id
+                    .as_deref()
+                    .ok_or(StructureError::InvalidTree("missing parent"))?;
+                let parent_index = self
+                    .nodes
+                    .iter()
+                    .position(|candidate| candidate.id == parent_id)
+                    .ok_or(StructureError::InvalidTree("unknown parent"))?;
+                if parent_index >= index {
+                    return Err(StructureError::InvalidTree("parent order"));
+                }
+                let parent = &self.nodes[parent_index];
+                if node.normalized_span.start < parent.normalized_span.start
+                    || node.normalized_span.end > parent.normalized_span.end
+                    || !parent
+                        .ordered_children
+                        .iter()
+                        .any(|child| child == &node.id)
+                {
+                    return Err(StructureError::InvalidTree("parent containment"));
+                }
+            }
+            let mut previous_start = None;
+            for child_id in &node.ordered_children {
+                let child = self
+                    .node(child_id)
+                    .ok_or(StructureError::InvalidTree("unknown child"))?;
+                if child.parent_id.as_deref() != Some(node.id.as_str())
+                    || previous_start.is_some_and(|start| start >= child.normalized_span.start)
+                {
+                    return Err(StructureError::InvalidTree("child order"));
+                }
+                previous_start = Some(child.normalized_span.start);
+            }
+            let expected_raw = normalized
+                .raw_cover(node.normalized_span.clone())
+                .map_err(StructureError::SourceMapping)?;
+            if node.raw_span != expected_raw {
+                return Err(StructureError::InvalidTree("raw span"));
+            }
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum StructureError {
+    InvalidConfig(&'static str),
+    InvalidIdentity(&'static str),
+    EmptyText,
+    NodeLimit { maximum: usize },
+    SourceMapping(NormalizeError),
+    InvalidTree(&'static str),
+}
+
+impl Display for StructureError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::InvalidConfig(field) => write!(formatter, "invalid structure config: {field}"),
+            Self::InvalidIdentity(field) => {
+                write!(formatter, "invalid structure identity: {field}")
+            }
+            Self::EmptyText => write!(formatter, "normalized text must not be empty"),
+            Self::NodeLimit { maximum } => write!(formatter, "structure exceeds {maximum} nodes"),
+            Self::SourceMapping(error) => write!(formatter, "source mapping failed: {error}"),
+            Self::InvalidTree(field) => write!(formatter, "invalid structure tree: {field}"),
+        }
+    }
+}
+
+impl Error for StructureError {}
+
+#[derive(Clone, Debug)]
+struct PendingNode {
+    id: String,
+    kind: StructureKind,
+    label: String,
+    parent_index: Option<usize>,
+    children: Vec<usize>,
+    start: usize,
+    end: usize,
+    level: u8,
+}
+
+#[derive(Clone, Debug)]
+struct Heading {
+    kind: StructureKind,
+    label: String,
+    level: u8,
+}
+
+pub fn parse_structure(
+    normalized: &NormalizedText,
+    identity: &StructureIdentity,
+    config: &StructureParserConfig,
+) -> Result<StructureTree, StructureError> {
+    validate_inputs(normalized, identity, config)?;
+    let root_id = stable_id(&[
+        "structure-v1",
+        &identity.text_artifact_id,
+        StructureKind::Document.wire_name(),
+        "root",
+    ]);
+    let mut pending = vec![PendingNode {
+        id: root_id,
+        kind: StructureKind::Document,
+        label: "document".to_owned(),
+        parent_index: None,
+        children: Vec::new(),
+        start: 0,
+        end: normalized.text.len(),
+        level: 0,
+    }];
+    let mut stack = vec![0usize];
+    let mut line_start = 0usize;
+
+    for segment in normalized.text.split_inclusive('\n') {
+        let line_without_newline = segment.strip_suffix('\n').unwrap_or(segment);
+        let trimmed = line_without_newline.trim();
+        let heading = if !trimmed.is_empty() && trimmed.len() <= config.maximum_heading_line_bytes {
+            detect_heading(trimmed, config.recognize_list_items)
+        } else {
+            None
+        };
+        if let Some(heading) = heading {
+            while stack.len() > 1
+                && pending[*stack.last().expect("stack contains root")].level >= heading.level
+            {
+                let closed = stack.pop().expect("non-root stack entry");
+                pending[closed].end = line_start;
+            }
+            let parent_index = *stack.last().expect("stack contains root");
+            if pending.len() >= config.maximum_nodes {
+                return Err(StructureError::NodeLimit {
+                    maximum: config.maximum_nodes,
+                });
+            }
+            let duplicate_ordinal = pending[parent_index]
+                .children
+                .iter()
+                .filter(|child| {
+                    pending[**child].kind == heading.kind && pending[**child].label == heading.label
+                })
+                .count();
+            let node_id = stable_id(&[
+                "structure-v1",
+                &identity.text_artifact_id,
+                &pending[parent_index].id,
+                heading.kind.wire_name(),
+                &heading.label,
+                &duplicate_ordinal.to_string(),
+            ]);
+            let node_index = pending.len();
+            pending.push(PendingNode {
+                id: node_id,
+                kind: heading.kind,
+                label: heading.label,
+                parent_index: Some(parent_index),
+                children: Vec::new(),
+                start: line_start,
+                end: normalized.text.len(),
+                level: heading.level,
+            });
+            pending[parent_index].children.push(node_index);
+            stack.push(node_index);
+        }
+        line_start = line_start
+            .checked_add(segment.len())
+            .ok_or(StructureError::InvalidTree("line offset overflow"))?;
+    }
+    while stack.len() > 1 {
+        let closed = stack.pop().expect("non-root stack entry");
+        pending[closed].end = normalized.text.len();
+    }
+
+    let ids: Vec<String> = pending.iter().map(|node| node.id.clone()).collect();
+    let mut nodes = Vec::with_capacity(pending.len());
+    for node in pending {
+        let normalized_span = node.start..node.end;
+        let raw_span = normalized
+            .raw_cover(normalized_span.clone())
+            .map_err(StructureError::SourceMapping)?;
+        nodes.push(StructureNode {
+            schema_version: STRUCTURE_SCHEMA_VERSION,
+            id: node.id,
+            kind: node.kind,
+            label: node.label,
+            parent_id: node.parent_index.map(|index| ids[index].clone()),
+            ordered_children: node
+                .children
+                .into_iter()
+                .map(|index| ids[index].clone())
+                .collect(),
+            normalized_span,
+            raw_span,
+        });
+    }
+    let tree = StructureTree {
+        schema_version: STRUCTURE_SCHEMA_VERSION,
+        source_blob_id: identity.source_blob_id.clone(),
+        text_artifact_id: identity.text_artifact_id.clone(),
+        provision_version_id: identity.provision_version_id.clone(),
+        normalized_sha256: normalized.normalized_sha256.clone(),
+        nodes,
+    };
+    tree.validate(normalized)?;
+    Ok(tree)
+}
+
+fn validate_inputs(
+    normalized: &NormalizedText,
+    identity: &StructureIdentity,
+    config: &StructureParserConfig,
+) -> Result<(), StructureError> {
+    if normalized.text.is_empty() {
+        return Err(StructureError::EmptyText);
+    }
+    for (name, value) in [
+        ("source_blob_id", identity.source_blob_id.as_str()),
+        ("text_artifact_id", identity.text_artifact_id.as_str()),
+        (
+            "provision_version_id",
+            identity.provision_version_id.as_str(),
+        ),
+    ] {
+        if !valid_ascii_id(value) {
+            return Err(StructureError::InvalidIdentity(name));
+        }
+    }
+    if config.maximum_nodes == 0 {
+        return Err(StructureError::InvalidConfig("maximum_nodes"));
+    }
+    if config.maximum_heading_line_bytes < 8 {
+        return Err(StructureError::InvalidConfig("maximum_heading_line_bytes"));
+    }
+    Ok(())
+}
+
+fn detect_heading(line: &str, recognize_list_items: bool) -> Option<Heading> {
+    let uppercase = line.to_uppercase();
+    if uppercase == "PENJELASAN" || uppercase == "PENJELASAN ATAS" {
+        return Some(Heading {
+            kind: StructureKind::Explanation,
+            label: line.to_owned(),
+            level: 10,
+        });
+    }
+    if strict_prefixed_identifier(&uppercase, "LAMPIRAN", annex_identifier) {
+        return Some(Heading {
+            kind: StructureKind::Annex,
+            label: line.to_owned(),
+            level: 10,
+        });
+    }
+    if strict_prefixed_identifier(&uppercase, "BAB", roman_or_decimal_identifier) {
+        return Some(Heading {
+            kind: StructureKind::Chapter,
+            label: line.to_owned(),
+            level: 10,
+        });
+    }
+    if strict_prefixed_identifier(&uppercase, "BAGIAN", word_identifier) {
+        return Some(Heading {
+            kind: StructureKind::Part,
+            label: line.to_owned(),
+            level: 20,
+        });
+    }
+    if strict_prefixed_identifier(&uppercase, "PARAGRAF", roman_or_decimal_identifier) {
+        return Some(Heading {
+            kind: StructureKind::Paragraph,
+            label: line.to_owned(),
+            level: 30,
+        });
+    }
+    if strict_prefixed_identifier(&uppercase, "PASAL", article_identifier) {
+        return Some(Heading {
+            kind: StructureKind::Article,
+            label: line.to_owned(),
+            level: 40,
+        });
+    }
+    if let Some(marker) = clause_marker(line) {
+        return Some(Heading {
+            kind: StructureKind::Paragraph,
+            label: marker.to_owned(),
+            level: 50,
+        });
+    }
+    if recognize_list_items {
+        if let Some((marker, level)) = list_marker(line) {
+            return Some(Heading {
+                kind: StructureKind::Item,
+                label: marker.to_owned(),
+                level,
+            });
+        }
+    }
+    None
+}
+
+fn strict_prefixed_identifier(uppercase: &str, prefix: &str, validator: fn(&str) -> bool) -> bool {
+    uppercase
+        .strip_prefix(prefix)
+        .and_then(|rest| rest.strip_prefix(' '))
+        .is_some_and(|identifier| {
+            !identifier.contains(char::is_whitespace) && validator(identifier)
+        })
+}
+
+fn annex_identifier(value: &str) -> bool {
+    value.is_empty() || roman_or_decimal_identifier(value) || article_identifier(value)
+}
+
+fn word_identifier(value: &str) -> bool {
+    !value.is_empty() && value.chars().all(|character| character.is_alphabetic())
+}
+
+fn roman_or_decimal_identifier(value: &str) -> bool {
+    !value.is_empty()
+        && (value.chars().all(|character| character.is_ascii_digit())
+            || value
+                .chars()
+                .all(|character| matches!(character, 'I' | 'V' | 'X' | 'L' | 'C' | 'D' | 'M')))
+}
+
+fn article_identifier(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 12
+        && value
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric())
+        && value.chars().any(|character| character.is_ascii_digit())
+}
+
+fn clause_marker(line: &str) -> Option<&str> {
+    let closing = line.find(')')?;
+    let marker = line.get(..=closing)?;
+    let number = marker.strip_prefix('(')?.strip_suffix(')')?;
+    let rest = line.get(closing + 1..)?;
+    if !number.is_empty()
+        && number.len() <= 4
+        && number.chars().all(|character| character.is_ascii_digit())
+        && rest.starts_with(char::is_whitespace)
+        && !rest.trim().is_empty()
+    {
+        Some(marker)
+    } else {
+        None
+    }
+}
+
+fn list_marker(line: &str) -> Option<(&str, u8)> {
+    let dot = line.find('.')?;
+    let marker = line.get(..=dot)?;
+    let identifier = marker.strip_suffix('.')?;
+    let rest = line.get(dot + 1..)?;
+    if !rest.starts_with(char::is_whitespace) || rest.trim().is_empty() {
+        return None;
+    }
+    if identifier.len() == 1
+        && identifier
+            .chars()
+            .all(|character| character.is_ascii_alphabetic())
+    {
+        return Some((marker, 60));
+    }
+    if !identifier.is_empty()
+        && identifier.len() <= 4
+        && identifier
+            .chars()
+            .all(|character| character.is_ascii_digit())
+    {
+        return Some((marker, 70));
+    }
+    None
+}
+
+fn stable_id(parts: &[&str]) -> String {
+    let mut hasher = Sha256::new();
+    for part in parts {
+        hasher.update((part.len() as u64).to_be_bytes());
+        hasher.update(part.as_bytes());
+    }
+    format!("structure:{:x}", hasher.finalize())
+}
+
+fn valid_ascii_id(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 256
+        && value.bytes().all(|byte| {
+            byte.is_ascii_alphanumeric() || matches!(byte, b':' | b'_' | b'-' | b'.' | b'/')
+        })
+}
