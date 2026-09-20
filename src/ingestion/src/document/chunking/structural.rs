@@ -20,6 +20,7 @@
 
 use crate::document::normalization::text::{NormalizeError, NormalizedText};
 use sha2::{Digest, Sha256};
+use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::ops::Range;
@@ -109,6 +110,9 @@ impl StructureTree {
     }
 
     pub fn validate(&self, normalized: &NormalizedText) -> Result<(), StructureError> {
+        normalized
+            .validate_integrity()
+            .map_err(StructureError::SourceMapping)?;
         if self.schema_version != STRUCTURE_SCHEMA_VERSION
             || self.source_blob_id.is_empty()
             || self.text_artifact_id.is_empty()
@@ -124,6 +128,12 @@ impl StructureTree {
             || root.normalized_span != (0..normalized.text.len())
         {
             return Err(StructureError::InvalidTree("root"));
+        }
+        let mut node_indices = HashMap::with_capacity(self.nodes.len());
+        for (index, node) in self.nodes.iter().enumerate() {
+            if node_indices.insert(node.id.as_str(), index).is_some() {
+                return Err(StructureError::InvalidTree("duplicate node ID"));
+            }
         }
         for (index, node) in self.nodes.iter().enumerate() {
             if node.schema_version != STRUCTURE_SCHEMA_VERSION
@@ -141,10 +151,9 @@ impl StructureTree {
                     .parent_id
                     .as_deref()
                     .ok_or(StructureError::InvalidTree("missing parent"))?;
-                let parent_index = self
-                    .nodes
-                    .iter()
-                    .position(|candidate| candidate.id == parent_id)
+                let parent_index = node_indices
+                    .get(parent_id)
+                    .copied()
                     .ok_or(StructureError::InvalidTree("unknown parent"))?;
                 if parent_index >= index {
                     return Err(StructureError::InvalidTree("parent order"));
@@ -160,17 +169,19 @@ impl StructureTree {
                     return Err(StructureError::InvalidTree("parent containment"));
                 }
             }
-            let mut previous_start = None;
+            let mut previous_end = None;
             for child_id in &node.ordered_children {
-                let child = self
-                    .node(child_id)
+                let child_index = node_indices
+                    .get(child_id.as_str())
+                    .copied()
                     .ok_or(StructureError::InvalidTree("unknown child"))?;
+                let child = &self.nodes[child_index];
                 if child.parent_id.as_deref() != Some(node.id.as_str())
-                    || previous_start.is_some_and(|start| start >= child.normalized_span.start)
+                    || previous_end.is_some_and(|end| end > child.normalized_span.start)
                 {
                     return Err(StructureError::InvalidTree("child order"));
                 }
-                previous_start = Some(child.normalized_span.start);
+                previous_end = Some(child.normalized_span.end);
             }
             let expected_raw = normalized
                 .raw_cover(node.normalized_span.clone())
@@ -252,14 +263,22 @@ pub fn parse_structure(
         level: 0,
     }];
     let mut stack = vec![0usize];
+    let mut duplicate_ordinals: HashMap<(usize, StructureKind, String), usize> = HashMap::new();
     let mut line_start = 0usize;
 
-    for segment in normalized.text.split_inclusive('\n') {
-        let line_without_newline = segment.strip_suffix('\n').unwrap_or(segment);
-        let trimmed = line_without_newline.trim();
-        let heading = if !trimmed.is_empty() && trimmed.len() <= config.maximum_heading_line_bytes {
-            detect_heading(trimmed, config.recognize_list_items)
-                .filter(|candidate| marker_parent_is_valid(candidate, &pending, &stack))
+    for segment in normalized.text.split_inclusive(['\n', '\u{000C}']) {
+        let line_without_separator = segment
+            .strip_suffix('\n')
+            .or_else(|| segment.strip_suffix('\u{000C}'))
+            .unwrap_or(segment);
+        let trimmed = line_without_separator.trim();
+        let heading = if !trimmed.is_empty() {
+            detect_heading(
+                trimmed,
+                config.recognize_list_items,
+                config.maximum_heading_line_bytes,
+            )
+            .filter(|candidate| marker_parent_is_valid(candidate, &pending, &stack))
         } else {
             None
         };
@@ -276,13 +295,9 @@ pub fn parse_structure(
                     maximum: config.maximum_nodes,
                 });
             }
-            let duplicate_ordinal = pending[parent_index]
-                .children
-                .iter()
-                .filter(|child| {
-                    pending[**child].kind == heading.kind && pending[**child].label == heading.label
-                })
-                .count();
+            let ordinal_key = (parent_index, heading.kind, heading.label.clone());
+            let duplicate_ordinal = *duplicate_ordinals.get(&ordinal_key).unwrap_or(&0);
+            duplicate_ordinals.insert(ordinal_key, duplicate_ordinal + 1);
             let node_id = stable_id(&[
                 "structure-v1",
                 &identity.text_artifact_id,
@@ -377,13 +392,36 @@ fn validate_inputs(
     Ok(())
 }
 
-fn detect_heading(line: &str, recognize_list_items: bool) -> Option<Heading> {
+fn detect_heading(
+    line: &str,
+    recognize_list_items: bool,
+    maximum_heading_line_bytes: usize,
+) -> Option<Heading> {
+    if let Some(marker) = clause_marker(line) {
+        return Some(Heading {
+            kind: StructureKind::Paragraph,
+            label: marker.to_owned(),
+            level: 50,
+        });
+    }
+    if recognize_list_items {
+        if let Some((marker, level)) = list_marker(line) {
+            return Some(Heading {
+                kind: StructureKind::Item,
+                label: marker.to_owned(),
+                level,
+            });
+        }
+    }
+    if line.len() > maximum_heading_line_bytes {
+        return None;
+    }
     let uppercase = line.to_uppercase();
     if uppercase == "PENJELASAN" || uppercase == "PENJELASAN ATAS" {
         return Some(Heading {
             kind: StructureKind::Explanation,
             label: line.to_owned(),
-            level: 10,
+            level: 5,
         });
     }
     if uppercase == "LAMPIRAN"
@@ -392,7 +430,7 @@ fn detect_heading(line: &str, recognize_list_items: bool) -> Option<Heading> {
         return Some(Heading {
             kind: StructureKind::Annex,
             label: line.to_owned(),
-            level: 10,
+            level: 5,
         });
     }
     if strict_prefixed_identifier(&uppercase, "BAB", roman_or_decimal_identifier) {
@@ -422,22 +460,6 @@ fn detect_heading(line: &str, recognize_list_items: bool) -> Option<Heading> {
             label: line.to_owned(),
             level: 40,
         });
-    }
-    if let Some(marker) = clause_marker(line) {
-        return Some(Heading {
-            kind: StructureKind::Paragraph,
-            label: marker.to_owned(),
-            level: 50,
-        });
-    }
-    if recognize_list_items {
-        if let Some((marker, level)) = list_marker(line) {
-            return Some(Heading {
-                kind: StructureKind::Item,
-                label: marker.to_owned(),
-                level,
-            });
-        }
     }
     None
 }
@@ -715,5 +737,70 @@ mod tests {
             tree.validate(&text),
             Err(StructureError::InvalidTree("parent containment"))
         );
+    }
+
+    #[test]
+    fn recognizes_page_boundary_headings_and_long_clause_bodies() {
+        let raw = format!(
+            "Pasal 1\nIsi pertama.\u{000C}Pasal 2\n(1) {}\n(2) pendek.\n",
+            "a".repeat(700)
+        );
+        let text = normalized(&raw);
+        let tree = parse_structure(&text, &identity(), &StructureParserConfig::default())
+            .expect("page-separated structure parses");
+        let labels: Vec<_> = tree.nodes.iter().map(|node| node.label.as_str()).collect();
+
+        assert!(labels.contains(&"Pasal 1"));
+        assert!(labels.contains(&"Pasal 2"));
+        assert!(labels.contains(&"(1)"));
+        assert!(labels.contains(&"(2)"));
+    }
+
+    #[test]
+    fn keeps_chapters_and_articles_under_annex() {
+        let text = normalized("LAMPIRAN\nBAB I\nPasal 1\nIsi lampiran.\n");
+        let tree = parse_structure(&text, &identity(), &StructureParserConfig::default())
+            .expect("annex hierarchy parses");
+        let annex = tree
+            .nodes
+            .iter()
+            .find(|node| node.label == "LAMPIRAN")
+            .unwrap();
+        let chapter = tree
+            .nodes
+            .iter()
+            .find(|node| node.label == "BAB I")
+            .unwrap();
+        let article = tree
+            .nodes
+            .iter()
+            .find(|node| node.label == "Pasal 1")
+            .unwrap();
+
+        assert_eq!(chapter.parent_id.as_deref(), Some(annex.id.as_str()));
+        assert_eq!(article.parent_id.as_deref(), Some(chapter.id.as_str()));
+    }
+
+    #[test]
+    fn rejects_overlapping_siblings_and_untrusted_normalized_mapping() {
+        let text = normalized("Pasal 1\nIsi pertama.\nPasal 2\nIsi kedua.\n");
+        let mut tree = parse_structure(&text, &identity(), &StructureParserConfig::default())
+            .expect("baseline tree parses");
+        let first_end = tree.nodes[1].normalized_span.end;
+        tree.nodes[2].normalized_span.start = first_end - 1;
+        assert_eq!(
+            tree.validate(&text),
+            Err(StructureError::InvalidTree("child order"))
+        );
+
+        let mut shifted = text.clone();
+        for span in &mut shifted.mapping {
+            span.raw_start_byte += 100_000;
+            span.raw_end_byte += 100_000;
+        }
+        assert!(matches!(
+            parse_structure(&shifted, &identity(), &StructureParserConfig::default()),
+            Err(StructureError::SourceMapping(_))
+        ));
     }
 }
