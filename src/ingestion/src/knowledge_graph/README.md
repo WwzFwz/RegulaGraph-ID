@@ -30,7 +30,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. Pipeline parsing/graph/retrieval, mutasi backend, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan target kualitas atau latency.
+Fondasi EXTRACT sudah memiliki validator dan artefak immutable yang terikat `DocumentBatch`, sedangkan executor/model produksi, resolution, assembly, summarization, dan publication graph belum aktif. Build serta fixture invariant tidak membuktikan kualitas semantik atau latency produksi.
 
 ## Rekomendasi implementasi anak
 
