@@ -14,7 +14,7 @@ Catat inventory/config/engine version, pages, elapsed, throughput, error, serta 
 engine pada sampel dan budget yang sama. Target PARSING.* tetap configs/benchmark-targets.yaml dengan status
 REQUIRED_UNMEASURED sampai native parser, source mapping, gold structure/CER, RSS, dan workload penuh tersedia.
 
-Status: pembanding pypdf dan MuPDF M01 aktif untuk eksperimen offline; bukan parser produksi.
+Status: pembanding pypdf, MuPDF, dan PDFium M01 aktif untuk eksperimen offline; bukan parser produksi.
 """
 
 from __future__ import annotations
@@ -23,6 +23,7 @@ import argparse
 import concurrent.futures
 import dataclasses
 import hashlib
+import importlib.metadata
 import json
 import math
 import os
@@ -254,21 +255,60 @@ def analyze_pymupdf(path: Path) -> dict[str, Any]:
     return _summarize_pages(page_results, started)
 
 
+def analyze_pdfium(path: Path) -> dict[str, Any]:
+    import pypdfium2 as pdfium
+
+    started = time.perf_counter_ns()
+    page_results: list[dict[str, Any]] = []
+    document = pdfium.PdfDocument(path)
+    try:
+        for index in range(len(document)):
+            page_started = time.perf_counter_ns()
+            try:
+                page = document.get_page(index)
+                try:
+                    text_page = page.get_textpage()
+                    try:
+                        text = text_page.get_text_bounded() or ""
+                    finally:
+                        text_page.close()
+                    characters = len("".join(text.split()))
+                    images = sum(1 for _ in page.get_objects(filter=[pdfium.raw.FPDF_PAGEOBJ_IMAGE]))
+                finally:
+                    page.close()
+                page_results.append({"page": index + 1, "status": "ok", "class": _classify_page(characters, images),
+                                     "text_chars": characters, "image_xobjects": images,
+                                     "elapsed_ms": (time.perf_counter_ns() - page_started) / 1_000_000})
+            except Exception as exc:
+                page_results.append({"page": index + 1, "status": "error", "error_type": type(exc).__name__,
+                                     "error": str(exc)[:500],
+                                     "elapsed_ms": (time.perf_counter_ns() - page_started) / 1_000_000})
+    finally:
+        document.close()
+    return _summarize_pages(page_results, started)
+
+
 def analyze_pdf(path: Path, engine: str = "pypdf") -> dict[str, Any]:
     if engine == "pypdf":
         return analyze_pypdf(path)
     if engine == "pymupdf":
         return analyze_pymupdf(path)
+    if engine == "pdfium":
+        return analyze_pdfium(path)
     raise ValueError(f"unsupported PDF engine: {engine}")
 
 
-def engine_version(engine: str) -> str:
+def engine_versions(engine: str) -> tuple[str, str]:
     if engine == "pypdf":
-        return pypdf.__version__
+        return pypdf.__version__, "not_applicable"
     if engine == "pymupdf":
         import pymupdf
 
-        return pymupdf.__version__
+        return pymupdf.__version__, pymupdf.mupdf_version
+    if engine == "pdfium":
+        import pypdfium2 as pdfium
+
+        return importlib.metadata.version("pypdfium2"), str(pdfium.PDFIUM_INFO)
     raise ValueError(f"unsupported PDF engine: {engine}")
 
 
@@ -334,8 +374,10 @@ def _profile_claimed(inventory_path: Path, output_dir: Path, limit: int, seed: s
                      timeout_seconds: float, engine: str) -> dict[str, Any]:
     inventory, candidates = load_candidates(inventory_path)
     selected = select_candidates(candidates, limit, seed)
+    binding_version, core_version = engine_versions(engine)
     config = {"schema_version": SCHEMA_VERSION, "inventory_id": inventory["inventory_id"], "engine": engine,
-              "engine_version": engine_version(engine), "sample_limit": limit, "seed": seed, "workers": workers,
+              "engine_binding_version": binding_version, "engine_core_version": core_version,
+              "sample_limit": limit, "seed": seed, "workers": workers,
               "document_timeout_seconds": timeout_seconds, "text_page_min_chars": TEXT_PAGE_MIN_CHARS,
               "scan_page_max_chars": SCAN_PAGE_MAX_CHARS}
     config_hash = _sha256(_canonical_json(config))
@@ -397,7 +439,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--seed", default="m01-pdf-profile-v1")
     parser.add_argument("--workers", type=int, default=min(8, os.cpu_count() or 1))
     parser.add_argument("--timeout", type=float, default=120.0, help="hard timeout seconds per document")
-    parser.add_argument("--engine", choices=("pypdf", "pymupdf"), default="pypdf")
+    parser.add_argument("--engine", choices=("pypdf", "pymupdf", "pdfium"), default="pypdf")
     parser.add_argument("--worker", type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if args.worker is not None:

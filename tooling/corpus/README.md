@@ -22,9 +22,9 @@ menerbitkan run secara bersamaan; lock yang tersisa setelah proses mati menandak
 
 ## Isi saat ini
 
-[profile_pdfs.py](profile_pdfs.py) membandingkan pypdf dan binding MuPDF melalui proses terisolasi per dokumen
-dengan timeout keras, bounded concurrency, klasifikasi heuristic text/scan-candidate/mixed/sparse, serta
-JSONL/result manifest yang memakai sampel identik.
+[profile_pdfs.py](profile_pdfs.py) membandingkan pypdf, binding MuPDF, dan binding PDFium melalui proses
+terisolasi per dokumen dengan timeout keras, bounded concurrency, klasifikasi heuristic
+text/scan-candidate/mixed/sparse, serta JSONL/result manifest yang memakai sampel identik.
 [__init__.py](__init__.py) menandai package offline tanpa side effect.
 
 ## Benchmark dan perhatian kualitas
@@ -36,5 +36,5 @@ cold/warm terpisah dan jangan memakai heuristic strata sebagai label gold. Targe
 
 ## Status
 
-Pembanding pypdf/MuPDF M01 aktif. Perbandingan OCR, peak RSS, layout/source mapping, CER/WER, table/column
-gold, binding Rust, serta pemilihan engine produksi belum selesai.
+Pembanding pypdf/MuPDF/PDFium M01 aktif. Perbandingan OCR, peak RSS, layout/source mapping, CER/WER,
+table/column gold, binding Rust, serta pemilihan engine produksi belum selesai.
