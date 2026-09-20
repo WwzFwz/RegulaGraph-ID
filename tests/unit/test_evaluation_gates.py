@@ -33,8 +33,15 @@ class EvaluationGatesTest(unittest.TestCase):
         cls.manifest = json_format.ParseDict({
             "meta": {"schema_version": 1, "corpus_id": "corpus", "record_id": "run"},
             "software_hash": HASH, "config_hash": {"sha256": cls.config.sha256},
-            "models": [{"model_id": "fixture", "version": "v1", "weights_hash": HASH, "tokenizer_hash": HASH,
-                        "task": "MODEL_TASK_GENERATE", "max_tokens": 256, "precision": "fp32", "backend": "fixture"}],
+            "models": [
+                {"model_id": "embed", "version": "v1", "weights_hash": HASH, "tokenizer_hash": HASH,
+                 "task": "MODEL_TASK_EMBED", "dimensions": 16, "max_tokens": 128, "precision": "fp32", "backend": "fixture"},
+                {"model_id": "rerank", "version": "v1", "weights_hash": HASH, "tokenizer_hash": HASH,
+                 "task": "MODEL_TASK_RERANK", "max_tokens": 512, "precision": "fp32", "backend": "fixture"},
+                {"model_id": "generate", "version": "v1", "weights_hash": HASH, "tokenizer_hash": HASH,
+                 "prompt_hash": HASH, "task": "MODEL_TASK_GENERATE", "max_tokens": 256,
+                 "precision": "fp32", "backend": "fixture"},
+            ],
             "dataset_hash": HASH, "corpus_snapshot": snapshot, "target_suite_hash": {"sha256": cls.suite.sha256},
             "hardware": {"cpu": "fixture", "ram_bytes": str(64 << 30), "gpus": ["fixture"], "vram_bytes": [str(24 << 30)],
                          "cpu_limit": 16, "memory_limit_bytes": str(64 << 30), "operating_system": "linux_x86_64"},
@@ -51,7 +58,8 @@ class EvaluationGatesTest(unittest.TestCase):
 
     def evaluate(self, measurements, dataset=True):
         return evaluate_gates(self.suite, self.manifest, "hybrid_graphrag",
-                              self.dataset if dataset else None, self.protocol, self.workloads, measurements, self.artifact)
+                              self.dataset if dataset else None, self.protocol, self.workloads, measurements,
+                              self.artifact, [], {})
 
     def test_all_59_gates_report_and_missing_is_not_measured(self):
         summary = self.evaluate({})
@@ -61,14 +69,14 @@ class EvaluationGatesTest(unittest.TestCase):
 
     def test_each_run_must_pass_boundary(self):
         measurement = {"QUERY.EVIDENCE_P95": {"workload": "retrieval", "statistic": "p95", "unit": "ms", "runs": [
-            {"run_id": "a", "sample_count": 10000, "evidence": {"samples": [500] * 100}},
-            {"run_id": "b", "sample_count": 10000, "evidence": {"samples": [499] * 100}},
-            {"run_id": "c", "sample_count": 10000, "evidence": {"samples": [500] * 100}},
+            {"run_id": "a", "sample_count": 10000, "evidence": {"samples": [500] * 10000}},
+            {"run_id": "b", "sample_count": 10000, "evidence": {"samples": [499] * 10000}},
+            {"run_id": "c", "sample_count": 10000, "evidence": {"samples": [500] * 10000}},
         ]}}
         result = self.evaluate(measurement).results[0]
         self.assertEqual(result.status, pb.GATE_STATUS_PASS)
         self.assertEqual(result.estimate, 500)
-        measurement["QUERY.EVIDENCE_P95"]["runs"][1]["evidence"]["samples"][-10:] = [501] * 10
+        measurement["QUERY.EVIDENCE_P95"]["runs"][1]["evidence"]["samples"][-501:] = [501] * 501
         result = self.evaluate(measurement).results[0]
         self.assertEqual(result.status, pb.GATE_STATUS_FAIL)
         self.assertEqual(result.estimate, 501)
@@ -85,7 +93,7 @@ class EvaluationGatesTest(unittest.TestCase):
     def test_unfinished_latency_fails_without_nonfinite_proto_value(self):
         measurement = {"QUERY.EVIDENCE_P95": {"workload": "retrieval", "statistic": "p95", "unit": "ms", "runs": [
             {"run_id": value, "sample_count": 10000,
-             "evidence": {"samples": [1] * 94 + [float("inf")] * 6}} for value in ("a", "b", "c")
+             "evidence": {"samples": [1] * 9400 + [float("inf")] * 600}} for value in ("a", "b", "c")
         ]}}
         result = self.evaluate(measurement).results[0]
         self.assertEqual(result.status, pb.GATE_STATUS_FAIL)
@@ -104,12 +112,91 @@ class EvaluationGatesTest(unittest.TestCase):
         measurement = {"QUALITY.ANSWER_CORRECT": {
             "workload": "quality", "statistic": "ratio", "unit": "ratio",
             "runs": [{"run_id": value, "sample_count": 1000,
+                      "population_ids": [f"question-{index}" for index in range(1000)],
                       "evidence": {"numerator": 950, "denominator": 1000}}
                      for value in ("a", "b", "c")],
         }}
         result = next(r for r in self.evaluate(measurement).results if r.gate_id == "QUALITY.ANSWER_CORRECT")
         self.assertEqual(result.status, pb.GATE_STATUS_BLOCKED)
         self.assertIn("uncertainty", result.reason)
+
+    def test_quality_scores_require_frozen_population_ids(self):
+        scores = {f"nonexistent-gold-{index}": 1.0 for index in range(900)}
+        measurement = {"QUALITY.RECALL_AT_20": {
+            "workload": "quality", "statistic": "macro_mean", "unit": "ratio",
+            "runs": [{"run_id": value, "sample_count": 900, "uncertainty": 0.01,
+                      "evidence": {"group_scores": scores}}
+                     for value in ("a", "b", "c")],
+        }}
+        result = next(r for r in self.evaluate(measurement).results if r.gate_id == "QUALITY.RECALL_AT_20")
+        self.assertEqual(result.status, pb.GATE_STATUS_BLOCKED)
+        self.assertIn("population_ids", result.reason)
+
+    def test_declared_sample_count_must_equal_real_evidence(self):
+        measurement = {"QUERY.EVIDENCE_P95": {
+            "workload": "retrieval", "statistic": "p95", "unit": "ms",
+            "runs": [{"run_id": value, "sample_count": 10000, "evidence": {"samples": [1]}}
+                     for value in ("a", "b", "c")],
+        }}
+        result = self.evaluate(measurement).results[0]
+        self.assertEqual(result.status, pb.GATE_STATUS_BLOCKED)
+        self.assertIn("does not match evidence denominator", result.reason)
+
+    def test_negative_latency_and_count_are_blocked(self):
+        latency = {"QUERY.EVIDENCE_P95": {
+            "workload": "retrieval", "statistic": "p95", "unit": "ms",
+            "runs": [{"run_id": value, "sample_count": 10000, "evidence": {"samples": [-1] * 10000}}
+                     for value in ("a", "b", "c")],
+        }}
+        self.assertEqual(self.evaluate(latency).results[0].status, pb.GATE_STATUS_BLOCKED)
+        count = {"INVARIANT.ORPHAN_EDGES": {
+            "workload": "invariants", "statistic": "count", "unit": "count",
+            "runs": [{"run_id": value, "sample_count": 1_000_000,
+                      "evidence": {"value": -1, "denominator": 1_000_000}}
+                     for value in ("a", "b", "c")],
+        }}
+        result = next(r for r in self.evaluate(count).results if r.gate_id == "INVARIANT.ORPHAN_EDGES")
+        self.assertEqual(result.status, pb.GATE_STATUS_BLOCKED)
+
+    def test_comparison_ratio_requires_full_raw_populations(self):
+        measurement = {"ISOLATION.QUERY_P95_RATIO": {
+            "workload": "mixed_load", "statistic": "ratio", "unit": "ratio",
+            "runs": [{"run_id": value, "sample_count": 10000,
+                      "evidence": {"with_ingestion_samples_ms": [10], "baseline_samples_ms": [10],
+                                   "with_ingestion_succeeded": 1, "with_ingestion_scheduled": 1}}
+                     for value in ("a", "b", "c")],
+        }}
+        result = next(r for r in self.evaluate(measurement).results if r.gate_id == "ISOLATION.QUERY_P95_RATIO")
+        self.assertEqual(result.status, pb.GATE_STATUS_BLOCKED)
+        self.assertIn("does not match evidence denominator", result.reason)
+
+    def test_verified_corpus_population_replaces_suite_minimum(self):
+        measurement = {"INVARIANT.ORPHAN_EDGES": {
+            "workload": "invariants", "statistic": "count", "unit": "count",
+            "runs": [{"run_id": value, "sample_count": 1_000_000,
+                      "evidence": {"value": 0, "denominator": 1_000_000}}
+                     for value in ("a", "b", "c")],
+        }}
+        summary = evaluate_gates(
+            self.suite, self.manifest, "hybrid_graphrag", self.dataset, self.protocol,
+            self.workloads, measurement, self.artifact, [], {"INVARIANT.ORPHAN_EDGES": 10_000_000})
+        result = next(r for r in summary.results if r.gate_id == "INVARIANT.ORPHAN_EDGES")
+        self.assertEqual(result.status, pb.GATE_STATUS_BLOCKED)
+        self.assertIn("verified population", result.reason)
+
+    def test_mixed_ratio_cannot_hide_absolute_query_failure(self):
+        slow = [100_000] * 10000
+        measurement = {"ISOLATION.QUERY_P95_RATIO": {
+            "workload": "mixed_load", "statistic": "ratio", "unit": "ratio",
+            "runs": [{"run_id": value, "sample_count": 10000,
+                      "evidence": {"with_ingestion_samples_ms": slow, "baseline_samples_ms": slow,
+                                   "with_ingestion_succeeded": 10000, "with_ingestion_scheduled": 10000}}
+                     for value in ("a", "b", "c")],
+        }}
+        result = next(r for r in self.evaluate(measurement).results if r.gate_id == "ISOLATION.QUERY_P95_RATIO")
+        self.assertEqual(result.status, pb.GATE_STATUS_FAIL)
+        self.assertEqual(result.estimate, 1)
+        self.assertIn("absolute QUERY.EVIDENCE_P95", result.reason)
 
 
 if __name__ == "__main__":

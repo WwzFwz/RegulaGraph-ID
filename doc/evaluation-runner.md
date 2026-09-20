@@ -29,10 +29,34 @@ Root JSON schema version 1 memakai field berikut dan menolak field asing:
 | `workloads` | Satu deklarasi per workload: `status`, `reason`, dan `facts` yang cocok dengan target YAML. |
 | `measurements` | Map gate ke `workload`, `statistic`, `unit`, serta run berisi `run_id`, `sample_count`, `evidence`, dan optional `uncertainty`. |
 | `observation_runs` | Run berisi `run_id`, `workload`, dan seluruh `Observation` ProtoJSON dari scheduled arrival. |
-| `supporting_artifacts` | `ArtifactRef` untuk dataset, runtime config, dan exact workload ref; file, size, dan SHA-256 harus cocok. |
+| `supporting_artifacts` | `ArtifactRef` untuk dataset NDJSON, corpus manifest JSON, runtime config, dan exact workload ref; file, media type, size, dan SHA-256 harus cocok. |
 
-Evidence manual dan telemetry-derived tidak boleh mengisi gate yang sama. `sample_count` setiap run harus
-memenuhi minimum workload. Quality run wajib membawa grouped-bootstrap uncertainty. Tiga run independen
+Dataset artifact memuat satu ProtoJSON `GoldQuestion` C01 per baris. Runner menghitung jumlah test,
+answerable, unanswerable, dan tiap slice dari record tersebut, memvalidasi claims/evidence minimum, serta
+menolak group/split mismatch. Corpus manifest yang diikat `SnapshotRef.manifest_hash` memuat identity
+snapshot dan count dokumen/chunk/canonical entity/edge; count aktual dibandingkan dengan profil referensi.
+
+Workload artifact adalah JSON schema 1 yang mengikat `suite_id`, `profile_id`, `protocol`, `workloads`,
+environment, dan daftar run. Environment merekam storage/database placement, generator placement/RTT/model,
+capacity/timing boundary, serta versi Go, Rust, C++, PostgreSQL, Neo4j, dan Qdrant. Setiap run merekam
+`run_id`, workload, warm-up, measured seconds, dan map `sample_counts` per gate yang harus sama dengan
+evidence. Count dipisah per gate karena subset answerable, unanswerable, slice, claim, dan relation dapat
+memiliki denominator berbeda dalam run workload yang sama.
+
+Jika `parsing_quality` atau `graph_quality` berstatus measured, workload artifact juga wajib menunjuk
+`eligibility_artifacts` yang ada dalam supporting artifacts. Inventory parsing memuat ID halaman annotated,
+scan standar/sulit, serta token kritis; inventory graph memuat ID relasi, mention, pasangan same-entity,
+dan confusing-different. Setiap semantic run membawa `population_ids` yang harus sama dengan gold aktual.
+Tanpa inventory, workload tersebut harus BLOCKED dan tidak dapat menghasilkan PASS.
+
+Gate latency/success/stage hanya boleh berasal dari Observation, bukan measurement manual. Runner mengikat
+Observation ke corpus/run, memastikan arrival mengikuti open-loop constant rate dan durasi minimum,
+mengecek deadline/token distribution, serta menolak stage yang lebih panjang dari completion. Evidence
+manual dan telemetry-derived tidak boleh mengisi gate yang sama. `sample_count` harus sama dengan
+denominator/jumlah sampel aktual. Rasio incremental memakai durasi update/full rebuild beserta jumlah
+dokumen berubah; rasio isolasi query memakai dua distribusi latency penuh; rasio isolasi ingestion memakai
+count dan durasi mixed/ingestion-only. Quality
+run wajib membawa grouped-bootstrap uncertainty. Tiga run independen
 dibutuhkan oleh suite saat ini; nilai terburuk dibandingkan ke threshold. Unfinished latency dari telemetry
 menjadi infinity dan menghasilkan FAIL tanpa mencoba menyimpan angka non-finite dalam protobuf.
 
@@ -61,7 +85,7 @@ Pengujian deterministik E01 dijalankan dengan:
 
 ```powershell
 $env:PYTHONPATH = ".cache/contracts/python;."
-python -m unittest tests.unit.test_evaluation_config tests.unit.test_evaluation_metrics tests.unit.test_evaluation_gates tests.unit.test_evaluation_telemetry tests.integration.test_evaluation_runner
+python -m unittest tests.unit.test_evaluation_config tests.unit.test_evaluation_dataset_loader tests.unit.test_evaluation_metrics tests.unit.test_evaluation_gates tests.unit.test_evaluation_telemetry tests.integration.test_evaluation_runner
 ```
 
 Saat adapter produksi dibuat, verifikasi jumlah arrival terhadap `sample_count`, duration monotonic dan queue,

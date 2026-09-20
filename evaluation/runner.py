@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 from pathlib import Path
 import sys
 from typing import Any, Mapping, Sequence
@@ -41,9 +42,13 @@ import evaluation_pb2 as pb
 from regulagraph.v1 import common_pb2 as common
 
 from evaluation.config import ConfigError, load_evaluation_config, load_profiles, load_target_suite
+from evaluation.datasets.loader import (DatasetLoadError, corpus_eligibility_errors,
+                                        dataset_eligibility_errors, load_corpus_facts,
+                                        load_gold_questions, load_id_inventory)
 from evaluation.datasets.schema import validate
 from evaluation.gates import GateInputError, evaluate_gates
-from evaluation.telemetry import TelemetryError, derive_observation_measurements, write_delimited
+from evaluation.telemetry import (TELEMETRY_GATES, TelemetryError, derive_observation_measurements,
+                                  validate_observation_protocol, write_delimited)
 
 
 class RunnerInputError(ValueError):
@@ -82,7 +87,7 @@ def _parse_message(value: Any, message: Any, path: str) -> Any:
     try:
         parsed = json_format.ParseDict(value, message, ignore_unknown_fields=False)
         return validate(parsed)
-    except (json_format.ParseError, DecodeError, ValueError, UnicodeError) as exc:
+    except (json_format.ParseError, DecodeError, TypeError, ValueError, UnicodeError) as exc:
         raise RunnerInputError(f"invalid {path}: {exc}") from exc
 
 
@@ -119,12 +124,274 @@ def _validate_supporting_artifacts(repo_root: Path, values: Any, manifest: pb.Ru
             raise RunnerInputError("supporting artifact IDs must be unique")
         artifact_ids.add(artifact.artifact_id)
         hashes.add(artifact.content_hash.sha256)
-    required = {dataset.dataset_hash.sha256, manifest.config_hash.sha256, manifest.workload.content_hash.sha256}
+    required = {dataset.dataset_hash.sha256, manifest.config_hash.sha256, manifest.workload.content_hash.sha256,
+                manifest.corpus_snapshot.manifest_hash.sha256}
     if not required <= hashes:
-        raise RunnerInputError("dataset, runtime config, and workload artifacts must all be supplied and verified")
+        raise RunnerInputError("dataset, corpus manifest, runtime config, and workload artifacts must all be supplied and verified")
     if not any(artifact == manifest.workload for artifact in artifacts):
         raise RunnerInputError("RunManifest workload ArtifactRef must be supplied exactly")
     return artifacts
+
+
+def _artifact_with_hash(artifacts: Sequence[common.ArtifactRef], sha256: str,
+                        media_type: str) -> common.ArtifactRef:
+    matches = [artifact for artifact in artifacts if artifact.content_hash.sha256 == sha256]
+    if len(matches) != 1:
+        raise RunnerInputError(f"expected exactly one supporting artifact for hash {sha256}")
+    if matches[0].media_type != media_type:
+        raise RunnerInputError(f"artifact {matches[0].artifact_id} must use media type {media_type}")
+    return matches[0]
+
+
+def _artifact_with_id(artifacts: Sequence[common.ArtifactRef], artifact_id: str) -> common.ArtifactRef:
+    matches = [artifact for artifact in artifacts if artifact.artifact_id == artifact_id]
+    if len(matches) != 1 or matches[0].media_type != "application/json":
+        raise RunnerInputError(f"eligibility artifact {artifact_id!r} is missing or has the wrong media type")
+    return matches[0]
+
+
+def _plain(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {key: _plain(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_plain(item) for item in value]
+    return value
+
+
+def _load_workload_evidence(path: Path, suite: Any, profile_id: str, protocol: Any,
+                            workloads: Any, manifest: pb.RunManifest) -> tuple[
+                                Mapping[tuple[str, str], Mapping[str, Any]], list[str], Mapping[str, str]]:
+    """Validate the immutable workload/environment document referenced by RunManifest."""
+    fields = {"schema_version", "suite_id", "profile_id", "protocol", "workloads", "environment",
+              "eligibility_artifacts", "runs"}
+    try:
+        raw = path.read_bytes()
+        if len(raw) > 16 << 20:
+            raise RunnerInputError("workload evidence exceeds 16 MiB")
+        value = json.loads(raw)
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise RunnerInputError(f"cannot load workload evidence: {exc}") from exc
+    value = _strict_object(value, fields, "workload artifact")
+    if (isinstance(value["schema_version"], bool) or value["schema_version"] != 1
+            or value["suite_id"] != suite.suite_id or value["profile_id"] != profile_id):
+        raise RunnerInputError("workload artifact schema/suite/profile mismatch")
+    if value["protocol"] != _plain(protocol) or value["workloads"] != _plain(workloads):
+        raise RunnerInputError("workload artifact does not pin the bundle protocol/workloads")
+    environment_fields = {
+        "storage", "database_placement", "generator_placement", "generator_network_rtt_p95_ms",
+        "generator_model_identity", "generator_capacity_sustained",
+        "generation_timing_includes_provider_and_network", "runtime_versions",
+    }
+    environment = _strict_object(value["environment"], environment_fields, "workload artifact.environment")
+    for field in ("storage", "database_placement", "generator_placement", "generator_model_identity"):
+        if not isinstance(environment[field], str) or not environment[field]:
+            raise RunnerInputError(f"workload environment {field} must be a non-empty string")
+    for field in ("generator_capacity_sustained", "generation_timing_includes_provider_and_network"):
+        if not isinstance(environment[field], bool):
+            raise RunnerInputError(f"workload environment {field} must be boolean")
+    versions = environment["runtime_versions"]
+    required_versions = {"go", "rust", "cpp", "postgresql", "neo4j", "qdrant"}
+    if (not isinstance(versions, dict) or not required_versions <= set(versions)
+            or any(not isinstance(key, str) or not isinstance(item, str) or not item for key, item in versions.items())):
+        raise RunnerInputError("runtime_versions must pin Go, Rust, C++, PostgreSQL, Neo4j, and Qdrant")
+    errors: list[str] = []
+    application = suite.reference["application_node"]
+    generator = suite.reference["generator"]
+    if environment["storage"] != application["storage"]:
+        errors.append("storage differs from reference")
+    if environment["database_placement"] != application["database_placement"]:
+        errors.append("database placement differs from reference")
+    if environment["generator_placement"] != generator["placement"]:
+        errors.append("generator placement differs from reference")
+    rtt = environment["generator_network_rtt_p95_ms"]
+    if isinstance(rtt, bool) or not isinstance(rtt, (int, float)) or not math.isfinite(rtt) or rtt < 0:
+        raise RunnerInputError("generator_network_rtt_p95_ms must be finite and non-negative")
+    if rtt > generator["network_rtt_p95_ms_max"]:
+        errors.append("generator network RTT exceeds reference")
+    if environment["generator_capacity_sustained"] is not True:
+        errors.append("generator capacity was not sustained")
+    if environment["generation_timing_includes_provider_and_network"] is not generator["timing_includes_provider_and_network"]:
+        errors.append("generation timing boundary differs from reference")
+    generator_ids = {f"{model.model_id}@{model.version}" for model in manifest.models
+                     if model.task == common.MODEL_TASK_GENERATE}
+    if environment["generator_model_identity"] not in generator_ids:
+        errors.append("generator environment identity differs from RunManifest")
+    if not isinstance(value["runs"], list):
+        raise RunnerInputError("workload artifact.runs must be a list")
+    eligibility_artifacts = value["eligibility_artifacts"]
+    if (not isinstance(eligibility_artifacts, dict)
+            or any(key not in {"parsing_quality", "graph_quality"} or not isinstance(item, str) or not item
+                   for key, item in eligibility_artifacts.items())):
+        raise RunnerInputError("eligibility_artifacts must map supported workloads to artifact IDs")
+    for workload_name in ("parsing_quality", "graph_quality"):
+        declaration = workloads.get(workload_name) if isinstance(workloads, dict) else None
+        if isinstance(declaration, dict) and declaration.get("status") == "measured" and workload_name not in eligibility_artifacts:
+            errors.append(f"{workload_name} measured without a gold eligibility artifact")
+    run_fields = {"run_id", "workload", "warmup_seconds", "measured_seconds", "sample_counts"}
+    runs: dict[tuple[str, str], Mapping[str, Any]] = {}
+    for index, raw_run in enumerate(value["runs"]):
+        run = _strict_object(raw_run, run_fields, f"workload artifact.runs[{index}]")
+        if (not isinstance(run["run_id"], str) or not run["run_id"]
+                or not isinstance(run["workload"], str) or run["workload"] not in suite.workloads):
+            raise RunnerInputError("workload run ID/workload is invalid")
+        for field in ("warmup_seconds", "measured_seconds"):
+            if isinstance(run[field], bool) or not isinstance(run[field], int) or run[field] < 0:
+                raise RunnerInputError(f"workload run {field} must be a non-negative integer")
+        sample_counts = run["sample_counts"]
+        if not isinstance(sample_counts, dict) or not sample_counts:
+            raise RunnerInputError("workload run sample_counts must be a non-empty object")
+        for gate_id, count in sample_counts.items():
+            if (gate_id not in suite.gates or suite.gates[gate_id].workload != run["workload"]
+                    or isinstance(count, bool) or not isinstance(count, int) or count <= 0):
+                raise RunnerInputError("workload run sample_counts contains an invalid gate/count")
+        key = (run["run_id"], run["workload"])
+        if key in runs:
+            raise RunnerInputError("duplicate workload run declaration")
+        runs[key] = run
+    return runs, errors, eligibility_artifacts
+
+
+def _inventory_evidence(repo_root: Path, artifacts: Sequence[common.ArtifactRef],
+                        artifact_ids: Mapping[str, str], suite: Any,
+                        workloads: Mapping[str, Any]) -> tuple[Mapping[str, set[str]], list[str]]:
+    populations: dict[str, set[str]] = {}
+    errors: list[str] = []
+    if "parsing_quality" in artifact_ids:
+        reference = _artifact_with_id(artifacts, artifact_ids["parsing_quality"])
+        inventory = load_id_inventory(_artifact_path(repo_root, reference), (
+            "annotated_page_ids", "standard_scan_page_ids", "difficult_scan_page_ids", "critical_token_ids"))
+        target = suite.workloads["parsing_quality"]
+        for field, target_field in (("annotated_page_ids", "annotated_pages_min"),
+                                    ("standard_scan_page_ids", "standard_scan_pages_min"),
+                                    ("difficult_scan_page_ids", "difficult_scan_pages_min_report_only"),
+                                    ("critical_token_ids", "annotated_critical_tokens_min")):
+            if len(inventory[field]) < target[target_field]:
+                errors.append(f"{field} population {len(inventory[field])} below {target[target_field]}")
+        populations.update({
+            "PARSING.STRUCTURE_F1": set(inventory["annotated_page_ids"]),
+            "PARSING.OCR_CER": set(inventory["standard_scan_page_ids"]),
+            "PARSING.CRITICAL_TOKENS": set(inventory["critical_token_ids"]),
+        })
+    else:
+        parsing_declaration = workloads.get("parsing_quality") if isinstance(workloads, dict) else None
+        if isinstance(parsing_declaration, dict) and parsing_declaration.get("status") == "measured":
+            errors.append("parsing quality inventory missing")
+    if "graph_quality" in artifact_ids:
+        reference = _artifact_with_id(artifacts, artifact_ids["graph_quality"])
+        inventory = load_id_inventory(_artifact_path(repo_root, reference), (
+            "relation_ids", "mention_ids", "same_entity_pair_ids", "confusing_different_pair_ids"))
+        target = suite.workloads["graph_quality"]
+        for field, target_field in (("relation_ids", "labeled_relations_min"),
+                                    ("mention_ids", "labeled_mentions_min"),
+                                    ("same_entity_pair_ids", "same_entity_pairs_min"),
+                                    ("confusing_different_pair_ids", "confusing_different_entity_pairs_min")):
+            if len(inventory[field]) < target[target_field]:
+                errors.append(f"{field} population {len(inventory[field])} below {target[target_field]}")
+        pair_universe = set(inventory["same_entity_pair_ids"]) | set(inventory["confusing_different_pair_ids"])
+        populations.update({
+            "EXTRACTION.PRECISION": set(inventory["relation_ids"]),
+            "EXTRACTION.RECALL": set(inventory["relation_ids"]),
+            "RESOLUTION.PAIR_PRECISION": pair_universe,
+            "RESOLUTION.PAIR_RECALL": set(inventory["same_entity_pair_ids"]),
+            "RESOLUTION.BLOCKING_RECALL": set(inventory["same_entity_pair_ids"]),
+        })
+    else:
+        graph_declaration = workloads.get("graph_quality") if isinstance(workloads, dict) else None
+        if isinstance(graph_declaration, dict) and graph_declaration.get("status") == "measured":
+            errors.append("graph quality inventory missing")
+    return populations, errors
+
+
+def _quality_populations(questions: Sequence[pb.GoldQuestion]) -> Mapping[str, set[str]]:
+    test = [question for question in questions if question.split == pb.DATASET_SPLIT_TEST]
+    answerable = {question.meta.record_id for question in test if question.answerability == pb.ANSWERABILITY_ANSWERABLE}
+    unanswerable = {question.meta.record_id for question in test if question.answerability == pb.ANSWERABILITY_UNANSWERABLE}
+    multi_hop = {question.meta.record_id for question in test
+                 if question.answerability == pb.ANSWERABILITY_ANSWERABLE and "multi_hop" in question.slice_labels}
+    temporal = {question.meta.record_id for question in test
+                if question.answerability == pb.ANSWERABILITY_ANSWERABLE and "temporal" in question.slice_labels}
+    populations = {
+        gate_id: set(answerable) for gate_id in (
+            "QUALITY.RECALL_AT_20", "QUALITY.NDCG_AT_10", "QUALITY.CONTEXT_COMPLETE",
+            "QUALITY.ANSWER_CORRECT", "QUALITY.SLICE_MIN", "QUALITY.CITATION_PRECISION",
+            "QUALITY.CITATION_COVERAGE", "QUALITY.FALSE_ABSTENTION", "PARITY.RECALL_DROP", "PARITY.NDCG_DROP")
+    }
+    populations["QUALITY.MULTIHOP_COMPLETE"] = multi_hop
+    populations["QUALITY.TEMPORAL_ACCURACY"] = temporal
+    populations["QUALITY.ABSTENTION_RECALL"] = unanswerable
+    return populations
+
+
+def _measurement_population_errors(measurements: Mapping[str, Any], populations: Mapping[str, set[str]],
+                                   questions: Sequence[pb.GoldQuestion]) -> list[str]:
+    errors: list[str] = []
+    answerable_questions = {question.meta.record_id: question for question in questions
+                            if question.split == pb.DATASET_SPLIT_TEST
+                            and question.answerability == pb.ANSWERABILITY_ANSWERABLE}
+    for gate_id, expected in populations.items():
+        measurement = measurements.get(gate_id)
+        if not isinstance(measurement, dict) or not isinstance(measurement.get("runs"), list):
+            continue
+        for run in measurement["runs"]:
+            if not isinstance(run, dict):
+                continue
+            actual = run.get("population_ids")
+            if (not isinstance(actual, list) or any(not isinstance(item, str) for item in actual)
+                    or set(actual) != expected or len(actual) != len(expected)):
+                errors.append(f"{gate_id} population IDs do not match the frozen gold population")
+                continue
+            evidence = run.get("evidence")
+            if gate_id in {"QUALITY.RECALL_AT_20", "QUALITY.NDCG_AT_10"} and isinstance(evidence, dict):
+                scores = evidence.get("group_scores")
+                if not isinstance(scores, dict) or set(scores) != expected:
+                    errors.append(f"{gate_id} score IDs do not match its population IDs")
+            exact_denominator_gates = {
+                "QUALITY.MULTIHOP_COMPLETE", "QUALITY.CONTEXT_COMPLETE", "QUALITY.ANSWER_CORRECT",
+                "QUALITY.TEMPORAL_ACCURACY", "QUALITY.ABSTENTION_RECALL", "QUALITY.FALSE_ABSTENTION",
+                "PARSING.CRITICAL_TOKENS", "EXTRACTION.RECALL", "RESOLUTION.PAIR_RECALL",
+                "RESOLUTION.BLOCKING_RECALL", "PARITY.RECALL_DROP", "PARITY.NDCG_DROP",
+            }
+            if gate_id in exact_denominator_gates and isinstance(evidence, dict):
+                denominator = evidence.get("denominator")
+                if denominator != len(expected):
+                    errors.append(f"{gate_id} denominator differs from its frozen gold population")
+            if gate_id == "QUALITY.SLICE_MIN" and isinstance(evidence, dict):
+                counts = evidence.get("slice_counts")
+                if isinstance(counts, dict):
+                    for slice_name, item in counts.items():
+                        expected_count = sum(slice_name in question.slice_labels for question in answerable_questions.values())
+                        if not isinstance(item, dict) or item.get("denominator") != expected_count:
+                            errors.append(f"QUALITY.SLICE_MIN denominator for {slice_name} differs from gold")
+    return errors
+
+
+def _measurement_run_errors(measurements: Mapping[str, Any], suite: Any,
+                            declared_runs: Mapping[tuple[str, str], Mapping[str, Any]]) -> list[str]:
+    errors: list[str] = []
+    performance_workloads = {gate.workload for gate in suite.gates.values()
+                             if gate.statistic in {"p50", "p95", "p99", "max", "throughput"}}
+    for gate_id, measurement in measurements.items():
+        if gate_id not in suite.gates or not isinstance(measurement, dict) or not isinstance(measurement.get("runs"), list):
+            continue
+        workload = measurement.get("workload")
+        if not isinstance(workload, str):
+            errors.append(f"{gate_id} measurement workload is invalid")
+            continue
+        for run in measurement["runs"]:
+            if not isinstance(run, dict) or not isinstance(run.get("run_id"), str):
+                continue
+            declared = declared_runs.get((run["run_id"], workload))
+            if declared is None:
+                errors.append(f"{gate_id} run {run['run_id']} absent from workload artifact")
+                continue
+            if run.get("sample_count") != declared["sample_counts"].get(gate_id):
+                errors.append(f"{gate_id} run {run['run_id']} sample_count differs from workload artifact")
+            if workload in performance_workloads:
+                if declared["warmup_seconds"] < suite.protocol["warmup_seconds"]:
+                    errors.append(f"{gate_id} run {run['run_id']} warmup is too short")
+                if declared["measured_seconds"] < suite.protocol["measured_seconds_min"]:
+                    errors.append(f"{gate_id} run {run['run_id']} measurement window is too short")
+    return errors
 
 
 def _parse_observation_runs(values: Any) -> tuple[list[tuple[str, str, list[pb.Observation]]], list[pb.Observation]]:
@@ -191,21 +458,63 @@ def run_bundle(config_path: str | Path, input_path: str | Path, output_path: str
         raise RunnerInputError("frozen config/target hash mismatch")
     dataset = _parse_message(bundle["dataset_manifest"], pb.DatasetManifest(), "dataset_manifest")
     manifest = _parse_message(bundle["run_manifest"], pb.RunManifest(), "run_manifest")
-    _validate_supporting_artifacts(root, bundle["supporting_artifacts"], manifest, dataset)
+    artifacts = _validate_supporting_artifacts(root, bundle["supporting_artifacts"], manifest, dataset)
+    dataset_artifact = _artifact_with_hash(artifacts, dataset.dataset_hash.sha256, "application/x-ndjson")
+    corpus_artifact = _artifact_with_hash(
+        artifacts, manifest.corpus_snapshot.manifest_hash.sha256, "application/json")
+    workload_artifact = _artifact_with_hash(
+        artifacts, manifest.workload.content_hash.sha256, "application/json")
+    questions = load_gold_questions(_artifact_path(root, dataset_artifact), dataset)
+    corpus_facts = load_corpus_facts(_artifact_path(root, corpus_artifact))
+    declared_runs, environment_errors, eligibility_artifact_ids = _load_workload_evidence(
+        _artifact_path(root, workload_artifact), suite, profile_id, bundle["protocol"],
+        bundle["workloads"], manifest)
+    inventory_populations, inventory_errors = _inventory_evidence(
+        root, artifacts, eligibility_artifact_ids, suite, bundle["workloads"])
     observation_runs, observations = _parse_observation_runs(bundle["observation_runs"])
     unknown_observation_workloads = {workload for _, workload, _ in observation_runs} - set(suite.workloads)
     if unknown_observation_workloads:
         raise RunnerInputError(f"unknown observation workloads: {sorted(unknown_observation_workloads)}")
     try:
+        for observation_run_id, observation_workload, run_observations in observation_runs:
+            if observation_workload not in {"retrieval", "answer"}:
+                raise TelemetryError("Observation runs are supported only for retrieval and answer workloads")
+            declared = declared_runs.get((observation_run_id, observation_workload))
+            expected_gates = [gate_id for gate_id in TELEMETRY_GATES
+                              if gate_id in suite.gates and suite.gates[gate_id].workload == observation_workload]
+            if (declared is None or any(declared["sample_counts"].get(gate_id) != len(run_observations)
+                                        for gate_id in expected_gates)):
+                raise TelemetryError("Observation count differs from workload run declaration")
+            validate_observation_protocol(observation_run_id, observation_workload, run_observations,
+                                          manifest.meta.corpus_id, suite.workloads[observation_workload],
+                                          suite.protocol)
         derived = derive_observation_measurements(observation_runs)
     except TelemetryError as exc:
         raise RunnerInputError(f"invalid telemetry: {exc}") from exc
     if not isinstance(bundle["measurements"], dict):
         raise RunnerInputError("measurements must be an object")
+    manual_telemetry = set(bundle["measurements"]) & TELEMETRY_GATES
+    if manual_telemetry:
+        raise RunnerInputError(f"telemetry-owned gates cannot use manual evidence: {sorted(manual_telemetry)}")
     overlap = set(bundle["measurements"]) & set(derived)
     if overlap:
         raise RunnerInputError(f"manual measurements conflict with telemetry-derived gates: {sorted(overlap)}")
     measurements = {**bundle["measurements"], **derived}
+    populations = {**_quality_populations(questions), **inventory_populations}
+    population_requirements = {
+        "INVARIANT.SOURCE_MAPPING": corpus_facts.chunks + corpus_facts.graph_edges,
+        "INVARIANT.ORPHAN_EDGES": corpus_facts.graph_edges,
+        "UPDATE.REBUILD_RATIO": math.ceil(
+            corpus_facts.documents * suite.workloads["incremental"]["changed_document_ratio"]),
+    }
+    eligibility_errors = (
+        dataset_eligibility_errors(questions, suite.workloads["quality"])
+        + corpus_eligibility_errors(corpus_facts, manifest.corpus_snapshot, suite.reference["corpus"])
+        + environment_errors
+        + inventory_errors
+        + _measurement_run_errors(measurements, suite, declared_runs)
+        + _measurement_population_errors(measurements, populations, questions)
+    )
 
     run_id = manifest.meta.record_id
     final = Path(output_path).resolve() if output_path else (config.artifact_root / run_id).resolve()
@@ -221,7 +530,8 @@ def run_bundle(config_path: str | Path, input_path: str | Path, output_path: str
         input_artifact = _artifact_ref(input_copy, root, f"{run_id}.input", "application/json",
                                        final / "input.json")
         summary = evaluate_gates(suite, manifest, profile_id, dataset, bundle["protocol"],
-                                 bundle["workloads"], measurements, input_artifact)
+                                 bundle["workloads"], measurements, input_artifact, eligibility_errors,
+                                 population_requirements)
         write_delimited(partial / "observations.pb", observations)
         write_delimited(partial / "gate-results.pb", summary.results)
         with (partial / "gate-results.jsonl").open("w", encoding="utf-8", newline="\n") as output:
@@ -263,7 +573,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         report = run_bundle(args.config, args.input, args.output)
-    except (RunnerInputError, ConfigError, GateInputError, OSError) as exc:
+    except (RunnerInputError, DatasetLoadError, ConfigError, GateInputError, OSError) as exc:
         print(f"evaluation input error: {exc}", file=sys.stderr)
         return 2
     print(json.dumps(report, sort_keys=True))

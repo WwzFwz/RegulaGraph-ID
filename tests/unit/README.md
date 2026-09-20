@@ -26,6 +26,7 @@ Lihat [kebijakan benchmark](../../doc/benchmark-policy.md) untuk protokol penguk
 ## Status implementasi
 
 E01 memiliki pengujian aktif pada [test_evaluation_config.py](test_evaluation_config.py),
+[test_evaluation_dataset_loader.py](test_evaluation_dataset_loader.py),
 [test_evaluation_metrics.py](test_evaluation_metrics.py), [test_evaluation_gates.py](test_evaluation_gates.py),
 dan [test_evaluation_telemetry.py](test_evaluation_telemetry.py). Kontrak C01 tetap diperiksa oleh
 [test_evaluation_contracts.py](test_evaluation_contracts.py). Gunakan generated bindings pada PYTHONPATH.

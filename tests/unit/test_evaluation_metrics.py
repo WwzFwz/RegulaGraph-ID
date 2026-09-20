@@ -15,6 +15,8 @@ class EvaluationMetricsTest(unittest.TestCase):
         self.assertTrue(math.isinf(runtime.nearest_rank([1.0] * 95 + [math.inf] * 5, 0.99).value))
         with self.assertRaises(runtime.MetricError):
             runtime.nearest_rank([], 0.95)
+        with self.assertRaises(runtime.MetricError):
+            runtime.nearest_rank([-1], 0.95)
 
     def test_count_metrics_reject_empty_or_impossible_counts(self):
         self.assertEqual(runtime.ratio(99, 100).value, 0.99)
@@ -27,6 +29,10 @@ class EvaluationMetricsTest(unittest.TestCase):
             runtime.estimate("ratio", {"numerator": 1, "denominator": 1, "ignored": 1})
         with self.assertRaises(runtime.MetricError):
             runtime.estimate("minimum_slice_ratio", {"slice_counts": {"factual": []}}, ["factual"])
+        with self.assertRaises(runtime.MetricError):
+            runtime.estimate("macro_mean", {"group_scores": [1]})
+        with self.assertRaises(runtime.MetricError):
+            runtime.estimate("count", {"value": -1, "denominator": 1})
 
     def test_retrieval_ranking_and_required_sets(self):
         ranked = ["b", "a", "c"]

@@ -67,12 +67,16 @@ def nearest_rank(values: Iterable[float], percentile: float) -> Estimate:
     if not 0 < percentile <= 1:
         raise MetricError("percentile must be in (0, 1]")
     samples = sorted(_numbers(values, allow_infinity=True))
+    if any(value < 0 for value in samples):
+        raise MetricError("duration samples must be non-negative")
     rank = max(1, math.ceil(percentile * len(samples)))
     return Estimate(samples[rank - 1], len(samples))
 
 
 def maximum(values: Iterable[float]) -> Estimate:
     samples = _numbers(values)
+    if any(value < 0 for value in samples):
+        raise MetricError("resource samples must be non-negative")
     return Estimate(max(samples), len(samples))
 
 
@@ -81,6 +85,15 @@ def ratio(numerator: int, denominator: int) -> Estimate:
         raise MetricError("ratio counts must be integers")
     if denominator <= 0 or numerator < 0 or numerator > denominator:
         raise MetricError("invalid ratio counts")
+    return Estimate(numerator / denominator, denominator)
+
+
+def quotient(numerator: int, denominator: int) -> Estimate:
+    """Return a non-negative ratio that may exceed one for performance comparisons."""
+    if isinstance(numerator, bool) or isinstance(denominator, bool) or not isinstance(numerator, int) or not isinstance(denominator, int):
+        raise MetricError("quotient counts must be integers")
+    if denominator <= 0 or numerator < 0:
+        raise MetricError("invalid quotient counts")
     return Estimate(numerator / denominator, denominator)
 
 
@@ -94,7 +107,7 @@ def throughput(completed: int, duration_seconds: float) -> Estimate:
 
 
 def macro_mean(group_scores: Mapping[str, float]) -> Estimate:
-    if not group_scores:
+    if not isinstance(group_scores, Mapping) or not group_scores:
         raise MetricError("empty group scores")
     scores = _numbers(group_scores.values())
     if any(not 0 <= value <= 1 for value in scores):
@@ -131,8 +144,10 @@ def corpus_error_rate(edits: int, gold_units: int) -> Estimate:
     return Estimate(edits / gold_units, gold_units)
 
 
-def scalar(value: float, denominator: int) -> Estimate:
+def scalar(value: float, denominator: int, *, non_negative: bool = False) -> Estimate:
     values = _numbers([value])
+    if non_negative and values[0] < 0:
+        raise MetricError("scalar value must be non-negative")
     if isinstance(denominator, bool) or not isinstance(denominator, int) or denominator <= 0:
         raise MetricError("scalar evidence needs a positive denominator")
     return Estimate(values[0], denominator)
@@ -161,7 +176,9 @@ def estimate(statistic: str, evidence: Mapping[str, object], required_slices: Se
         return maximum(evidence.get("samples", []))
     if statistic == "throughput":
         return throughput(evidence.get("completed"), evidence.get("duration_seconds"))
-    if statistic in {"ratio", "micro_ratio", "pairwise_ratio"}:
+    if statistic == "ratio":
+        return quotient(evidence.get("numerator"), evidence.get("denominator"))
+    if statistic in {"micro_ratio", "pairwise_ratio"}:
         return ratio(evidence.get("numerator"), evidence.get("denominator"))
     if statistic == "macro_mean":
         return macro_mean(evidence.get("group_scores", {}))
@@ -171,6 +188,11 @@ def estimate(statistic: str, evidence: Mapping[str, object], required_slices: Se
         return micro_f1(evidence.get("true_positive"), evidence.get("false_positive"), evidence.get("false_negative"))
     if statistic == "corpus_cer":
         return corpus_error_rate(evidence.get("edits"), evidence.get("gold_units"))
-    if statistic in {"count", "difference"}:
+    if statistic == "count":
+        value = evidence.get("value")
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise MetricError("count value must be an integer")
+        return scalar(value, evidence.get("denominator"), non_negative=True)
+    if statistic == "difference":
         return scalar(evidence.get("value"), evidence.get("denominator"))
     raise AssertionError("validated statistic was not dispatched")

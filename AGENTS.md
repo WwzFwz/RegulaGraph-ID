@@ -60,4 +60,6 @@ Jika run valid gagal, terus perbaiki implementasi, lakukan profiling/optimasi, d
 
 Persetujuan pengguna diperlukan ketika mengusulkan perubahan benchmark: angka target, workload, asumsi penerimaan, atau kriteria lulus. Usulan harus memuat target vs hasil aktual, kondisi run, bottleneck, optimasi yang telah dicoba, opsi perbaikan, dan perubahan benchmark beserta dampaknya. Selama perubahan belum disetujui, benchmark lama tetap berlaku dan perbaikan yang tidak terblokir tetap dilanjutkan. Simpan raw results dan versi suite sebelumnya. Ini mengikuti klarifikasi pengguna pada 2026-09-19.
 
-Angka disimpan satu kali di YAML; dokumentasi dan header subkomponen merujuk sumber yang sama. Runner saat ini belum mengimplementasikan evaluasi gate, sehingga jangan mengklaim enforcement otomatis hanya karena konfigurasi tersedia.
+Angka disimpan satu kali di YAML; dokumentasi dan header subkomponen merujuk sumber yang sama. Runner E01
+offline sudah mengimplementasikan evaluasi gate untuk bundle yang memenuhi eligibility, tetapi belum ada
+acceptance run produksi. Jangan mengklaim target tercapai dari konfigurasi atau fixture sintetis.

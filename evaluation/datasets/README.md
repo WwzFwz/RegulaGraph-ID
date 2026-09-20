@@ -16,7 +16,7 @@ Anak tidak boleh mengubah kontrak input/output secara tersembunyi. Perubahan ben
 
 ## Isi saat ini
 
-Berkas langsung: [__init__.py](__init__.py), [schema.py](schema.py).
+Berkas langsung: [__init__.py](__init__.py), [schema.py](schema.py), dan [loader.py](loader.py).
 
 ## Benchmark dan perhatian kualitas
 
@@ -36,7 +36,8 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
-| [schema.py](schema.py) | Extend the active contract validator with versioned dataset loaders and reviewed group/split provenance; keep generated bindings authoritative. | Test duplicate/group leakage, incomplete human reviews and snapshot/model drift; bound large dataset memory and reject lossy conversions. |
+| [schema.py](schema.py) | Pertahankan generated descriptor sebagai sumber constraint C01 dan perluas hanya bersama perubahan schema. | Uji duplicate/group leakage, incomplete review, snapshot/model drift, batas ukuran, dan lossy conversion. |
+| [loader.py](loader.py) | Hubungkan scorer gold production setelah G01 tersedia; pertahankan loader JSONL dan corpus manifest sebagai eligibility boundary. | Uji dataset besar, slice overlap, answerable tanpa gold, unanswerable dengan evidence, serta corpus identity/count mismatch. |
 
 ## Penambahan C01 dan panduan verifikasi
 

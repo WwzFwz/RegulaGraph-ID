@@ -35,6 +35,15 @@ class TelemetryError(ValueError):
     """Observation telemetry is incomplete, duplicated, or inconsistent."""
 
 
+TELEMETRY_GATES = frozenset({
+    "QUERY.EVIDENCE_P95", "QUERY.EVIDENCE_P99", "QUERY.SUCCESS",
+    "QUERY.TTFT_P95", "QUERY.TTFT_P99", "QUERY.FULL_P95", "QUERY.FULL_P99",
+    "QUERY.ANSWER_SUCCESS", "GO.OVERHEAD_P95", "SEARCH.LEXICAL_P95", "SEARCH.DENSE_P95",
+    "SEARCH.GRAPH_P95", "MODEL.QUERY_EMBED_P95", "MODEL.RERANK_P95", "MODEL.BATCH_WAIT_P99",
+    "CONTEXT.BUILD_P95",
+})
+
+
 def _varint(value: int) -> bytes:
     output = bytearray()
     while value > 0x7F:
@@ -71,6 +80,61 @@ def validate_observation_run(run_id: str, observations: list[pb.Observation]) ->
         stages = [stage.stage for stage in observation.stage_durations]
         if len(stages) != len(set(stages)):
             raise TelemetryError("duplicate stage name in observation")
+
+
+def _timestamp_ns(observation: pb.Observation) -> int:
+    return observation.scheduled_arrival.seconds * 1_000_000_000 + observation.scheduled_arrival.nanos
+
+
+def validate_observation_protocol(run_id: str, workload: str, observations: list[pb.Observation],
+                                  corpus_id: str, target: Mapping[str, Any],
+                                  protocol: Mapping[str, Any]) -> None:
+    """Verify provenance, open-loop schedule, duration, deadlines, and token-length workload facts."""
+    validate_observation_run(run_id, observations)
+    if any(observation.meta.corpus_id != corpus_id for observation in observations):
+        raise TelemetryError("observation corpus differs from RunManifest")
+    required = target.get("requests_per_run_min")
+    rate = target.get("requests_per_second")
+    if not isinstance(required, int) or not isinstance(rate, int) or required <= 0 or rate <= 0:
+        raise TelemetryError("observation workload lacks integer request count/rate")
+    if len(observations) < required:
+        raise TelemetryError("observation run is below requests_per_run_min")
+    expected_interval = 1_000_000_000 // rate
+    if expected_interval * rate != 1_000_000_000:
+        raise TelemetryError("request rate cannot be represented exactly in nanoseconds")
+    scheduled = [_timestamp_ns(observation) for observation in observations]
+    if any(right - left != expected_interval for left, right in zip(scheduled, scheduled[1:])):
+        raise TelemetryError("scheduled arrivals do not follow the constant open-loop rate")
+    if len(observations) / rate < protocol["measured_seconds_min"]:
+        raise TelemetryError("observation measurement window is too short")
+    deadline_ns = int(target["completion_deadline_ms"]) * 1_000_000
+    for observation in observations:
+        if observation.outcome == common.COMPLETION_STATUS_SUCCEEDED:
+            if observation.completion_ns <= 0 or observation.completion_ns > deadline_ns:
+                raise TelemetryError("successful observation violates completion deadline")
+            for stage in observation.stage_durations:
+                if stage.duration_ns + stage.queue_ns > observation.completion_ns:
+                    raise TelemetryError("stage duration/queue exceeds end-to-end completion")
+        if workload == "retrieval" and observation.HasField("first_substantive_token_ns"):
+            raise TelemetryError("retrieval observation cannot contain answer TTFT")
+        if (workload == "answer" and observation.outcome == common.COMPLETION_STATUS_SUCCEEDED
+                and (not observation.HasField("first_substantive_token_ns")
+                     or observation.first_substantive_token_ns == 0)):
+            raise TelemetryError("successful answer observation requires substantive TTFT")
+    if workload == "answer":
+        succeeded = [observation for observation in observations
+                     if observation.outcome == common.COMPLETION_STATUS_SUCCEEDED and not observation.rejected_arrival]
+        if any(not observation.HasField("tokens") for observation in succeeded):
+            raise TelemetryError("successful answer observation requires token usage")
+        if any(observation.tokens.input_tokens > target["model_input_tokens_max"]
+               or observation.tokens.output_tokens > target["output_tokens_max"] for observation in succeeded):
+            raise TelemetryError("answer token usage exceeds workload maximum")
+        if succeeded:
+            output_tokens = sorted(observation.tokens.output_tokens for observation in succeeded)
+            median = output_tokens[max(0, math.ceil(0.50 * len(output_tokens)) - 1)]
+            p90 = output_tokens[max(0, math.ceil(0.90 * len(output_tokens)) - 1)]
+            if median < target["output_tokens_p50_min"] or p90 < target["output_tokens_p90_min"]:
+                raise TelemetryError("answer output-token distribution is below workload minimum")
 
 
 def _measurement(workload: str, statistic: str, unit: str, runs: list[dict[str, Any]]) -> dict[str, Any]:
