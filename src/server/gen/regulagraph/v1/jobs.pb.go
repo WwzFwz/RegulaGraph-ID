@@ -2131,19 +2131,21 @@ func (x *ProcessBatchRequest) GetObservations() []*SourceObservation {
 }
 
 type ProcessBatchResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	RequestId     string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
-	JobId         string                 `protobuf:"bytes,2,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
-	Attempt       uint32                 `protobuf:"varint,3,opt,name=attempt,proto3" json:"attempt,omitempty"`
-	Fence         uint64                 `protobuf:"varint,4,opt,name=fence,proto3" json:"fence,omitempty"`
-	Checkpoint    *Checkpoint            `protobuf:"bytes,5,opt,name=checkpoint,proto3" json:"checkpoint,omitempty"`
-	DocumentBatch *ArtifactRef           `protobuf:"bytes,6,opt,name=document_batch,json=documentBatch,proto3" json:"document_batch,omitempty"`
-	GraphDelta    *ArtifactRef           `protobuf:"bytes,7,opt,name=graph_delta,json=graphDelta,proto3" json:"graph_delta,omitempty"`
-	IndexBatch    *ArtifactRef           `protobuf:"bytes,8,opt,name=index_batch,json=indexBatch,proto3" json:"index_batch,omitempty"`
-	Status        CompletionStatus       `protobuf:"varint,9,opt,name=status,proto3,enum=regulagraph.v1.CompletionStatus" json:"status,omitempty"`
-	Errors        []*OperationError      `protobuf:"bytes,10,rep,name=errors,proto3" json:"errors,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	RequestId       string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
+	JobId           string                 `protobuf:"bytes,2,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	Attempt         uint32                 `protobuf:"varint,3,opt,name=attempt,proto3" json:"attempt,omitempty"`
+	Fence           uint64                 `protobuf:"varint,4,opt,name=fence,proto3" json:"fence,omitempty"`
+	Checkpoint      *Checkpoint            `protobuf:"bytes,5,opt,name=checkpoint,proto3" json:"checkpoint,omitempty"`
+	DocumentBatch   *ArtifactRef           `protobuf:"bytes,6,opt,name=document_batch,json=documentBatch,proto3" json:"document_batch,omitempty"`
+	GraphDelta      *ArtifactRef           `protobuf:"bytes,7,opt,name=graph_delta,json=graphDelta,proto3" json:"graph_delta,omitempty"`
+	IndexBatch      *ArtifactRef           `protobuf:"bytes,8,opt,name=index_batch,json=indexBatch,proto3" json:"index_batch,omitempty"`
+	Status          CompletionStatus       `protobuf:"varint,9,opt,name=status,proto3,enum=regulagraph.v1.CompletionStatus" json:"status,omitempty"`
+	Errors          []*OperationError      `protobuf:"bytes,10,rep,name=errors,proto3" json:"errors,omitempty"`
+	ExtractionBatch *ArtifactRef           `protobuf:"bytes,11,opt,name=extraction_batch,json=extractionBatch,proto3" json:"extraction_batch,omitempty"`
+	ResolutionBatch *ArtifactRef           `protobuf:"bytes,12,opt,name=resolution_batch,json=resolutionBatch,proto3" json:"resolution_batch,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *ProcessBatchResponse) Reset() {
@@ -2242,6 +2244,20 @@ func (x *ProcessBatchResponse) GetStatus() CompletionStatus {
 func (x *ProcessBatchResponse) GetErrors() []*OperationError {
 	if x != nil {
 		return x.Errors
+	}
+	return nil
+}
+
+func (x *ProcessBatchResponse) GetExtractionBatch() *ArtifactRef {
+	if x != nil {
+		return x.ExtractionBatch
+	}
+	return nil
+}
+
+func (x *ProcessBatchResponse) GetResolutionBatch() *ArtifactRef {
+	if x != nil {
+		return x.ResolutionBatch
 	}
 	return nil
 }
@@ -2584,7 +2600,7 @@ const file_regulagraph_v1_jobs_proto_rawDesc = "" +
 	"\x06stages\x18\t \x03(\x0e2\x18.regulagraph.v1.JobStageB\n" +
 	"\x8a\xb5\x18\x06\b\x018\x01@\x01R\x06stages\x12E\n" +
 	"\fobservations\x18\n" +
-	" \x03(\v2!.regulagraph.v1.SourceObservationR\fobservations\"\x96\x04\n" +
+	" \x03(\v2!.regulagraph.v1.SourceObservationR\fobservations\"\xa6\x05\n" +
 	"\x14ProcessBatchResponse\x12'\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\tB\b\x8a\xb5\x18\x04\b\x01\x10\x01R\trequestId\x12\x1f\n" +
@@ -2601,7 +2617,9 @@ const file_regulagraph_v1_jobs_proto_rawDesc = "" +
 	"indexBatch\x12@\n" +
 	"\x06status\x18\t \x01(\x0e2 .regulagraph.v1.CompletionStatusB\x06\x8a\xb5\x18\x02\b\x01R\x06status\x126\n" +
 	"\x06errors\x18\n" +
-	" \x03(\v2\x1e.regulagraph.v1.OperationErrorR\x06errors\"\xb8\x01\n" +
+	" \x03(\v2\x1e.regulagraph.v1.OperationErrorR\x06errors\x12F\n" +
+	"\x10extraction_batch\x18\v \x01(\v2\x1b.regulagraph.v1.ArtifactRefR\x0fextractionBatch\x12F\n" +
+	"\x10resolution_batch\x18\f \x01(\v2\x1b.regulagraph.v1.ArtifactRefR\x0fresolutionBatch\"\xb8\x01\n" +
 	"\x13WorkerStatusRequest\x12@\n" +
 	"\acontext\x18\x01 \x01(\v2\x1e.regulagraph.v1.RequestContextB\x06\x8a\xb5\x18\x02\b\x01R\acontext\x12\x1f\n" +
 	"\x06job_id\x18\x02 \x01(\tB\b\x8a\xb5\x18\x04\b\x01\x10\x01R\x05jobId\x12 \n" +
@@ -2806,19 +2824,21 @@ var file_regulagraph_v1_jobs_proto_depIdxs = []int32{
 	30, // 74: regulagraph.v1.ProcessBatchResponse.index_batch:type_name -> regulagraph.v1.ArtifactRef
 	38, // 75: regulagraph.v1.ProcessBatchResponse.status:type_name -> regulagraph.v1.CompletionStatus
 	37, // 76: regulagraph.v1.ProcessBatchResponse.errors:type_name -> regulagraph.v1.OperationError
-	45, // 77: regulagraph.v1.WorkerStatusRequest.context:type_name -> regulagraph.v1.RequestContext
-	2,  // 78: regulagraph.v1.WorkerStatusResponse.stage:type_name -> regulagraph.v1.JobStage
-	26, // 79: regulagraph.v1.Worker.ProcessBatch:input_type -> regulagraph.v1.ProcessBatchRequest
-	28, // 80: regulagraph.v1.Worker.GetStatus:input_type -> regulagraph.v1.WorkerStatusRequest
-	28, // 81: regulagraph.v1.Worker.Cancel:input_type -> regulagraph.v1.WorkerStatusRequest
-	27, // 82: regulagraph.v1.Worker.ProcessBatch:output_type -> regulagraph.v1.ProcessBatchResponse
-	29, // 83: regulagraph.v1.Worker.GetStatus:output_type -> regulagraph.v1.WorkerStatusResponse
-	29, // 84: regulagraph.v1.Worker.Cancel:output_type -> regulagraph.v1.WorkerStatusResponse
-	82, // [82:85] is the sub-list for method output_type
-	79, // [79:82] is the sub-list for method input_type
-	79, // [79:79] is the sub-list for extension type_name
-	79, // [79:79] is the sub-list for extension extendee
-	0,  // [0:79] is the sub-list for field type_name
+	30, // 77: regulagraph.v1.ProcessBatchResponse.extraction_batch:type_name -> regulagraph.v1.ArtifactRef
+	30, // 78: regulagraph.v1.ProcessBatchResponse.resolution_batch:type_name -> regulagraph.v1.ArtifactRef
+	45, // 79: regulagraph.v1.WorkerStatusRequest.context:type_name -> regulagraph.v1.RequestContext
+	2,  // 80: regulagraph.v1.WorkerStatusResponse.stage:type_name -> regulagraph.v1.JobStage
+	26, // 81: regulagraph.v1.Worker.ProcessBatch:input_type -> regulagraph.v1.ProcessBatchRequest
+	28, // 82: regulagraph.v1.Worker.GetStatus:input_type -> regulagraph.v1.WorkerStatusRequest
+	28, // 83: regulagraph.v1.Worker.Cancel:input_type -> regulagraph.v1.WorkerStatusRequest
+	27, // 84: regulagraph.v1.Worker.ProcessBatch:output_type -> regulagraph.v1.ProcessBatchResponse
+	29, // 85: regulagraph.v1.Worker.GetStatus:output_type -> regulagraph.v1.WorkerStatusResponse
+	29, // 86: regulagraph.v1.Worker.Cancel:output_type -> regulagraph.v1.WorkerStatusResponse
+	84, // [84:87] is the sub-list for method output_type
+	81, // [81:84] is the sub-list for method input_type
+	81, // [81:81] is the sub-list for extension type_name
+	81, // [81:81] is the sub-list for extension extendee
+	0,  // [0:81] is the sub-list for field type_name
 }
 
 func init() { file_regulagraph_v1_jobs_proto_init() }

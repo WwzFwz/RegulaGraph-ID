@@ -234,6 +234,8 @@ message ProcessBatchResponse {
   ArtifactRef index_batch=8;
   CompletionStatus status=9 [(rules).required=true];
   repeated OperationError errors=10;
+  ArtifactRef extraction_batch=11;
+  ArtifactRef resolution_batch=12;
 }
 message WorkerStatusRequest {
   RequestContext context=1 [(rules).required=true];

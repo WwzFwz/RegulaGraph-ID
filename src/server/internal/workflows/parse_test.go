@@ -637,6 +637,12 @@ func TestParseExecutorRejectsForgedOrUnexpectedOutputsPermanently(t *testing.T) 
 			response.Checkpoint.CompletedBatchKeys = append(response.Checkpoint.CompletedBatchKeys, graph.ArtifactId)
 			response.Checkpoint.ArtifactHashes = append(response.Checkpoint.ArtifactHashes, graph.ContentHash)
 		}},
+		{name: "unexpected extraction output", mutate: func(response *pb.ProcessBatchResponse) {
+			extraction := parseArtifact("extraction-batch:forged", "extraction/forged.pb", "e")
+			response.ExtractionBatch = extraction
+			response.Checkpoint.CompletedBatchKeys = append(response.Checkpoint.CompletedBatchKeys, extraction.ArtifactId)
+			response.Checkpoint.ArtifactHashes = append(response.Checkpoint.ArtifactHashes, extraction.ContentHash)
+		}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

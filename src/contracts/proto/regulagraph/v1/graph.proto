@@ -102,6 +102,37 @@ message SupportRecord {
   string independent_source_group=6 [(rules)={required:true ascii_id:true}];
   ReviewState review_state=7 [(rules).required=true];
 }
+// Immutable output of EXTRACT before canonical resolution. Assertion endpoints may reference
+// mention IDs from this same batch; no record here is a registry assignment or publishable delta.
+message ExtractionBatch {
+  RecordMeta meta=1 [(rules).required=true];
+  RequestContext context=2 [(rules).required=true];
+  ArtifactRef source_document_batch=3 [(rules).required=true];
+  repeated Mention mentions=4;
+  repeated RelationAssertion assertions=5;
+  repeated SupportRecord supports=6;
+  repeated ValidationIssue issues=7;
+  DependencyManifest dependencies=8 [(rules).required=true];
+  Completeness completeness=9 [(rules).required=true];
+  string ontology_version=10 [(rules).required=true];
+  ModelManifest model_manifest=11 [(rules).required=true];
+  ContentHash prompt_hash=12 [(rules).required=true];
+}
+// Immutable output of RESOLVE. Proposals remain auditable beside registry decisions; downstream
+// ASSEMBLE consumes only assignments whose expected revision still matches the registry snapshot.
+message ResolutionBatch {
+  RecordMeta meta=1 [(rules).required=true];
+  RequestContext context=2 [(rules).required=true];
+  ArtifactRef source_extraction_batch=3 [(rules).required=true];
+  repeated ResolutionProposal proposals=4;
+  repeated ResolutionDecision decisions=5;
+  repeated ValidationIssue issues=6;
+  DependencyManifest dependencies=7 [(rules).required=true];
+  Completeness completeness=8 [(rules).required=true];
+  string ontology_version=9 [(rules).required=true];
+  uint64 registry_revision=10;
+  ModelManifest model_manifest=11 [(rules).required=true];
+}
 message EntityProfile {
   RecordMeta meta=1 [(rules).required=true];
   string canonical_id=2 [(rules)={required:true ascii_id:true}];

@@ -2876,6 +2876,132 @@
         "type_name": ".regulagraph.v1.OperationError"
       }
     },
+    "regulagraph.v1.ExtractionBatch": {
+      "1": {
+        "label": 1,
+        "name": "meta",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 11,
+        "type_name": ".regulagraph.v1.RecordMeta"
+      },
+      "10": {
+        "label": 1,
+        "name": "ontology_version",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 9,
+        "type_name": ""
+      },
+      "11": {
+        "label": 1,
+        "name": "model_manifest",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 11,
+        "type_name": ".regulagraph.v1.ModelManifest"
+      },
+      "12": {
+        "label": 1,
+        "name": "prompt_hash",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 11,
+        "type_name": ".regulagraph.v1.ContentHash"
+      },
+      "2": {
+        "label": 1,
+        "name": "context",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 11,
+        "type_name": ".regulagraph.v1.RequestContext"
+      },
+      "3": {
+        "label": 1,
+        "name": "source_document_batch",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 11,
+        "type_name": ".regulagraph.v1.ArtifactRef"
+      },
+      "4": {
+        "label": 3,
+        "name": "mentions",
+        "oneof": null,
+        "optional": false,
+        "rules": {},
+        "type": 11,
+        "type_name": ".regulagraph.v1.Mention"
+      },
+      "5": {
+        "label": 3,
+        "name": "assertions",
+        "oneof": null,
+        "optional": false,
+        "rules": {},
+        "type": 11,
+        "type_name": ".regulagraph.v1.RelationAssertion"
+      },
+      "6": {
+        "label": 3,
+        "name": "supports",
+        "oneof": null,
+        "optional": false,
+        "rules": {},
+        "type": 11,
+        "type_name": ".regulagraph.v1.SupportRecord"
+      },
+      "7": {
+        "label": 3,
+        "name": "issues",
+        "oneof": null,
+        "optional": false,
+        "rules": {},
+        "type": 11,
+        "type_name": ".regulagraph.v1.ValidationIssue"
+      },
+      "8": {
+        "label": 1,
+        "name": "dependencies",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 11,
+        "type_name": ".regulagraph.v1.DependencyManifest"
+      },
+      "9": {
+        "label": 1,
+        "name": "completeness",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 14,
+        "type_name": ".regulagraph.v1.Completeness"
+      }
+    },
     "regulagraph.v1.ExtractionProposal": {
       "1": {
         "label": 3,
@@ -5313,6 +5439,24 @@
         "type": 11,
         "type_name": ".regulagraph.v1.OperationError"
       },
+      "11": {
+        "label": 1,
+        "name": "extraction_batch",
+        "oneof": null,
+        "optional": false,
+        "rules": {},
+        "type": 11,
+        "type_name": ".regulagraph.v1.ArtifactRef"
+      },
+      "12": {
+        "label": 1,
+        "name": "resolution_batch",
+        "oneof": null,
+        "optional": false,
+        "rules": {},
+        "type": 11,
+        "type_name": ".regulagraph.v1.ArtifactRef"
+      },
       "2": {
         "label": 1,
         "name": "job_id",
@@ -6763,6 +6907,121 @@
         },
         "type": 11,
         "type_name": ".regulagraph.v1.TruncationInfo"
+      }
+    },
+    "regulagraph.v1.ResolutionBatch": {
+      "1": {
+        "label": 1,
+        "name": "meta",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 11,
+        "type_name": ".regulagraph.v1.RecordMeta"
+      },
+      "10": {
+        "label": 1,
+        "name": "registry_revision",
+        "oneof": null,
+        "optional": false,
+        "rules": {},
+        "type": 4,
+        "type_name": ""
+      },
+      "11": {
+        "label": 1,
+        "name": "model_manifest",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 11,
+        "type_name": ".regulagraph.v1.ModelManifest"
+      },
+      "2": {
+        "label": 1,
+        "name": "context",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 11,
+        "type_name": ".regulagraph.v1.RequestContext"
+      },
+      "3": {
+        "label": 1,
+        "name": "source_extraction_batch",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 11,
+        "type_name": ".regulagraph.v1.ArtifactRef"
+      },
+      "4": {
+        "label": 3,
+        "name": "proposals",
+        "oneof": null,
+        "optional": false,
+        "rules": {},
+        "type": 11,
+        "type_name": ".regulagraph.v1.ResolutionProposal"
+      },
+      "5": {
+        "label": 3,
+        "name": "decisions",
+        "oneof": null,
+        "optional": false,
+        "rules": {},
+        "type": 11,
+        "type_name": ".regulagraph.v1.ResolutionDecision"
+      },
+      "6": {
+        "label": 3,
+        "name": "issues",
+        "oneof": null,
+        "optional": false,
+        "rules": {},
+        "type": 11,
+        "type_name": ".regulagraph.v1.ValidationIssue"
+      },
+      "7": {
+        "label": 1,
+        "name": "dependencies",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 11,
+        "type_name": ".regulagraph.v1.DependencyManifest"
+      },
+      "8": {
+        "label": 1,
+        "name": "completeness",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 14,
+        "type_name": ".regulagraph.v1.Completeness"
+      },
+      "9": {
+        "label": 1,
+        "name": "ontology_version",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 9,
+        "type_name": ""
       }
     },
     "regulagraph.v1.ResolutionDecision": {

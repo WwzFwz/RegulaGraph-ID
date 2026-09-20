@@ -185,7 +185,7 @@ func (e *ParseExecutor) executeClaimed(ctx context.Context, job domain.JobRecord
 		cause := status.Error(codes.FailedPrecondition, fmt.Sprintf("verify PARSE response: %v", err))
 		return nil, e.finishAfterError(attemptCtx, job, cause)
 	}
-	if response.GetCheckpoint() == nil || response.GetDocumentBatch() == nil || response.GetGraphDelta() != nil || response.GetIndexBatch() != nil {
+	if response.GetCheckpoint() == nil || response.GetDocumentBatch() == nil || response.GetGraphDelta() != nil || response.GetIndexBatch() != nil || response.GetExtractionBatch() != nil || response.GetResolutionBatch() != nil {
 		cause := status.Error(codes.FailedPrecondition, "document worker response requires only checkpoint and document batch outputs")
 		return nil, e.finishAfterError(attemptCtx, job, cause)
 	}

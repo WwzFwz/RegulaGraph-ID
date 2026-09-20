@@ -64,6 +64,8 @@ Tanggal berlaku/legal status adalah assertion bersumber dan berversi, bukan nila
 | ResolutionDecision | decision_id, proposal_id, assigned_canonical_ids, action, reason, actor, supersedes?, visibility | Go mencatat keputusan otomatis/reviewer dengan riwayat merge/split |
 | RelationAssertion | assertion_id, subject_id, predicate_id, object_id, qualifiers, exception_refs, temporal_scope, explicit_or_inferred, ontology_version | Qualifiers dan arah bagian identitas semantik; inferred tidak diubah menjadi explicit |
 | SupportRecord | support_id, assertion_id, evidence_spans, source/provision_version refs, extraction_manifest, independent_source_group, review_state | Satu assertion banyak support; mirror tidak dihitung sebagai sumber independen |
+| ExtractionBatch | source_document_batch, mentions, assertions, supports, issues, dependencies, completeness, ontology/model/prompt identity | Artefak immutable keluaran EXTRACT; endpoint masih boleh memakai mention ID dan belum merupakan registry assignment atau delta terpublikasi |
+| ResolutionBatch | source_extraction_batch, proposals, decisions, issues, dependencies, completeness, ontology/model identity, registry_revision | Artefak immutable keluaran RESOLVE; ASSEMBLE hanya memakai keputusan yang revision-nya masih valid |
 | EntityProfile | profile_id, canonical_id, summary, evidence_refs, dependency_fingerprint, model_manifest | Ringkasan membantu retrieval; bukan evidence primer tanpa support |
 | GraphDelta | delta_id, base_snapshot, registry_revision, upserts, visibility_closures, support_changes, dependencies, validation_report | Go menolak base stale, orphan, schema/ontology mismatch sebelum publish |
 | GraphPath | path_id, ordered_node_ids, ordered_assertion_ids, selected_support_ids, coverage, frontier_exhausted | Setiap edge yang dipakai menjawab memiliki support terlihat pada snapshot |
@@ -132,7 +134,7 @@ Job state: QUEUED -> RUNNING -> WAITING_REVIEW atau STAGED -> VALIDATING -> PUBL
 
 | Operasi rencana | Host | Input dan output |
 | --- | --- | --- |
-| Worker.ProcessBatch | Rust | Context + job/lease + immutable source/registry refs -> checkpoint + DocumentBatch/GraphDelta/IndexBatch refs |
+| Worker.ProcessBatch | Rust | Context + job/lease + immutable source/registry refs -> checkpoint + stage-specific DocumentBatch/ExtractionBatch/ResolutionBatch/GraphDelta/IndexBatch ref |
 | Worker.GetStatus / Cancel | Rust | Job/attempt/fence -> progress atau cancellation acknowledgement; Go tetap sumber status persisten |
 | Inference.EmbedBatch | C++ | Model manifest + item ID/text + purpose/query-or-document -> vector per item, tokens, truncation, errors |
 | Inference.RerankBatch | C++ | Manifest + pair ID/query/text -> skor per pair, tokens, errors |

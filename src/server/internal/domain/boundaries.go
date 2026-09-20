@@ -51,7 +51,13 @@ func VerifyWorkerResponse(req *pb.ProcessBatchRequest, res *pb.ProcessBatchRespo
 	if res.IndexBatch != nil && !containsStage(req.Stages, pb.JobStage_JOB_STAGE_INDEX) {
 		return errors.New("index batch returned without requested INDEX stage")
 	}
-	if res.Status == pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED && (len(res.Errors) > 0 || res.DocumentBatch == nil && res.GraphDelta == nil && res.IndexBatch == nil) {
+	if res.ExtractionBatch != nil && !containsStage(req.Stages, pb.JobStage_JOB_STAGE_EXTRACT) {
+		return errors.New("extraction batch returned without requested EXTRACT stage")
+	}
+	if res.ResolutionBatch != nil && !containsStage(req.Stages, pb.JobStage_JOB_STAGE_RESOLVE) {
+		return errors.New("resolution batch returned without requested RESOLVE stage")
+	}
+	if res.Status == pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED && (len(res.Errors) > 0 || res.DocumentBatch == nil && res.GraphDelta == nil && res.IndexBatch == nil && res.ExtractionBatch == nil && res.ResolutionBatch == nil) {
 		return errors.New("successful worker response requires output and no errors")
 	}
 	return nil
@@ -67,7 +73,7 @@ func containsStage(stages []pb.JobStage, expected pb.JobStage) bool {
 }
 
 func responseArtifacts(response *pb.ProcessBatchResponse) []*pb.ArtifactRef {
-	outputs := make([]*pb.ArtifactRef, 0, 3)
+	outputs := make([]*pb.ArtifactRef, 0, 5)
 	if response.DocumentBatch != nil {
 		outputs = append(outputs, response.DocumentBatch)
 	}
@@ -76,6 +82,12 @@ func responseArtifacts(response *pb.ProcessBatchResponse) []*pb.ArtifactRef {
 	}
 	if response.IndexBatch != nil {
 		outputs = append(outputs, response.IndexBatch)
+	}
+	if response.ExtractionBatch != nil {
+		outputs = append(outputs, response.ExtractionBatch)
+	}
+	if response.ResolutionBatch != nil {
+		outputs = append(outputs, response.ResolutionBatch)
 	}
 	return outputs
 }

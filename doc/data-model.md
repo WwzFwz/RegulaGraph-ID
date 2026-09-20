@@ -1,6 +1,6 @@
 # Kontrak data dan identitas
 
-Dokumen ini menjelaskan rancangan konseptual identitas dan hubungan data lintas komponen. Definisi class, schema database, format ID konkret, dan migrasinya belum diimplementasikan; src/contracts/proto menjadi sumber bentuk wire; domain Go dan Rust merupakan representasi lokal yang mengacu padanya.
+Dokumen ini menjelaskan rancangan konseptual identitas dan hubungan data lintas komponen. `src/contracts/proto` sudah menjadi sumber bentuk wire dan domain Go/Rust mengacu padanya; schema backend, seluruh format ID konkret, dan migrasi lanjutan masih direalisasikan per milestone.
 
 Katalog lengkap record dan field semantik ada pada [system-contracts](system-contracts.md). Aturan fingerprint, registry ID, temporal visibility, persistensi, serta recovery ada pada [storage-consistency](storage-consistency.md). Keduanya adalah baseline desain seluruh sistem; dokumen ini mempertahankan ringkasan konsep.
 
@@ -36,4 +36,4 @@ Adapter persisten bertanggung jawab pada constraint lokal. Workflow bertanggung 
 
 Go server, Rust worker, C++ inference, dan Python evaluator mempertukarkan ID serta versi melalui src/contracts. Source range direncanakan sebagai offset byte UTF-8 start-inclusive/end-exclusive dengan identitas teks asli atau hasil normalisasi; mapping keduanya wajib dipertahankan. Jangan menyamakan byte offset dengan code point atau UTF-16 index.
 
-Rust menghasilkan GraphDelta dan batch record; Go coordinator memegang commit dan publikasi snapshot. Protobuf saat ini hanya mendeklarasikan syntax/package, belum message/service dan belum generated binding. Field semantik seluruh sistem telah dirancang pada system-contracts; realisasi tipe/tag/service, validator, serta codegen dilakukan sebagai paket C01 sebelum konsumen produksi diimplementasikan. Perbedaan yang ditemukan saat pembuktian diperbarui pada spesifikasi dan schema secara bersamaan.
+Rust menghasilkan `DocumentBatch`, `ExtractionBatch`, `ResolutionBatch`, `GraphDelta`, dan batch indeks sesuai stage; Go coordinator memegang job durable, commit, dan publikasi snapshot. Protobuf C01 sudah memiliki message/service, validator, baseline kompatibilitas, serta generated binding lintas runtime. Konsumen produksi direalisasikan mengikuti urutan dependency, dan perbedaan yang ditemukan saat pembuktian diperbarui pada spesifikasi serta schema secara bersamaan.

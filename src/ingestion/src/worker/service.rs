@@ -488,6 +488,7 @@ async fn execute_batch<P: BatchProcessor>(
     let progress_inner = Arc::clone(&inner);
     let progress_job_id = job_id.clone();
     let cancellation_for_process = Arc::clone(&cancellation);
+    let expected_stages = domain_request.stages.clone();
     let result = tokio::task::spawn_blocking(move || {
         let progress = |stage: jobs::JobStage, completed: u64, total: u64| {
             if let Ok(mut records) = progress_inner.jobs.lock() {
@@ -518,6 +519,7 @@ async fn execute_batch<P: BatchProcessor>(
                 &job_id,
                 attempt,
                 fence,
+                &expected_stages,
             ),
             response,
         ),
@@ -622,6 +624,7 @@ struct ResponseIdentity<'a> {
     job_id: &'a str,
     attempt: u32,
     fence: u64,
+    stages: &'a [protobuf::EnumOrUnknown<jobs::JobStage>],
 }
 
 fn domain_request_identity<'a>(
@@ -630,6 +633,7 @@ fn domain_request_identity<'a>(
     job_id: &'a str,
     attempt: u32,
     fence: u64,
+    stages: &'a [protobuf::EnumOrUnknown<jobs::JobStage>],
 ) -> ResponseIdentity<'a> {
     ResponseIdentity {
         request_id,
@@ -637,6 +641,7 @@ fn domain_request_identity<'a>(
         job_id,
         attempt,
         fence,
+        stages,
     }
 }
 
@@ -685,10 +690,21 @@ fn validate_process_response(
                 "processor checkpoint context or fence is mismatched",
             ));
         }
+        let checkpoint_stage = checkpoint
+            .stage
+            .enum_value()
+            .map_err(|_| Status::failed_precondition("processor checkpoint stage is unknown"))?;
+        if !requested_stage(expected, checkpoint_stage) {
+            return Err(Status::failed_precondition(
+                "processor checkpoint stage was not requested",
+            ));
+        }
         let outputs = [
             response.document_batch.as_ref(),
             response.graph_delta.as_ref(),
             response.index_batch.as_ref(),
+            response.extraction_batch.as_ref(),
+            response.resolution_batch.as_ref(),
         ]
         .into_iter()
         .flatten()
@@ -705,18 +721,63 @@ fn validate_process_response(
             ));
         }
     }
+    if response.document_batch.is_some()
+        && !requested_stage(expected, jobs::JobStage::JOB_STAGE_PARSE)
+        && !requested_stage(expected, jobs::JobStage::JOB_STAGE_STRUCTURE)
+        && !requested_stage(expected, jobs::JobStage::JOB_STAGE_CHUNK)
+    {
+        return Err(Status::failed_precondition(
+            "document batch returned without requested PARSE, STRUCTURE, or CHUNK stage",
+        ));
+    }
+    if response.graph_delta.is_some()
+        && !requested_stage(expected, jobs::JobStage::JOB_STAGE_ASSEMBLE)
+    {
+        return Err(Status::failed_precondition(
+            "graph delta returned without requested ASSEMBLE stage",
+        ));
+    }
+    if response.index_batch.is_some() && !requested_stage(expected, jobs::JobStage::JOB_STAGE_INDEX)
+    {
+        return Err(Status::failed_precondition(
+            "index batch returned without requested INDEX stage",
+        ));
+    }
+    if response.extraction_batch.is_some()
+        && !requested_stage(expected, jobs::JobStage::JOB_STAGE_EXTRACT)
+    {
+        return Err(Status::failed_precondition(
+            "extraction batch returned without requested EXTRACT stage",
+        ));
+    }
+    if response.resolution_batch.is_some()
+        && !requested_stage(expected, jobs::JobStage::JOB_STAGE_RESOLVE)
+    {
+        return Err(Status::failed_precondition(
+            "resolution batch returned without requested RESOLVE stage",
+        ));
+    }
     if response.status.enum_value()
         == Ok(crate::wire::common::CompletionStatus::COMPLETION_STATUS_SUCCEEDED)
         && (!response.errors.is_empty()
             || response.document_batch.is_none()
                 && response.graph_delta.is_none()
-                && response.index_batch.is_none())
+                && response.index_batch.is_none()
+                && response.extraction_batch.is_none()
+                && response.resolution_batch.is_none())
     {
         return Err(Status::failed_precondition(
             "successful processor response requires output and no errors",
         ));
     }
     Ok(())
+}
+
+fn requested_stage(expected: &ResponseIdentity<'_>, stage: jobs::JobStage) -> bool {
+    expected
+        .stages
+        .iter()
+        .any(|candidate| candidate.enum_value() == Ok(stage))
 }
 
 fn validate_deadline(
@@ -1003,6 +1064,7 @@ mod tests {
             &request.job_id,
             request.attempt,
             request.lease.fence,
+            &request.stages,
         );
         validate_process_response(&expected, &response).unwrap();
         response.checkpoint.as_mut().unwrap().terminal_status =
@@ -1013,6 +1075,36 @@ mod tests {
             EnumOrUnknown::new(common::CompletionStatus::COMPLETION_STATUS_SUCCEEDED);
         response.checkpoint.as_mut().unwrap().completed_batch_keys[0] = "forged-output".to_owned();
         let error = validate_process_response(&expected, &response).unwrap_err();
+        assert_eq!(error.code(), Code::FailedPrecondition);
+
+        let extraction = response.document_batch.as_ref().unwrap().clone();
+        response.document_batch = MessageField::none();
+        response.extraction_batch = MessageField::some(extraction.clone());
+        response.checkpoint.as_mut().unwrap().stage =
+            EnumOrUnknown::new(jobs::JobStage::JOB_STAGE_EXTRACT);
+        response.checkpoint.as_mut().unwrap().completed_batch_keys[0] = extraction.artifact_id;
+        let mut extraction_request = request.clone();
+        extraction_request.stages = vec![EnumOrUnknown::new(jobs::JobStage::JOB_STAGE_EXTRACT)];
+        let extraction_expected = domain_request_identity(
+            &extraction_request.context.request_id,
+            &extraction_request.context.corpus_id,
+            &extraction_request.job_id,
+            extraction_request.attempt,
+            extraction_request.lease.fence,
+            &extraction_request.stages,
+        );
+        validate_process_response(&extraction_expected, &response).unwrap();
+
+        extraction_request.stages = vec![EnumOrUnknown::new(jobs::JobStage::JOB_STAGE_RESOLVE)];
+        let resolution_expected = domain_request_identity(
+            &extraction_request.context.request_id,
+            &extraction_request.context.corpus_id,
+            &extraction_request.job_id,
+            extraction_request.attempt,
+            extraction_request.lease.fence,
+            &extraction_request.stages,
+        );
+        let error = validate_process_response(&resolution_expected, &response).unwrap_err();
         assert_eq!(error.code(), Code::FailedPrecondition);
     }
 
