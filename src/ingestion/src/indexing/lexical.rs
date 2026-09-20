@@ -14,3 +14,7 @@
 //! Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
 //!
 //! Batas runtime: worker hanya menyiapkan batch representasi dan metadata. Commit indeks dan publikasi snapshot dikoordinasikan Go; modul ini tidak menjadi pemilik publikasi kedua.
+//! Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+//! Build versioned BM25 analyzer/statistics records separately from learned sparse embeddings and preserve filter payloads.
+//! Bukti verifikasi: Test legal identifiers, Unicode tokenization and incremental statistics; compare full rebuild parity and retrieval quality.
+//! Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.

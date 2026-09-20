@@ -26,4 +26,14 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Ini adalah scaffold struktur, dokumentasi, dan build lintas bahasa. Belum ada pipeline, database adapter, transport worker, atau model yang aktif. API Go tetap scaffold; CLI collect sudah mengunduh PDF/metadata sumber; Rust dan C++ menyediakan target library; protobuf belum memiliki message/service; tooling Python belum menjalankan model. Keberhasilan build tidak menyatakan target latency atau akurasi tercapai.
+Status lintas repositori: collector PDF dan kontrak/validator C01 sudah tersedia; lihat [cakupan implementasi C01](../../../../../doc/contracts-implementation.md). Pipeline parsing/graph/retrieval, adapter storage, layanan model dan evaluator benchmark masih belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
+
+## Rekomendasi implementasi anak
+
+Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan status aktif/scaffold; tabel bukan klaim fitur sudah tersedia. Integrasikan keluaran anak melalui kontrak induk dan jalankan [protokol verifikasi](../../../../../doc/verification.md) sebelum menyatakan paket selesai. Target angka tetap bersumber dari configs/benchmark-targets.yaml.
+
+| File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
+| --- | --- | --- |
+| [classifier.go](classifier.go) | Resolve query intent/temporal mode into an auditable RetrievalPlan with an uncertainty path. | Evaluate per-intent confusion and routing cost; ambiguity must not silently pick a legal date or skip relevant retrieval branches. |
+| [entity_linker.go](entity_linker.go) | Resolve query mentions against snapshot-pinned canonical registry and aliases with scope and confidence. | Test homonyms, same article number across laws and unresolved mentions; measure candidate recall and false merges. |
+| [normalizer.go](normalizer.go) | Preserve original question and normalize mechanical variants while keeping negation, article numbers, years and quoted terms. | Test informal/typo/Indonesian-English cases and destructive normalization counterexamples; record original-to-normalized trace. |

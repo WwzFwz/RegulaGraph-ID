@@ -28,4 +28,23 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Ini adalah scaffold struktur, dokumentasi, dan build lintas bahasa. Belum ada pipeline, database adapter, transport worker, atau model yang aktif. API Go tetap scaffold; CLI collect sudah mengunduh PDF/metadata sumber; Rust dan C++ menyediakan target library; protobuf belum memiliki message/service; tooling Python belum menjalankan model. Keberhasilan build tidak menyatakan target latency atau akurasi tercapai.
+Status lintas repositori: collector PDF dan kontrak/validator C01 sudah tersedia; lihat [cakupan implementasi C01](../../../../../doc/contracts-implementation.md). Pipeline parsing/graph/retrieval, adapter storage, layanan model dan evaluator benchmark masih belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
+
+## Rekomendasi implementasi anak
+
+Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan status aktif/scaffold; tabel bukan klaim fitur sudah tersedia. Integrasikan keluaran anak melalui kontrak induk dan jalankan [protokol verifikasi](../../../../../doc/verification.md) sebelum menyatakan paket selesai. Target angka tetap bersumber dari configs/benchmark-targets.yaml.
+
+| File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
+| --- | --- | --- |
+| [budget.go](budget.go) | Keep total unique-byte accounting atomic at promotion; add cross-process ownership only when a multi-process collector is introduced. | Exercise restart, duplicate hashes and concurrent near-cap writes; distinguish final PDF bytes from temporary/network traffic. |
+| [download.go](download.go) | Preserve streamed hash/size/PDF envelope validation and durable receipts; integrate stronger PDF diagnostics through parser output. | Test short body, wrong media, corrupt existing blobs and disk errors; bound temporary bytes and report download throughput. |
+| [html.go](html.go) | Maintain deterministic source HTML parsing with canonical URL resolution and explicit unsupported-layout failures. | Test malformed markup, relative URLs, duplicate links and script-driven pages; do not infer PDFs from absent links. |
+| [http.go](http.go) | Keep per-host throttling, connection reuse and redirect policy; propagate cancellation and retry budgets. | Test Retry-After, cross-host redirect rejection and transient failures; measure waiting separately from transferred bytes. |
+| [inventory.go](inventory.go) | Preserve versioned receipt/history and checksum-based reuse; map acquisition observations into production source records at S01/D01 integration. | Test metadata schema change, missing/corrupt artifacts and atomic latest-pointer update; never drop historical receipts. |
+| [listing.go](listing.go) | Extend bounded listing discovery with source-specific pagination and persistent page provenance. | Test next-page cycles, duplicate URLs and incremental resume; distinguish URL count from unique regulations/PDFs. |
+| [local.go](local.go) | Import explicitly selected local files through the same hash/receipt contracts as official acquisition. | Test invalid paths, corrupt/duplicate PDFs and interruption; avoid interpreting file timestamps as legal effective dates. |
+| [official.go](official.go) | Extend metadata/PDF extraction using captured layouts and preserve observation history; treat dates/status as unverified source assertions. | Test changed layouts, attachment vs regulation links and missing metadata; report per-source extraction coverage. |
+
+## Penambahan C01 dan panduan verifikasi
+
+Berkas terkait: [budget.go](budget.go), [budget_test.go](budget_test.go). Dependency, cara menjalankan dan batas pembuktiannya mengikuti [implementasi C01](../../../../../doc/contracts-implementation.md).

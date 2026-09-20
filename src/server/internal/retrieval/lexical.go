@@ -12,4 +12,9 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Implement BM25 query path using the pinned analyzer/statistics generation; keep learned sparse as a distinct representation.
+// Bukti verifikasi: Test exact legal identifiers, typo/code-switch strata and empty queries; evaluate recall and latency without merging score scales.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package retrieval

@@ -16,3 +16,7 @@
 //! Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
 //!
 //! Kontrak wire bersama berasal dari src/contracts. Tipe Rust nantinya hanya representasi lokal; field wire tidak didefinisikan ulang secara independen.
+//! Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+//! Expose assertion/support and qualifier invariants without collapsing shared evidence.
+//! Bukti verifikasi: Test endpoint types, source withdrawal and negation/condition preservation; avoid redundant conversion/allocation across batches.
+//! Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.

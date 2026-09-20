@@ -13,4 +13,8 @@ Bandingkan hasil terhadap referensi Python serta gold evidence; ekspor yang dapa
 dimuat belum menjamin kesetaraan kualitas retrieval/reranking.
 
 Status: scaffold dokumentasi; belum ada tooling ekspor yang aktif.
+Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+Compare Python reference and actual C++ outputs using the same weights/tokenizer and representative batches.
+Bukti verifikasi: Measure vector/score/rank deviations plus downstream quality, latency and memory; quantization requires evidence against unchanged gates.
+Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
 """

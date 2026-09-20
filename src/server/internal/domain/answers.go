@@ -14,4 +14,9 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Construct claim/citation/stream state helpers over authoritative wire types; preserve semantic vs transport completion.
+// Bukti verifikasi: Test byte-accurate claim spans, unknown evidence refs and exactly one terminal stream event.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package domain

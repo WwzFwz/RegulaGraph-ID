@@ -18,7 +18,7 @@ Subfolder yang dikelola: [decisions/](decisions/README.md).
 
 Berkas langsung: [acquisition.md](acquisition.md), [system-design.md](system-design.md), [system-contracts.md](system-contracts.md), [storage-consistency.md](storage-consistency.md), [corpus-plan.md](corpus-plan.md), [development-plan.md](development-plan.md), [benchmark-targets.md](benchmark-targets.md), [Graph-Engineering-Athropic-Playbook.pdf](Graph-Engineering-Athropic-Playbook.pdf), [architecture.md](architecture.md), [benchmark-policy.md](benchmark-policy.md), [data-model.md](data-model.md), [reference.md](reference.md), [runtime-language-review.md](runtime-language-review.md).
 
-Mulai dari system-design untuk membaca keseluruhan rancangan, lalu system-contracts dan storage-consistency untuk semantik integrasi. Corpus-plan mengikat sumber pilihan pengguna dan prosedur gold dataset. Development-plan mengurutkan seluruh implementasi menurut dependency beserta bukti kelulusannya. Dokumen desain tidak berarti pipeline, Protobuf, atau benchmark sudah diimplementasikan.
+Mulai dari system-design untuk membaca keseluruhan rancangan, lalu system-contracts dan storage-consistency untuk semantik integrasi. Corpus-plan mengikat sumber pilihan pengguna dan prosedur gold dataset. Development-plan mengurutkan seluruh implementasi menurut dependency beserta bukti kelulusannya. Dokumen desain tidak berarti pipeline atau benchmark sudah aktif; status kontrak C01 dijelaskan terpisah.
 
 ## Benchmark dan perhatian kualitas
 
@@ -28,4 +28,10 @@ Lihat [kebijakan benchmark](benchmark-policy.md) untuk protokol pengukuran dan p
 
 ## Status implementasi
 
-Struktur ini merupakan scaffold dokumentasi. Modul Go, Rust, C++, dan Python masih berupa scaffold; konfigurasi belum dikonsumsi pipeline, dan belum ada layanan aplikasi yang aktif. Build scaffold hanya memverifikasi struktur kode. Referensi pihak ketiga dan dokumen pengguna yang sudah ada dipertahankan; status scaffold tidak mengubah isi sumber tersebut.
+Status lintas repositori: collector PDF dan kontrak/validator C01 sudah tersedia; lihat [cakupan implementasi C01](contracts-implementation.md). Pipeline parsing/graph/retrieval, adapter storage, layanan model dan evaluator benchmark masih belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
+
+## Penambahan C01 dan panduan verifikasi
+
+Berkas terkait: [implementation-guide.md](implementation-guide.md), [contracts-implementation.md](contracts-implementation.md), [verification.md](verification.md), [verification-contracts.md](verification-contracts.md), [verification-pipeline.md](verification-pipeline.md), [verification-quality.md](verification-quality.md). Mulai dari verification.md untuk reviewer dan implementation-guide.md untuk implementer. Dependency, cara menjalankan dan batas pembuktiannya mengikuti [implementasi C01](contracts-implementation.md).
+
+Ringkasan milestone: [verification-report-c01.md](verification-report-c01.md).

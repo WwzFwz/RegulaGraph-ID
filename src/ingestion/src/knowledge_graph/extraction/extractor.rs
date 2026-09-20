@@ -12,3 +12,7 @@
 //! Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //!
 //! Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+//! Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+//! Extract mentions/assertions with exact evidence spans, typed qualifiers and explicit partial/error status from context batches.
+//! Bukti verifikasi: Evaluate precision/recall on human gold including negation/conditions/exceptions; measure cost and throughput without query-time extraction.
+//! Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.

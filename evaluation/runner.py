@@ -16,4 +16,8 @@ tanpa meminta izin perbaikan dalam scope. Hanya perubahan benchmark yang memerlu
 persetujuan; kegagalan tes tidak otomatis menghentikan pekerjaan atau menurunkan standar.
 
 Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+Load frozen dataset/run/profile manifests, invoke production endpoints/artifacts, collect observations and evaluate every applicable YAML gate with raw evidence.
+Bukti verifikasi: Test missing prerequisites, invalid/empty runs and failed requests; output BLOCKED/NOT_MEASURED/FAIL rather than false PASS and include queue time.
+Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
 """

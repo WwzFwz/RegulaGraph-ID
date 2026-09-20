@@ -1,8 +1,8 @@
 # RegulaGraph-ID
 
-Repositori ini menampung scaffold Hybrid GraphRAG untuk regulasi Indonesia dengan pemisahan runtime berdasarkan latency dan throughput. README ini menjadi peta fungsi, pemilik komponen, dan cara memeriksa struktur build.
+Repositori ini menampung pengembangan Hybrid GraphRAG untuk regulasi Indonesia dengan pemisahan runtime berdasarkan latency dan throughput. README ini menjadi peta fungsi, pemilik komponen, dan cara memeriksa struktur build.
 
-**Status: scaffold lintas bahasa, belum ada pipeline atau layanan inference yang aktif.** Source produksi Python sebelumnya sudah digantikan; Python dipakai untuk evaluasi dan tooling model. Manifest build tersedia tanpa dependency database/model yang belum dipilih. Tidak ada hasil benchmark atau SLA yang diklaim.
+**Status: collector PDF dan kontrak/validator C01 tersedia; pipeline GraphRAG dan layanan inference belum aktif.** Go/Rust/C++ memegang runtime produk; Python untuk evaluasi/tooling offline. Tidak ada target benchmark atau SLA yang diklaim tercapai. Mulai kelanjutan dari [panduan implementasi](doc/implementation-guide.md) dan [protokol verifikasi](doc/verification.md).
 
 ## Struktur dan cakupan
 
@@ -37,19 +37,27 @@ RegulaGraph-ID/
 │   ├── architecture.md
 │   ├── benchmark-policy.md
 │   ├── benchmark-targets.md
+│   ├── contracts-implementation.md
 │   ├── corpus-plan.md
 │   ├── data-model.md
 │   ├── development-plan.md
 │   ├── Graph-Engineering-Athropic-Playbook.pdf
+│   ├── implementation-guide.md
 │   ├── README.md
 │   ├── reference.md
 │   ├── runtime-language-review.md
 │   ├── storage-consistency.md
 │   ├── system-contracts.md
-│   └── system-design.md
+│   ├── system-design.md
+│   ├── verification-contracts.md
+│   ├── verification-pipeline.md
+│   ├── verification-quality.md
+│   ├── verification-report-c01.md
+│   └── verification.md
 ├── evaluation/
 │   ├── datasets/
 │   │   ├── __init__.py
+│   │   ├── evaluation.proto
 │   │   ├── README.md
 │   │   └── schema.py
 │   ├── experiments/
@@ -70,6 +78,8 @@ RegulaGraph-ID/
 ├── migrations/
 │   └── README.md
 ├── scripts/
+│   ├── check_contracts.py
+│   ├── generate_contracts.py
 │   └── README.md
 ├── src/
 │   ├── contracts/
@@ -86,7 +96,11 @@ RegulaGraph-ID/
 │   │   │   │   │   └── README.md
 │   │   │   │   └── README.md
 │   │   │   └── README.md
-│   │   └── README.md
+│   │   ├── CMakeLists.txt
+│   │   ├── README.md
+│   │   ├── schema-lock.json
+│   │   ├── wire_validation.cpp
+│   │   └── wire_validation.hpp
 │   ├── inference/
 │   │   ├── include/
 │   │   │   ├── regulagraph/
@@ -144,7 +158,8 @@ RegulaGraph-ID/
 │   │   │   │   ├── evidence.rs
 │   │   │   │   ├── mod.rs
 │   │   │   │   ├── README.md
-│   │   │   │   └── relations.rs
+│   │   │   │   ├── relations.rs
+│   │   │   │   └── wire.rs
 │   │   │   ├── indexing/
 │   │   │   │   ├── dense.rs
 │   │   │   │   ├── lexical.rs
@@ -179,6 +194,7 @@ RegulaGraph-ID/
 │   │   │   │   └── schema.rs
 │   │   │   ├── lib.rs
 │   │   │   └── README.md
+│   │   ├── build.rs
 │   │   ├── Cargo.toml
 │   │   └── README.md
 │   ├── server/
@@ -191,6 +207,17 @@ RegulaGraph-ID/
 │   │   │   │   ├── main_test.go
 │   │   │   │   └── README.md
 │   │   │   └── README.md
+│   │   ├── gen/
+│   │   │   └── regulagraph/
+│   │   │       └── v1/
+│   │   │           ├── answers.pb.go
+│   │   │           ├── common.pb.go
+│   │   │           ├── documents.pb.go
+│   │   │           ├── evaluation.pb.go
+│   │   │           ├── evidence.pb.go
+│   │   │           ├── graph.pb.go
+│   │   │           ├── inference.pb.go
+│   │   │           └── jobs.pb.go
 │   │   ├── internal/
 │   │   │   ├── adapters/
 │   │   │   │   ├── inference/
@@ -239,17 +266,23 @@ RegulaGraph-ID/
 │   │   │   │   └── README.md
 │   │   │   ├── domain/
 │   │   │   │   ├── answers.go
+│   │   │   │   ├── boundaries.go
+│   │   │   │   ├── boundaries_test.go
 │   │   │   │   ├── chunks.go
 │   │   │   │   ├── documents.go
 │   │   │   │   ├── entities.go
 │   │   │   │   ├── evidence.go
 │   │   │   │   ├── README.md
-│   │   │   │   └── relations.go
+│   │   │   │   ├── relations.go
+│   │   │   │   ├── wire.go
+│   │   │   │   └── wire_test.go
 │   │   │   ├── indexing/
 │   │   │   │   ├── publication.go
 │   │   │   │   └── README.md
 │   │   │   ├── ingestion/
 │   │   │   │   ├── sources/
+│   │   │   │   │   ├── budget.go
+│   │   │   │   │   ├── budget_test.go
 │   │   │   │   │   ├── collector_test.go
 │   │   │   │   │   ├── download.go
 │   │   │   │   │   ├── html.go
@@ -294,11 +327,15 @@ RegulaGraph-ID/
 │   ├── end_to_end/
 │   │   └── README.md
 │   ├── fixtures/
-│   │   └── README.md
+│   │   ├── README.md
+│   │   └── wire-cases.json
 │   ├── integration/
-│   │   └── README.md
+│   │   ├── README.md
+│   │   ├── wire_cpp.cpp
+│   │   └── wire_roundtrip.py
 │   ├── unit/
-│   │   └── README.md
+│   │   ├── README.md
+│   │   └── test_evaluation_contracts.py
 │   └── README.md
 ├── tooling/
 │   ├── models/
@@ -321,11 +358,11 @@ RegulaGraph-ID/
 
 Baca README setiap folder sebelum menambah fungsi. [AGENTS.md](AGENTS.md) menetapkan bahwa komponen di luar cakupan folder perlu dibicarakan terlebih dahulu. Migrasi Go/Rust/C++ ini telah disetujui pengguna dan dicatat pada [keputusan 0002](doc/decisions/0002-polyglot-runtime.md).
 
-Pengelompokan kode produk dalam [src](src/README.md) dan konfigurasi runtime dalam [deployment](deployment/README.md) dicatat pada [keputusan 0004](doc/decisions/0004-product-source-layout.md). Tree di atas mencakup file yang dikelola; cache dan hasil build otomatis dikecualikan.
+Pengelompokan kode produk dalam [src](src/README.md) dan konfigurasi runtime dalam [deployment](deployment/README.md) dicatat pada [keputusan 0004](doc/decisions/0004-product-source-layout.md). Tree di atas mencakup file yang dilacak/dikelola, termasuk binding Go yang dihasilkan; cache, corpus lokal dan hasil build lain dikecualikan.
 
 ## Integrasi dan peran anak
 
-Rancangan lengkap sebelum implementasi dimulai dari [system-design](doc/system-design.md), lalu [kontrak seluruh sistem](doc/system-contracts.md), [storage/snapshot/recovery](doc/storage-consistency.md), [rencana corpus](doc/corpus-plan.md), dan [tahapan pengembangan](doc/development-plan.md). Sumber yang dipilih adalah Database Peraturan BPK, JDIH Kemkomdigi, dan JDIHN. [Keputusan 0005](doc/decisions/0005-complete-system-design.md) mengikat cakupan desain penuh; schema Protobuf serta pipeline masih scaffold dan akan direalisasikan menurut dependency pekerjaan.
+Rancangan lengkap sebelum implementasi dimulai dari [system-design](doc/system-design.md), lalu [kontrak seluruh sistem](doc/system-contracts.md), [storage/snapshot/recovery](doc/storage-consistency.md), [rencana corpus](doc/corpus-plan.md), dan [tahapan pengembangan](doc/development-plan.md). Sumber yang dipilih adalah Database Peraturan BPK, JDIH Kemkomdigi, dan JDIHN. [Keputusan 0005](doc/decisions/0005-complete-system-design.md) mengikat cakupan desain penuh; schema Protobuf C01 tersedia; implementasi pipeline mengikuti dependency pekerjaan.
 
 [Go server](src/server/README.md) memegang jalur request serta penjadwalan dan publikasi snapshot. [Rust worker](src/ingestion/README.md) menghasilkan batch dokumen/graph/indeks; commit storage dilakukan adapter Go. [Inference C++](src/inference/README.md) menampung wrapper runtime model, sedangkan engine parsing C/C++ dipanggil dari adapter Rust. [Contracts](src/contracts/README.md) menyatukan ID, versi, status, snapshot, dan offset teks.
 
@@ -335,9 +372,9 @@ Fusion, filter, context builder, serta citation tetap di proses Go yang sama. Pa
 
 ## Akuisisi PDF dan metadata
 
-Collector D01 sudah aktif untuk input batch URL dan discovery terbatas BPK/Kemkomdigi. Jalankan `go run ./src/server/cmd/cli collect -input configs/sources.txt` untuk mengunduh contoh PDF ke data/acquisition beserta metadata dan checksum. Run ulang memakai resume; `-refresh` memeriksa sumber kembali. Lihat [panduan akuisisi](doc/acquisition.md) untuk opsi dan batas dukungan JDIHN. Pipeline OCR/graph/retrieval serta kontrak produksi masih scaffold.
+Collector D01 sudah aktif untuk input batch URL dan discovery terbatas BPK/Kemkomdigi. Jalankan `go run ./src/server/cmd/cli collect -input configs/sources.txt` untuk mengunduh contoh PDF ke data/acquisition beserta metadata dan checksum. Run ulang memakai resume; `-refresh` memeriksa sumber kembali. Lihat [panduan akuisisi](doc/acquisition.md) untuk opsi dan batas dukungan JDIHN. Pipeline OCR/graph/retrieval belum aktif. Batch lokal sudah menyimpan 650 PDF unik (2.999.240.002 bytes) dan berhenti pada cap 3 GB; 19 URL gagal dan sisanya deferred tetap tercatat.
 
-## Build scaffold
+## Build dan verifikasi
 
 Dari root repositori, gunakan toolchain Go 1.26+ (toolchain workspace 1.26.8), Rust edition 2021, Python 3.11+, serta CMake 3.20+ dengan compiler C++17. Tidak diperlukan model atau SDK database untuk build scaffold.
 
@@ -348,7 +385,7 @@ cmake -S src/inference -B .cache/inference-src
 cmake --build .cache/inference-src --config Release
 ```
 
-Build Go memvalidasi package dan entry point; entry point API tetap scaffold, sedangkan CLI collect sudah mengunduh PDF nyata dan metadata sumber. Rust saat ini berupa library dengan module tree, belum executable worker. C++ menghasilkan static library scaffold tanpa ONNX runtime atau model. Protobuf hanya mendeklarasikan syntax/package; codegen dan bentuk field belum tersedia. Packaging Python dalam pyproject.toml hanya mencakup evaluation dan tooling.
+Build Go memvalidasi package dan entry point; entry point API tetap scaffold, sedangkan CLI collect sudah mengunduh PDF nyata dan metadata sumber. Rust berupa library dengan generated binding dan validator, belum executable worker. C++ menghasilkan static library scaffold tanpa ONNX runtime atau model. C01 menyediakan 157 message, 31 enum, empat service descriptor, codegen dan validator. Build serta uji Go/Rust/C++/Python mengikuti [petunjuk C01](doc/contracts-implementation.md); transport layanan belum aktif. Packaging Python dalam pyproject.toml hanya mencakup evaluation dan tooling.
 
 ## Performa dan benchmark
 

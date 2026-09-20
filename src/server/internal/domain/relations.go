@@ -14,4 +14,9 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Expose assertion/support and qualifier invariants without collapsing shared evidence.
+// Bukti verifikasi: Test endpoint types, source withdrawal and negation/condition preservation; avoid redundant conversion/allocation across batches.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package domain

@@ -14,7 +14,7 @@ Anak tidak boleh mengubah kontrak input/output secara tersembunyi. Perubahan ben
 
 ## Isi saat ini
 
-Folder ini baru menyediakan kontrak dokumentasi. File implementasi ditambahkan ketika pekerjaannya dimulai; tidak ada perilaku runtime yang dijanjikan oleh keberadaan folder.
+File C01 di bawah sudah dapat dijalankan dengan prasyarat toolchain pada dokumentasi. Pipeline produksi dan benchmark model belum aktif.
 
 ## Benchmark dan perhatian kualitas
 
@@ -24,4 +24,8 @@ Lihat [kebijakan benchmark](../doc/benchmark-policy.md) untuk protokol pengukura
 
 ## Status implementasi
 
-Struktur ini merupakan scaffold dokumentasi. Modul Go, Rust, C++, dan Python masih berupa scaffold; konfigurasi belum dikonsumsi pipeline, dan belum ada layanan aplikasi yang aktif. Build scaffold hanya memverifikasi struktur kode. Referensi pihak ketiga dan dokumen pengguna yang sudah ada dipertahankan; status scaffold tidak mengubah isi sumber tersebut.
+Status lintas repositori: collector PDF dan kontrak/validator C01 sudah tersedia; lihat [cakupan implementasi C01](../doc/contracts-implementation.md). Pipeline parsing/graph/retrieval, adapter storage, layanan model dan evaluator benchmark masih belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
+
+## Penambahan C01 dan panduan verifikasi
+
+Berkas terkait: [generate_contracts.py](generate_contracts.py), [check_contracts.py](check_contracts.py). Dependency, cara menjalankan dan batas pembuktiannya mengikuti [implementasi C01](../doc/contracts-implementation.md).

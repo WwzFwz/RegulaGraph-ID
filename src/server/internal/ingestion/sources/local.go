@@ -12,4 +12,9 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Import explicitly selected local files through the same hash/receipt contracts as official acquisition.
+// Bukti verifikasi: Test invalid paths, corrupt/duplicate PDFs and interruption; avoid interpreting file timestamps as legal effective dates.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package sources

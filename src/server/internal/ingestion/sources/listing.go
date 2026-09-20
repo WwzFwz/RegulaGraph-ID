@@ -1,6 +1,11 @@
 // Listing acquisition reads HTML only, preserving provenance for a later PDF queue.
 // Integration: workflow checkpoints ListingObservation; this is a local D01 artifact, not C01 wire schema.
 // Performance: one bounded HTML request per page, shared rate limits; never follows PDF links.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Extend bounded listing discovery with source-specific pagination and persistent page provenance.
+// Bukti verifikasi: Test next-page cycles, duplicate URLs and incremental resume; distinguish URL count from unique regulations/PDFs.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package sources
 
 import (

@@ -12,4 +12,9 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Schedule typed worker stages with idempotency keys, leases/fences, checkpoints and bounded capacity; hand validated batches to publisher.
+// Bukti verifikasi: Test retry after crash, duplicate delivery, stale worker response and cancellation before publication with real storage.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package workflows

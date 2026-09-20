@@ -12,4 +12,9 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Map domain/vendor failures to stable safe error codes and retry hints, preserving trace IDs.
+// Bukti verifikasi: Test malformed input, timeout, cancellation and conflict mapping; never serialize credentials or raw vendor errors.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package schemas

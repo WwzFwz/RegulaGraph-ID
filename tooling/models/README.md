@@ -24,4 +24,13 @@ Ikuti [kebijakan benchmark](../../doc/benchmark-policy.md). Angka wajib mengikut
 
 ## Status
 
-Ini adalah scaffold struktur, dokumentasi, dan build lintas bahasa. Belum ada pipeline, database adapter, transport worker, atau model yang aktif. API Go tetap scaffold; CLI collect sudah mengunduh PDF/metadata sumber; Rust dan C++ menyediakan target library; protobuf belum memiliki message/service; tooling Python belum menjalankan model. Keberhasilan build tidak menyatakan target latency atau akurasi tercapai.
+Status lintas repositori: collector PDF dan kontrak/validator C01 sudah tersedia; lihat [cakupan implementasi C01](../../doc/contracts-implementation.md). Pipeline parsing/graph/retrieval, adapter storage, layanan model dan evaluator benchmark masih belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
+
+## Rekomendasi implementasi anak
+
+Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan status aktif/scaffold; tabel bukan klaim fitur sudah tersedia. Integrasikan keluaran anak melalui kontrak induk dan jalankan [protokol verifikasi](../../doc/verification.md) sebelum menyatakan paket selesai. Target angka tetap bersumber dari configs/benchmark-targets.yaml.
+
+| File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
+| --- | --- | --- |
+| [export.py](export.py) | Export selected model plus tokenizer/pooling/normalization/precision/dynamic-shape manifest and content hashes. | Test unsupported operations and representative multilingual/long inputs; export success alone cannot authorize production parity. |
+| [parity.py](parity.py) | Compare Python reference and actual C++ outputs using the same weights/tokenizer and representative batches. | Measure vector/score/rank deviations plus downstream quality, latency and memory; quantization requires evidence against unchanged gates. |

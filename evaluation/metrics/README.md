@@ -24,4 +24,16 @@ Lihat [kebijakan benchmark](../../doc/benchmark-policy.md) untuk protokol penguk
 
 ## Status implementasi
 
-Struktur ini merupakan scaffold dokumentasi. Modul Go, Rust, C++, dan Python masih berupa scaffold; konfigurasi belum dikonsumsi pipeline, dan belum ada layanan aplikasi yang aktif. Build scaffold hanya memverifikasi struktur kode. Referensi pihak ketiga dan dokumen pengguna yang sudah ada dipertahankan; status scaffold tidak mengubah isi sumber tersebut.
+Status lintas repositori: collector PDF dan kontrak/validator C01 sudah tersedia; lihat [cakupan implementasi C01](../../doc/contracts-implementation.md). Pipeline parsing/graph/retrieval, adapter storage, layanan model dan evaluator benchmark masih belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
+
+## Rekomendasi implementasi anak
+
+Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan status aktif/scaffold; tabel bukan klaim fitur sudah tersedia. Integrasikan keluaran anak melalui kontrak induk dan jalankan [protokol verifikasi](../../doc/verification.md) sebelum menyatakan paket selesai. Target angka tetap bersumber dari configs/benchmark-targets.yaml.
+
+| File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
+| --- | --- | --- |
+| [answers.py](answers.py) | Score correctness, temporal correctness, faithfulness and abstention separately; calibrate any judge against human labels. | Test ambiguous/no-answer/conflict cases and invalid denominator; report category counts and uncertainty without tuning on test labels. |
+| [citations.py](citations.py) | Score claim-level citation precision/coverage and correct version/locator against acceptable evidence sets. | Distinguish syntactic references from actual semantic support; test multiple valid evidence sets, unsupported claims and missing annotations. |
+| [graph.py](graph.py) | Evaluate typed extraction, qualifiers, canonical resolution and supported multi-hop paths with explicit gold matching rules. | Test negation, homonyms, merge/split and shared supports; report candidate recall separately from final resolution precision. |
+| [retrieval.py](retrieval.py) | Compute Recall@k, nDCG@k and all-required-evidence/path coverage using production ranked output. | Test duplicates, ties, multiple acceptable sets and unanswerable questions; keep denominators and truncation policy explicit. |
+| [runtime.py](runtime.py) | Aggregate monotonic queue/compute/TTFT/total traces, throughput, errors, memory and cost across the frozen workload. | Test percentile calculation, clock-unit mismatch and timed-out/missing requests; avoid coordinated-omission bias and success-only latency. |

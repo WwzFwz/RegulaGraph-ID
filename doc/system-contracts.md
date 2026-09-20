@@ -1,6 +1,6 @@
 # Spesifikasi kontrak sistem
 
-Dokumen ini merancang kontrak seluruh domain, API, RPC, dan artefak RegulaGraph-ID. Perannya memberi acuan field, pemilik data, invariants, dan failure behavior sebelum implementasi. Ini spesifikasi desain, bukan schema wire yang sudah dapat dikompilasi. Tujuh file di src/contracts/proto masih scaffold; tahap C01 pada [rencana pengembangan](development-plan.md) menerjemahkan seluruh katalog ini ke Protobuf, validator, dan golden fixtures.
+Dokumen ini merancang kontrak seluruh domain, API, RPC, dan artefak RegulaGraph-ID. Perannya memberi acuan field, pemilik data, invariants, dan failure behavior sebelum implementasi. Ini spesifikasi semantik; schema yang dapat dikompilasi, validator dan fixture C01 kini tersedia. Lihat [implementasi C01](contracts-implementation.md) untuk pemetaan, baseline, dependency dan batas validasi; layanan runtime belum aktif.
 
 Kontrak mencakup keseluruhan produk pada [system-design.md](system-design.md), bukan hanya satu alur demonstrasi. Tipe domain internal tidak semuanya harus menjadi RPC. Semua record persistensi memiliki schema_version dan identitas corpus bila scoped; semua operasi lintas proses membawa correlation, deadline, serta manifest yang relevan. Field di tabel adalah kewajiban semantik; tag Protobuf diputuskan dan dibekukan saat C01, tidak menggunakan posisi kolom sebagai nomor field.
 

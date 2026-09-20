@@ -12,4 +12,9 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Load typed config once; reject unknown fields, invalid limits and incompatible model/index manifests; emit a redacted deterministic fingerprint.
+// Bukti verifikasi: Test precedence, missing secrets, semantic validation and identical fingerprints across equivalent inputs; measure startup separately.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package config

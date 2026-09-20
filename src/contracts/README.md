@@ -10,7 +10,7 @@ Fungsi di luar cakupan ini mengikuti komponen pemiliknya. Jika fungsi baru tidak
 
 Kontrak menyatukan ID, versi, snapshot, error/status, dan satuan offset. Generated binding tidak menjadi definisi independen; transport belum diimplementasikan.
 
-Rancangan seluruh record serta operasi berada pada [system-contracts](../../doc/system-contracts.md); publication dan identity semantics berada pada [storage-consistency](../../doc/storage-consistency.md). Desain tidak dibatasi ke kontrak minimum. File proto masih scaffold hingga paket C01 merealisasikan schema dan verifikasi kompatibilitasnya.
+Rancangan seluruh record serta operasi berada pada [system-contracts](../../doc/system-contracts.md); publication dan identity semantics berada pada [storage-consistency](../../doc/storage-consistency.md). Desain tidak dibatasi ke kontrak minimum. File proto sudah memiliki message/service descriptor C01 serta baseline kompatibilitas; transport produksi belum aktif.
 
 Pertahankan source/canonical/provision-version/snapshot ID dan schema version lintas anak. Boundary runtime mengikuti [src/contracts](README.md), dengan pekerjaan batch atau inference yang jelas. Perubahan bentuk data, error/status, serta offset sumber harus didokumentasikan bersama konsumennya; jangan menggandakan kebijakan publikasi di beberapa runtime.
 
@@ -18,7 +18,7 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 Subfolder: [proto/](proto/README.md).
 
-Folder ini baru mendefinisikan batas komponen; belum ada implementasi runtime.
+Folder ini menyediakan artefak kontrak/verifikasi C01 sebagaimana daftar di bawah; tidak menyediakan layanan produksi.
 
 ## Benchmark dan perhatian performa
 
@@ -28,4 +28,8 @@ Ikuti [kebijakan benchmark](../../doc/benchmark-policy.md). Angka wajib mengikut
 
 ## Status
 
-Ini adalah scaffold struktur, dokumentasi, dan build lintas bahasa. Belum ada pipeline, database adapter, transport worker, atau model yang aktif. API Go tetap scaffold; CLI collect sudah mengunduh PDF/metadata sumber; Rust dan C++ menyediakan target library; protobuf belum memiliki message/service; tooling Python belum menjalankan model. Keberhasilan build tidak menyatakan target latency atau akurasi tercapai.
+Status lintas repositori: collector PDF dan kontrak/validator C01 sudah tersedia; lihat [cakupan implementasi C01](../../doc/contracts-implementation.md). Pipeline parsing/graph/retrieval, adapter storage, layanan model dan evaluator benchmark masih belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
+
+## Penambahan C01 dan panduan verifikasi
+
+Berkas terkait: [CMakeLists.txt](CMakeLists.txt), [wire_validation.hpp](wire_validation.hpp), [wire_validation.cpp](wire_validation.cpp), [schema-lock.json](schema-lock.json). Dependency, cara menjalankan dan batas pembuktiannya mengikuti [implementasi C01](../../doc/contracts-implementation.md).

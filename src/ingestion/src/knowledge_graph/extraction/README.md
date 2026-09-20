@@ -24,4 +24,13 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Ini adalah scaffold struktur, dokumentasi, dan build lintas bahasa. Belum ada pipeline, database adapter, transport worker, atau model yang aktif. API Go tetap scaffold; CLI collect sudah mengunduh PDF/metadata sumber; Rust dan C++ menyediakan target library; protobuf belum memiliki message/service; tooling Python belum menjalankan model. Keberhasilan build tidak menyatakan target latency atau akurasi tercapai.
+Status lintas repositori: collector PDF dan kontrak/validator C01 sudah tersedia; lihat [cakupan implementasi C01](../../../../../doc/contracts-implementation.md). Pipeline parsing/graph/retrieval, adapter storage, layanan model dan evaluator benchmark masih belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
+
+## Rekomendasi implementasi anak
+
+Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan status aktif/scaffold; tabel bukan klaim fitur sudah tersedia. Integrasikan keluaran anak melalui kontrak induk dan jalankan [protokol verifikasi](../../../../../doc/verification.md) sebelum menyatakan paket selesai. Target angka tetap bersumber dari configs/benchmark-targets.yaml.
+
+| File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
+| --- | --- | --- |
+| [extractor.rs](extractor.rs) | Extract mentions/assertions with exact evidence spans, typed qualifiers and explicit partial/error status from context batches. | Evaluate precision/recall on human gold including negation/conditions/exceptions; measure cost and throughput without query-time extraction. |
+| [prompts.rs](prompts.rs) | Version templates and structured-output instructions against the ontology; include primary spans and treat document content as data. | Test schema-invalid output and injected source instructions; record prompt hash and compare extraction quality on frozen dev splits. |

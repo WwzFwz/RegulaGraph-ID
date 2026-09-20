@@ -13,4 +13,8 @@ Bandingkan hasil terhadap referensi Python serta gold evidence; ekspor yang dapa
 dimuat belum menjamin kesetaraan kualitas retrieval/reranking.
 
 Status: scaffold dokumentasi; belum ada tooling ekspor yang aktif.
+Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+Export selected model plus tokenizer/pooling/normalization/precision/dynamic-shape manifest and content hashes.
+Bukti verifikasi: Test unsupported operations and representative multilingual/long inputs; export success alone cannot authorize production parity.
+Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
 """

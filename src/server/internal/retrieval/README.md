@@ -30,4 +30,16 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-Ini adalah scaffold struktur, dokumentasi, dan build lintas bahasa. Belum ada pipeline, database adapter, transport worker, atau model yang aktif. API Go tetap scaffold; CLI collect sudah mengunduh PDF/metadata sumber; Rust dan C++ menyediakan target library; protobuf belum memiliki message/service; tooling Python belum menjalankan model. Keberhasilan build tidak menyatakan target latency atau akurasi tercapai.
+Status lintas repositori: collector PDF dan kontrak/validator C01 sudah tersedia; lihat [cakupan implementasi C01](../../../../doc/contracts-implementation.md). Pipeline parsing/graph/retrieval, adapter storage, layanan model dan evaluator benchmark masih belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
+
+## Rekomendasi implementasi anak
+
+Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan status aktif/scaffold; tabel bukan klaim fitur sudah tersedia. Integrasikan keluaran anak melalui kontrak induk dan jalankan [protokol verifikasi](../../../../doc/verification.md) sebelum menyatakan paket selesai. Target angka tetap bersumber dari configs/benchmark-targets.yaml.
+
+| File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
+| --- | --- | --- |
+| [dense.go](dense.go) | Encode query with the index-compatible model and retrieve bounded snapshot/temporal candidates via Qdrant adapter. | Measure Recall@k and p95/p99 including embedding queue; test missing generation and representation mismatch. |
+| [filters.go](filters.go) | Apply consistent corpus/snapshot/effective-date/visibility policy before evidence acceptance; retain explicit unknown/conflict dates. | Test boundary dates, repeals, historical snapshots and unknown-date policy; measure filter selectivity and false exclusion. |
+| [fusion.go](fusion.go) | Fuse ranked lists deterministically, preserve source ranks and deduplicate by evidence/version; expose configurable RRF baseline. | Test ties, empty branches and duplicate evidence with different supports; compare recall/nDCG and candidate cost on fixed corpus. |
+| [lexical.go](lexical.go) | Implement BM25 query path using the pinned analyzer/statistics generation; keep learned sparse as a distinct representation. | Test exact legal identifiers, typo/code-switch strata and empty queries; evaluate recall and latency without merging score scales. |
+| [reranking.go](reranking.go) | Select budgeted candidate pairs, call reranker in batches and map scores back without losing required multi-hop evidence. | Test truncation, partial results and stable ties; measure ranking quality together with queue-inclusive latency. |

@@ -17,4 +17,8 @@ Target numerik required: configs/benchmark-targets.yaml; status REQUIRED_UNMEASU
 Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 
 Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+Evaluate typed extraction, qualifiers, canonical resolution and supported multi-hop paths with explicit gold matching rules.
+Bukti verifikasi: Test negation, homonyms, merge/split and shared supports; report candidate recall separately from final resolution precision.
+Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
 """

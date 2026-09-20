@@ -14,4 +14,9 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Expose snapshot-bound document/version reads and ingestion job submission through workflow interfaces.
+// Bukti verifikasi: Test corpus isolation, unavailable historical versions, cursor mismatch and idempotent submissions.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package routes

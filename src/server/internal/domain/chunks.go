@@ -14,4 +14,9 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Construct chunk and parent views retaining provision version, source spans and tokenizer identity.
+// Bukti verifikasi: Test missing parents, split Unicode and overlong units without source loss; avoid redundant conversion/allocation across batches.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package domain

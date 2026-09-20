@@ -24,4 +24,8 @@ Lihat [kebijakan benchmark](../doc/benchmark-policy.md) untuk protokol pengukura
 
 ## Status implementasi
 
-Struktur ini merupakan scaffold dokumentasi. Modul Go, Rust, C++, dan Python masih berupa scaffold; konfigurasi belum dikonsumsi pipeline, dan belum ada layanan aplikasi yang aktif. Build scaffold hanya memverifikasi struktur kode. Referensi pihak ketiga dan dokumen pengguna yang sudah ada dipertahankan; status scaffold tidak mengubah isi sumber tersebut.
+Status lintas repositori: collector PDF dan kontrak/validator C01 sudah tersedia; lihat [cakupan implementasi C01](../doc/contracts-implementation.md). Pipeline parsing/graph/retrieval, adapter storage, layanan model dan evaluator benchmark masih belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
+
+## Pekerjaan berikutnya dan integrasi
+
+S01 perlu migrasi metadata, canonical registry/revision, jobs/leases/fences, dependency lookup revision, publication ledger dan snapshot visibility. Buktikan uniqueness/CAS, upgrade dari schema lama dan recovery pada PostgreSQL nyata; jangan menganggap transaksi ini mencakup Neo4j/Qdrant.

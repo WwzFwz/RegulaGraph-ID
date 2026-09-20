@@ -14,4 +14,9 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Map document/version/job payloads without leaking SDK objects or storage paths.
+// Bukti verifikasi: Test historical versions, paging cursors and failed/partial job responses using contract fixtures.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package schemas

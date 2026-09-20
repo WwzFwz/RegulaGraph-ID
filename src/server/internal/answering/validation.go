@@ -12,4 +12,9 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Separate structural citation checks from semantic support; enforce honest completion and answerability states.
+// Bukti verifikasi: Test unsupported factual clauses and contradictory evidence; calibrate semantic judges against human labels and preserve uncertain results.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package answering

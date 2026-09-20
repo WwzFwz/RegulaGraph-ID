@@ -15,4 +15,8 @@ Target numerik required: configs/benchmark-targets.yaml; status REQUIRED_UNMEASU
 Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 
 Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+Score claim-level citation precision/coverage and correct version/locator against acceptable evidence sets.
+Bukti verifikasi: Distinguish syntactic references from actual semantic support; test multiple valid evidence sets, unsupported claims and missing annotations.
+Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
 """

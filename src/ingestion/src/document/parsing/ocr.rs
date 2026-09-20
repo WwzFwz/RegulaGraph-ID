@@ -14,3 +14,7 @@
 //! Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //!
 //! Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+//! Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+//! OCR selected pages with engine/model/config identity, coordinates, confidence and explicit unreadable-page status.
+//! Bukti verifikasi: Measure CER/WER and accuracy of numbers/negation plus pages/s and RSS; retain original page images/locators.
+//! Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.

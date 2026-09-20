@@ -12,3 +12,7 @@
 //! Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //!
 //! Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+//! Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+//! Extract page text, reading order, blocks/tables and source locators; route only insufficient-text pages to OCR.
+//! Bukti verifikasi: Evaluate digital/scanned/mixed strata, multi-column ordering and page failures; measure throughput and memory on large files.
+//! Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.

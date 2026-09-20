@@ -1,10 +1,10 @@
 # Rencana implementasi berbasis dependency
 
-Dokumen ini memecah desain lengkap RegulaGraph-ID menjadi pekerjaan komponen dan integrasi yang dapat diverifikasi. Perannya menjaga cakupan seluruh produk sambil mengurutkan pekerjaan menurut dependency nyata. Tidak ada pengurangan desain menjadi kontrak minimum atau perubahan target benchmark. Semua tahap implementasi di bawah berstatus belum dimulai kecuali scaffold/build yang sudah tersedia dan baseline dokumentasi desain yang disiapkan pada 2026-09-19.
+Dokumen ini memecah desain lengkap RegulaGraph-ID menjadi pekerjaan komponen dan integrasi yang dapat diverifikasi. Perannya menjaga cakupan seluruh produk sambil mengurutkan pekerjaan menurut dependency nyata. Tidak ada pengurangan desain menjadi kontrak minimum atau perubahan target benchmark. Status terkini: akuisisi D01 berjalan sebagian dan kontrak/validator C01 tersedia sesuai [cakupan implementasi](contracts-implementation.md). Paket lain masih menunggu implementasi; tabel menetapkan hasil yang harus dicapai, bukan klaim kelulusan seluruh paket.
 
 ## 1. Prinsip pelaksanaan
 
-Status D01 diperbarui: [collector PDF](acquisition.md) sudah dapat mengambil detail/metadata serta PDF nyata dari contoh BPK dan Kemkomdigi, memakai resume dan discovery terbatas. Inventory seluruh corpus, connector katalog JDIHN, gold dataset, serta semua paket produksi lain belum selesai. Record inventory lokal collector bukan pengganti realisasi kontrak C01.
+Status D01 diperbarui: [collector PDF](acquisition.md) sudah dapat mengambil detail/metadata serta PDF nyata dari contoh BPK dan Kemkomdigi, memakai resume dan discovery terbatas. Inventory seluruh corpus, connector katalog JDIHN, gold dataset, serta paket runtime lain belum selesai. Record inventory lokal collector bukan pengganti realisasi kontrak C01.
 
 Folder tree menentukan pemilik kode; dependency menentukan urutan pelaksanaan. Satu milestone dapat mengubah contracts, Rust, Go, inference, dan evaluation bersama. Implementasi komponen yang terpisah dapat dikerjakan paralel setelah kontrak terkait stabil, tetapi setiap integrasi mempunyai satu owner hasil dan syarat selesai. Dokumen ini bukan instruksi menambah microservice atau agent kerja otomatis.
 

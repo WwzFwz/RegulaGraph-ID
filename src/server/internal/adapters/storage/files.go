@@ -14,4 +14,9 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Resolve scoped ArtifactRef keys, stream hash-verified reads, atomically persist immutable content and support retention-aware cleanup.
+// Bukti verifikasi: Test traversal/symlink escapes, short writes, corrupt hashes and crash between temp/rename; measure bytes/s and peak buffers.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package storage

@@ -15,4 +15,8 @@ Target numerik required: configs/benchmark-targets.yaml; status REQUIRED_UNMEASU
 Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 
 Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+Score correctness, temporal correctness, faithfulness and abstention separately; calibrate any judge against human labels.
+Bukti verifikasi: Test ambiguous/no-answer/conflict cases and invalid denominator; report category counts and uncertainty without tuning on test labels.
+Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
 """

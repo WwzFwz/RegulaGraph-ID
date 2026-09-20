@@ -12,4 +12,9 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Preserve original question and normalize mechanical variants while keeping negation, article numbers, years and quoted terms.
+// Bukti verifikasi: Test informal/typo/Indonesian-English cases and destructive normalization counterexamples; record original-to-normalized trace.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package query

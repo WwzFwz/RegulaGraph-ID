@@ -14,4 +14,9 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Encode query with the index-compatible model and retrieve bounded snapshot/temporal candidates via Qdrant adapter.
+// Bukti verifikasi: Measure Recall@k and p95/p99 including embedding queue; test missing generation and representation mismatch.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package retrieval

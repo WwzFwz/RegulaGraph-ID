@@ -16,3 +16,7 @@
 //! Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
 //!
 //! Batas runtime: worker hanya menyiapkan batch representasi dan metadata. Commit indeks dan publikasi snapshot dikoordinasikan Go; modul ini tidak menjadi pemilik publikasi kedua.
+//! Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+//! Build model-bound dense records via batch embedding with deterministic IDs, dimensions and representation generation.
+//! Bukti verifikasi: Test model drift, partial embeddings and retry idempotency; measure batch throughput/RSS and downstream recall.
+//! Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.

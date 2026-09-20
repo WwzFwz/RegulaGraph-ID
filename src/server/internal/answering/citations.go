@@ -12,4 +12,9 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Build citations from trusted snapshot-bound source metadata and evidence locators, never model-invented URLs.
+// Bukti verifikasi: Call VerifyCitationEvidence with trusted lookup; test forged URLs, wrong versions/pages/spans and unsupported claim mappings.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package answering

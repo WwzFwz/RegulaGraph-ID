@@ -38,11 +38,17 @@ Perbandingan model/retrieval menyatakan corpus snapshot, split dataset, konfigur
 
 ## Verifikasi
 
+Pengguna mewajibkan proses verifikasi input, proses, output, arsitektur, kualitas, dan performa secara berkelanjutan. Sebelum implementasi dan sebelum menyatakan paket selesai, baca doc/verification.md beserta checklist terkait di doc/verification-contracts.md, doc/verification-pipeline.md, dan doc/verification-quality.md. Panduan pekerjaan berikutnya berada pada doc/implementation-guide.md serta rekomendasi spesifik di header/README komponen. Dokumen tersebut adalah aturan kerja, bukan bukti enforcement otomatis.
+
+Untuk setiap paket perubahan perilaku/schema/storage/model/evaluasi yang bermakna, gunakan agent verifikasi terpisah bila fasilitas tersedia; pengguna telah mengotorisasi peran reviewer ini. Reviewer memeriksa diff/desain/bukti secara independen dan tidak menyatakan lulus dari klaim implementer. Perbaiki temuan dalam scope, tambahkan regression test yang bermakna, dan verifikasi ulang bagian terdampak sebelum klaim selesai. Bila fasilitas agent tidak tersedia, lakukan review manual terstruktur dan nyatakan review independen belum terverifikasi; jangan mengarang approval. Perubahan dokumentasi kecil diperiksa secara proporsional.
+
+Simpan raw log/hasil di artifacts/verification/<run-id> dan ringkasan status yang perlu dilacak di dokumentasi. Laporan menyebut revision atau fingerprint kode, perintah/exit code, toolchain, fixture/dataset, expected vs actual, cakupan, dan temuan terbuka. PASS hanya untuk pemeriksaan yang dijalankan; prasyarat belum lengkap menjadi BLOCKED/NOT_MEASURED. Build/fixture PASS tidak membuktikan kualitas model, kebenaran hukum, atau required benchmark release. Perubahan kode setelah review memerlukan verifikasi ulang bagian terdampak.
+
 Lakukan pemeriksaan yang sesuai perubahan. Untuk scaffold, periksa build Go, cargo check, CMake C++, syntax Python, dokumentasi folder/file, tautan lokal, serta validitas metadata/config; tidak perlu menulis unit test yang hanya mencerminkan daftar file. Untuk perilaku yang diimplementasikan kemudian, pilih pengujian bermakna dan laporkan keterbatasan verifikasinya.
 
 ## Kontrak lintas bahasa
 
-Setiap boundary batch atau inference menggunakan schema version serta source/canonical/provision-version/snapshot ID yang konsisten. src/contracts/proto adalah sumber wire schema; field belum dibekukan pada scaffold. Source offset yang dipertukarkan direncanakan sebagai byte UTF-8, start-inclusive/end-exclusive, disertai identitas teks asli/normalisasi; implementasi harus mempertahankan pemetaan keduanya. Jangan mendefinisikan kontrak paralel yang tidak sinkron di Go/Rust/Python.
+Setiap boundary batch atau inference menggunakan schema version serta source/canonical/provision-version/snapshot ID yang konsisten. src/contracts/proto adalah sumber wire schema; baseline C01 tercatat pada src/contracts/schema-lock.json dan diperiksa scripts/check_contracts.py. Jangan menulis ulang baseline untuk meluluskan perubahan tanpa review kompatibilitas. Source offset yang dipertukarkan direncanakan sebagai byte UTF-8, start-inclusive/end-exclusive, disertai identitas teks asli/normalisasi; implementasi harus mempertahankan pemetaan keduanya. Jangan mendefinisikan kontrak paralel yang tidak sinkron di Go/Rust/Python.
 
 Gunakan batch untuk pekerjaan besar dan hindari RPC per langkah kecil retrieval. Jangan memuat model per request, mengulang graph extraction saat query, atau membiarkan job bulk menghabiskan kapasitas query. Ukur p95/p99 dan waktu antre selain throughput rata-rata. Generated binding/artefak compiler adalah keluaran alat; jangan menganggapnya komponen baru yang membutuhkan README per folder cache.
 

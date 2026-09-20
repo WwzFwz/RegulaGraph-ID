@@ -12,3 +12,7 @@
 //! Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //!
 //! Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+//! Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+//! Parse regulatory HTML content into source-mapped blocks without treating navigation as law text.
+//! Bukti verifikasi: Test lists/tables/encoded characters and malformed markup; preserve raw artifact and mapping provenance.
+//! Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.

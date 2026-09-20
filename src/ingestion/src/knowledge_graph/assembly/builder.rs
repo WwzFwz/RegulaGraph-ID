@@ -16,3 +16,7 @@
 //! Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
 //!
 //! Keluaran berupa GraphDelta batch untuk coordinator Go, yang menggunakan adapter Neo4j untuk commit. Worker tidak membuka transaksi Neo4j sendiri.
+//! Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+//! Build idempotent graph deltas with canonical endpoints, assertion/support separation and dependency manifests.
+//! Bukti verifikasi: Test duplicate extraction and withdrawing one of several sources; no dangling edges or deletion of shared support.
+//! Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.

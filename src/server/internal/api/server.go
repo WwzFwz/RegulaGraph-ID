@@ -12,4 +12,9 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Wire HTTP routes, request size limits, deadlines, admission control and graceful drain; keep readiness separate from liveness.
+// Bukti verifikasi: Exercise slow clients, cancelled streams, overload and shutdown with in-flight requests; measure queue-inclusive latency.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package api

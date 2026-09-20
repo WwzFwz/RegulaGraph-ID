@@ -14,4 +14,9 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Implement generation-specific dense/sparse upsert/search with model dimensions, payload indexes and snapshot filters.
+// Bukti verifikasi: Test delayed indexing visibility, replay and model/generation mismatch; measure filtered recall and batch memory on real Qdrant.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package qdrant

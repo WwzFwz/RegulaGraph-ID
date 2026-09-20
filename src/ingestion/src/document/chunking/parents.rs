@@ -12,3 +12,7 @@
 //! Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //!
 //! Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+//! Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+//! Build acyclic parent links and materialize context references without duplicating entire ancestors into every stored chunk.
+//! Bukti verifikasi: Test missing/cyclic parents and retrieval hydration order; measure context duplication and exception retention.
+//! Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.

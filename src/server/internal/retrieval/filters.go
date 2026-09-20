@@ -14,4 +14,9 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Apply consistent corpus/snapshot/effective-date/visibility policy before evidence acceptance; retain explicit unknown/conflict dates.
+// Bukti verifikasi: Test boundary dates, repeals, historical snapshots and unknown-date policy; measure filter selectivity and false exclusion.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package retrieval

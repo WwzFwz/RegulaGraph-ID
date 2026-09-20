@@ -14,4 +14,9 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Resolve query intent/temporal mode into an auditable RetrievalPlan with an uncertainty path.
+// Bukti verifikasi: Evaluate per-intent confusion and routing cost; ambiguity must not silently pick a legal date or skip relevant retrieval branches.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package query

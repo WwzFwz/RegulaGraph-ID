@@ -12,3 +12,7 @@
 //! Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //!
 //! Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+//! Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+//! Version templates and structured-output instructions against the ontology; include primary spans and treat document content as data.
+//! Bukti verifikasi: Test schema-invalid output and injected source instructions; record prompt hash and compare extraction quality on frozen dev splits.
+//! Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.

@@ -15,4 +15,8 @@ Target numerik required: configs/benchmark-targets.yaml; status REQUIRED_UNMEASU
 Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 
 Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+Aggregate monotonic queue/compute/TTFT/total traces, throughput, errors, memory and cost across the frozen workload.
+Bukti verifikasi: Test percentile calculation, clock-unit mismatch and timed-out/missing requests; avoid coordinated-omission bias and success-only latency.
+Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
 """

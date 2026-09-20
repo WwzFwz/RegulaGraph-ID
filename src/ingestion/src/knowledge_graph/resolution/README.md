@@ -24,4 +24,14 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Ini adalah scaffold struktur, dokumentasi, dan build lintas bahasa. Belum ada pipeline, database adapter, transport worker, atau model yang aktif. API Go tetap scaffold; CLI collect sudah mengunduh PDF/metadata sumber; Rust dan C++ menyediakan target library; protobuf belum memiliki message/service; tooling Python belum menjalankan model. Keberhasilan build tidak menyatakan target latency atau akurasi tercapai.
+Status lintas repositori: collector PDF dan kontrak/validator C01 sudah tersedia; lihat [cakupan implementasi C01](../../../../../doc/contracts-implementation.md). Pipeline parsing/graph/retrieval, adapter storage, layanan model dan evaluator benchmark masih belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
+
+## Rekomendasi implementasi anak
+
+Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan status aktif/scaffold; tabel bukan klaim fitur sudah tersedia. Integrasikan keluaran anak melalui kontrak induk dan jalankan [protokol verifikasi](../../../../../doc/verification.md) sebelum menyatakan paket selesai. Target angka tetap bersumber dari configs/benchmark-targets.yaml.
+
+| File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
+| --- | --- | --- |
+| [aliases.rs](aliases.rs) | Generate scoped alias proposals from mentions without equating synonyms to identity automatically. | Test homonyms, acronyms and same article numbers across laws; preserve provenance and measure false alias merges. |
+| [blocking.rs](blocking.rs) | Retrieve bounded canonical candidates using deterministic legal keys and contextual signals before expensive resolution. | Measure candidate recall and reduction ratio on hard aliases; record empty lookup scopes for later invalidation. |
+| [resolver.rs](resolver.rs) | Resolve or explicitly abstain, emitting revision-aware proposals for authoritative Go registry decisions. | Test ambiguous merges, splits and concurrent registry revisions; measure precision/recall and review workload. |

@@ -12,3 +12,7 @@
 //! Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //!
 //! Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+//! Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+//! Resolve or explicitly abstain, emitting revision-aware proposals for authoritative Go registry decisions.
+//! Bukti verifikasi: Test ambiguous merges, splits and concurrent registry revisions; measure precision/recall and review workload.
+//! Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.

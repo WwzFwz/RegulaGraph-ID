@@ -14,4 +14,9 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Resolve query mentions against snapshot-pinned canonical registry and aliases with scope and confidence.
+// Bukti verifikasi: Test homonyms, same article number across laws and unresolved mentions; measure candidate recall and false merges.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package query

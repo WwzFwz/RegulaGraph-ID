@@ -1,6 +1,11 @@
 // Inventory lokal akuisisi D01: metadata portal, provenance, dan receipt PDF.
 // Peran: artefak kerja sebelum kontrak produksi C01; bukan schema wire regulasi final.
 // Integrasi/performa: ukuran, waktu, status dan hash dicatat; hash blob bukan ID regulasi.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Preserve versioned receipt/history and checksum-based reuse; map acquisition observations into production source records at S01/D01 integration.
+// Bukti verifikasi: Test metadata schema change, missing/corrupt artifacts and atomic latest-pointer update; never drop historical receipts.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package sources
 
 import "time"

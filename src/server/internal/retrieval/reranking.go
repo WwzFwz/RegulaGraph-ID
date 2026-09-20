@@ -12,4 +12,9 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Select budgeted candidate pairs, call reranker in batches and map scores back without losing required multi-hop evidence.
+// Bukti verifikasi: Test truncation, partial results and stable ties; measure ranking quality together with queue-inclusive latency.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package retrieval

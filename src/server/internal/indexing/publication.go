@@ -16,4 +16,9 @@
 // Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
 //
 // Pemilik publikasi: Go menerima batch terstruktur dari worker Rust lalu mengoordinasikan adapter storage dan snapshot. Transformasi embedding/BM25 berada di worker dan runtime model.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Implement durable publication state machine: stage, verify receipts, CAS snapshot marker, reconcile and retire safely.
+// Bukti verifikasi: Call VerifyPublicationReady before committing; inject crash after each backend step and reject stale fences/search-unready acknowledgements.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package indexing

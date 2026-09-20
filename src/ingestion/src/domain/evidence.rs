@@ -16,3 +16,7 @@
 //! Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
 //!
 //! Kontrak wire bersama berasal dari src/contracts. Tipe Rust nantinya hanya representasi lokal; field wire tidak didefinisikan ulang secara independen.
+//! Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+//! Expose snapshot-bound evidence/path operations while retaining primary provenance.
+//! Bukti verifikasi: Test corpus/version/snapshot mismatches and missing support hydration; avoid redundant conversion/allocation across batches.
+//! Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.

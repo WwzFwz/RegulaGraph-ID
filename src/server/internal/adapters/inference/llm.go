@@ -14,4 +14,9 @@
 // Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
 //
 // Batas runtime: file Go ini adalah client inference. Eksekusi tensor berada di src/inference atau provider eksternal; tidak ada pemuatan model lokal di handler Go.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Implement provider/engine adapter for typed semantic tasks and grounded generation with pinned prompts/models and usage.
+// Bukti verifikasi: Test malformed structured output, retries, stream interruption and deadline; count input/output tokens and cost including failed calls.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package inference

@@ -16,4 +16,9 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Construct and close shared pools/clients explicitly; inject narrow workflow interfaces and pin model/config manifests.
+// Bukti verifikasi: Test partial startup cleanup and dependency failure without opening connections during package initialization.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package api

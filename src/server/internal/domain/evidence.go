@@ -14,4 +14,9 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Expose snapshot-bound evidence/path operations while retaining primary provenance.
+// Bukti verifikasi: Test corpus/version/snapshot mismatches and missing support hydration; avoid redundant conversion/allocation across batches.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package domain

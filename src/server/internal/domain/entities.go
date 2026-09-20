@@ -14,4 +14,9 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Expose scoped canonical identity/revision and resolution decision helpers without autonomous registry writes.
+// Bukti verifikasi: Test alias ambiguity, merge/split lineage and deterministic identity comparison; avoid redundant conversion/allocation across batches.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package domain

@@ -2,6 +2,11 @@
 // Peran: membaca metadata portal, tanpa menafsirkan tanggal/status hukum atau isi PDF.
 // Integrasi: metadata mentah dan PDF terkait dipisah; body dibatasi oleh fetcher.
 // Performa: traversal DOM untuk akuisisi offline; perubahan layout diuji dengan fixture.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Maintain deterministic source HTML parsing with canonical URL resolution and explicit unsupported-layout failures.
+// Bukti verifikasi: Test malformed markup, relative URLs, duplicate links and script-driven pages; do not infer PDFs from absent links.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package sources
 
 import (

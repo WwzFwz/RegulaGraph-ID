@@ -14,4 +14,9 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Validate/authenticate question requests, call answer workflow once and stream typed events with backpressure.
+// Bukti verifikasi: Test client disconnect, exactly one terminal event, partial generation and unavailable snapshot; record TTFT and total latency.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package routes

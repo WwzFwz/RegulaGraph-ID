@@ -24,4 +24,14 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Ini adalah scaffold struktur, dokumentasi, dan build lintas bahasa. Belum ada pipeline, database adapter, transport worker, atau model yang aktif. API Go tetap scaffold; CLI collect sudah mengunduh PDF/metadata sumber; Rust dan C++ menyediakan target library; protobuf belum memiliki message/service; tooling Python belum menjalankan model. Keberhasilan build tidak menyatakan target latency atau akurasi tercapai.
+Status lintas repositori: collector PDF dan kontrak/validator C01 sudah tersedia; lihat [cakupan implementasi C01](../../../../../doc/contracts-implementation.md). Pipeline parsing/graph/retrieval, adapter storage, layanan model dan evaluator benchmark masih belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
+
+## Rekomendasi implementasi anak
+
+Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan status aktif/scaffold; tabel bukan klaim fitur sudah tersedia. Integrasikan keluaran anak melalui kontrak induk dan jalankan [protokol verifikasi](../../../../../doc/verification.md) sebelum menyatakan paket selesai. Target angka tetap bersumber dari configs/benchmark-targets.yaml.
+
+| File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
+| --- | --- | --- |
+| [html.rs](html.rs) | Parse regulatory HTML content into source-mapped blocks without treating navigation as law text. | Test lists/tables/encoded characters and malformed markup; preserve raw artifact and mapping provenance. |
+| [ocr.rs](ocr.rs) | OCR selected pages with engine/model/config identity, coordinates, confidence and explicit unreadable-page status. | Measure CER/WER and accuracy of numbers/negation plus pages/s and RSS; retain original page images/locators. |
+| [pdf.rs](pdf.rs) | Extract page text, reading order, blocks/tables and source locators; route only insufficient-text pages to OCR. | Evaluate digital/scanned/mixed strata, multi-column ordering and page failures; measure throughput and memory on large files. |

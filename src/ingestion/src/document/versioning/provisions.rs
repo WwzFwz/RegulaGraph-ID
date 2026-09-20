@@ -12,3 +12,7 @@
 //! Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //!
 //! Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+//! Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+//! Separate logical provision IDs from text editions and evidence-backed legal intervals/change operations.
+//! Bukti verifikasi: Test amendment, replacement, repeal, renumbering and uncertain dates; preserve historical source/version provenance.
+//! Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.

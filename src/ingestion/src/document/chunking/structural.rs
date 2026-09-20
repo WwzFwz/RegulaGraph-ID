@@ -12,3 +12,7 @@
 //! Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //!
 //! Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+//! Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+//! Build hierarchy-aware chunks from provision/version structures; split oversized units with stable parent and span references.
+//! Bukti verifikasi: Test nested clauses, exceptions and tables; measure source/parent coverage, token budget and retrieval impact together.
+//! Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.

@@ -14,4 +14,9 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Implement parameterized batched graph writes/readback with corpus, visibility and support identity constraints.
+// Bukti verifikasi: Test replay, shared-support retention and search-ready receipts on real Neo4j; profile query plans and fan-out.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package neo4j

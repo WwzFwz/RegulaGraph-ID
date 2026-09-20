@@ -14,4 +14,9 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Generate claims constrained to selected evidence, explicit partial/abstain/conflict states and provisional stream events.
+// Bukti verifikasi: Evaluate faithfulness and answer correctness independently; measure TTFT/completion/cost and test interrupted generation.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package answering

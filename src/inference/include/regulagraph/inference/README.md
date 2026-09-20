@@ -24,4 +24,15 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Ini adalah scaffold struktur, dokumentasi, dan build lintas bahasa. Belum ada pipeline, database adapter, transport worker, atau model yang aktif. API Go tetap scaffold; CLI collect sudah mengunduh PDF/metadata sumber; Rust dan C++ menyediakan target library; protobuf belum memiliki message/service; tooling Python belum menjalankan model. Keberhasilan build tidak menyatakan target latency atau akurasi tercapai.
+Status lintas repositori: collector PDF dan kontrak/validator C01 sudah tersedia; lihat [cakupan implementasi C01](../../../../../doc/contracts-implementation.md). Pipeline parsing/graph/retrieval, adapter storage, layanan model dan evaluator benchmark masih belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
+
+## Rekomendasi implementasi anak
+
+Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan status aktif/scaffold; tabel bukan klaim fitur sudah tersedia. Integrasikan keluaran anak melalui kontrak induk dan jalankan [protokol verifikasi](../../../../../doc/verification.md) sebelum menyatakan paket selesai. Target angka tetap bersumber dari configs/benchmark-targets.yaml.
+
+| File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
+| --- | --- | --- |
+| [batching.hpp](batching.hpp) | Define the batching interface with explicit ownership, lifetimes, typed errors and cancellation; keep implementation in matching .cpp. | Test overload, fairness, starvation and cancelled items; measure p95/p99 queue wait, utilization and RSS/VRAM; header inclusion must not allocate model resources. |
+| [cross_encoder.hpp](cross_encoder.hpp) | Define the cross_encoder interface with explicit ownership, lifetimes, typed errors and cancellation; keep implementation in matching .cpp. | Check Python/native score/rank parity including long legal clauses; measure reranking quality, batch wait and throughput; header inclusion must not allocate model resources. |
+| [embeddings.hpp](embeddings.hpp) | Define the embeddings interface with explicit ownership, lifetimes, typed errors and cancellation; keep implementation in matching .cpp. | Check Python/native numeric and retrieval parity, dimensions/non-finite values, multilingual long inputs and queue-inclusive latency; header inclusion must not allocate model resources. |
+| [runtime.hpp](runtime.hpp) | Define the runtime interface with explicit ownership, lifetimes, typed errors and cancellation; keep implementation in matching .cpp. | Measure cold start separately; test load failure cleanup, concurrent reuse and cancellation without per-request reload; header inclusion must not allocate model resources. |

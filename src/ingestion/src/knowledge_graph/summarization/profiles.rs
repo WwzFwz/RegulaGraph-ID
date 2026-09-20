@@ -16,3 +16,7 @@
 //! Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //!
 //! Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+//! Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+//! Produce evidence-linked entity profiles from snapshot/revision-specific supports; keep summaries as derived navigation aids.
+//! Bukti verifikasi: Test stale summaries after withdrawal/merge and conflicting sources; measure supported-claim coverage, tokens and rebuild cost.
+//! Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.

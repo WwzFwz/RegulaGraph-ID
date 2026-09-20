@@ -14,3 +14,7 @@
 //! Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //!
 //! Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+//! Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+//! Implement typed ontology/predicate/qualifier constraints mapped to graph.proto without a parallel wire schema.
+//! Bukti verifikasi: Test allowed endpoint types, explicit vs inferred assertions and unknown predicates; version ontology changes with affected artifacts.
+//! Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.

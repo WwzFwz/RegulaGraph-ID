@@ -2,6 +2,11 @@
 // Integration: single writer per output directory; checkpoint contains listing provenance and frontier.
 // Performance: breadth-first seeds, bounded new pages/run, atomic page checkpoints, resume without refetch.
 // Measure unique URLs/page, request errors and elapsed time; discovered URLs are not validated PDF counts.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Retain durable queue checkpoints; add source-specific discovery only after inspecting real portal layouts.
+// Bukti verifikasi: Test cycles, duplicate seeds, resumed pagination and bounded new-page counts; report coverage gaps explicitly.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package workflows
 
 import (

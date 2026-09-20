@@ -14,4 +14,9 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Hydrate selected paths in batches into primary source/version spans and explicit missing dependencies.
+// Bukti verifikasi: Test unsupported edges, stale versions and source mismatch; profile database round trips and required-path coverage.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package graph

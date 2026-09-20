@@ -8,7 +8,7 @@ Fungsi di luar cakupan ini mengikuti komponen pemiliknya. Jika fungsi baru tidak
 
 ## Peran dan integrasi anak
 
-File saat ini hanya deklarasi syntax/package tanpa message/service. Katalog field semantik seluruh sistem telah dirancang pada [system-contracts](../../../../../doc/system-contracts.md), termasuk ownership, API/RPC/event, ID, presence, error, dan offset UTF-8 byte end-exclusive. Paket C01 pada [development-plan](../../../../../doc/development-plan.md) merealisasikan seluruh katalog menjadi schema, codegen, validator, dan golden fixtures sebelum konsumen produksi diimplementasikan.
+File sudah mendefinisikan message, enum, aturan field dan service descriptor C01. Katalog field semantik seluruh sistem telah dirancang pada [system-contracts](../../../../../doc/system-contracts.md), termasuk ownership, API/RPC/event, ID, presence, error, dan offset UTF-8 byte end-exclusive. Cakupan codegen, validator dan fixture yang tersedia dijelaskan pada [implementasi C01](../../../../../doc/contracts-implementation.md); konsumen produksi tetap memerlukan verifikasi integrasinya.
 
 Pertahankan source/canonical/provision-version/snapshot ID dan schema version lintas anak. Boundary runtime mengikuti [src/contracts](../../../README.md), dengan pekerjaan batch atau inference yang jelas. Perubahan bentuk data, error/status, serta offset sumber harus didokumentasikan bersama konsumennya; jangan menggandakan kebijakan publikasi di beberapa runtime.
 
@@ -24,4 +24,4 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Ini adalah scaffold struktur, dokumentasi, dan build lintas bahasa. Belum ada pipeline, database adapter, transport worker, atau model yang aktif. API Go tetap scaffold; CLI collect sudah mengunduh PDF/metadata sumber; Rust dan C++ menyediakan target library; protobuf belum memiliki message/service; tooling Python belum menjalankan model. Keberhasilan build tidak menyatakan target latency atau akurasi tercapai.
+Status lintas repositori: collector PDF dan kontrak/validator C01 sudah tersedia; lihat [cakupan implementasi C01](../../../../../doc/contracts-implementation.md). Pipeline parsing/graph/retrieval, adapter storage, layanan model dan evaluator benchmark masih belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.

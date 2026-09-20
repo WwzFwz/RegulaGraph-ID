@@ -1,6 +1,6 @@
 # Desain menyeluruh RegulaGraph-ID
 
-Dokumen ini menetapkan rancangan seluruh sistem Hybrid GraphRAG regulasi Indonesia sebelum implementasi komponen dimulai. Perannya menghubungkan kebutuhan pengguna, pemilik fungsi, alur data, keputusan runtime, dan kriteria penerimaan. Cakupan desain lengkap; implementasi masih scaffold. Desain tidak berarti message Protobuf, migrasi, layanan, atau hasil benchmark sudah tersedia.
+Dokumen ini menetapkan rancangan seluruh sistem Hybrid GraphRAG regulasi Indonesia sebelum implementasi komponen dimulai. Perannya menghubungkan kebutuhan pengguna, pemilik fungsi, alur data, keputusan runtime, dan kriteria penerimaan. Cakupan desain lengkap; collector D01 dan kontrak/validator C01 tersedia, sedangkan pipeline runtime masih scaffold. Lihat [implementasi C01](contracts-implementation.md); migrasi, layanan model dan hasil benchmark belum tersedia.
 
 Baseline desain: 2026-09-19. Pengguna memilih perancangan menyeluruh sejak awal, mempertahankan Go/Rust/C++ untuk produksi, Python untuk evaluasi/tooling, serta sumber BPK, JDIH Kemkomdigi, dan JDIHN. Semua angka penerimaan tetap berasal dari [benchmark-targets.yaml](../configs/benchmark-targets.yaml). Keputusan internal di bawah adalah rancangan kerja; pemilihan library/model dan kelayakan performanya dibuktikan sebelum dibekukan dalam manifest release.
 

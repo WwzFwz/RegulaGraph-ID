@@ -12,4 +12,9 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Report process liveness separately from backend/model/snapshot readiness without expensive full queries.
+// Bukti verifikasi: Test degraded dependencies and drain state; bound probe timeout and exclude secrets from responses.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package routes

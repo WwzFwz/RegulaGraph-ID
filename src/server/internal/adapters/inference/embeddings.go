@@ -16,4 +16,9 @@
 // Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
 //
 // Batas runtime: file Go ini adalah client inference. Eksekusi tensor berada di src/inference atau provider eksternal; tidak ada pemuatan model lokal di handler Go.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Reuse a native client; send purpose/model-bound batches and validate one-to-one results before retrieval/indexing.
+// Bukti verifikasi: Test reordered/duplicate/missing outputs, dimension drift and explicit per-item errors; trace queue vs compute time.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package inference

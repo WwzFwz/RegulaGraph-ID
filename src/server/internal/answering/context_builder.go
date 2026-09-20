@@ -12,4 +12,9 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Pack ordered evidence with parent context using the exact generator tokenizer; preserve exceptions and required path sets.
+// Bukti verifikasi: Test oversized clauses, repeated parents and insufficient token budget; record omitted required evidence and actual token count.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package answering

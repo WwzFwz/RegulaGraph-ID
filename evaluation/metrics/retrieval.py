@@ -15,4 +15,8 @@ Target numerik required: configs/benchmark-targets.yaml; status REQUIRED_UNMEASU
 Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 
 Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+Compute Recall@k, nDCG@k and all-required-evidence/path coverage using production ranked output.
+Bukti verifikasi: Test duplicates, ties, multiple acceptable sets and unanswerable questions; keep denominators and truncation policy explicit.
+Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
 """

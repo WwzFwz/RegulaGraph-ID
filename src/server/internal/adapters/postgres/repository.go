@@ -14,4 +14,9 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
+// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
+// Implement metadata/identity registry, jobs/fences, publication ledger and snapshot reads with transactions and migrations.
+// Bukti verifikasi: Test uniqueness and concurrent claims/CAS, crash recovery, historical visibility and pool saturation on actual PostgreSQL.
+// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+
 package postgres
