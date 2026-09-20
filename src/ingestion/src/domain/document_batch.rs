@@ -1239,6 +1239,7 @@ mod tests {
             meta: MessageField::some(meta("text:fixture")),
             source_blob_id: "source-blob:fixture".to_owned(),
             parser_manifest: MessageField::some(producer()),
+            normalizer_manifest: MessageField::some(producer()),
             raw_text_ref: MessageField::some(raw_ref),
             normalized_text_ref: MessageField::some(normalized_ref.clone()),
             mapping_ref: MessageField::some(mapping_ref),

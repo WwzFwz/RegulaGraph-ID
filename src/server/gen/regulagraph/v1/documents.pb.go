@@ -993,16 +993,17 @@ func (x *PageResult) GetErrors() []*OperationError {
 }
 
 type TextArtifact struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	Meta              *RecordMeta            `protobuf:"bytes,1,opt,name=meta,proto3" json:"meta,omitempty"`
-	SourceBlobId      string                 `protobuf:"bytes,2,opt,name=source_blob_id,json=sourceBlobId,proto3" json:"source_blob_id,omitempty"`
-	ParserManifest    *ProducerManifest      `protobuf:"bytes,3,opt,name=parser_manifest,json=parserManifest,proto3" json:"parser_manifest,omitempty"`
-	RawTextRef        *ArtifactRef           `protobuf:"bytes,4,opt,name=raw_text_ref,json=rawTextRef,proto3" json:"raw_text_ref,omitempty"`
-	NormalizedTextRef *ArtifactRef           `protobuf:"bytes,5,opt,name=normalized_text_ref,json=normalizedTextRef,proto3" json:"normalized_text_ref,omitempty"`
-	MappingRef        *ArtifactRef           `protobuf:"bytes,6,opt,name=mapping_ref,json=mappingRef,proto3" json:"mapping_ref,omitempty"`
-	PageResults       []*PageResult          `protobuf:"bytes,7,rep,name=page_results,json=pageResults,proto3" json:"page_results,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	Meta               *RecordMeta            `protobuf:"bytes,1,opt,name=meta,proto3" json:"meta,omitempty"`
+	SourceBlobId       string                 `protobuf:"bytes,2,opt,name=source_blob_id,json=sourceBlobId,proto3" json:"source_blob_id,omitempty"`
+	ParserManifest     *ProducerManifest      `protobuf:"bytes,3,opt,name=parser_manifest,json=parserManifest,proto3" json:"parser_manifest,omitempty"`
+	RawTextRef         *ArtifactRef           `protobuf:"bytes,4,opt,name=raw_text_ref,json=rawTextRef,proto3" json:"raw_text_ref,omitempty"`
+	NormalizedTextRef  *ArtifactRef           `protobuf:"bytes,5,opt,name=normalized_text_ref,json=normalizedTextRef,proto3" json:"normalized_text_ref,omitempty"`
+	MappingRef         *ArtifactRef           `protobuf:"bytes,6,opt,name=mapping_ref,json=mappingRef,proto3" json:"mapping_ref,omitempty"`
+	PageResults        []*PageResult          `protobuf:"bytes,7,rep,name=page_results,json=pageResults,proto3" json:"page_results,omitempty"`
+	NormalizerManifest *ProducerManifest      `protobuf:"bytes,8,opt,name=normalizer_manifest,json=normalizerManifest,proto3" json:"normalizer_manifest,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *TextArtifact) Reset() {
@@ -1080,6 +1081,13 @@ func (x *TextArtifact) GetMappingRef() *ArtifactRef {
 func (x *TextArtifact) GetPageResults() []*PageResult {
 	if x != nil {
 		return x.PageResults
+	}
+	return nil
+}
+
+func (x *TextArtifact) GetNormalizerManifest() *ProducerManifest {
+	if x != nil {
+		return x.NormalizerManifest
 	}
 	return nil
 }
@@ -2179,7 +2187,7 @@ const file_regulagraph_v1_documents_proto_rawDesc = "" +
 	"\x06status\x18\x02 \x01(\x0e2 .regulagraph.v1.CompletionStatusB\x06\x8a\xb5\x18\x02\b\x01R\x06status\x12\x19\n" +
 	"\bused_ocr\x18\x03 \x01(\bR\ausedOcr\x12.\n" +
 	"\x05spans\x18\x04 \x03(\v2\x18.regulagraph.v1.TextSpanR\x05spans\x126\n" +
-	"\x06errors\x18\x05 \x03(\v2\x1e.regulagraph.v1.OperationErrorR\x06errors\"\xf2\x03\n" +
+	"\x06errors\x18\x05 \x03(\v2\x1e.regulagraph.v1.OperationErrorR\x06errors\"\xc5\x04\n" +
 	"\fTextArtifact\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\x1a.regulagraph.v1.RecordMetaB\x06\x8a\xb5\x18\x02\b\x01R\x04meta\x12.\n" +
 	"\x0esource_blob_id\x18\x02 \x01(\tB\b\x8a\xb5\x18\x04\b\x01\x10\x01R\fsourceBlobId\x12Q\n" +
@@ -2189,7 +2197,8 @@ const file_regulagraph_v1_documents_proto_rawDesc = "" +
 	"\x13normalized_text_ref\x18\x05 \x01(\v2\x1b.regulagraph.v1.ArtifactRefB\x06\x8a\xb5\x18\x02\b\x01R\x11normalizedTextRef\x12D\n" +
 	"\vmapping_ref\x18\x06 \x01(\v2\x1b.regulagraph.v1.ArtifactRefB\x06\x8a\xb5\x18\x02\b\x01R\n" +
 	"mappingRef\x12E\n" +
-	"\fpage_results\x18\a \x03(\v2\x1a.regulagraph.v1.PageResultB\x06\x8a\xb5\x18\x02@\x01R\vpageResults\"\xa4\x01\n" +
+	"\fpage_results\x18\a \x03(\v2\x1a.regulagraph.v1.PageResultB\x06\x8a\xb5\x18\x02@\x01R\vpageResults\x12Q\n" +
+	"\x13normalizer_manifest\x18\b \x01(\v2 .regulagraph.v1.ProducerManifestR\x12normalizerManifest\"\xa4\x01\n" +
 	"\tTableCell\x12!\n" +
 	"\anode_id\x18\x01 \x01(\tB\b\x8a\xb5\x18\x04\b\x01\x10\x01R\x06nodeId\x12\x10\n" +
 	"\x03row\x18\x02 \x01(\rR\x03row\x12\x16\n" +
@@ -2436,61 +2445,62 @@ var file_regulagraph_v1_documents_proto_depIdxs = []int32{
 	31, // 26: regulagraph.v1.TextArtifact.normalized_text_ref:type_name -> regulagraph.v1.ArtifactRef
 	31, // 27: regulagraph.v1.TextArtifact.mapping_ref:type_name -> regulagraph.v1.ArtifactRef
 	12, // 28: regulagraph.v1.TextArtifact.page_results:type_name -> regulagraph.v1.PageResult
-	14, // 29: regulagraph.v1.TableLayout.cells:type_name -> regulagraph.v1.TableCell
-	26, // 30: regulagraph.v1.StructureNode.meta:type_name -> regulagraph.v1.RecordMeta
-	3,  // 31: regulagraph.v1.StructureNode.kind:type_name -> regulagraph.v1.StructureKind
-	34, // 32: regulagraph.v1.StructureNode.source_spans:type_name -> regulagraph.v1.TextSpan
-	37, // 33: regulagraph.v1.StructureNode.page_locators:type_name -> regulagraph.v1.PageLocator
-	15, // 34: regulagraph.v1.StructureNode.table_layout:type_name -> regulagraph.v1.TableLayout
-	26, // 35: regulagraph.v1.Provision.meta:type_name -> regulagraph.v1.RecordMeta
-	26, // 36: regulagraph.v1.ProvisionVersion.meta:type_name -> regulagraph.v1.RecordMeta
-	31, // 37: regulagraph.v1.ProvisionVersion.text_ref:type_name -> regulagraph.v1.ArtifactRef
-	34, // 38: regulagraph.v1.ProvisionVersion.spans:type_name -> regulagraph.v1.TextSpan
-	38, // 39: regulagraph.v1.ProvisionVersion.legal_interval:type_name -> regulagraph.v1.LegalInterval
-	4,  // 40: regulagraph.v1.ProvisionVersion.legal_status:type_name -> regulagraph.v1.LegalStatus
-	36, // 41: regulagraph.v1.ProvisionVersion.reconstruction_manifest:type_name -> regulagraph.v1.ProducerManifest
-	32, // 42: regulagraph.v1.ProvisionVersion.review_state:type_name -> regulagraph.v1.ReviewState
-	26, // 43: regulagraph.v1.LegalChangeEvent.meta:type_name -> regulagraph.v1.RecordMeta
-	39, // 44: regulagraph.v1.LegalChangeEvent.amending_source:type_name -> regulagraph.v1.SourceVersionRef
-	5,  // 45: regulagraph.v1.LegalChangeEvent.operation:type_name -> regulagraph.v1.ChangeOperation
-	34, // 46: regulagraph.v1.LegalChangeEvent.replacement_spans:type_name -> regulagraph.v1.TextSpan
-	33, // 47: regulagraph.v1.LegalChangeEvent.effective_date:type_name -> regulagraph.v1.DateAssertion
-	40, // 48: regulagraph.v1.LegalChangeEvent.supports:type_name -> regulagraph.v1.Provenance
-	32, // 49: regulagraph.v1.LegalChangeEvent.review_state:type_name -> regulagraph.v1.ReviewState
-	26, // 50: regulagraph.v1.Chunk.meta:type_name -> regulagraph.v1.RecordMeta
-	34, // 51: regulagraph.v1.Chunk.text_span:type_name -> regulagraph.v1.TextSpan
-	36, // 52: regulagraph.v1.Chunk.chunker_manifest:type_name -> regulagraph.v1.ProducerManifest
-	41, // 53: regulagraph.v1.Chunk.token_counts:type_name -> regulagraph.v1.TokenUsage
-	26, // 54: regulagraph.v1.DocumentBatch.meta:type_name -> regulagraph.v1.RecordMeta
-	42, // 55: regulagraph.v1.DocumentBatch.context:type_name -> regulagraph.v1.RequestContext
-	7,  // 56: regulagraph.v1.DocumentBatch.sources:type_name -> regulagraph.v1.SourceBlob
-	13, // 57: regulagraph.v1.DocumentBatch.text_artifacts:type_name -> regulagraph.v1.TextArtifact
-	16, // 58: regulagraph.v1.DocumentBatch.structures:type_name -> regulagraph.v1.StructureNode
-	17, // 59: regulagraph.v1.DocumentBatch.provisions:type_name -> regulagraph.v1.Provision
-	18, // 60: regulagraph.v1.DocumentBatch.versions:type_name -> regulagraph.v1.ProvisionVersion
-	20, // 61: regulagraph.v1.DocumentBatch.chunks:type_name -> regulagraph.v1.Chunk
-	43, // 62: regulagraph.v1.DocumentBatch.issues:type_name -> regulagraph.v1.ValidationIssue
-	44, // 63: regulagraph.v1.DocumentBatch.dependency_manifest:type_name -> regulagraph.v1.DependencyManifest
-	45, // 64: regulagraph.v1.DocumentBatch.completeness:type_name -> regulagraph.v1.Completeness
-	10, // 65: regulagraph.v1.DocumentBatch.editions:type_name -> regulagraph.v1.DocumentEdition
-	8,  // 66: regulagraph.v1.DocumentBatch.regulations:type_name -> regulagraph.v1.Regulation
-	6,  // 67: regulagraph.v1.DocumentBatch.observations:type_name -> regulagraph.v1.SourceObservation
-	19, // 68: regulagraph.v1.DocumentBatch.changes:type_name -> regulagraph.v1.LegalChangeEvent
-	42, // 69: regulagraph.v1.GetDocumentRequest.context:type_name -> regulagraph.v1.RequestContext
-	8,  // 70: regulagraph.v1.GetDocumentResponse.regulation:type_name -> regulagraph.v1.Regulation
-	10, // 71: regulagraph.v1.GetDocumentResponse.editions:type_name -> regulagraph.v1.DocumentEdition
-	6,  // 72: regulagraph.v1.GetDocumentResponse.observations:type_name -> regulagraph.v1.SourceObservation
-	46, // 73: regulagraph.v1.GetDocumentResponse.snapshot:type_name -> regulagraph.v1.SnapshotRef
-	42, // 74: regulagraph.v1.GetProvisionVersionsRequest.context:type_name -> regulagraph.v1.RequestContext
-	47, // 75: regulagraph.v1.GetProvisionVersionsRequest.pagination:type_name -> regulagraph.v1.Pagination
-	18, // 76: regulagraph.v1.GetProvisionVersionsResponse.versions:type_name -> regulagraph.v1.ProvisionVersion
-	19, // 77: regulagraph.v1.GetProvisionVersionsResponse.changes:type_name -> regulagraph.v1.LegalChangeEvent
-	46, // 78: regulagraph.v1.GetProvisionVersionsResponse.snapshot:type_name -> regulagraph.v1.SnapshotRef
-	79, // [79:79] is the sub-list for method output_type
-	79, // [79:79] is the sub-list for method input_type
-	79, // [79:79] is the sub-list for extension type_name
-	79, // [79:79] is the sub-list for extension extendee
-	0,  // [0:79] is the sub-list for field type_name
+	36, // 29: regulagraph.v1.TextArtifact.normalizer_manifest:type_name -> regulagraph.v1.ProducerManifest
+	14, // 30: regulagraph.v1.TableLayout.cells:type_name -> regulagraph.v1.TableCell
+	26, // 31: regulagraph.v1.StructureNode.meta:type_name -> regulagraph.v1.RecordMeta
+	3,  // 32: regulagraph.v1.StructureNode.kind:type_name -> regulagraph.v1.StructureKind
+	34, // 33: regulagraph.v1.StructureNode.source_spans:type_name -> regulagraph.v1.TextSpan
+	37, // 34: regulagraph.v1.StructureNode.page_locators:type_name -> regulagraph.v1.PageLocator
+	15, // 35: regulagraph.v1.StructureNode.table_layout:type_name -> regulagraph.v1.TableLayout
+	26, // 36: regulagraph.v1.Provision.meta:type_name -> regulagraph.v1.RecordMeta
+	26, // 37: regulagraph.v1.ProvisionVersion.meta:type_name -> regulagraph.v1.RecordMeta
+	31, // 38: regulagraph.v1.ProvisionVersion.text_ref:type_name -> regulagraph.v1.ArtifactRef
+	34, // 39: regulagraph.v1.ProvisionVersion.spans:type_name -> regulagraph.v1.TextSpan
+	38, // 40: regulagraph.v1.ProvisionVersion.legal_interval:type_name -> regulagraph.v1.LegalInterval
+	4,  // 41: regulagraph.v1.ProvisionVersion.legal_status:type_name -> regulagraph.v1.LegalStatus
+	36, // 42: regulagraph.v1.ProvisionVersion.reconstruction_manifest:type_name -> regulagraph.v1.ProducerManifest
+	32, // 43: regulagraph.v1.ProvisionVersion.review_state:type_name -> regulagraph.v1.ReviewState
+	26, // 44: regulagraph.v1.LegalChangeEvent.meta:type_name -> regulagraph.v1.RecordMeta
+	39, // 45: regulagraph.v1.LegalChangeEvent.amending_source:type_name -> regulagraph.v1.SourceVersionRef
+	5,  // 46: regulagraph.v1.LegalChangeEvent.operation:type_name -> regulagraph.v1.ChangeOperation
+	34, // 47: regulagraph.v1.LegalChangeEvent.replacement_spans:type_name -> regulagraph.v1.TextSpan
+	33, // 48: regulagraph.v1.LegalChangeEvent.effective_date:type_name -> regulagraph.v1.DateAssertion
+	40, // 49: regulagraph.v1.LegalChangeEvent.supports:type_name -> regulagraph.v1.Provenance
+	32, // 50: regulagraph.v1.LegalChangeEvent.review_state:type_name -> regulagraph.v1.ReviewState
+	26, // 51: regulagraph.v1.Chunk.meta:type_name -> regulagraph.v1.RecordMeta
+	34, // 52: regulagraph.v1.Chunk.text_span:type_name -> regulagraph.v1.TextSpan
+	36, // 53: regulagraph.v1.Chunk.chunker_manifest:type_name -> regulagraph.v1.ProducerManifest
+	41, // 54: regulagraph.v1.Chunk.token_counts:type_name -> regulagraph.v1.TokenUsage
+	26, // 55: regulagraph.v1.DocumentBatch.meta:type_name -> regulagraph.v1.RecordMeta
+	42, // 56: regulagraph.v1.DocumentBatch.context:type_name -> regulagraph.v1.RequestContext
+	7,  // 57: regulagraph.v1.DocumentBatch.sources:type_name -> regulagraph.v1.SourceBlob
+	13, // 58: regulagraph.v1.DocumentBatch.text_artifacts:type_name -> regulagraph.v1.TextArtifact
+	16, // 59: regulagraph.v1.DocumentBatch.structures:type_name -> regulagraph.v1.StructureNode
+	17, // 60: regulagraph.v1.DocumentBatch.provisions:type_name -> regulagraph.v1.Provision
+	18, // 61: regulagraph.v1.DocumentBatch.versions:type_name -> regulagraph.v1.ProvisionVersion
+	20, // 62: regulagraph.v1.DocumentBatch.chunks:type_name -> regulagraph.v1.Chunk
+	43, // 63: regulagraph.v1.DocumentBatch.issues:type_name -> regulagraph.v1.ValidationIssue
+	44, // 64: regulagraph.v1.DocumentBatch.dependency_manifest:type_name -> regulagraph.v1.DependencyManifest
+	45, // 65: regulagraph.v1.DocumentBatch.completeness:type_name -> regulagraph.v1.Completeness
+	10, // 66: regulagraph.v1.DocumentBatch.editions:type_name -> regulagraph.v1.DocumentEdition
+	8,  // 67: regulagraph.v1.DocumentBatch.regulations:type_name -> regulagraph.v1.Regulation
+	6,  // 68: regulagraph.v1.DocumentBatch.observations:type_name -> regulagraph.v1.SourceObservation
+	19, // 69: regulagraph.v1.DocumentBatch.changes:type_name -> regulagraph.v1.LegalChangeEvent
+	42, // 70: regulagraph.v1.GetDocumentRequest.context:type_name -> regulagraph.v1.RequestContext
+	8,  // 71: regulagraph.v1.GetDocumentResponse.regulation:type_name -> regulagraph.v1.Regulation
+	10, // 72: regulagraph.v1.GetDocumentResponse.editions:type_name -> regulagraph.v1.DocumentEdition
+	6,  // 73: regulagraph.v1.GetDocumentResponse.observations:type_name -> regulagraph.v1.SourceObservation
+	46, // 74: regulagraph.v1.GetDocumentResponse.snapshot:type_name -> regulagraph.v1.SnapshotRef
+	42, // 75: regulagraph.v1.GetProvisionVersionsRequest.context:type_name -> regulagraph.v1.RequestContext
+	47, // 76: regulagraph.v1.GetProvisionVersionsRequest.pagination:type_name -> regulagraph.v1.Pagination
+	18, // 77: regulagraph.v1.GetProvisionVersionsResponse.versions:type_name -> regulagraph.v1.ProvisionVersion
+	19, // 78: regulagraph.v1.GetProvisionVersionsResponse.changes:type_name -> regulagraph.v1.LegalChangeEvent
+	46, // 79: regulagraph.v1.GetProvisionVersionsResponse.snapshot:type_name -> regulagraph.v1.SnapshotRef
+	80, // [80:80] is the sub-list for method output_type
+	80, // [80:80] is the sub-list for method input_type
+	80, // [80:80] is the sub-list for extension type_name
+	80, // [80:80] is the sub-list for extension extendee
+	0,  // [0:80] is the sub-list for field type_name
 }
 
 func init() { file_regulagraph_v1_documents_proto_init() }

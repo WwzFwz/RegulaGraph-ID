@@ -28,6 +28,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Mutex;
 
 static TEMP_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
@@ -76,12 +77,28 @@ impl ArtifactDescriptor {
             .map_err(ArtifactStoreError::WireValidation)?;
         Ok(reference)
     }
+
+    /// Converts an already validated wire reference into the local descriptor used for verified reads.
+    pub fn from_wire_ref(reference: &common::ArtifactRef) -> Result<Self, ArtifactStoreError> {
+        wire::validate(reference, Limits::default()).map_err(ArtifactStoreError::WireValidation)?;
+        let descriptor = Self {
+            artifact_id: reference.artifact_id.clone(),
+            sha256: reference.content_hash.sha256.clone(),
+            storage_key: reference.storage_key.clone(),
+            media_type: reference.media_type.clone(),
+            byte_size: reference.byte_size,
+            schema_version: reference.schema_version,
+        };
+        validate_descriptor(&descriptor)?;
+        Ok(descriptor)
+    }
 }
 
 #[derive(Debug)]
 pub struct ArtifactStore {
     root: PathBuf,
     config: ArtifactStoreConfig,
+    directory_lock: Mutex<()>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -153,7 +170,11 @@ impl ArtifactStore {
         if !root.is_dir() {
             return Err(ArtifactStoreError::InvalidConfig("root"));
         }
-        Ok(Self { root, config })
+        Ok(Self {
+            root,
+            config,
+            directory_lock: Mutex::new(()),
+        })
     }
 
     pub fn put_bytes(
@@ -176,9 +197,20 @@ impl ArtifactStore {
         let parent = destination
             .parent()
             .ok_or(ArtifactStoreError::UnsafeStorageKey)?;
-        self.reject_existing_links(parent)?;
-        fs::create_dir_all(parent).map_err(|error| io_error("create shard", error))?;
-        self.verify_directory(parent)?;
+        // `create_dir_all` may briefly expose a partially created shard path to another writer.
+        // Serialize only directory establishment and verification; payload writes remain concurrent.
+        {
+            let _directory_guard =
+                self.directory_lock
+                    .lock()
+                    .map_err(|error| ArtifactStoreError::Io {
+                        operation: "lock shard creation",
+                        detail: error.to_string(),
+                    })?;
+            self.reject_existing_links(parent)?;
+            fs::create_dir_all(parent).map_err(|error| io_error("create shard", error))?;
+            self.verify_directory(parent)?;
+        }
 
         match fs::symlink_metadata(&destination) {
             Ok(metadata) => {
@@ -643,36 +675,40 @@ mod tests {
     fn concurrent_identical_writes_leave_one_verified_object() {
         let root = TestDir::new();
         let store = Arc::new(store(&root.0));
-        let mut handles = Vec::new();
-        for _ in 0..8 {
-            let store = Arc::clone(&store);
-            handles.push(std::thread::spawn(move || {
-                store.put_bytes(
-                    "document-batch",
-                    "application/x-protobuf",
-                    1,
-                    b"same concurrent payload",
-                )
-            }));
-        }
-        let descriptors: Vec<_> = handles
-            .into_iter()
-            .map(|handle| {
-                handle
-                    .join()
-                    .expect("writer thread joins")
-                    .expect("write succeeds")
-            })
-            .collect();
+        for round in 0..50 {
+            let payload = Arc::new(format!("same concurrent payload {round}"));
+            let mut handles = Vec::new();
+            for _ in 0..8 {
+                let store = Arc::clone(&store);
+                let payload = Arc::clone(&payload);
+                handles.push(std::thread::spawn(move || {
+                    store.put_bytes(
+                        "document-batch",
+                        "application/x-protobuf",
+                        1,
+                        payload.as_bytes(),
+                    )
+                }));
+            }
+            let descriptors: Vec<_> = handles
+                .into_iter()
+                .map(|handle| {
+                    handle
+                        .join()
+                        .expect("writer thread joins")
+                        .expect("write succeeds")
+                })
+                .collect();
 
-        assert!(descriptors.windows(2).all(|pair| pair[0] == pair[1]));
+            assert!(descriptors.windows(2).all(|pair| pair[0] == pair[1]));
+            assert_eq!(
+                store.read_verified(&descriptors[0]).unwrap(),
+                payload.as_bytes()
+            );
+        }
         let mut files = Vec::new();
         list_files(&store.root, &mut files);
-        assert_eq!(files.len(), 1);
-        assert_eq!(
-            store.read_verified(&descriptors[0]).unwrap(),
-            b"same concurrent payload"
-        );
+        assert_eq!(files.len(), 50);
     }
 
     #[test]

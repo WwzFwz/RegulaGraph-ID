@@ -19,13 +19,17 @@
 //! orphan, serta publication belum aktif.
 
 use crate::adapters::storage::{ArtifactDescriptor, ArtifactStore, ArtifactStoreError};
-use crate::document::normalization::text::{NormalizedText, TextNormalizerConfig};
+use crate::document::normalization::text::{
+    config_fingerprint, normalize_text, NormalizedText, TextNormalizerConfig,
+};
 use crate::document::parsing::pdf::PdfDocumentText;
 use crate::domain::text_artifact_wire::{
     project_validated_text_artifact, serialize_validated_text_mapping, TextArtifactRefs,
     TextArtifactWireConfig, TextArtifactWireError, MAPPING_MEDIA_TYPE, TEXT_MEDIA_TYPE,
+    TEXT_NORMALIZER_SOFTWARE, TEXT_NORMALIZER_VERSION,
 };
 use crate::wire::documents;
+use protobuf::Message;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 
@@ -48,6 +52,8 @@ pub struct PersistedTextArtifact {
 pub enum PersistTextArtifactError {
     Storage(ArtifactStoreError),
     Wire(TextArtifactWireError),
+    InvalidStoredArtifact(&'static str),
+    InvalidUtf8(&'static str),
 }
 
 impl Display for PersistTextArtifactError {
@@ -55,8 +61,86 @@ impl Display for PersistTextArtifactError {
         match self {
             Self::Storage(error) => write!(formatter, "text artifact storage failed: {error}"),
             Self::Wire(error) => write!(formatter, "text artifact projection failed: {error}"),
+            Self::InvalidStoredArtifact(field) => {
+                write!(formatter, "stored text artifact is inconsistent: {field}")
+            }
+            Self::InvalidUtf8(field) => {
+                write!(formatter, "stored text artifact is not UTF-8: {field}")
+            }
         }
     }
+}
+
+/// Loads and independently verifies a persisted normalized artifact before structure detection.
+pub fn load_normalized_text(
+    store: &ArtifactStore,
+    artifact: &documents::TextArtifact,
+    config: &TextNormalizerConfig,
+) -> Result<NormalizedText, PersistTextArtifactError> {
+    let raw_ref =
+        artifact
+            .raw_text_ref
+            .as_ref()
+            .ok_or(PersistTextArtifactError::InvalidStoredArtifact(
+                "raw_text_ref",
+            ))?;
+    let normalized_ref = artifact.normalized_text_ref.as_ref().ok_or(
+        PersistTextArtifactError::InvalidStoredArtifact("normalized_text_ref"),
+    )?;
+    let mapping_ref =
+        artifact
+            .mapping_ref
+            .as_ref()
+            .ok_or(PersistTextArtifactError::InvalidStoredArtifact(
+                "mapping_ref",
+            ))?;
+    let manifest = artifact.normalizer_manifest.as_ref().ok_or(
+        PersistTextArtifactError::InvalidStoredArtifact("normalizer_manifest"),
+    )?;
+    if raw_ref.media_type != TEXT_MEDIA_TYPE
+        || normalized_ref.media_type != TEXT_MEDIA_TYPE
+        || mapping_ref.media_type != MAPPING_MEDIA_TYPE
+        || raw_ref.schema_version != SCHEMA_VERSION
+        || normalized_ref.schema_version != SCHEMA_VERSION
+        || mapping_ref.schema_version != SCHEMA_VERSION
+    {
+        return Err(PersistTextArtifactError::InvalidStoredArtifact(
+            "artifact media type or schema version",
+        ));
+    }
+    if manifest.software != TEXT_NORMALIZER_SOFTWARE
+        || manifest.schema_version != SCHEMA_VERSION
+        || manifest.parser_version.as_deref() != Some(TEXT_NORMALIZER_VERSION)
+        || manifest.config_hash.sha256 != config_fingerprint(config)
+        || manifest.input_hashes.len() != 2
+        || manifest.input_hashes[0].sha256 != raw_ref.content_hash.sha256
+        || manifest.input_hashes[1].sha256 != normalized_ref.content_hash.sha256
+    {
+        return Err(PersistTextArtifactError::InvalidStoredArtifact(
+            "normalizer_manifest",
+        ));
+    }
+    let raw = store.read_verified(&ArtifactDescriptor::from_wire_ref(raw_ref)?)?;
+    let stored_normalized =
+        store.read_verified(&ArtifactDescriptor::from_wire_ref(normalized_ref)?)?;
+    let stored_mapping = store.read_verified(&ArtifactDescriptor::from_wire_ref(mapping_ref)?)?;
+    let raw = std::str::from_utf8(&raw)
+        .map_err(|_| PersistTextArtifactError::InvalidUtf8("raw_text_ref"))?;
+    let normalized_text = std::str::from_utf8(&stored_normalized)
+        .map_err(|_| PersistTextArtifactError::InvalidUtf8("normalized_text_ref"))?;
+    let normalized = normalize_text(raw, config).map_err(|error| {
+        PersistTextArtifactError::Wire(TextArtifactWireError::Normalization(error.to_string()))
+    })?;
+    if normalized.text != normalized_text
+        || serialize_validated_text_mapping(&normalized, &artifact.meta.record_id)?
+            != stored_mapping
+        || documents::TextMapping::parse_from_bytes(&stored_mapping).is_err()
+    {
+        return Err(PersistTextArtifactError::InvalidStoredArtifact(
+            "normalized text or mapping",
+        ));
+    }
+    Ok(normalized)
 }
 
 impl Error for PersistTextArtifactError {}
@@ -277,6 +361,39 @@ mod tests {
             first.artifact.raw_text_ref.as_ref(),
             Some(&first.descriptors.raw_text.to_wire_ref().unwrap())
         );
+        let loaded = load_normalized_text(&store, &first.artifact, &normalizer_config)
+            .expect("persisted normalization reloads with manifest and mapping verification");
+        assert_eq!(loaded, normalized);
+
+        let mut wrong_config = normalizer_config.clone();
+        wrong_config.remove_soft_hyphen = false;
+        assert!(matches!(
+            load_normalized_text(&store, &first.artifact, &wrong_config),
+            Err(PersistTextArtifactError::InvalidStoredArtifact(
+                "normalizer_manifest"
+            ))
+        ));
+        let mut incompatible = first.artifact.clone();
+        let incompatible_manifest = incompatible
+            .normalizer_manifest
+            .as_mut()
+            .expect("fixture has normalizer manifest");
+        incompatible_manifest.software = "unrelated-producer".to_owned();
+        incompatible_manifest.parser_version = Some("nonexistent-normalizer-v999".to_owned());
+        assert!(matches!(
+            load_normalized_text(&store, &incompatible, &normalizer_config),
+            Err(PersistTextArtifactError::InvalidStoredArtifact(
+                "normalizer_manifest"
+            ))
+        ));
+        let mut wrong_media_type = first.artifact.clone();
+        wrong_media_type.raw_text_ref.as_mut().unwrap().media_type = "application/pdf".to_owned();
+        assert!(matches!(
+            load_normalized_text(&store, &wrong_media_type, &normalizer_config),
+            Err(PersistTextArtifactError::InvalidStoredArtifact(
+                "artifact media type or schema version"
+            ))
+        ));
         let mut files = Vec::new();
         list_files(&root.0, &mut files);
         assert_eq!(files.len(), 3);

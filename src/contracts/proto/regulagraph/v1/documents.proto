@@ -124,6 +124,7 @@ message TextArtifact {
   ArtifactRef normalized_text_ref=5 [(rules).required=true];
   ArtifactRef mapping_ref=6 [(rules).required=true];
   repeated PageResult page_results=7 [(rules).min_items=1];
+  ProducerManifest normalizer_manifest=8;
 }
 message TableCell {
   string node_id=1 [(rules)={required:true ascii_id:true}];

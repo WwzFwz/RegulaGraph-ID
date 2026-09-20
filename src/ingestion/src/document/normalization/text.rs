@@ -659,7 +659,7 @@ fn ligature_replacement(character: char) -> Option<&'static str> {
     }
 }
 
-fn config_fingerprint(config: &TextNormalizerConfig) -> String {
+pub fn config_fingerprint(config: &TextNormalizerConfig) -> String {
     let canonical = format!(
         "schema={SCHEMA_VERSION}\nmaximum_input_bytes={}\nmaximum_mapping_spans={}\ncollapse_horizontal_whitespace={}\nexpand_unicode_ligatures={}\nremove_soft_hyphen={}\n",
         config.maximum_input_bytes,

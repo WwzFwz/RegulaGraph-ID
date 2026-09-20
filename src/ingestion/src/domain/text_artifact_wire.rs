@@ -1,7 +1,7 @@
 //! Memproyeksikan keluaran parser dan normalizer menjadi `TextArtifact` C01 yang dapat dipublikasi.
 //!
 //! Peran dalam komponen:
-//! Modul ini membangun mapping byte raw-normalized, status per halaman, dan parser manifest sambil
+//! Modul ini membangun mapping byte raw-normalized, status per halaman, parser manifest, dan normalizer manifest sambil
 //! mengikat ketiganya pada `ArtifactRef` immutable. Penyimpanan byte dilakukan adapter storage;
 //! modul ini hanya memeriksa bahwa hash, ukuran, media type, schema, dan identitas saling cocok.
 //!
@@ -30,6 +30,8 @@ use std::error::Error;
 use std::fmt::{Display, Formatter};
 
 const WIRE_SCHEMA_VERSION: u32 = 1;
+pub const TEXT_NORMALIZER_SOFTWARE: &str = "regulagraph-ingestion";
+pub const TEXT_NORMALIZER_VERSION: &str = "text-normalizer-v1";
 pub const MAPPING_MEDIA_TYPE: &str = "application/vnd.regulagraph.text-mapping+protobuf";
 pub const TEXT_MEDIA_TYPE: &str = "text/plain;charset=utf-8";
 
@@ -246,6 +248,7 @@ fn project_text_artifact_inner(
         meta: MessageField::some(record_meta(&config.corpus_id, &config.text_artifact_id)),
         source_blob_id: parsed.source_blob_id.clone(),
         parser_manifest: MessageField::some(parser_manifest(parsed, config)),
+        normalizer_manifest: MessageField::some(normalizer_manifest(normalized)),
         raw_text_ref: MessageField::some(references.raw_text.clone()),
         normalized_text_ref: MessageField::some(references.normalized_text.clone()),
         mapping_ref: MessageField::some(references.mapping.clone()),
@@ -254,6 +257,21 @@ fn project_text_artifact_inner(
     };
     validate_wire(&artifact)?;
     Ok(artifact)
+}
+
+fn normalizer_manifest(normalized: &NormalizedText) -> common::ProducerManifest {
+    common::ProducerManifest {
+        software: TEXT_NORMALIZER_SOFTWARE.to_owned(),
+        build: env!("CARGO_PKG_VERSION").to_owned(),
+        schema_version: WIRE_SCHEMA_VERSION,
+        parser_version: Some(TEXT_NORMALIZER_VERSION.to_owned()),
+        config_hash: MessageField::some(content_hash(&normalized.config_sha256)),
+        input_hashes: vec![
+            content_hash(&normalized.raw_sha256),
+            content_hash(&normalized.normalized_sha256),
+        ],
+        ..Default::default()
+    }
 }
 
 fn validate_config(config: &TextArtifactWireConfig) -> Result<(), TextArtifactWireError> {
