@@ -20,6 +20,12 @@ import (
 // Workflows use it to quarantine or fail the job while transport and database availability errors retry.
 var ErrPersistentIntegrity = errors.New("persistent integrity violation")
 
+// ErrLeaseUnavailable is shared by schedulers and storage adapters when no durable job is due.
+var ErrLeaseUnavailable = errors.New("no claimable job")
+
+// ErrNotFound identifies durable prerequisites that are absent, distinct from backend availability.
+var ErrNotFound = errors.New("record not found")
+
 type JobIntent struct {
 	JobID            string
 	CorpusID         string
@@ -44,6 +50,7 @@ type JobRecord struct {
 	BaseSnapshotID        string
 	LatestCheckpointID    string
 	Attempt               uint32
+	StageAttempt          uint32
 	LeaseOwner            string
 	LeaseFence            uint64
 	LeaseExpiresAt        time.Time

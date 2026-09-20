@@ -191,9 +191,21 @@ func TestStorageFoundationAgainstPostgres(t *testing.T) {
 	if _, err = repo.pool.Exec(ctx, `UPDATE jobs SET lease_expires_at=clock_timestamp()-interval '1 second' WHERE job_id=$1`, jobID); err != nil {
 		t.Fatal(err)
 	}
+	structureReclaimed, err := repo.ClaimStructureJob(ctx, "worker-structure-recovery", time.Minute)
+	if err != nil || structureReclaimed.Stage != pb.JobStage_JOB_STAGE_STRUCTURE || structureReclaimed.State != pb.JobState_JOB_STATE_RUNNING {
+		t.Fatalf("handoff staged PARSE job=%+v err=%v", structureReclaimed, err)
+	}
+	actual, err := repo.CompleteWorkerAttempt(ctx, jobID, structureReclaimed.LeaseOwner, structureReclaimed.LeaseFence,
+		pb.JobState_JOB_STATE_STAGED, 0)
+	if err != nil || actual != pb.JobState_JOB_STATE_STAGED {
+		t.Fatalf("stage STRUCTURE job state=%s err=%v", actual, err)
+	}
+	if _, err = repo.pool.Exec(ctx, `UPDATE jobs SET lease_expires_at=clock_timestamp()-interval '1 second' WHERE job_id=$1`, jobID); err != nil {
+		t.Fatal(err)
+	}
 	reclaimed, err = repo.ClaimJob(ctx, "worker-staged-recovery", time.Minute)
-	if err != nil || reclaimed.State != pb.JobState_JOB_STATE_STAGED {
-		t.Fatalf("reclaim staged job=%+v err=%v", reclaimed, err)
+	if err != nil || reclaimed.State != pb.JobState_JOB_STATE_STAGED || reclaimed.Stage != pb.JobStage_JOB_STAGE_STRUCTURE {
+		t.Fatalf("reclaim staged STRUCTURE job=%+v err=%v", reclaimed, err)
 	}
 	foreignCorpus := "foreign-corpus-" + suffix
 	foreignRequest := ingestionRequestFixture(foreignCorpus, "foreign-request-"+suffix, "https://example.test/foreign.pdf")
@@ -386,7 +398,7 @@ func TestStorageFoundationAgainstPostgres(t *testing.T) {
 	if _, err = repo.RenewLease(ctx, cancelJob, cancelledClaim.LeaseOwner, cancelledClaim.LeaseFence, time.Minute); !errors.Is(err, ErrStaleFence) {
 		t.Fatalf("cancelled lease renewed: %v", err)
 	}
-	actual, err := repo.CompleteParseAttempt(ctx, cancelJob, cancelledClaim.LeaseOwner, cancelledClaim.LeaseFence,
+	actual, err = repo.CompleteWorkerAttempt(ctx, cancelJob, cancelledClaim.LeaseOwner, cancelledClaim.LeaseFence,
 		pb.JobState_JOB_STATE_STAGED, 0)
 	if err != nil || actual != pb.JobState_JOB_STATE_CANCELLED {
 		t.Fatalf("durable cancellation did not win PARSE completion: state=%s err=%v", actual, err)
@@ -413,7 +425,7 @@ func TestStorageFoundationAgainstPostgres(t *testing.T) {
 	if err != nil || firstRetry.JobID != retryJob {
 		t.Fatalf("claim first retry job=%+v err=%v", firstRetry, err)
 	}
-	actual, err = repo.CompleteParseAttempt(ctx, retryJob, firstRetry.LeaseOwner, firstRetry.LeaseFence,
+	actual, err = repo.CompleteWorkerAttempt(ctx, retryJob, firstRetry.LeaseOwner, firstRetry.LeaseFence,
 		pb.JobState_JOB_STATE_RETRY_WAIT, time.Minute)
 	if err != nil || actual != pb.JobState_JOB_STATE_RETRY_WAIT {
 		t.Fatalf("schedule retry state=%s err=%v", actual, err)
@@ -428,10 +440,72 @@ func TestStorageFoundationAgainstPostgres(t *testing.T) {
 	if err != nil || lastRetry.JobID != retryJob || lastRetry.Attempt != 2 {
 		t.Fatalf("claim last retry job=%+v err=%v", lastRetry, err)
 	}
-	actual, err = repo.CompleteParseAttempt(ctx, retryJob, lastRetry.LeaseOwner, lastRetry.LeaseFence,
+	actual, err = repo.CompleteWorkerAttempt(ctx, retryJob, lastRetry.LeaseOwner, lastRetry.LeaseFence,
 		pb.JobState_JOB_STATE_RETRY_WAIT, time.Minute)
 	if err != nil || actual != pb.JobState_JOB_STATE_FAILED {
 		t.Fatalf("attempt budget did not terminate retry: state=%s err=%v", actual, err)
+	}
+
+	structureCorpus, structureJob := "structure-corpus-"+suffix, "structure-job-"+suffix
+	structureRequest := ingestionRequestFixture(structureCorpus, "structure-request-"+suffix, "https://example.test/structure.pdf")
+	structurePayload, marshalErr := proto.MarshalOptions{Deterministic: true}.Marshal(structureRequest)
+	if marshalErr != nil {
+		t.Fatal(marshalErr)
+	}
+	structureDigest := sha256.Sum256(structurePayload)
+	if _, _, err = repo.SubmitJob(ctx, JobIntent{
+		JobID: structureJob, CorpusID: structureCorpus, Operation: pb.JobOperation_JOB_OPERATION_INGEST,
+		InitialStage: pb.JobStage_JOB_STAGE_PARSE, InputFingerprint: ingestionFingerprint(t, structureRequest),
+		IdempotencyKey: structureRequest.IdempotencyKey, RequestHash: hex.EncodeToString(structureDigest[:]), RequestPayload: structurePayload,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = repo.pool.Exec(ctx, `UPDATE jobs SET max_attempts=1 WHERE job_id=$1`, structureJob); err != nil {
+		t.Fatal(err)
+	}
+	parseClaim, err := repo.ClaimParseJob(ctx, "worker-parse-handoff", time.Minute)
+	if err != nil || parseClaim.JobID != structureJob || parseClaim.StageAttempt != 1 {
+		t.Fatalf("claim PARSE handoff job=%+v err=%v", parseClaim, err)
+	}
+	parseOutput := &pb.ArtifactRef{ArtifactId: "document-batch-" + suffix,
+		ContentHash: &pb.ContentHash{Sha256: strings.Repeat("7", 64)}, StorageKey: "objects/document-batch-" + suffix,
+		MediaType: "application/vnd.regulagraph.document-batch+protobuf", ByteSize: 12, SchemaVersion: 1}
+	if err = repo.RegisterArtifact(ctx, structureCorpus, parseOutput); err != nil {
+		t.Fatal(err)
+	}
+	parseCheckpoint := checkpointFixture(structureCorpus, structureJob, parseClaim.LeaseFence)
+	parseCheckpoint.CompletedBatchKeys = []string{parseOutput.ArtifactId}
+	parseCheckpoint.ArtifactHashes = []*pb.ContentHash{proto.Clone(parseOutput.ContentHash).(*pb.ContentHash)}
+	if err = repo.SaveCheckpoint(ctx, parseCheckpoint, parseClaim.LeaseOwner); err != nil {
+		t.Fatal(err)
+	}
+	if actual, err = repo.CompleteWorkerAttempt(ctx, structureJob, parseClaim.LeaseOwner, parseClaim.LeaseFence,
+		pb.JobState_JOB_STATE_STAGED, 0); err != nil || actual != pb.JobState_JOB_STATE_STAGED {
+		t.Fatalf("complete PARSE handoff state=%s err=%v", actual, err)
+	}
+	structureClaim, err := repo.ClaimStructureJob(ctx, "worker-structure", time.Minute)
+	if err != nil || structureClaim.JobID != structureJob || structureClaim.Stage != pb.JobStage_JOB_STAGE_STRUCTURE ||
+		structureClaim.Attempt != 2 || structureClaim.StageAttempt != 1 {
+		t.Fatalf("claim STRUCTURE handoff=%+v err=%v", structureClaim, err)
+	}
+	loadedArtifact, err := repo.LoadArtifact(ctx, structureCorpus, parseOutput.ArtifactId)
+	if err != nil || !proto.Equal(parseOutput, loadedArtifact) {
+		t.Fatalf("load checkpoint artifact=%v err=%v", loadedArtifact, err)
+	}
+	structureCheckpoint := checkpointFixture(structureCorpus, structureJob, structureClaim.LeaseFence)
+	structureCheckpoint.Meta.RecordId = "checkpoint-structure-" + suffix
+	structureCheckpoint.Stage = pb.JobStage_JOB_STAGE_STRUCTURE
+	structureCheckpoint.CompletedBatchKeys = []string{parseOutput.ArtifactId}
+	structureCheckpoint.ArtifactHashes = []*pb.ContentHash{proto.Clone(parseOutput.ContentHash).(*pb.ContentHash)}
+	if err = repo.SaveCheckpoint(ctx, structureCheckpoint, structureClaim.LeaseOwner); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = repo.pool.Exec(ctx, `UPDATE jobs SET lease_expires_at=clock_timestamp()-interval '1 second' WHERE job_id=$1`, structureJob); err != nil {
+		t.Fatal(err)
+	}
+	recoveryClaim, err := repo.ClaimStructureJob(ctx, "worker-structure-recovery-final", time.Minute)
+	if err != nil || recoveryClaim.Attempt != 3 || recoveryClaim.StageAttempt != 1 || recoveryClaim.LeaseFence <= structureClaim.LeaseFence {
+		t.Fatalf("claim final-attempt STRUCTURE recovery=%+v err=%v", recoveryClaim, err)
 	}
 }
 

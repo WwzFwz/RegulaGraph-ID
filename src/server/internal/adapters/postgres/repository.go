@@ -35,13 +35,14 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"regulagraph.local/server/internal/domain"
 )
 
 var (
 	ErrConflict            = errors.New("storage conflict")
-	ErrNotFound            = errors.New("record not found")
+	ErrNotFound            = domain.ErrNotFound
 	ErrStaleFence          = errors.New("stale lease or publication fence")
-	ErrLeaseUnavailable    = errors.New("no claimable job")
+	ErrLeaseUnavailable    = domain.ErrLeaseUnavailable
 	ErrPublicationNotReady = errors.New("publication is not ready")
 	ErrSnapshotCASConflict = errors.New("active snapshot compare-and-swap conflict")
 )

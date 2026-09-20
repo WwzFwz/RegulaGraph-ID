@@ -6,7 +6,8 @@
 // Benchmark: ukur queue time, claim throughput, p50/p95/p99 query, pool saturation, retry,
 // dan contention pada concurrency profil referensi.
 // Target numerik required: configs/benchmark-targets.yaml; status REQUIRED_UNMEASURED.
-// Status: primitive job S01, claim/cancellation PARSE, retry availability, dan max-attempt aktif.
+// Status: primitive job S01, claim/cancellation PARSE/STRUCTURE, retry availability, dan budget
+// attempt per-stage aktif; attempt/fence worker tetap monotonik lintas handoff.
 package postgres
 
 import (
@@ -74,7 +75,7 @@ func (r *Repository) SubmitJob(ctx context.Context, intent JobIntent) (JobRecord
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NULLIF($10,''))
         ON CONFLICT (corpus_id,idempotency_key) DO NOTHING
         RETURNING job_id,corpus_id,operation,state,stage,input_fingerprint,
-		  idempotency_key,request_hash,base_snapshot_id,latest_checkpoint_id,attempt,lease_owner,
+		  idempotency_key,request_hash,base_snapshot_id,latest_checkpoint_id,attempt,stage_attempt,lease_owner,
           lease_fence,lease_expires_at,cancellation_requested,created_at,updated_at`,
 		intent.JobID, intent.CorpusID, int16(intent.Operation), int16(pb.JobState_JOB_STATE_QUEUED),
 		int16(intent.InitialStage), intent.InputFingerprint, intent.IdempotencyKey, intent.RequestHash,
@@ -84,7 +85,7 @@ func (r *Repository) SubmitJob(ctx context.Context, intent JobIntent) (JobRecord
 	if scanErr == pgx.ErrNoRows {
 		reused = true
 		record, scanErr = scanJob(tx.QueryRow(ctx, `SELECT job_id,corpus_id,operation,state,stage,input_fingerprint,
-		  idempotency_key,request_hash,base_snapshot_id,latest_checkpoint_id,attempt,lease_owner,
+		  idempotency_key,request_hash,base_snapshot_id,latest_checkpoint_id,attempt,stage_attempt,lease_owner,
           lease_fence,lease_expires_at,cancellation_requested,created_at,updated_at
           FROM jobs WHERE corpus_id=$1 AND idempotency_key=$2`, intent.CorpusID, intent.IdempotencyKey))
 		if scanErr == nil && record.RequestHash != intent.RequestHash {
@@ -106,23 +107,25 @@ func (r *Repository) ClaimJob(ctx context.Context, ownerID string, leaseDuration
 	}
 	row := r.pool.QueryRow(ctx, `WITH candidate AS (
         SELECT job_id FROM jobs
-		WHERE cancellation_requested=false AND (stage<>$9 OR state IN ($6,$7,$8)) AND (
-		  state=$1 OR (state=$2 AND next_attempt_at <= clock_timestamp() AND attempt < max_attempts)
+		WHERE cancellation_requested=false AND stage<>$9
+		  AND (stage<>$10 OR state IN ($6,$7,$8)) AND (
+		  state=$1 OR (state=$2 AND next_attempt_at <= clock_timestamp() AND stage_attempt < max_attempts)
 		  OR (state IN ($3,$6,$7,$8) AND lease_expires_at < clock_timestamp()))
         ORDER BY created_at, job_id
         FOR UPDATE SKIP LOCKED LIMIT 1)
 		UPDATE jobs j SET state=CASE WHEN j.state IN ($1,$2) THEN $3 ELSE j.state END,
-		attempt=j.attempt+1, lease_owner=$4,
+		attempt=j.attempt+1,stage_attempt=j.stage_attempt+1, lease_owner=$4,
         lease_fence=j.lease_fence+1, lease_expires_at=clock_timestamp()+$5::interval,
         updated_at=clock_timestamp()
       FROM candidate c WHERE j.job_id=c.job_id
       RETURNING j.job_id,j.corpus_id,j.operation,j.state,j.stage,j.input_fingerprint,
-		j.idempotency_key,j.request_hash,j.base_snapshot_id,j.latest_checkpoint_id,j.attempt,j.lease_owner,
+		j.idempotency_key,j.request_hash,j.base_snapshot_id,j.latest_checkpoint_id,j.attempt,j.stage_attempt,j.lease_owner,
         j.lease_fence,j.lease_expires_at,j.cancellation_requested,j.created_at,j.updated_at`,
 		int16(pb.JobState_JOB_STATE_QUEUED), int16(pb.JobState_JOB_STATE_RETRY_WAIT),
 		int16(pb.JobState_JOB_STATE_RUNNING), ownerID, leaseDuration.String(),
 		int16(pb.JobState_JOB_STATE_STAGED), int16(pb.JobState_JOB_STATE_VALIDATING),
-		int16(pb.JobState_JOB_STATE_PUBLISHING), int16(pb.JobStage_JOB_STAGE_PARSE))
+		int16(pb.JobState_JOB_STATE_PUBLISHING), int16(pb.JobStage_JOB_STAGE_PARSE),
+		int16(pb.JobStage_JOB_STAGE_STRUCTURE))
 	record, err := scanJob(row)
 	if err == pgx.ErrNoRows {
 		return JobRecord{}, ErrLeaseUnavailable
@@ -133,14 +136,73 @@ func (r *Repository) ClaimJob(ctx context.Context, ownerID string, leaseDuration
 	return record, nil
 }
 
+// ClaimStructureJob owns the durable PARSE->STRUCTURE handoff. A successful PARSE checkpoint
+// advances the globally monotonic worker attempt and fence used by the Rust in-memory registry.
+func (r *Repository) ClaimStructureJob(ctx context.Context, ownerID string, leaseDuration time.Duration) (JobRecord, error) {
+	if !storageIDPattern.MatchString(ownerID) || leaseDuration <= 0 {
+		return JobRecord{}, errors.New("valid owner and positive lease duration required")
+	}
+	if err := r.finalizeAbandonedCancellations(ctx, pb.JobStage_JOB_STAGE_STRUCTURE); err != nil {
+		return JobRecord{}, err
+	}
+	if _, err := r.pool.Exec(ctx, `WITH exhausted AS (
+		SELECT job_id FROM jobs WHERE stage=$2 AND stage_attempt>=max_attempts AND
+		(state=$3 OR (state=$4 AND lease_expires_at < clock_timestamp())) AND NOT EXISTS (
+		  SELECT 1 FROM job_checkpoints c WHERE c.checkpoint_id=jobs.latest_checkpoint_id AND c.stage=$2)
+		ORDER BY updated_at,job_id FOR UPDATE SKIP LOCKED LIMIT 64)
+		UPDATE jobs j SET state=CASE WHEN j.cancellation_requested THEN $5::smallint ELSE $1::smallint END,
+		lease_owner=NULL,lease_expires_at=NULL,updated_at=clock_timestamp()
+		FROM exhausted e WHERE j.job_id=e.job_id`,
+		int16(pb.JobState_JOB_STATE_FAILED), int16(pb.JobStage_JOB_STAGE_STRUCTURE),
+		int16(pb.JobState_JOB_STATE_RETRY_WAIT), int16(pb.JobState_JOB_STATE_RUNNING),
+		int16(pb.JobState_JOB_STATE_CANCELLED)); err != nil {
+		return JobRecord{}, fmt.Errorf("finalize exhausted STRUCTURE jobs: %w", err)
+	}
+	row := r.pool.QueryRow(ctx, `WITH candidate AS (
+		SELECT job_id,stage,state,EXISTS (
+		  SELECT 1 FROM job_checkpoints c WHERE c.checkpoint_id=jobs.latest_checkpoint_id AND c.stage=$7
+		) AS recovery_ready FROM jobs
+		WHERE cancellation_requested=false AND (
+		  (stage=$5 AND state=$6) OR
+		  (stage=$7 AND ((state=$1 AND (stage_attempt < max_attempts OR EXISTS (
+		      SELECT 1 FROM job_checkpoints c WHERE c.checkpoint_id=jobs.latest_checkpoint_id AND c.stage=$7))
+		      AND next_attempt_at <= clock_timestamp()) OR
+		    (state=$2 AND lease_expires_at < clock_timestamp() AND (stage_attempt < max_attempts OR EXISTS (
+		      SELECT 1 FROM job_checkpoints c WHERE c.checkpoint_id=jobs.latest_checkpoint_id AND c.stage=$7))))))
+		ORDER BY created_at,job_id FOR UPDATE SKIP LOCKED LIMIT 1)
+		UPDATE jobs j SET state=$2,stage=$7,
+		attempt=j.attempt+1,stage_attempt=CASE WHEN c.stage=$5 AND c.state=$6 THEN 1
+		  WHEN c.recovery_ready THEN j.stage_attempt ELSE j.stage_attempt+1 END,
+		lease_owner=$3,lease_fence=j.lease_fence+1,
+		lease_expires_at=clock_timestamp()+$4::interval,updated_at=clock_timestamp()
+		FROM candidate c WHERE j.job_id=c.job_id
+		RETURNING j.job_id,j.corpus_id,j.operation,j.state,j.stage,j.input_fingerprint,
+		j.idempotency_key,j.request_hash,j.base_snapshot_id,j.latest_checkpoint_id,j.attempt,j.stage_attempt,j.lease_owner,
+		j.lease_fence,j.lease_expires_at,j.cancellation_requested,j.created_at,j.updated_at`,
+		int16(pb.JobState_JOB_STATE_RETRY_WAIT), int16(pb.JobState_JOB_STATE_RUNNING),
+		ownerID, leaseDuration.String(), int16(pb.JobStage_JOB_STAGE_PARSE),
+		int16(pb.JobState_JOB_STATE_STAGED), int16(pb.JobStage_JOB_STAGE_STRUCTURE))
+	record, err := scanJob(row)
+	if err == pgx.ErrNoRows {
+		return JobRecord{}, ErrLeaseUnavailable
+	}
+	if err != nil {
+		return JobRecord{}, fmt.Errorf("claim STRUCTURE job: %w", err)
+	}
+	return record, nil
+}
+
 // ClaimParseJob leases only new/retrying PARSE inputs or an expired PARSE attempt. Later pipeline
 // states remain available to their owning coordinators and cannot be consumed by the PARSE daemon.
 func (r *Repository) ClaimParseJob(ctx context.Context, ownerID string, leaseDuration time.Duration) (JobRecord, error) {
 	if !storageIDPattern.MatchString(ownerID) || leaseDuration <= 0 {
 		return JobRecord{}, errors.New("valid owner and positive lease duration required")
 	}
+	if err := r.finalizeAbandonedCancellations(ctx, pb.JobStage_JOB_STAGE_PARSE); err != nil {
+		return JobRecord{}, err
+	}
 	if _, err := r.pool.Exec(ctx, `WITH exhausted AS (
-		SELECT job_id FROM jobs WHERE stage=$2 AND attempt>=max_attempts AND
+		SELECT job_id FROM jobs WHERE stage=$2 AND stage_attempt>=max_attempts AND
 		(state=$3 OR (state=$4 AND lease_expires_at < clock_timestamp()))
 		ORDER BY updated_at,job_id FOR UPDATE SKIP LOCKED LIMIT 64)
 		UPDATE jobs j SET state=CASE WHEN j.cancellation_requested THEN $5::smallint ELSE $1::smallint END,
@@ -152,20 +214,20 @@ func (r *Repository) ClaimParseJob(ctx context.Context, ownerID string, leaseDur
 		return JobRecord{}, fmt.Errorf("finalize exhausted PARSE jobs: %w", err)
 	}
 	row := r.pool.QueryRow(ctx, `WITH candidate AS (
-        SELECT job_id FROM jobs
+		SELECT job_id FROM jobs
         WHERE cancellation_requested=false
           AND stage=$6
-          AND (state IN ($1,$2) OR (state=$3 AND lease_expires_at < clock_timestamp()))
-          AND attempt < max_attempts
-          AND (state<>$2 OR next_attempt_at <= clock_timestamp())
+		  AND (state IN ($1,$2) OR (state=$3 AND lease_expires_at < clock_timestamp()))
+		  AND stage_attempt < max_attempts
+		  AND (state<>$2 OR next_attempt_at <= clock_timestamp())
         ORDER BY created_at, job_id
         FOR UPDATE SKIP LOCKED LIMIT 1)
-		UPDATE jobs j SET state=$3,attempt=j.attempt+1,lease_owner=$4,
+		UPDATE jobs j SET state=$3,attempt=j.attempt+1,stage_attempt=j.stage_attempt+1,lease_owner=$4,
         lease_fence=j.lease_fence+1,lease_expires_at=clock_timestamp()+$5::interval,
         updated_at=clock_timestamp()
       FROM candidate c WHERE j.job_id=c.job_id
       RETURNING j.job_id,j.corpus_id,j.operation,j.state,j.stage,j.input_fingerprint,
-		j.idempotency_key,j.request_hash,j.base_snapshot_id,j.latest_checkpoint_id,j.attempt,j.lease_owner,
+		j.idempotency_key,j.request_hash,j.base_snapshot_id,j.latest_checkpoint_id,j.attempt,j.stage_attempt,j.lease_owner,
         j.lease_fence,j.lease_expires_at,j.cancellation_requested,j.created_at,j.updated_at`,
 		int16(pb.JobState_JOB_STATE_QUEUED), int16(pb.JobState_JOB_STATE_RETRY_WAIT),
 		int16(pb.JobState_JOB_STATE_RUNNING), ownerID, leaseDuration.String(),
@@ -178,6 +240,25 @@ func (r *Repository) ClaimParseJob(ctx context.Context, ownerID string, leaseDur
 		return JobRecord{}, fmt.Errorf("claim PARSE job: %w", err)
 	}
 	return record, nil
+}
+
+// finalizeAbandonedCancellations prevents a cancellation from stranding work after its owner dies.
+// A live RUNNING lease keeps responsibility until completion; unleased or expired work terminates.
+func (r *Repository) finalizeAbandonedCancellations(ctx context.Context, stage pb.JobStage) error {
+	_, err := r.pool.Exec(ctx, `WITH abandoned AS (
+		SELECT job_id FROM jobs WHERE stage=$1 AND cancellation_requested=true AND (
+		  state IN ($2,$3,$4) OR (state=$5 AND lease_expires_at < clock_timestamp()))
+		ORDER BY updated_at,job_id FOR UPDATE SKIP LOCKED LIMIT 64)
+		UPDATE jobs j SET state=$6,lease_owner=NULL,lease_expires_at=NULL,
+		next_attempt_at='-infinity'::timestamptz,updated_at=clock_timestamp()
+		FROM abandoned a WHERE j.job_id=a.job_id`, int16(stage),
+		int16(pb.JobState_JOB_STATE_QUEUED), int16(pb.JobState_JOB_STATE_RETRY_WAIT),
+		int16(pb.JobState_JOB_STATE_STAGED), int16(pb.JobState_JOB_STATE_RUNNING),
+		int16(pb.JobState_JOB_STATE_CANCELLED))
+	if err != nil {
+		return fmt.Errorf("finalize abandoned %s cancellation: %w", stage, err)
+	}
+	return nil
 }
 
 func (r *Repository) RenewLease(ctx context.Context, jobID, ownerID string, fence uint64, leaseDuration time.Duration) (time.Time, error) {
@@ -221,14 +302,14 @@ func (r *Repository) CancellationRequested(ctx context.Context, jobID, ownerID s
 	return requested, nil
 }
 
-// CompleteParseAttempt atomically gives durable cancellation precedence over a PARSE result.
+// CompleteWorkerAttempt atomically gives durable cancellation precedence over a worker result.
 // It prevents a cancellation arriving after the RPC monitor exits from stranding a RUNNING job.
-func (r *Repository) CompleteParseAttempt(ctx context.Context, jobID, ownerID string, fence uint64, desired pb.JobState, retryDelay time.Duration) (pb.JobState, error) {
+func (r *Repository) CompleteWorkerAttempt(ctx context.Context, jobID, ownerID string, fence uint64, desired pb.JobState, retryDelay time.Duration) (pb.JobState, error) {
 	if !storageIDPattern.MatchString(jobID) || !storageIDPattern.MatchString(ownerID) || fence == 0 ||
 		!domain.AllowedJobTransition(pb.JobState_JOB_STATE_RUNNING, desired) || retryDelay < 0 ||
 		desired == pb.JobState_JOB_STATE_RETRY_WAIT && retryDelay == 0 ||
 		desired != pb.JobState_JOB_STATE_RETRY_WAIT && retryDelay != 0 {
-		return pb.JobState_JOB_STATE_UNSPECIFIED, errors.New("valid PARSE completion identity and state required")
+		return pb.JobState_JOB_STATE_UNSPECIFIED, errors.New("valid worker completion identity and state required")
 	}
 	retryMicroseconds := retryDelay.Microseconds()
 	if retryDelay > 0 && retryMicroseconds == 0 {
@@ -237,22 +318,27 @@ func (r *Repository) CompleteParseAttempt(ctx context.Context, jobID, ownerID st
 	var actual int16
 	err := r.pool.QueryRow(ctx, `UPDATE jobs SET
 		state=CASE WHEN cancellation_requested THEN $6::smallint
-			WHEN $5::smallint=$7::smallint AND attempt>=max_attempts THEN $8::smallint ELSE $5::smallint END,
+			WHEN $5::smallint=$7::smallint AND stage_attempt>=max_attempts AND NOT (jobs.stage=$10::smallint AND EXISTS (
+			  SELECT 1 FROM job_checkpoints c WHERE c.checkpoint_id=jobs.latest_checkpoint_id AND c.stage=jobs.stage))
+			THEN $8::smallint ELSE $5::smallint END,
 		updated_at=clock_timestamp(),
 		next_attempt_at=CASE WHEN NOT cancellation_requested AND $5::smallint=$7::smallint
-			AND attempt<max_attempts THEN clock_timestamp()+$9::bigint*interval '1 microsecond' ELSE '-infinity'::timestamptz END,
+			AND (stage_attempt<max_attempts OR (jobs.stage=$10::smallint AND EXISTS (
+			  SELECT 1 FROM job_checkpoints c WHERE c.checkpoint_id=jobs.latest_checkpoint_id AND c.stage=jobs.stage)))
+			THEN clock_timestamp()+$9::bigint*interval '1 microsecond' ELSE '-infinity'::timestamptz END,
 		lease_owner=CASE WHEN cancellation_requested OR $5::smallint IN (3,7,8,9,10) THEN NULL ELSE lease_owner END,
 		lease_expires_at=CASE WHEN cancellation_requested OR $5::smallint IN (3,7,8,9,10) THEN NULL ELSE lease_expires_at END
 		WHERE job_id=$1 AND lease_owner=$2 AND lease_fence=$3 AND state=$4
 		AND lease_expires_at >= clock_timestamp()
 		RETURNING state`, jobID, ownerID, int64(fence), int16(pb.JobState_JOB_STATE_RUNNING),
 		int16(desired), int16(pb.JobState_JOB_STATE_CANCELLED), int16(pb.JobState_JOB_STATE_RETRY_WAIT),
-		int16(pb.JobState_JOB_STATE_FAILED), retryMicroseconds).Scan(&actual)
+		int16(pb.JobState_JOB_STATE_FAILED), retryMicroseconds,
+		int16(pb.JobStage_JOB_STAGE_STRUCTURE)).Scan(&actual)
 	if err == pgx.ErrNoRows {
 		return pb.JobState_JOB_STATE_UNSPECIFIED, ErrStaleFence
 	}
 	if err != nil {
-		return pb.JobState_JOB_STATE_UNSPECIFIED, fmt.Errorf("complete PARSE attempt: %w", err)
+		return pb.JobState_JOB_STATE_UNSPECIFIED, fmt.Errorf("complete worker attempt: %w", err)
 	}
 	return pb.JobState(actual), nil
 }
@@ -336,10 +422,10 @@ func scanJob(row pgx.Row) (JobRecord, error) {
 	var operation, state, stage int16
 	var base, checkpoint, owner sql.NullString
 	var expires sql.NullTime
-	var attempt int32
+	var attempt, stageAttempt int32
 	var fence int64
 	err := row.Scan(&rec.JobID, &rec.CorpusID, &operation, &state, &stage, &rec.InputFingerprint,
-		&rec.IdempotencyKey, &rec.RequestHash, &base, &checkpoint, &attempt, &owner, &fence, &expires,
+		&rec.IdempotencyKey, &rec.RequestHash, &base, &checkpoint, &attempt, &stageAttempt, &owner, &fence, &expires,
 		&rec.CancellationRequested, &rec.CreatedAt, &rec.UpdatedAt)
 	if err != nil {
 		return JobRecord{}, err
@@ -350,6 +436,7 @@ func scanJob(row pgx.Row) (JobRecord, error) {
 	rec.BaseSnapshotID = base.String
 	rec.LatestCheckpointID = checkpoint.String
 	rec.Attempt = uint32(attempt)
+	rec.StageAttempt = uint32(stageAttempt)
 	rec.LeaseOwner = owner.String
 	rec.LeaseFence = uint64(fence)
 	if expires.Valid {
@@ -395,14 +482,14 @@ func (r *Repository) LoadLatestCheckpoint(ctx context.Context, jobID string) (*p
 	}
 	digest := sha256.Sum256(payload)
 	if hex.EncodeToString(digest[:]) != expectedHash {
-		return nil, fmt.Errorf("persisted checkpoint checksum mismatch: %w", ErrConflict)
+		return nil, fmt.Errorf("persisted checkpoint checksum mismatch: %w", errors.Join(ErrConflict, domain.ErrPersistentIntegrity))
 	}
 	checkpoint := &pb.Checkpoint{}
 	if err = proto.Unmarshal(payload, checkpoint); err != nil {
-		return nil, fmt.Errorf("decode persisted checkpoint: %w", err)
+		return nil, fmt.Errorf("decode persisted checkpoint: %w", errors.Join(err, domain.ErrPersistentIntegrity))
 	}
 	if err = domain.ValidateWire(checkpoint, domain.DefaultWireLimits); err != nil {
-		return nil, fmt.Errorf("validate persisted checkpoint: %w", err)
+		return nil, fmt.Errorf("validate persisted checkpoint: %w", errors.Join(err, domain.ErrPersistentIntegrity))
 	}
 	return checkpoint, nil
 }

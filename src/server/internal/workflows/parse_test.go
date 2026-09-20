@@ -18,15 +18,18 @@ import (
 )
 
 type parseStoreFake struct {
-	job          domain.JobRecord
-	request      *pb.IngestionRequest
-	registered   *pb.ArtifactRef
-	checkpoint   *pb.Checkpoint
-	transitions  []pb.JobState
-	cancelled    bool
-	cancelOnSave bool
-	loadErr      error
-	retryDelay   time.Duration
+	job             domain.JobRecord
+	request         *pb.IngestionRequest
+	registered      *pb.ArtifactRef
+	checkpoint      *pb.Checkpoint
+	transitions     []pb.JobState
+	cancelled       bool
+	cancelOnSave    bool
+	loadErr         error
+	retryDelay      time.Duration
+	claimParseErr   error
+	priorCheckpoint *pb.Checkpoint
+	priorArtifact   *pb.ArtifactRef
 }
 
 func (s *parseStoreFake) SubmitJob(context.Context, domain.JobIntent) (domain.JobRecord, bool, error) {
@@ -36,6 +39,12 @@ func (s *parseStoreFake) ClaimJob(context.Context, string, time.Duration) (domai
 	return s.job, nil
 }
 func (s *parseStoreFake) ClaimParseJob(context.Context, string, time.Duration) (domain.JobRecord, error) {
+	if s.claimParseErr != nil {
+		return domain.JobRecord{}, s.claimParseErr
+	}
+	return s.job, nil
+}
+func (s *parseStoreFake) ClaimStructureJob(context.Context, string, time.Duration) (domain.JobRecord, error) {
 	return s.job, nil
 }
 func (s *parseStoreFake) RenewLease(context.Context, string, string, uint64, time.Duration) (time.Time, error) {
@@ -58,6 +67,18 @@ func (s *parseStoreFake) LoadIngestionRequest(context.Context, string) (*pb.Inge
 	}
 	return proto.Clone(s.request).(*pb.IngestionRequest), nil
 }
+func (s *parseStoreFake) LoadLatestCheckpoint(context.Context, string) (*pb.Checkpoint, error) {
+	if s.priorCheckpoint == nil {
+		return nil, domain.ErrNotFound
+	}
+	return proto.Clone(s.priorCheckpoint).(*pb.Checkpoint), nil
+}
+func (s *parseStoreFake) LoadArtifact(context.Context, string, string) (*pb.ArtifactRef, error) {
+	if s.priorArtifact == nil {
+		return nil, errors.New("artifact missing")
+	}
+	return proto.Clone(s.priorArtifact).(*pb.ArtifactRef), nil
+}
 func (s *parseStoreFake) RegisterArtifact(_ context.Context, _ string, artifact *pb.ArtifactRef) error {
 	s.registered = proto.Clone(artifact).(*pb.ArtifactRef)
 	return nil
@@ -65,7 +86,7 @@ func (s *parseStoreFake) RegisterArtifact(_ context.Context, _ string, artifact 
 func (s *parseStoreFake) CancellationRequested(context.Context, string, string, uint64) (bool, error) {
 	return s.cancelled, nil
 }
-func (s *parseStoreFake) CompleteParseAttempt(_ context.Context, _, _ string, _ uint64, desired pb.JobState, retryDelay time.Duration) (pb.JobState, error) {
+func (s *parseStoreFake) CompleteWorkerAttempt(_ context.Context, _, _ string, _ uint64, desired pb.JobState, retryDelay time.Duration) (pb.JobState, error) {
 	s.retryDelay = retryDelay
 	if s.cancelled {
 		desired = pb.JobState_JOB_STATE_CANCELLED
@@ -98,7 +119,7 @@ func (w *parseWorkerFake) ProcessBatch(ctx context.Context, request *pb.ProcessB
 	artifact := parseArtifact("document-batch:fixture", "batches/fixture.pb", "b")
 	checkpoint := &pb.Checkpoint{
 		Meta:  &pb.RecordMeta{SchemaVersion: 1, CorpusId: request.Context.CorpusId, RecordId: "checkpoint:fixture"},
-		JobId: request.JobId, Stage: pb.JobStage_JOB_STAGE_PARSE,
+		JobId: request.JobId, Stage: request.Stages[0],
 		CompletedBatchKeys: []string{artifact.ArtifactId}, ArtifactHashes: []*pb.ContentHash{proto.Clone(artifact.ContentHash).(*pb.ContentHash)},
 		Manifest: parseManifest(), Fence: request.Lease.Fence,
 	}
@@ -113,6 +134,94 @@ func (w *parseWorkerFake) ProcessBatch(ctx context.Context, request *pb.ProcessB
 		w.mutateResponse(response)
 	}
 	return response, nil
+}
+
+func TestStructureExecutorUsesCheckpointBoundDocumentBatch(t *testing.T) {
+	store := parseFixtureStore(false)
+	store.claimParseErr = domain.ErrLeaseUnavailable
+	store.job.Stage = pb.JobStage_JOB_STAGE_STRUCTURE
+	store.job.Attempt = 2
+	store.job.StageAttempt = 1
+	store.job.LeaseFence = 2
+	store.priorArtifact = parseArtifact("document-batch:parse", "objects/parse.pb", "d")
+	store.priorArtifact.MediaType = "application/vnd.regulagraph.document-batch+protobuf"
+	store.priorCheckpoint = &pb.Checkpoint{
+		Meta:  &pb.RecordMeta{SchemaVersion: 1, CorpusId: store.job.CorpusID, RecordId: "checkpoint:parse"},
+		JobId: store.job.JobID, Stage: pb.JobStage_JOB_STAGE_PARSE,
+		CompletedBatchKeys: []string{store.priorArtifact.ArtifactId},
+		ArtifactHashes:     []*pb.ContentHash{proto.Clone(store.priorArtifact.ContentHash).(*pb.ContentHash)},
+		Manifest:           parseManifest(), Fence: 1,
+	}
+	worker := &parseWorkerFake{completion: pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED}
+	executor, _ := NewParseExecutor(store, worker, parseExecutorConfig())
+	_, response, err := executor.RunOnce(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.Checkpoint.Stage != pb.JobStage_JOB_STAGE_STRUCTURE || store.checkpoint.Stage != pb.JobStage_JOB_STAGE_STRUCTURE {
+		t.Fatal("STRUCTURE checkpoint was not persisted")
+	}
+	if got := store.transitions; len(got) != 1 || got[0] != pb.JobState_JOB_STATE_STAGED {
+		t.Fatalf("unexpected STRUCTURE transition: %v", got)
+	}
+}
+
+func TestStructureExecutorRecoversCheckpointWithoutRerunningWorker(t *testing.T) {
+	store := parseFixtureStore(false)
+	store.claimParseErr = domain.ErrLeaseUnavailable
+	store.job.Stage = pb.JobStage_JOB_STAGE_STRUCTURE
+	store.job.Attempt = 3
+	store.job.StageAttempt = 2
+	store.job.LeaseFence = 3
+	store.priorArtifact = parseArtifact("document-batch:structure", "objects/structure.pb", "e")
+	store.priorArtifact.MediaType = "application/vnd.regulagraph.document-batch+protobuf"
+	store.priorCheckpoint = &pb.Checkpoint{
+		Meta:  &pb.RecordMeta{SchemaVersion: 1, CorpusId: store.job.CorpusID, RecordId: "checkpoint:structure:prior"},
+		JobId: store.job.JobID, Stage: pb.JobStage_JOB_STAGE_STRUCTURE, Fence: 2,
+		CompletedBatchKeys: []string{store.priorArtifact.ArtifactId},
+		ArtifactHashes:     []*pb.ContentHash{proto.Clone(store.priorArtifact.ContentHash).(*pb.ContentHash)},
+		Manifest:           parseManifest(),
+	}
+	worker := &parseWorkerFake{completion: pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED}
+	executor, _ := NewParseExecutor(store, worker, parseExecutorConfig())
+	_, response, err := executor.RunOnce(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if worker.calls != 0 || response.GetDocumentBatch().GetArtifactId() != store.priorArtifact.ArtifactId {
+		t.Fatalf("recovery reran worker or changed output: calls=%d response=%v", worker.calls, response)
+	}
+	if store.checkpoint.GetFence() != store.job.LeaseFence || store.checkpoint.GetMeta().GetRecordId() == store.priorCheckpoint.GetMeta().GetRecordId() {
+		t.Fatalf("recovery checkpoint did not bind new fence: %v", store.checkpoint)
+	}
+	if got := store.transitions; len(got) != 1 || got[0] != pb.JobState_JOB_STATE_STAGED {
+		t.Fatalf("unexpected recovery transition: %v", got)
+	}
+}
+
+func TestStructureExecutorRejectsMismatchedRecoveryArtifact(t *testing.T) {
+	store := parseFixtureStore(false)
+	store.claimParseErr = domain.ErrLeaseUnavailable
+	store.job.Stage = pb.JobStage_JOB_STAGE_STRUCTURE
+	store.job.Attempt = 3
+	store.job.StageAttempt = 2
+	store.job.LeaseFence = 3
+	store.priorArtifact = parseArtifact("document-batch:structure", "objects/structure.pb", "e")
+	store.priorCheckpoint = &pb.Checkpoint{
+		Meta:  &pb.RecordMeta{SchemaVersion: 1, CorpusId: store.job.CorpusID, RecordId: "checkpoint:structure:prior"},
+		JobId: store.job.JobID, Stage: pb.JobStage_JOB_STAGE_STRUCTURE, Fence: 2,
+		CompletedBatchKeys: []string{store.priorArtifact.ArtifactId}, ArtifactHashes: []*pb.ContentHash{parseHash("f")},
+		Manifest: parseManifest(),
+	}
+	worker := &parseWorkerFake{}
+	executor, _ := NewParseExecutor(store, worker, parseExecutorConfig())
+	_, _, err := executor.RunOnce(context.Background())
+	if status.Code(err) != codes.FailedPrecondition || worker.calls != 0 {
+		t.Fatalf("mismatched recovery was not rejected: calls=%d err=%v", worker.calls, err)
+	}
+	if got := store.transitions; len(got) != 1 || got[0] != pb.JobState_JOB_STATE_FAILED {
+		t.Fatalf("unexpected mismatch transition: %v", got)
+	}
 }
 func (w *parseWorkerFake) Cancel(context.Context, *pb.WorkerStatusRequest) (*pb.WorkerStatusResponse, error) {
 	w.cancelCalls++
@@ -301,7 +410,7 @@ func parseFixtureStore(url bool) *parseStoreFake {
 	return &parseStoreFake{
 		job: domain.JobRecord{
 			JobID: "job:fixture", CorpusID: "corpus:fixture", State: pb.JobState_JOB_STATE_RUNNING,
-			Stage: pb.JobStage_JOB_STAGE_PARSE, Attempt: 1, LeaseOwner: "executor:fixture", LeaseFence: 1,
+			Stage: pb.JobStage_JOB_STAGE_PARSE, Attempt: 1, StageAttempt: 1, LeaseOwner: "executor:fixture", LeaseFence: 1,
 			LeaseExpiresAt: now.Add(10 * time.Second),
 		},
 		request: &pb.IngestionRequest{

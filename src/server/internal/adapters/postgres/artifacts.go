@@ -7,7 +7,7 @@
 // Benchmark: ukur batch registration, reverse lookup, write amplification, p95/p99, dan
 // pertumbuhan index pada volume corpus referensi.
 // Target numerik required: configs/benchmark-targets.yaml; status REQUIRED_UNMEASURED.
-// Status: registration, dependency replacement, dan lookup-scope CAS S01 aktif.
+// Status: registration/load immutable metadata, dependency replacement, dan lookup-scope CAS S01 aktif.
 package postgres
 
 import (
@@ -15,9 +15,11 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
 
 	"github.com/jackc/pgx/v5"
 	pb "regulagraph.local/server/gen/regulagraph/v1"
+	"regulagraph.local/server/internal/domain"
 )
 
 type ArtifactDependency struct {
@@ -61,6 +63,38 @@ func (r *Repository) RegisterArtifact(ctx context.Context, corpusID string, ref 
 		}
 	}
 	return tx.Commit(ctx)
+}
+
+// LoadArtifact reconstructs immutable metadata for a checkpoint-bound artifact.
+func (r *Repository) LoadArtifact(ctx context.Context, corpusID, artifactID string) (*pb.ArtifactRef, error) {
+	if !storageIDPattern.MatchString(corpusID) || !storageIDPattern.MatchString(artifactID) {
+		return nil, errors.New("valid corpus and artifact IDs required")
+	}
+	var digest, key, mediaType, schemaVersion string
+	var byteSize int64
+	err := r.pool.QueryRow(ctx, `SELECT digest,storage_key,media_type,byte_size,schema_version
+		FROM artifacts WHERE corpus_id=$1 AND artifact_id=$2`, corpusID, artifactID).
+		Scan(&digest, &key, &mediaType, &byteSize, &schemaVersion)
+	if err == pgx.ErrNoRows {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("load artifact: %w", err)
+	}
+	if byteSize < 0 || !sha256Pattern.MatchString(digest) {
+		return nil, fmt.Errorf("stored artifact metadata is invalid: %w", domain.ErrPersistentIntegrity)
+	}
+	schemaValue, parseErr := strconv.ParseUint(schemaVersion, 10, 32)
+	if parseErr != nil || schemaValue == 0 {
+		return nil, fmt.Errorf("stored artifact schema is invalid: %w", domain.ErrPersistentIntegrity)
+	}
+	schema := uint32(schemaValue)
+	ref := &pb.ArtifactRef{ArtifactId: artifactID, ContentHash: &pb.ContentHash{Sha256: digest},
+		StorageKey: key, MediaType: mediaType, ByteSize: uint64(byteSize), SchemaVersion: schema}
+	if err = domain.ValidateWire(ref, domain.DefaultWireLimits); err != nil {
+		return nil, fmt.Errorf("stored artifact metadata failed validation: %w", errors.Join(err, domain.ErrPersistentIntegrity))
+	}
+	return ref, nil
 }
 
 func (r *Repository) ReplaceArtifactDependencies(ctx context.Context, corpusID, artifactID string, dependencies []ArtifactDependency) error {

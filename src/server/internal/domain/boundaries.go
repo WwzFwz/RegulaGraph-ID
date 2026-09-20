@@ -37,8 +37,8 @@ func VerifyWorkerResponse(req *pb.ProcessBatchRequest, res *pb.ProcessBatchRespo
 			}
 		}
 	}
-	if res.DocumentBatch != nil && !containsStage(req.Stages, pb.JobStage_JOB_STAGE_PARSE) {
-		return errors.New("document batch returned without requested PARSE stage")
+	if res.DocumentBatch != nil && !containsStage(req.Stages, pb.JobStage_JOB_STAGE_PARSE) && !containsStage(req.Stages, pb.JobStage_JOB_STAGE_STRUCTURE) {
+		return errors.New("document batch returned without requested PARSE or STRUCTURE stage")
 	}
 	if res.GraphDelta != nil && !containsStage(req.Stages, pb.JobStage_JOB_STAGE_ASSEMBLE) {
 		return errors.New("graph delta returned without requested ASSEMBLE stage")

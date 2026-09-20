@@ -1,7 +1,7 @@
-// Runs the durable Go ingestion coordinator against PostgreSQL and the loopback Rust PARSE worker.
+// Runs the durable Go ingestion coordinator against PostgreSQL and the loopback Rust document worker.
 //
 // Configuration is loaded explicitly from REGULAGRAPH_* environment variables. Startup opens each
-// dependency once; the loop claims bounded jobs, emits JSON operational events, and drains through signal
+// dependency once; the loop advances PARSE→STRUCTURE jobs, emits JSON operational events, and drains through signal
 // cancellation. Migrations and snapshot publication remain separate operational stages. Measure queue and
 // stage p95/p99 plus retry/cancellation behavior against configs/benchmark-targets.yaml.
 package main

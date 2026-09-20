@@ -73,6 +73,11 @@ func TestWorkerCheckpointBindsRequestedStageAndOutputs(t *testing.T) {
 	if VerifyWorkerResponse(req, res) == nil {
 		t.Fatal("checkpoint for an unrequested stage was accepted")
 	}
+	res.Checkpoint.Stage = pb.JobStage_JOB_STAGE_STRUCTURE
+	req.Stages = []pb.JobStage{pb.JobStage_JOB_STAGE_STRUCTURE}
+	if err := VerifyWorkerResponse(req, res); err != nil {
+		t.Fatal("STRUCTURE document batch should be accepted", err)
+	}
 }
 func TestPublicationRequiresAcknowledgedMatchingBackend(t *testing.T) {
 	m := &pb.PublicationManifest{Meta: &pb.RecordMeta{SchemaVersion: 1, CorpusId: "c", RecordId: "publication-1"}, SnapshotRef: &pb.SnapshotRef{CorpusId: "c", SnapshotId: "snapshot-1", Sequence: 1, ManifestHash: hashFixture(), RepresentationGeneration: "generation-1"}, Fence: 1, ValidationReport: &pb.ValidationReport{Valid: true}, BackendGenerations: []*pb.BackendGeneration{{Backend: pb.BackendKind_BACKEND_KIND_NEO4J, Generation: "generation-1", ExpectedCounts: &pb.Counts{Expected: 2, Accepted: 2}, OperationsChecksum: hashFixture()}}}

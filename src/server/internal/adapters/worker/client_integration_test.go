@@ -88,6 +88,24 @@ func TestRustWorkerInteroperability(t *testing.T) {
 	if statusResponse.GetCompletedItems() != 1 || statusResponse.GetTotalItems() != 1 {
 		t.Fatalf("unexpected worker progress: %d/%d", statusResponse.GetCompletedItems(), statusResponse.GetTotalItems())
 	}
+
+	structureDeadline := time.Now().Add(30 * time.Second)
+	structureRequest := &pb.ProcessBatchRequest{
+		Context: integrationContext("interop-structure", structureDeadline),
+		JobId:   request.JobId, Attempt: 2,
+		Lease:    &pb.Lease{OwnerId: "interop-go", Fence: 2, ExpiresAt: timestamppb.New(structureDeadline.Add(time.Minute))},
+		Sources:  []*pb.ArtifactRef{response.DocumentBatch},
+		Manifest: request.Manifest,
+		Stages:   []pb.JobStage{pb.JobStage_JOB_STAGE_STRUCTURE},
+	}
+	structured, err := client.ProcessBatch(context.Background(), structureRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if structured.GetDocumentBatch() == nil || structured.GetCheckpoint().GetStage() != pb.JobStage_JOB_STAGE_STRUCTURE ||
+		structured.GetDocumentBatch().GetArtifactId() == response.GetDocumentBatch().GetArtifactId() {
+		t.Fatal("Rust worker did not produce a distinct checkpoint-bound STRUCTURE batch")
+	}
 }
 
 func integrationContext(requestID string, deadline time.Time) *pb.RequestContext {
