@@ -16,7 +16,7 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 Subfolder: [sources/](sources/README.md).
 
-Discovery, akuisisi, dan audit inventory D01 sudah aktif melalui CLI, workflow batch, dan adapter sources. Audit menghasilkan inventory deterministic untuk pemilihan sample M01/G01. Coordinator PARSE→STRUCTURE berada pada workflow Go dan memanggil transformasi Rust; canonical identity direncanakan oleh domain registry lalu dialokasikan adapter PostgreSQL, bukan oleh folder koordinasi ini. Stage EXTRACT–INDEX dan binding record regulasi masih scaffold.
+Discovery, akuisisi, dan audit inventory D01 sudah aktif melalui CLI, workflow batch, dan adapter sources. Audit menghasilkan inventory deterministic untuk pemilihan sample M01/G01. Coordinator PARSE→STRUCTURE→BIND→CHUNK berada pada workflow Go; canonical identity direncanakan oleh domain registry lalu dialokasikan adapter PostgreSQL, bukan oleh folder koordinasi ini. Stage EXTRACT–INDEX masih scaffold.
 
 ## Benchmark dan perhatian performa
 
@@ -26,4 +26,4 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-Collector dan audit inventory D01 serta koordinasi PARSE→STRUCTURE sudah aktif; kontrak C01, evaluator E01, control-plane S01, transformasi dokumen Rust, dan exact identity K01 tersedia pada komponen pemiliknya. Graph extraction/index, binding record regulasi, dan layanan model belum aktif. Audit integrity tidak membuktikan kualitas ekstraksi atau benchmark produksi.
+Collector dan audit inventory D01 serta koordinasi durable sampai CHUNK sudah aktif; kontrak C01, evaluator E01, control-plane S01, transformasi dokumen Rust, dan exact identity/materialization K01 tersedia pada komponen pemiliknya. Graph extraction/index dan layanan model belum aktif. Audit integrity tidak membuktikan kualitas ekstraksi atau benchmark produksi.
