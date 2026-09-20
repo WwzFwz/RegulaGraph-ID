@@ -12,6 +12,7 @@
 //! Status: validator record chunk lokal aktif; domain lain dan integrasi worker masih scaffold.
 
 pub mod chunks;
+pub mod document_batch;
 pub mod document_wire;
 pub mod documents;
 pub mod entities;
