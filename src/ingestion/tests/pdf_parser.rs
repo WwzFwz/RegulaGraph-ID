@@ -135,7 +135,8 @@ fn pdfium_boundary_parses_and_binds_real_inputs() {
         ParseBatchProcessorConfig {
             normalizer: TextNormalizerConfig::default(),
             document_batch: DocumentBatchConfig::default(),
-            maximum_pages: 100,
+            maximum_pages_per_document: 100,
+            ..ParseBatchProcessorConfig::default()
         },
     )
     .unwrap();

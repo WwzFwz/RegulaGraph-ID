@@ -451,11 +451,16 @@ impl<'a> BatchIndexes<'a> {
     }
 
     fn typed_or_dependency(&self, id: &str, typed: &HashSet<&str>) -> bool {
-        typed.contains(id) || (!self.local_ids.contains(id) && self.dependency_ids.contains(id))
+        typed.contains(id)
+            || (!self.local_ids.contains(id)
+                && !self.artifact_refs.contains_key(id)
+                && self.dependency_ids.contains(id))
     }
 
     fn external_dependency(&self, id: &str) -> bool {
-        !self.local_ids.contains(id) && self.dependency_ids.contains(id)
+        !self.local_ids.contains(id)
+            && !self.artifact_refs.contains_key(id)
+            && self.dependency_ids.contains(id)
     }
 
     fn insert_artifact(
@@ -463,8 +468,18 @@ impl<'a> BatchIndexes<'a> {
         reference: &'a common::ArtifactRef,
     ) -> Result<(), DocumentBatchError> {
         let id = reference.artifact_id.as_str();
-        if self.local_ids.contains(id) || self.dependency_ids.contains(id) {
+        if self.local_ids.contains(id) {
             return Err(DocumentBatchError::DuplicateRecordId(id.to_owned()));
+        }
+        if self.dependency_ids.contains(id)
+            && self
+                .dependency_fingerprints
+                .get(id)
+                .is_none_or(|fingerprint| **fingerprint != reference.content_hash.sha256)
+        {
+            return Err(DocumentBatchError::InvalidIdentity(
+                "artifact dependency fingerprint",
+            ));
         }
         if let Some(existing) = self.artifact_refs.get(id) {
             if *existing != reference {
@@ -492,6 +507,9 @@ impl<'a> BatchIndexes<'a> {
             .get(span.text_artifact_id.as_str())
             .is_some_and(|size| span.end_byte <= *size)
             || (!self.local_ids.contains(span.text_artifact_id.as_str())
+                && !self
+                    .artifact_refs
+                    .contains_key(span.text_artifact_id.as_str())
                 && self.dependency_ids.contains(span.text_artifact_id.as_str()))
     }
 }
@@ -1202,7 +1220,8 @@ mod tests {
 
     fn fixture() -> DocumentBatchParts {
         let source_artifact = artifact_ref("artifact:source:fixture", 'c', "application/pdf", 1024);
-        let source = build_source_blob(CORPUS, "source-blob:fixture", source_artifact).unwrap();
+        let source =
+            build_source_blob(CORPUS, "source-blob:fixture", source_artifact.clone()).unwrap();
         let raw_ref = artifact_ref("artifact:raw:fixture", 'd', "text/plain;charset=utf-8", 32);
         let normalized_ref = artifact_ref(
             "artifact:normalized:fixture",
@@ -1309,11 +1328,18 @@ mod tests {
             chunks: vec![chunk],
             dependency_manifest: common::DependencyManifest {
                 artifact_id: "dependency-manifest:fixture".to_owned(),
-                dependencies: vec![common::Dependency {
-                    dependency_id: "entity:issuer".to_owned(),
-                    fingerprint: MessageField::some(content_hash('9')),
-                    ..Default::default()
-                }],
+                dependencies: vec![
+                    common::Dependency {
+                        dependency_id: "entity:issuer".to_owned(),
+                        fingerprint: MessageField::some(content_hash('9')),
+                        ..Default::default()
+                    },
+                    common::Dependency {
+                        dependency_id: source_artifact.artifact_id,
+                        fingerprint: source_artifact.content_hash,
+                        ..Default::default()
+                    },
+                ],
                 producer_manifest: MessageField::some(producer()),
                 ..Default::default()
             },
@@ -1514,6 +1540,24 @@ mod tests {
         ));
 
         let mut parts = fixture();
+        parts.regulations[0].issuer_id = "artifact:source:fixture".to_owned();
+        assert!(matches!(
+            assemble_document_batch(parts, &DocumentBatchConfig::default()),
+            Err(DocumentBatchError::MissingReference {
+                field: "regulation.issuer_id",
+                ..
+            })
+        ));
+
+        let mut parts = fixture();
+        parts.dependency_manifest.dependencies[1].fingerprint =
+            MessageField::some(content_hash('0'));
+        assert_eq!(
+            assemble_document_batch(parts, &DocumentBatchConfig::default()).unwrap_err(),
+            DocumentBatchError::InvalidIdentity("artifact dependency fingerprint")
+        );
+
+        let mut parts = fixture();
         parts.versions[0].text_ref.as_mut().unwrap().media_type =
             "application/octet-stream".to_owned();
         assert!(matches!(
@@ -1578,13 +1622,13 @@ mod tests {
                 parts,
                 &DocumentBatchConfig {
                     maximum_records: 100,
-                    maximum_reference_edges: 1,
+                    maximum_reference_edges: 2,
                 },
             )
             .unwrap_err(),
             DocumentBatchError::ReferenceLimit {
-                actual: 2,
-                maximum: 1,
+                actual: 3,
+                maximum: 2,
             }
         );
     }

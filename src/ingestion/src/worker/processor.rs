@@ -24,7 +24,10 @@ use tonic::Code;
 pub struct ParseBatchProcessorConfig {
     pub normalizer: TextNormalizerConfig,
     pub document_batch: DocumentBatchConfig,
-    pub maximum_pages: usize,
+    pub maximum_pages_per_document: usize,
+    pub maximum_batch_pages: usize,
+    pub maximum_sources: usize,
+    pub maximum_input_bytes: u64,
 }
 
 impl Default for ParseBatchProcessorConfig {
@@ -32,7 +35,10 @@ impl Default for ParseBatchProcessorConfig {
         Self {
             normalizer: TextNormalizerConfig::default(),
             document_batch: DocumentBatchConfig::default(),
-            maximum_pages: 100_000,
+            maximum_pages_per_document: 50_000,
+            maximum_batch_pages: 100_000,
+            maximum_sources: 256,
+            maximum_input_bytes: 2 * 1024 * 1024 * 1024,
         }
     }
 }
@@ -49,10 +55,20 @@ impl ParseBatchProcessor {
         parser: PdfParser,
         config: ParseBatchProcessorConfig,
     ) -> Result<Self, ProcessError> {
-        if config.maximum_pages == 0 {
+        if config.maximum_pages_per_document == 0
+            || config.maximum_batch_pages == 0
+            || config.maximum_sources == 0
+            || config.maximum_input_bytes == 0
+        {
             return Err(ProcessError::new(
                 Code::InvalidArgument,
-                "maximum_pages must be positive",
+                "parse batch limits must be positive",
+            ));
+        }
+        if config.maximum_batch_pages > config.document_batch.maximum_records {
+            return Err(ProcessError::new(
+                Code::InvalidArgument,
+                "maximum_batch_pages cannot exceed maximum_records",
             ));
         }
         Ok(Self {
@@ -83,13 +99,10 @@ impl BatchProcessor for ParseBatchProcessor {
             .as_ref()
             .ok_or_else(|| ProcessError::new(Code::InvalidArgument, "request context is required"))?
             .clone();
-        let manifest = request
-            .manifest
-            .as_ref()
-            .ok_or_else(|| {
-                ProcessError::new(Code::InvalidArgument, "producer manifest is required")
-            })?
-            .clone();
+        let _requested_manifest = request.manifest.as_ref().ok_or_else(|| {
+            ProcessError::new(Code::InvalidArgument, "producer manifest is required")
+        })?;
+        preflight_sources(&request.sources, &self.config)?;
         let request_id = context.request_id.clone();
         let corpus_id = context.corpus_id.clone();
         let total = request.sources.len() as u64;
@@ -98,6 +111,7 @@ impl BatchProcessor for ParseBatchProcessor {
         let mut dependencies = Vec::with_capacity(request.sources.len());
         let mut observed_hashes = HashSet::with_capacity(request.sources.len());
         let mut observed_artifact_ids = HashSet::with_capacity(request.sources.len());
+        let mut accumulated_pages = 0usize;
 
         for (index, source) in request.sources.iter().enumerate() {
             if cancelled.load(Ordering::Acquire) {
@@ -118,14 +132,22 @@ impl BatchProcessor for ParseBatchProcessor {
                     "source artifact IDs must be unique within a batch",
                 ));
             }
-            if !observed_hashes.insert(source_hash.clone()) {
-                progress(jobs::JobStage::JOB_STAGE_PARSE, (index + 1) as u64, total);
-                continue;
-            }
             let path = self
                 .store
                 .verified_input_path(source)
                 .map_err(|error| ProcessError::new(Code::FailedPrecondition, error.to_string()))?;
+            dependencies.push(common::Dependency {
+                dependency_id: source.artifact_id.clone(),
+                fingerprint: MessageField::some(common::ContentHash {
+                    sha256: source_hash.clone(),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            });
+            if !observed_hashes.insert(source_hash.clone()) {
+                progress(jobs::JobStage::JOB_STAGE_PARSE, (index + 1) as u64, total);
+                continue;
+            }
             let source_blob_id = format!("source-blob:{source_hash}");
             let text_artifact_id = format!("text:{source_hash}");
             let parsed = self
@@ -137,6 +159,20 @@ impl BatchProcessor for ParseBatchProcessor {
                     path,
                 })
                 .map_err(|error| ProcessError::new(Code::InvalidArgument, error.to_string()))?;
+            accumulated_pages = accumulated_pages
+                .checked_add(parsed.pages.len())
+                .ok_or_else(|| {
+                    ProcessError::new(Code::ResourceExhausted, "batch page count overflow")
+                })?;
+            if accumulated_pages > self.config.maximum_batch_pages {
+                return Err(ProcessError::new(
+                    Code::ResourceExhausted,
+                    format!(
+                        "batch page count {accumulated_pages} exceeds limit {}",
+                        self.config.maximum_batch_pages
+                    ),
+                ));
+            }
             let normalized = normalize_text(&parsed.raw_text, &self.config.normalizer)
                 .map_err(|error| ProcessError::new(Code::InvalidArgument, error.to_string()))?;
             let persisted = persist_text_artifact(
@@ -147,9 +183,9 @@ impl BatchProcessor for ParseBatchProcessor {
                 &TextArtifactWireConfig {
                     corpus_id: corpus_id.clone(),
                     text_artifact_id,
-                    software: manifest.software.clone(),
-                    build: manifest.build.clone(),
-                    maximum_pages: self.config.maximum_pages,
+                    software: "regulagraph-ingestion".to_owned(),
+                    build: env!("CARGO_PKG_VERSION").to_owned(),
+                    maximum_pages: self.config.maximum_pages_per_document,
                 },
             )
             .map_err(|error| ProcessError::new(Code::Internal, error.to_string()))?;
@@ -158,14 +194,6 @@ impl BatchProcessor for ParseBatchProcessor {
                     .map_err(|error| ProcessError::new(Code::InvalidArgument, error.to_string()))?,
             );
             text_artifacts.push(persisted.artifact);
-            dependencies.push(common::Dependency {
-                dependency_id: source.artifact_id.clone(),
-                fingerprint: MessageField::some(common::ContentHash {
-                    sha256: source_hash,
-                    ..Default::default()
-                }),
-                ..Default::default()
-            });
             progress(jobs::JobStage::JOB_STAGE_PARSE, (index + 1) as u64, total);
         }
         if sources.is_empty() {
@@ -181,6 +209,7 @@ impl BatchProcessor for ParseBatchProcessor {
             request.attempt,
             request.lease.fence,
         );
+        let producer_manifest = runtime_manifest(&text_artifacts, &dependencies, &self.config)?;
         let batch = assemble_document_batch(
             DocumentBatchParts {
                 batch_id: format!("document-batch:{identity}"),
@@ -190,7 +219,7 @@ impl BatchProcessor for ParseBatchProcessor {
                 dependency_manifest: common::DependencyManifest {
                     artifact_id: format!("dependency-manifest:{identity}"),
                     dependencies,
-                    producer_manifest: MessageField::some(manifest),
+                    producer_manifest: MessageField::some(producer_manifest),
                     ..Default::default()
                 },
                 ..Default::default()
@@ -198,6 +227,8 @@ impl BatchProcessor for ParseBatchProcessor {
             &self.config.document_batch,
         )
         .map_err(|error| ProcessError::new(Code::FailedPrecondition, error.to_string()))?;
+        let complete =
+            batch.completeness.enum_value() == Ok(common::Completeness::COMPLETENESS_COMPLETE);
         let artifact = persist_document_batch(&self.store, &batch)
             .map_err(|error| ProcessError::new(Code::Internal, error.to_string()))?;
         Ok(jobs::ProcessBatchResponse {
@@ -206,10 +237,125 @@ impl BatchProcessor for ParseBatchProcessor {
             attempt: request.attempt,
             fence: request.lease.fence,
             document_batch: MessageField::some(artifact.reference),
-            status: EnumOrUnknown::new(common::CompletionStatus::COMPLETION_STATUS_SUCCEEDED),
+            status: EnumOrUnknown::new(if complete {
+                common::CompletionStatus::COMPLETION_STATUS_SUCCEEDED
+            } else {
+                common::CompletionStatus::COMPLETION_STATUS_FAILED
+            }),
+            errors: if complete {
+                Vec::new()
+            } else {
+                vec![common::OperationError {
+                    code: EnumOrUnknown::new(common::ErrorCode::ERROR_CODE_NOT_IMPLEMENTED),
+                    safe_message: "parse output is incomplete and requires OCR or review"
+                        .to_owned(),
+                    stage: "parse".to_owned(),
+                    retryable: false,
+                    ..Default::default()
+                }]
+            },
             ..Default::default()
         })
     }
+}
+
+fn preflight_sources(
+    sources: &[common::ArtifactRef],
+    config: &ParseBatchProcessorConfig,
+) -> Result<(), ProcessError> {
+    if sources.len() > config.maximum_sources {
+        return Err(ProcessError::new(
+            Code::ResourceExhausted,
+            format!(
+                "source count {} exceeds batch limit {}",
+                sources.len(),
+                config.maximum_sources
+            ),
+        ));
+    }
+    if sources
+        .iter()
+        .any(|source| source.media_type != "application/pdf")
+    {
+        return Err(ProcessError::new(
+            Code::InvalidArgument,
+            "PARSE worker sources must use media_type application/pdf",
+        ));
+    }
+    let total_bytes = sources.iter().try_fold(0u64, |total, source| {
+        total.checked_add(source.byte_size).ok_or_else(|| {
+            ProcessError::new(Code::ResourceExhausted, "batch input byte count overflow")
+        })
+    })?;
+    if total_bytes > config.maximum_input_bytes {
+        return Err(ProcessError::new(
+            Code::ResourceExhausted,
+            format!(
+                "batch input bytes {total_bytes} exceed limit {}",
+                config.maximum_input_bytes
+            ),
+        ));
+    }
+    Ok(())
+}
+
+fn runtime_manifest(
+    text_artifacts: &[crate::wire::documents::TextArtifact],
+    dependencies: &[common::Dependency],
+    config: &ParseBatchProcessorConfig,
+) -> Result<common::ProducerManifest, ProcessError> {
+    let parser_manifest = text_artifacts
+        .first()
+        .and_then(|artifact| artifact.parser_manifest.as_ref())
+        .ok_or_else(|| ProcessError::new(Code::Internal, "parser manifest is unavailable"))?;
+    let parser_config = parser_manifest
+        .config_hash
+        .as_ref()
+        .ok_or_else(|| ProcessError::new(Code::Internal, "parser config hash is unavailable"))?;
+    let pdfium_library = parser_manifest
+        .input_hashes
+        .get(1)
+        .ok_or_else(|| ProcessError::new(Code::Internal, "PDFium library hash is unavailable"))?;
+    let mut hasher = Sha256::new();
+    hasher.update(b"regulagraph-parse-batch-config-v1\0");
+    hasher.update(
+        parser_manifest
+            .parser_version
+            .as_deref()
+            .unwrap_or_default()
+            .as_bytes(),
+    );
+    hasher.update([0]);
+    hasher.update(parser_config.sha256.as_bytes());
+    hasher.update(pdfium_library.sha256.as_bytes());
+    hasher.update(config.normalizer.maximum_input_bytes.to_le_bytes());
+    hasher.update(config.normalizer.maximum_mapping_spans.to_le_bytes());
+    hasher.update([config.normalizer.collapse_horizontal_whitespace as u8]);
+    hasher.update([config.normalizer.expand_unicode_ligatures as u8]);
+    hasher.update([config.normalizer.remove_soft_hyphen as u8]);
+    hasher.update(config.document_batch.maximum_records.to_le_bytes());
+    hasher.update(config.document_batch.maximum_reference_edges.to_le_bytes());
+    hasher.update(config.maximum_pages_per_document.to_le_bytes());
+    hasher.update(config.maximum_batch_pages.to_le_bytes());
+    hasher.update(config.maximum_sources.to_le_bytes());
+    hasher.update(config.maximum_input_bytes.to_le_bytes());
+    let mut input_hashes: Vec<_> = dependencies
+        .iter()
+        .filter_map(|dependency| dependency.fingerprint.as_ref().cloned())
+        .collect();
+    input_hashes.push(pdfium_library.clone());
+    Ok(common::ProducerManifest {
+        software: "regulagraph-ingestion".to_owned(),
+        build: env!("CARGO_PKG_VERSION").to_owned(),
+        schema_version: 1,
+        parser_version: parser_manifest.parser_version.clone(),
+        config_hash: MessageField::some(common::ContentHash {
+            sha256: format!("{:x}", hasher.finalize()),
+            ..Default::default()
+        }),
+        input_hashes,
+        ..Default::default()
+    })
 }
 
 fn response_identity(request_id: &str, job_id: &str, attempt: u32, fence: u64) -> String {
