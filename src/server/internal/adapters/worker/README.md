@@ -14,7 +14,7 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
-Berkas: [client.go](client.go) dan [client_test.go](client_test.go).
+Berkas: [client.go](client.go), [client_test.go](client_test.go), dan [client_integration_test.go](client_integration_test.go). Integration test lintas proses hanya berjalan ketika alamat worker serta artifact root diberikan melalui environment.
 
 ## Benchmark dan perhatian performa
 
@@ -24,7 +24,7 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Client `ProcessBatch`, `GetStatus`, dan `Cancel` aktif dengan validasi wire, deadline, transport credentials eksplisit, message bound, serta pemeriksaan response stale. Worker Rust melayani tahap PARSE, tetapi scheduler/workflow Go belum otomatis membentuk dan menyerahkan batch. Graph/index, layanan model, gold dataset, dan acceptance produksi belum aktif.
+Client `ProcessBatch`, `GetStatus`, dan `Cancel` aktif dengan validasi wire, deadline caller/body yang paling awal, transport credentials eksplisit, message bound, serta pemeriksaan response stale. Integration test environment-gated menjalankan client Go terhadap executable Rust melalui HTTP/2 loopback dan shared artifact root. Worker Rust melayani tahap PARSE, tetapi scheduler/workflow Go belum otomatis membentuk dan menyerahkan batch. Graph/index, layanan model, gold dataset, dan acceptance produksi belum aktif.
 
 ## Rekomendasi implementasi anak
 

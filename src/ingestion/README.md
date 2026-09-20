@@ -26,7 +26,7 @@ Ikuti [kebijakan benchmark](../../doc/benchmark-policy.md). Angka wajib mengikut
 
 ## Status
 
-Boundary parser PDFium, normalizer, structural chunking, proyeksi/persistence C01, incremental planner, dan selector timeline aktif sebagai library. Executable worker Tonic kini menjalankan batch PARSE dari referensi artefak terverifikasi sampai `DocumentBatch` immutable, dengan deadline, attempt/fence, status, cancellation, cache retry, message limit, dan concurrency limit. Stage STRUCTURE sampai INDEX belum diaktifkan pada RPC karena kontrak request belum membawa identitas hukum yang diperlukan; extraction change-event, canonical registry, tabel, graph/index batch, OCR, gold temporal, object storage, full-rebuild equivalence, dan acceptance produksi juga belum aktif.
+Boundary parser PDFium, normalizer, structural chunking, proyeksi/persistence C01, incremental planner, dan selector timeline aktif sebagai library. Executable worker Tonic kini menjalankan batch PARSE dari referensi artefak terverifikasi sampai `DocumentBatch` immutable, dengan binding corpus/scope, fingerprint retry, fence monotonik, deadline terminal, cancellation antre, batas batch agregat, provenance runtime, message limit, dan concurrency limit. Stage STRUCTURE sampai INDEX belum diaktifkan pada RPC karena kontrak request belum membawa identitas hukum yang diperlukan; extraction change-event, canonical registry, tabel, graph/index batch, OCR, gold temporal, object storage, full-rebuild equivalence, dan acceptance produksi juga belum aktif.
 
 ## Penambahan C01 dan panduan verifikasi
 

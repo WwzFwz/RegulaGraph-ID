@@ -1,6 +1,6 @@
 # Rencana implementasi berbasis dependency
 
-Dokumen ini memecah desain lengkap RegulaGraph-ID menjadi pekerjaan komponen dan integrasi yang dapat diverifikasi. Perannya menjaga cakupan seluruh produk sambil mengurutkan pekerjaan menurut dependency nyata. Status terkini: D01 berjalan sebagian; C01/E01 dan fondasi storage/publication S01 tersedia; I01 memiliki library PDFium sampai persistence `DocumentBatch`, incremental planner, selector timeline, serta executable worker gRPC untuk tahap PARSE. M01 secara keseluruhan, wiring scheduler, stage STRUCTUREâ€“INDEX, extraction change-event, canonical registry, dan full-rebuild equivalence tetap belum selesai; tabel menetapkan hasil yang harus dicapai, bukan klaim kelulusan seluruh paket.
+Dokumen ini memecah desain lengkap RegulaGraph-ID menjadi pekerjaan komponen dan integrasi yang dapat diverifikasi. Perannya menjaga cakupan seluruh produk sambil mengurutkan pekerjaan menurut dependency nyata. Status terkini: D01 berjalan sebagian; C01/E01 dan fondasi storage/publication S01 tersedia; I01 memiliki library PDFium sampai persistence `DocumentBatch`, incremental planner, selector timeline, serta executable worker gRPC tahap PARSE yang telah diuji lintas Go–Rust untuk fencing, retry, cancellation, batas input, provenance, dan completion parsial. M01 secara keseluruhan, wiring scheduler, stage STRUCTURE–INDEX, extraction change-event, canonical registry, dan full-rebuild equivalence tetap belum selesai; tabel menetapkan hasil yang harus dicapai, bukan klaim kelulusan seluruh paket.
 
 ## 1. Prinsip pelaksanaan
 
