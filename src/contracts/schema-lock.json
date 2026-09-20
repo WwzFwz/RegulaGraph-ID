@@ -2842,6 +2842,26 @@
         },
         "type": 11,
         "type_name": ".regulagraph.v1.ModelManifest"
+      },
+      "4": {
+        "label": 1,
+        "name": "usage",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 11,
+        "type_name": ".regulagraph.v1.TokenUsage"
+      },
+      "5": {
+        "label": 3,
+        "name": "durations",
+        "oneof": null,
+        "optional": false,
+        "rules": {},
+        "type": 11,
+        "type_name": ".regulagraph.v1.StageDuration"
       }
     },
     "regulagraph.v1.ExtractItemResult": {
@@ -2920,6 +2940,37 @@
         },
         "type": 11,
         "type_name": ".regulagraph.v1.ContentHash"
+      },
+      "13": {
+        "label": 1,
+        "name": "item_counts",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 11,
+        "type_name": ".regulagraph.v1.Counts"
+      },
+      "14": {
+        "label": 1,
+        "name": "token_usage",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 11,
+        "type_name": ".regulagraph.v1.TokenUsage"
+      },
+      "15": {
+        "label": 3,
+        "name": "durations",
+        "oneof": null,
+        "optional": false,
+        "rules": {},
+        "type": 11,
+        "type_name": ".regulagraph.v1.StageDuration"
       },
       "2": {
         "label": 1,
@@ -6941,6 +6992,37 @@
         "type": 11,
         "type_name": ".regulagraph.v1.ModelManifest"
       },
+      "12": {
+        "label": 1,
+        "name": "item_counts",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 11,
+        "type_name": ".regulagraph.v1.Counts"
+      },
+      "13": {
+        "label": 1,
+        "name": "token_usage",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 11,
+        "type_name": ".regulagraph.v1.TokenUsage"
+      },
+      "14": {
+        "label": 3,
+        "name": "durations",
+        "oneof": null,
+        "optional": false,
+        "rules": {},
+        "type": 11,
+        "type_name": ".regulagraph.v1.StageDuration"
+      },
       "2": {
         "label": 1,
         "name": "context",
@@ -7807,6 +7889,26 @@
         },
         "type": 11,
         "type_name": ".regulagraph.v1.ModelManifest"
+      },
+      "4": {
+        "label": 1,
+        "name": "usage",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 11,
+        "type_name": ".regulagraph.v1.TokenUsage"
+      },
+      "5": {
+        "label": 3,
+        "name": "durations",
+        "oneof": null,
+        "optional": false,
+        "rules": {},
+        "type": 11,
+        "type_name": ".regulagraph.v1.StageDuration"
       }
     },
     "regulagraph.v1.Snapshot": {
@@ -8492,6 +8594,26 @@
         },
         "type": 11,
         "type_name": ".regulagraph.v1.ModelManifest"
+      },
+      "4": {
+        "label": 1,
+        "name": "usage",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 11,
+        "type_name": ".regulagraph.v1.TokenUsage"
+      },
+      "5": {
+        "label": 3,
+        "name": "durations",
+        "oneof": null,
+        "optional": false,
+        "rules": {},
+        "type": 11,
+        "type_name": ".regulagraph.v1.StageDuration"
       }
     },
     "regulagraph.v1.SummarizeItemResult": {

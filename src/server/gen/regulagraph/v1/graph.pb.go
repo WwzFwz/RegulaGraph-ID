@@ -1017,6 +1017,9 @@ type ExtractionBatch struct {
 	OntologyVersion     string                 `protobuf:"bytes,10,opt,name=ontology_version,json=ontologyVersion,proto3" json:"ontology_version,omitempty"`
 	ModelManifest       *ModelManifest         `protobuf:"bytes,11,opt,name=model_manifest,json=modelManifest,proto3" json:"model_manifest,omitempty"`
 	PromptHash          *ContentHash           `protobuf:"bytes,12,opt,name=prompt_hash,json=promptHash,proto3" json:"prompt_hash,omitempty"`
+	ItemCounts          *Counts                `protobuf:"bytes,13,opt,name=item_counts,json=itemCounts,proto3" json:"item_counts,omitempty"`
+	TokenUsage          *TokenUsage            `protobuf:"bytes,14,opt,name=token_usage,json=tokenUsage,proto3" json:"token_usage,omitempty"`
+	Durations           []*StageDuration       `protobuf:"bytes,15,rep,name=durations,proto3" json:"durations,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -1135,6 +1138,27 @@ func (x *ExtractionBatch) GetPromptHash() *ContentHash {
 	return nil
 }
 
+func (x *ExtractionBatch) GetItemCounts() *Counts {
+	if x != nil {
+		return x.ItemCounts
+	}
+	return nil
+}
+
+func (x *ExtractionBatch) GetTokenUsage() *TokenUsage {
+	if x != nil {
+		return x.TokenUsage
+	}
+	return nil
+}
+
+func (x *ExtractionBatch) GetDurations() []*StageDuration {
+	if x != nil {
+		return x.Durations
+	}
+	return nil
+}
+
 // Immutable output of RESOLVE. Proposals remain auditable beside registry decisions; downstream
 // ASSEMBLE consumes only assignments whose expected revision still matches the registry snapshot.
 type ResolutionBatch struct {
@@ -1150,6 +1174,9 @@ type ResolutionBatch struct {
 	OntologyVersion       string                 `protobuf:"bytes,9,opt,name=ontology_version,json=ontologyVersion,proto3" json:"ontology_version,omitempty"`
 	RegistryRevision      uint64                 `protobuf:"varint,10,opt,name=registry_revision,json=registryRevision,proto3" json:"registry_revision,omitempty"`
 	ModelManifest         *ModelManifest         `protobuf:"bytes,11,opt,name=model_manifest,json=modelManifest,proto3" json:"model_manifest,omitempty"`
+	ItemCounts            *Counts                `protobuf:"bytes,12,opt,name=item_counts,json=itemCounts,proto3" json:"item_counts,omitempty"`
+	TokenUsage            *TokenUsage            `protobuf:"bytes,13,opt,name=token_usage,json=tokenUsage,proto3" json:"token_usage,omitempty"`
+	Durations             []*StageDuration       `protobuf:"bytes,14,rep,name=durations,proto3" json:"durations,omitempty"`
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache
 }
@@ -1257,6 +1284,27 @@ func (x *ResolutionBatch) GetRegistryRevision() uint64 {
 func (x *ResolutionBatch) GetModelManifest() *ModelManifest {
 	if x != nil {
 		return x.ModelManifest
+	}
+	return nil
+}
+
+func (x *ResolutionBatch) GetItemCounts() *Counts {
+	if x != nil {
+		return x.ItemCounts
+	}
+	return nil
+}
+
+func (x *ResolutionBatch) GetTokenUsage() *TokenUsage {
+	if x != nil {
+		return x.TokenUsage
+	}
+	return nil
+}
+
+func (x *ResolutionBatch) GetDurations() []*StageDuration {
+	if x != nil {
+		return x.Durations
 	}
 	return nil
 }
@@ -2030,7 +2078,7 @@ const file_regulagraph_v1_graph_proto_rawDesc = "" +
 	"sourceRefs\x12Y\n" +
 	"\x13extraction_manifest\x18\x05 \x01(\v2 .regulagraph.v1.ProducerManifestB\x06\x8a\xb5\x18\x02\b\x01R\x12extractionManifest\x12B\n" +
 	"\x18independent_source_group\x18\x06 \x01(\tB\b\x8a\xb5\x18\x04\b\x01\x10\x01R\x16independentSourceGroup\x12F\n" +
-	"\freview_state\x18\a \x01(\x0e2\x1b.regulagraph.v1.ReviewStateB\x06\x8a\xb5\x18\x02\b\x01R\vreviewState\"\xb1\x06\n" +
+	"\freview_state\x18\a \x01(\x0e2\x1b.regulagraph.v1.ReviewStateB\x06\x8a\xb5\x18\x02\b\x01R\vreviewState\"\xf4\a\n" +
 	"\x0fExtractionBatch\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\x1a.regulagraph.v1.RecordMetaB\x06\x8a\xb5\x18\x02\b\x01R\x04meta\x12@\n" +
 	"\acontext\x18\x02 \x01(\v2\x1e.regulagraph.v1.RequestContextB\x06\x8a\xb5\x18\x02\b\x01R\acontext\x12W\n" +
@@ -2047,7 +2095,12 @@ const file_regulagraph_v1_graph_proto_rawDesc = "" +
 	" \x01(\tB\x06\x8a\xb5\x18\x02\b\x01R\x0fontologyVersion\x12L\n" +
 	"\x0emodel_manifest\x18\v \x01(\v2\x1d.regulagraph.v1.ModelManifestB\x06\x8a\xb5\x18\x02\b\x01R\rmodelManifest\x12D\n" +
 	"\vprompt_hash\x18\f \x01(\v2\x1b.regulagraph.v1.ContentHashB\x06\x8a\xb5\x18\x02\b\x01R\n" +
-	"promptHash\"\xed\x05\n" +
+	"promptHash\x12?\n" +
+	"\vitem_counts\x18\r \x01(\v2\x16.regulagraph.v1.CountsB\x06\x8a\xb5\x18\x02\b\x01R\n" +
+	"itemCounts\x12C\n" +
+	"\vtoken_usage\x18\x0e \x01(\v2\x1a.regulagraph.v1.TokenUsageB\x06\x8a\xb5\x18\x02\b\x01R\n" +
+	"tokenUsage\x12;\n" +
+	"\tdurations\x18\x0f \x03(\v2\x1d.regulagraph.v1.StageDurationR\tdurations\"\xb0\a\n" +
 	"\x0fResolutionBatch\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\x1a.regulagraph.v1.RecordMetaB\x06\x8a\xb5\x18\x02\b\x01R\x04meta\x12@\n" +
 	"\acontext\x18\x02 \x01(\v2\x1e.regulagraph.v1.RequestContextB\x06\x8a\xb5\x18\x02\b\x01R\acontext\x12[\n" +
@@ -2060,7 +2113,12 @@ const file_regulagraph_v1_graph_proto_rawDesc = "" +
 	"\x10ontology_version\x18\t \x01(\tB\x06\x8a\xb5\x18\x02\b\x01R\x0fontologyVersion\x12+\n" +
 	"\x11registry_revision\x18\n" +
 	" \x01(\x04R\x10registryRevision\x12L\n" +
-	"\x0emodel_manifest\x18\v \x01(\v2\x1d.regulagraph.v1.ModelManifestB\x06\x8a\xb5\x18\x02\b\x01R\rmodelManifest\"\xef\x02\n" +
+	"\x0emodel_manifest\x18\v \x01(\v2\x1d.regulagraph.v1.ModelManifestB\x06\x8a\xb5\x18\x02\b\x01R\rmodelManifest\x12?\n" +
+	"\vitem_counts\x18\f \x01(\v2\x16.regulagraph.v1.CountsB\x06\x8a\xb5\x18\x02\b\x01R\n" +
+	"itemCounts\x12C\n" +
+	"\vtoken_usage\x18\r \x01(\v2\x1a.regulagraph.v1.TokenUsageB\x06\x8a\xb5\x18\x02\b\x01R\n" +
+	"tokenUsage\x12;\n" +
+	"\tdurations\x18\x0e \x03(\v2\x1d.regulagraph.v1.StageDurationR\tdurations\"\xef\x02\n" +
 	"\rEntityProfile\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\x1a.regulagraph.v1.RecordMetaB\x06\x8a\xb5\x18\x02\b\x01R\x04meta\x12+\n" +
 	"\fcanonical_id\x18\x02 \x01(\tB\b\x8a\xb5\x18\x04\b\x01\x10\x01R\vcanonicalId\x12 \n" +
@@ -2190,9 +2248,12 @@ var file_regulagraph_v1_graph_proto_goTypes = []any{
 	(Completeness)(0),               // 35: regulagraph.v1.Completeness
 	(*ModelManifest)(nil),           // 36: regulagraph.v1.ModelManifest
 	(*ContentHash)(nil),             // 37: regulagraph.v1.ContentHash
-	(*SnapshotRef)(nil),             // 38: regulagraph.v1.SnapshotRef
-	(*ValidationReport)(nil),        // 39: regulagraph.v1.ValidationReport
-	(*OperationError)(nil),          // 40: regulagraph.v1.OperationError
+	(*Counts)(nil),                  // 38: regulagraph.v1.Counts
+	(*TokenUsage)(nil),              // 39: regulagraph.v1.TokenUsage
+	(*StageDuration)(nil),           // 40: regulagraph.v1.StageDuration
+	(*SnapshotRef)(nil),             // 41: regulagraph.v1.SnapshotRef
+	(*ValidationReport)(nil),        // 42: regulagraph.v1.ValidationReport
+	(*OperationError)(nil),          // 43: regulagraph.v1.OperationError
 }
 var file_regulagraph_v1_graph_proto_depIdxs = []int32{
 	21, // 0: regulagraph.v1.Mention.meta:type_name -> regulagraph.v1.RecordMeta
@@ -2232,45 +2293,51 @@ var file_regulagraph_v1_graph_proto_depIdxs = []int32{
 	35, // 34: regulagraph.v1.ExtractionBatch.completeness:type_name -> regulagraph.v1.Completeness
 	36, // 35: regulagraph.v1.ExtractionBatch.model_manifest:type_name -> regulagraph.v1.ModelManifest
 	37, // 36: regulagraph.v1.ExtractionBatch.prompt_hash:type_name -> regulagraph.v1.ContentHash
-	21, // 37: regulagraph.v1.ResolutionBatch.meta:type_name -> regulagraph.v1.RecordMeta
-	31, // 38: regulagraph.v1.ResolutionBatch.context:type_name -> regulagraph.v1.RequestContext
-	32, // 39: regulagraph.v1.ResolutionBatch.source_extraction_batch:type_name -> regulagraph.v1.ArtifactRef
-	6,  // 40: regulagraph.v1.ResolutionBatch.proposals:type_name -> regulagraph.v1.ResolutionProposal
-	7,  // 41: regulagraph.v1.ResolutionBatch.decisions:type_name -> regulagraph.v1.ResolutionDecision
-	33, // 42: regulagraph.v1.ResolutionBatch.issues:type_name -> regulagraph.v1.ValidationIssue
-	34, // 43: regulagraph.v1.ResolutionBatch.dependencies:type_name -> regulagraph.v1.DependencyManifest
-	35, // 44: regulagraph.v1.ResolutionBatch.completeness:type_name -> regulagraph.v1.Completeness
-	36, // 45: regulagraph.v1.ResolutionBatch.model_manifest:type_name -> regulagraph.v1.ModelManifest
-	21, // 46: regulagraph.v1.EntityProfile.meta:type_name -> regulagraph.v1.RecordMeta
-	37, // 47: regulagraph.v1.EntityProfile.dependency_fingerprint:type_name -> regulagraph.v1.ContentHash
-	36, // 48: regulagraph.v1.EntityProfile.model_manifest:type_name -> regulagraph.v1.ModelManifest
-	21, // 49: regulagraph.v1.GraphDelta.meta:type_name -> regulagraph.v1.RecordMeta
-	38, // 50: regulagraph.v1.GraphDelta.base_snapshot:type_name -> regulagraph.v1.SnapshotRef
-	4,  // 51: regulagraph.v1.GraphDelta.entities:type_name -> regulagraph.v1.CanonicalEntity
-	5,  // 52: regulagraph.v1.GraphDelta.aliases:type_name -> regulagraph.v1.Alias
-	3,  // 53: regulagraph.v1.GraphDelta.mentions:type_name -> regulagraph.v1.Mention
-	9,  // 54: regulagraph.v1.GraphDelta.assertions:type_name -> regulagraph.v1.RelationAssertion
-	10, // 55: regulagraph.v1.GraphDelta.supports:type_name -> regulagraph.v1.SupportRecord
-	13, // 56: regulagraph.v1.GraphDelta.profiles:type_name -> regulagraph.v1.EntityProfile
-	14, // 57: regulagraph.v1.GraphDelta.visibility_closures:type_name -> regulagraph.v1.VisibilityClosure
-	15, // 58: regulagraph.v1.GraphDelta.support_changes:type_name -> regulagraph.v1.SupportChange
-	34, // 59: regulagraph.v1.GraphDelta.dependencies:type_name -> regulagraph.v1.DependencyManifest
-	39, // 60: regulagraph.v1.GraphDelta.validation_report:type_name -> regulagraph.v1.ValidationReport
-	7,  // 61: regulagraph.v1.GraphDelta.decisions:type_name -> regulagraph.v1.ResolutionDecision
-	35, // 62: regulagraph.v1.GraphPath.coverage:type_name -> regulagraph.v1.Completeness
-	38, // 63: regulagraph.v1.GraphPath.snapshot:type_name -> regulagraph.v1.SnapshotRef
-	31, // 64: regulagraph.v1.RegistryResolveRequest.context:type_name -> regulagraph.v1.RequestContext
-	6,  // 65: regulagraph.v1.RegistryResolveRequest.proposals:type_name -> regulagraph.v1.ResolutionProposal
-	7,  // 66: regulagraph.v1.RegistryAssignment.decision:type_name -> regulagraph.v1.ResolutionDecision
-	40, // 67: regulagraph.v1.RegistryAssignment.error:type_name -> regulagraph.v1.OperationError
-	19, // 68: regulagraph.v1.RegistryResolveResponse.assignments:type_name -> regulagraph.v1.RegistryAssignment
-	18, // 69: regulagraph.v1.Registry.ResolveBatch:input_type -> regulagraph.v1.RegistryResolveRequest
-	20, // 70: regulagraph.v1.Registry.ResolveBatch:output_type -> regulagraph.v1.RegistryResolveResponse
-	70, // [70:71] is the sub-list for method output_type
-	69, // [69:70] is the sub-list for method input_type
-	69, // [69:69] is the sub-list for extension type_name
-	69, // [69:69] is the sub-list for extension extendee
-	0,  // [0:69] is the sub-list for field type_name
+	38, // 37: regulagraph.v1.ExtractionBatch.item_counts:type_name -> regulagraph.v1.Counts
+	39, // 38: regulagraph.v1.ExtractionBatch.token_usage:type_name -> regulagraph.v1.TokenUsage
+	40, // 39: regulagraph.v1.ExtractionBatch.durations:type_name -> regulagraph.v1.StageDuration
+	21, // 40: regulagraph.v1.ResolutionBatch.meta:type_name -> regulagraph.v1.RecordMeta
+	31, // 41: regulagraph.v1.ResolutionBatch.context:type_name -> regulagraph.v1.RequestContext
+	32, // 42: regulagraph.v1.ResolutionBatch.source_extraction_batch:type_name -> regulagraph.v1.ArtifactRef
+	6,  // 43: regulagraph.v1.ResolutionBatch.proposals:type_name -> regulagraph.v1.ResolutionProposal
+	7,  // 44: regulagraph.v1.ResolutionBatch.decisions:type_name -> regulagraph.v1.ResolutionDecision
+	33, // 45: regulagraph.v1.ResolutionBatch.issues:type_name -> regulagraph.v1.ValidationIssue
+	34, // 46: regulagraph.v1.ResolutionBatch.dependencies:type_name -> regulagraph.v1.DependencyManifest
+	35, // 47: regulagraph.v1.ResolutionBatch.completeness:type_name -> regulagraph.v1.Completeness
+	36, // 48: regulagraph.v1.ResolutionBatch.model_manifest:type_name -> regulagraph.v1.ModelManifest
+	38, // 49: regulagraph.v1.ResolutionBatch.item_counts:type_name -> regulagraph.v1.Counts
+	39, // 50: regulagraph.v1.ResolutionBatch.token_usage:type_name -> regulagraph.v1.TokenUsage
+	40, // 51: regulagraph.v1.ResolutionBatch.durations:type_name -> regulagraph.v1.StageDuration
+	21, // 52: regulagraph.v1.EntityProfile.meta:type_name -> regulagraph.v1.RecordMeta
+	37, // 53: regulagraph.v1.EntityProfile.dependency_fingerprint:type_name -> regulagraph.v1.ContentHash
+	36, // 54: regulagraph.v1.EntityProfile.model_manifest:type_name -> regulagraph.v1.ModelManifest
+	21, // 55: regulagraph.v1.GraphDelta.meta:type_name -> regulagraph.v1.RecordMeta
+	41, // 56: regulagraph.v1.GraphDelta.base_snapshot:type_name -> regulagraph.v1.SnapshotRef
+	4,  // 57: regulagraph.v1.GraphDelta.entities:type_name -> regulagraph.v1.CanonicalEntity
+	5,  // 58: regulagraph.v1.GraphDelta.aliases:type_name -> regulagraph.v1.Alias
+	3,  // 59: regulagraph.v1.GraphDelta.mentions:type_name -> regulagraph.v1.Mention
+	9,  // 60: regulagraph.v1.GraphDelta.assertions:type_name -> regulagraph.v1.RelationAssertion
+	10, // 61: regulagraph.v1.GraphDelta.supports:type_name -> regulagraph.v1.SupportRecord
+	13, // 62: regulagraph.v1.GraphDelta.profiles:type_name -> regulagraph.v1.EntityProfile
+	14, // 63: regulagraph.v1.GraphDelta.visibility_closures:type_name -> regulagraph.v1.VisibilityClosure
+	15, // 64: regulagraph.v1.GraphDelta.support_changes:type_name -> regulagraph.v1.SupportChange
+	34, // 65: regulagraph.v1.GraphDelta.dependencies:type_name -> regulagraph.v1.DependencyManifest
+	42, // 66: regulagraph.v1.GraphDelta.validation_report:type_name -> regulagraph.v1.ValidationReport
+	7,  // 67: regulagraph.v1.GraphDelta.decisions:type_name -> regulagraph.v1.ResolutionDecision
+	35, // 68: regulagraph.v1.GraphPath.coverage:type_name -> regulagraph.v1.Completeness
+	41, // 69: regulagraph.v1.GraphPath.snapshot:type_name -> regulagraph.v1.SnapshotRef
+	31, // 70: regulagraph.v1.RegistryResolveRequest.context:type_name -> regulagraph.v1.RequestContext
+	6,  // 71: regulagraph.v1.RegistryResolveRequest.proposals:type_name -> regulagraph.v1.ResolutionProposal
+	7,  // 72: regulagraph.v1.RegistryAssignment.decision:type_name -> regulagraph.v1.ResolutionDecision
+	43, // 73: regulagraph.v1.RegistryAssignment.error:type_name -> regulagraph.v1.OperationError
+	19, // 74: regulagraph.v1.RegistryResolveResponse.assignments:type_name -> regulagraph.v1.RegistryAssignment
+	18, // 75: regulagraph.v1.Registry.ResolveBatch:input_type -> regulagraph.v1.RegistryResolveRequest
+	20, // 76: regulagraph.v1.Registry.ResolveBatch:output_type -> regulagraph.v1.RegistryResolveResponse
+	76, // [76:77] is the sub-list for method output_type
+	75, // [75:76] is the sub-list for method input_type
+	75, // [75:75] is the sub-list for extension type_name
+	75, // [75:75] is the sub-list for extension extendee
+	0,  // [0:75] is the sub-list for field type_name
 }
 
 func init() { file_regulagraph_v1_graph_proto_init() }

@@ -117,6 +117,9 @@ message ExtractionBatch {
   string ontology_version=10 [(rules).required=true];
   ModelManifest model_manifest=11 [(rules).required=true];
   ContentHash prompt_hash=12 [(rules).required=true];
+  Counts item_counts=13 [(rules).required=true];
+  TokenUsage token_usage=14 [(rules).required=true];
+  repeated StageDuration durations=15;
 }
 // Immutable output of RESOLVE. Proposals remain auditable beside registry decisions; downstream
 // ASSEMBLE consumes only assignments whose expected revision still matches the registry snapshot.
@@ -132,6 +135,9 @@ message ResolutionBatch {
   string ontology_version=9 [(rules).required=true];
   uint64 registry_revision=10;
   ModelManifest model_manifest=11 [(rules).required=true];
+  Counts item_counts=12 [(rules).required=true];
+  TokenUsage token_usage=13 [(rules).required=true];
+  repeated StageDuration durations=14;
 }
 message EntityProfile {
   RecordMeta meta=1 [(rules).required=true];
