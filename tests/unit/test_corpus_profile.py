@@ -90,6 +90,15 @@ class CorpusProfileTests(unittest.TestCase):
         self.assertEqual(result["page_count"], 1)
         self.assertEqual(result["document_class"], "sparse_or_blank")
         self.assertEqual(result["text_chars"], 0)
+        mupdf_result = analyze_pdf(path, "pymupdf")
+        self.assertEqual(mupdf_result["status"], "ok")
+        self.assertEqual(mupdf_result["page_count"], 1)
+        self.assertEqual(mupdf_result["document_class"], "sparse_or_blank")
+        self.assertEqual(mupdf_result["text_chars"], 0)
+
+    def test_unknown_engine_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "unsupported PDF engine"):
+            analyze_pdf(Path("unused.pdf"), "unknown")
 
     def test_image_xobject_is_detected_through_indirect_resources(self):
         root = self.workspace_directory()
