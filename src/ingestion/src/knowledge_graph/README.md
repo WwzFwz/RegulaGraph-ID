@@ -30,7 +30,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-Fondasi EXTRACT sudah memiliki validator dan artefak immutable yang terikat `DocumentBatch`, sedangkan executor/model produksi, resolution, assembly, summarization, dan publication graph belum aktif. Build serta fixture invariant tidak membuktikan kualitas semantik atau latency produksi.
+EXTRACT sudah memiliki validator, artefak immutable terikat `DocumentBatch`, executor worker, dan Semantic Gateway deterministic. Coordinator durable EXTRACT, ontology enforcement, provider/model produksi, resolution, assembly, summarization, dan publication graph belum aktif. Build serta fixture invariant tidak membuktikan kualitas semantik atau latency produksi.
 
 ## Rekomendasi implementasi anak
 

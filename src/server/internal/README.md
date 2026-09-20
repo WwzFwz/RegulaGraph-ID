@@ -16,7 +16,7 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 Subfolder: [adapters/](adapters/README.md), [answering/](answering/README.md), [api/](api/README.md), [config/](config/README.md), [domain/](domain/README.md), [indexing/](indexing/README.md), [ingestion/](ingestion/README.md), [retrieval/](retrieval/README.md), [workflows/](workflows/README.md).
 
-Akuisisi dan audit inventory D01 sudah aktif melalui CLI, workflow batch, serta adapter sources. Scheduler durable dan publication coordinator S01 juga aktif. Executor PARSE→STRUCTURE menyerahkan artifact ke worker Rust; executor BIND Go menjalankan planner exact identity, allocator PostgreSQL, materializer regulation/provision, dependency persistence, dan checkpoint fenced. Executor CHUNK memverifikasi artifact BIND lalu menyerahkannya ke worker Rust untuk membentuk chunk struktural dengan konteks induk dan tokenizer yang dipin. EXTRACT, graph/index backend, serta query/answer produksi masih scaffold.
+Akuisisi dan audit inventory D01 sudah aktif melalui CLI, workflow batch, serta adapter sources. Scheduler durable dan publication coordinator S01 juga aktif. Executor PARSE→STRUCTURE menyerahkan artefak ke worker Rust; executor BIND Go menjalankan exact identity/materialization; executor CHUNK menghasilkan chunk struktural terikat versi. Adapter Semantic.ExtractBatch dan worker EXTRACT tersedia, tetapi coordinator Go belum memverifikasi serta meng-commit output EXTRACT. Graph/index backend dan query/answer produksi masih scaffold.
 
 ## Benchmark dan perhatian performa
 
@@ -26,4 +26,4 @@ Ikuti [kebijakan benchmark](../../../doc/benchmark-policy.md). Angka wajib mengi
 
 ## Status
 
-Collector/audit D01, kontrak/validator C01, evaluator E01, fondasi storage/publication S01, dispatch PARSE→STRUCTURE, dan workflow exact identity BIND K01 sudah tersedia. CHUNK, graph/index/retrieval, mutasi backend, dan layanan model belum aktif. Status anak dijelaskan pada header masing-masing; test dan audit integrity belum membuktikan target kualitas atau latency.
+Collector/audit D01, kontrak/validator C01, evaluator E01, storage/publication S01, durable pipeline sampai CHUNK, exact identity BIND K01, worker EXTRACT, dan Semantic Gateway sudah tersedia. Commit durable EXTRACT, graph/index/retrieval, mutasi backend, serta provider/model produksi belum aktif; target kualitas dan latency belum diukur.

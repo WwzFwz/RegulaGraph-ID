@@ -24,7 +24,7 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Assembler/validator `ExtractionBatch`, provenance source/version/span, model/prompt identity, dukungan assertion, partial accounting, dan persistence immutable sudah aktif. Client Semantic memvalidasi korelasi batch; executor worker, gateway/model produksi, gold dataset, dan acceptance kualitas belum aktif.
+Assembler/validator `ExtractionBatch`, provenance source/version/span, model/prompt identity, dukungan assertion, partial accounting, persistence immutable, executor worker, dan Semantic Gateway deterministic sudah aktif. Coordinator durable EXTRACT, ontology enforcement, provider/model produksi, gold dataset, dan acceptance kualitas belum aktif.
 
 ## Rekomendasi implementasi anak
 
@@ -32,5 +32,5 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
-| [extractor.rs](extractor.rs) | Hubungkan assembler/validator aktif ke executor; normalisasi ID keluaran model tanpa mempercayai provenance yang dibuat model. | Uji adversarial prompt output, negation/conditions/exceptions, lalu ukur precision/recall pada gold set serta biaya/throughput. |
+| [extractor.rs](extractor.rs) | Pertahankan validator aktif saat menambah ontology constraints dan handoff coordinator; provenance/ID tetap tidak dipercaya dari model. | Uji negation/conditions/exceptions dan unknown ontology terms, lalu ukur precision/recall pada gold set serta biaya/throughput. |
 | [prompts.rs](prompts.rs) | Version templates and structured-output instructions against the ontology; include primary spans and treat document content as data. | Test schema-invalid output and injected source instructions; record prompt hash and compare extraction quality on frozen dev splits. |

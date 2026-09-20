@@ -8,6 +8,6 @@ Retry transient dijadwalkan durable dengan exponential backoff dari `REGULAGRAPH
 
 BIND membaca tepat satu artefak STRUCTURE terverifikasi dengan batas byte/record, menyelesaikan issuer, regulasi, dan pasal melalui batch registry deterministik maksimum 10.000 claim, lalu menyimpan output content-addressed, dependency evidence, dan terminal checkpoint. Output lengkap menjadi `STAGED` untuk CHUNK; output parsial menjadi `WAITING_REVIEW`. Build ID, yurisdiksi, batas batch, dan ukuran registry batch wajib berasal dari konfigurasi lingkungan.
 
-CHUNK hanya menerima checkpoint BIND terminal sukses. Coordinator memverifikasi ulang bytes, corpus, stage-owned records, completeness, dan producer manifest output sebelum mendaftarkan dependency evidence dan checkpoint. Hasil sukses kembali `STAGED` untuk handoff EXTRACT yang belum aktif.
+CHUNK hanya menerima checkpoint BIND terminal sukses. Coordinator memverifikasi ulang bytes, corpus, stage-owned records, completeness, dan producer manifest output sebelum mendaftarkan dependency evidence dan checkpoint. Hasil sukses kembali `STAGED`; worker Rust sudah dapat menjalankan EXTRACT, sedangkan claim/verifikasi/commit output EXTRACT oleh daemon Go belum terhubung.
 
 Ukur queue latency, waktu RPC/checkpoint, retry rate, cancellation lag, idle polling, dan throughput pada workload `configs/benchmark-targets.yaml`. Target tetap **REQUIRED_UNMEASURED**; daemon correctness tidak membuktikan target performa atau kualitas hukum.

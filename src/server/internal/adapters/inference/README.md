@@ -14,7 +14,9 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
-Berkas: [cross_encoder.go](cross_encoder.go), [embeddings.go](embeddings.go), [llm.go](llm.go).
+Berkas: [cross_encoder.go](cross_encoder.go), [embeddings.go](embeddings.go), [llm.go](llm.go), [semantic.go](semantic.go). Test boundary berada pada file `_test.go` pendamping.
+
+`llm.go` menyediakan adapter HTTP structured output OpenAI-compatible tanpa retry implisit. `semantic.go` mengimplementasikan `Semantic.ExtractBatch`: validasi request/model/schema, concurrency terbatas, cache operation-key dalam proses, proyeksi ID deterministik, exact UTF-8 span, provenance, support closure, manifest, accounting token, dan error eksplisit per item. Replay durable lintas restart tetap milik coordinator.
 
 ## Benchmark dan perhatian performa
 
@@ -24,7 +26,7 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. Pipeline parsing/graph/retrieval, mutasi backend, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan target kualitas atau latency.
+Semantic.ExtractBatch dan adapter provider sudah aktif secara fungsional serta diuji dengan provider deterministic. Embedding/reranking C++, ontology enforcement, provider/model produksi, benchmark kualitas/latency/biaya, ResolveBatch, SummarizeBatch, dan acceptance produksi belum aktif.
 
 ## Rekomendasi implementasi anak
 
@@ -34,4 +36,5 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | --- | --- | --- |
 | [cross_encoder.go](cross_encoder.go) | Batch query-document pairs with stable IDs and verify model/results correlation, truncation and cancellation. | Test partial scores, timeout, unexpected pairs and length limits; keep original evidence identity through ranking. |
 | [embeddings.go](embeddings.go) | Reuse a native client; send purpose/model-bound batches and validate one-to-one results before retrieval/indexing. | Test reordered/duplicate/missing outputs, dimension drift and explicit per-item errors; trace queue vs compute time. |
-| [llm.go](llm.go) | Implement provider/engine adapter for typed semantic tasks and grounded generation with pinned prompts/models and usage. | Test malformed structured output, retries, stream interruption and deadline; count input/output tokens and cost including failed calls. |
+| [llm.go](llm.go) | Tambahkan provider-specific capability probe dan telemetry biaya sesudah provider produksi dipilih; pertahankan satu request per item serta tanpa retry tersembunyi. | Uji status provider, timeout, refusal, respons oversized/malformed, dan accounting pada sandbox provider. |
+| [semantic.go](semantic.go) | Terapkan ontology endpoint/predicate/qualifier allowlist dan cache durable; perluas RPC RESOLVE/SUMMARIZE pada milestone masing-masing. | Uji unknown ontology terms, replay lintas restart, collision operation-key, span multibyte, cancellation, serta evaluasi extraction pada gold split. |

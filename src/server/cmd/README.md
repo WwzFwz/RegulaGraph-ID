@@ -8,15 +8,15 @@ Logika di luar cakupan ini ditempatkan pada komponen pemiliknya. Jika fungsi bar
 
 ## Peran dan integrasi anak
 
-CLI collect memanggil internal/workflows untuk acquisition PDF/metadata; `ingestion-worker` menyusun PostgreSQL, executor PARSE, dan client Rust loopback. API tetap entry point scaffold yang keluar dengan kode 2. Entry point tidak menggandakan algoritma domain atau parser.
+CLI collect memanggil internal/workflows untuk acquisition PDF/metadata; `ingestion-worker` menyusun coordinator durable; `semantic-gateway` menyusun boundary model EXTRACT yang dibatasi loopback. API tetap entry point scaffold yang keluar dengan kode 2. Entry point tidak menggandakan algoritma domain, parser, atau proyeksi output model.
 
 Pertahankan source/canonical/provision-version/snapshot ID dan schema version lintas anak. Boundary runtime mengikuti [src/contracts](../../contracts/README.md), dengan pekerjaan batch atau inference yang jelas. Perubahan bentuk data, error/status, serta offset sumber harus didokumentasikan bersama konsumennya; jangan menggandakan kebijakan publikasi di beberapa runtime.
 
 ## Isi saat ini
 
-Subfolder: [api/](api/README.md), [cli/](cli/README.md), [ingestion-worker/](ingestion-worker/README.md).
+Subfolder: [api/](api/README.md), [cli/](cli/README.md), [ingestion-worker/](ingestion-worker/README.md), [semantic-gateway/](semantic-gateway/README.md).
 
-Akuisisi sumber D01 sudah aktif melalui CLI collect, workflow batch, dan adapter sources. Daemon ingestion-worker menjalankan satu dispatch PARSE per claim dengan graceful cancellation dan konfigurasi eksplisit. Migrasi tetap langkah terpisah; stage setelah PARSE dan query masih belum aktif.
+Akuisisi sumber D01 sudah aktif melalui CLI collect, workflow batch, dan adapter sources. Daemon ingestion-worker menjalankan PARSEâ†’STRUCTUREâ†’BINDâ†’CHUNK dan worker Rust dapat memanggil Semantic Gateway untuk EXTRACT. Gateway memverifikasi model/prompt/schema/ontology yang dipin, membatasi concurrency/byte, serta memproyeksikan output menjadi kontrak C01. Commit durable output EXTRACT oleh coordinator dan stage setelahnya masih belum aktif.
 
 ## Benchmark dan perhatian performa
 
@@ -26,4 +26,4 @@ Ikuti [kebijakan benchmark](../../../doc/benchmark-policy.md). Angka wajib mengi
 
 ## Status
 
-Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, fondasi storage/publication S01, serta daemon dispatch PARSE sudah tersedia. Structure/graph/retrieval, mutasi backend, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan target kualitas atau latency.
+Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, fondasi storage/publication S01, coordinator hingga CHUNK, worker EXTRACT, serta Semantic.ExtractBatch Gateway sudah tersedia. Provider/model produksi belum dipilih; hasil kualitas, latency, biaya, stage RESOLVEâ€“INDEX, query, gold dataset, dan acceptance produksi belum aktif. Test deterministic tidak membuktikan target model.

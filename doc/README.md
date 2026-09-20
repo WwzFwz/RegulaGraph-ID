@@ -18,6 +18,8 @@ Subfolder yang dikelola: [decisions/](decisions/README.md).
 
 Berkas langsung: [acquisition.md](acquisition.md), [system-design.md](system-design.md), [system-contracts.md](system-contracts.md), [storage-consistency.md](storage-consistency.md), [corpus-plan.md](corpus-plan.md), [development-plan.md](development-plan.md), [benchmark-targets.md](benchmark-targets.md), [evaluation-runner.md](evaluation-runner.md), [Graph-Engineering-Athropic-Playbook.pdf](Graph-Engineering-Athropic-Playbook.pdf), [architecture.md](architecture.md), [benchmark-policy.md](benchmark-policy.md), [data-model.md](data-model.md), [reference.md](reference.md), [runtime-language-review.md](runtime-language-review.md), [verification-report-d01-inventory.md](verification-report-d01-inventory.md), [verification-report-e01.md](verification-report-e01.md), [verification-report-i01-document-artifacts.md](verification-report-i01-document-artifacts.md), [verification-report-i01-durable-chunk.md](verification-report-i01-durable-chunk.md), [verification-report-i01-durable-dispatch.md](verification-report-i01-durable-dispatch.md), [verification-report-i01-retry-schedule.md](verification-report-i01-retry-schedule.md), [verification-report-i01-source-provenance.md](verification-report-i01-source-provenance.md), [verification-report-i01-structure-handoff.md](verification-report-i01-structure-handoff.md), [verification-report-i01-terminal-outcome.md](verification-report-i01-terminal-outcome.md), [verification-report-i01-incremental-planning.md](verification-report-i01-incremental-planning.md), [verification-report-i01-pdf-parser.md](verification-report-i01-pdf-parser.md), [verification-report-i01-text-normalization.md](verification-report-i01-text-normalization.md), [verification-report-i01-structural-chunking.md](verification-report-i01-structural-chunking.md), [verification-report-i01-versioning.md](verification-report-i01-versioning.md), [verification-report-i01-worker-transport.md](verification-report-i01-worker-transport.md), [verification-report-k01-bind-executor.md](verification-report-k01-bind-executor.md), [verification-report-k01-document-binding.md](verification-report-k01-document-binding.md), [verification-report-k01-exact-registry.md](verification-report-k01-exact-registry.md), [verification-report-k01-stage-handoff.md](verification-report-k01-stage-handoff.md), [verification-report-m01-pdf-profile.md](verification-report-m01-pdf-profile.md), dan [verification-report-s01.md](verification-report-s01.md).
 
+[verification-report-semantic-extract.md](verification-report-semantic-extract.md) merekam audit adversarial boundary model EXTRACT dan batas bukti yang masih belum diukur.
+
 Mulai dari system-design untuk membaca keseluruhan rancangan, lalu system-contracts dan storage-consistency untuk semantik integrasi. Corpus-plan mengikat sumber pilihan pengguna dan prosedur gold dataset. Development-plan mengurutkan seluruh implementasi menurut dependency beserta bukti kelulusannya. Dokumen desain tidak berarti pipeline atau benchmark sudah aktif; status kontrak C01 dijelaskan terpisah.
 
 ## Benchmark dan perhatian kualitas
@@ -30,8 +32,8 @@ Lihat [kebijakan benchmark](benchmark-policy.md) untuk protokol pengukuran dan p
 
 Collector dan audit inventory D01, kontrak/validator C01, evaluator offline E01, fondasi control-plane
 storage/publication S01, source provenance, parser PDFium, normalizer teks, parser struktur hukum, parent-aware chunk builder, boundary artefak dokumen, incremental planner, selector timeline, serta worker/coordinator PARSE -> STRUCTURE -> BIND -> CHUNK I01 sudah aktif. Planner exact regulation identity, allocator canonical PostgreSQL, materializer `Regulation`/`ProvisionVersion`, workflow/persistence BIND, dan binding chunk per-node K01 juga aktif. Profiler M01 telah membandingkan tiga
-engine PDF. Resolusi semantik/merge-split, stage EXTRACT-INDEX, graph/retrieval, mutasi backend Qdrant/Neo4j,
-layanan model, gold dataset, serta acceptance run produksi belum aktif. Status anak dijelaskan pada header
+engine PDF. Worker EXTRACT dan Semantic Gateway sudah aktif secara deterministik, tetapi commit durable EXTRACT oleh coordinator belum tersedia. Resolusi semantik/merge-split, stage ASSEMBLE-INDEX, graph/retrieval, mutasi backend Qdrant/Neo4j,
+provider/model produksi, gold dataset, serta acceptance run produksi belum aktif. Status anak dijelaskan pada header
 masing-masing; profil parser, audit integrity, test correctness S01, dan evaluator sintetis tidak membuktikan
 target kualitas atau latency produksi.
 
@@ -60,5 +62,6 @@ Ringkasan milestone: [verification-report-c01.md](verification-report-c01.md),
 [verification-report-k01-exact-registry.md](verification-report-k01-exact-registry.md),
 [verification-report-k01-stage-handoff.md](verification-report-k01-stage-handoff.md),
 [verification-report-m01-pdf-profile.md](verification-report-m01-pdf-profile.md), dan
-[verification-report-s01.md](verification-report-s01.md). Laporan S01 mengikat implementasi
+[verification-report-s01.md](verification-report-s01.md), serta
+[verification-report-semantic-extract.md](verification-report-semantic-extract.md). Laporan S01 mengikat implementasi
 storage/publication ke PostgreSQL aktual dan audit agent independen.

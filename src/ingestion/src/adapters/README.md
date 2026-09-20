@@ -24,7 +24,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-`storage.rs` menulis object lokal immutable dan memverifikasi input coordinator yang confined; `text_artifacts.rs` menyimpan raw/normalized/mapping; `document_batches.rs` menyimpan serta memuat ulang batch dokumen tervalidasi. `extraction_batches.rs` melakukan hal yang sama untuk proposal EXTRACT dengan validasi ulang terhadap dokumen sumber. `inference.rs` sudah menjadi client Semantic batch dengan deadline dan korelasi hasil, tetapi belum diaktifkan pada executable worker. Object storage jarak jauh, lifecycle orphan, gateway/model produksi, stage graph lanjutan, gold dataset, dan acceptance produksi belum aktif.
+`storage.rs` menulis object lokal immutable; adapter batch memuat ulang dan memvalidasi artefak dokumen/ekstraksi. `inference.rs` menjadi client Semantic batch dengan deadline, manifest, model, request, dan korelasi one-to-one; executable worker memakainya ketika konfigurasi EXTRACT lengkap. Object storage jarak jauh, lifecycle orphan, provider/model produksi, stage graph lanjutan, gold dataset, dan acceptance produksi belum aktif.
 
 ## Rekomendasi implementasi anak
 
@@ -34,7 +34,7 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | --- | --- | --- |
 | [document_batches.rs](document_batches.rs) | Integrasikan dengan response worker dan pembacaan coordinator Go tanpa mengirim blob besar melalui RPC. | Uji retry/fence/cancellation, corrupted remote object, cross-language decode, payload besar, serta p95/p99 dan peak RSS. |
 | [extraction_batches.rs](extraction_batches.rs) | Hubungkan persistence EXTRACT ke worker dan coordinator tanpa mengirim payload besar melalui RPC. | Uji corruption/hash mismatch, cross-language decode, payload besar, p95/p99, dan peak RSS. |
-| [inference.rs](inference.rs) | Aktifkan client Semantic yang sudah memvalidasi deadline, model, dan one-to-one item pada executor EXTRACT. | Test timeout/cancel saat RPC nyata, partial errors, dan restart gateway; verifikasi tidak ada model load per chunk. |
+| [inference.rs](inference.rs) | Tambahkan smoke test proses gRPC nyata, restart gateway, dan telemetry antre/compute pada client EXTRACT aktif. | Test timeout/cancel saat RPC nyata, partial errors, dan restart gateway; verifikasi tidak ada model load per chunk. |
 | [pdf_engine.rs](pdf_engine.rs) | Bind the parser selected by M01 with explicit buffer ownership, safe page lifetimes and bounded worker concurrency. | Test malformed/encrypted/large PDFs and native error propagation; measure pages/s and RSS without copying entire corpus. |
 | [storage.rs](storage.rs) | Tambahkan backend object storage dengan semantik descriptor yang sama, lifecycle temporary-object, dan integrasi descriptor ke `ArtifactRef`; pertahankan publication sebagai tanggung jawab Go. | Jalankan fault injection untuk crash sebelum/sesudah rename, filesystem penuh, permission error, retry cleanup, dan durability; ukur throughput, p95/p99, fsync cost, serta peak RSS pada workload resmi. |
 | [text_artifacts.rs](text_artifacts.rs) | Integrasikan lifecycle orphan dan input worker; pertahankan hash binding raw/normalized/mapping serta status page failure. | Uji crash antar-object, retry konkuren, cleanup aman, corpus PDF nyata, throughput, p95/p99, dan peak RSS. |
