@@ -14,7 +14,7 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
-Berkas: [answers.go](answers.go), [chunks.go](chunks.go), [documents.go](documents.go), [entities.go](entities.go), [evidence.go](evidence.go), [relations.go](relations.go), serta [operations.go](operations.go) untuk boundary job/publication S01. Validator wire dan boundary lintas record dijelaskan pada bagian C01 di bawah.
+Berkas: [answers.go](answers.go), [chunks.go](chunks.go), [documents.go](documents.go), [entities.go](entities.go), [evidence.go](evidence.go), [relations.go](relations.go), [registry.go](registry.go), serta [operations.go](operations.go) untuk boundary job/publication S01. [registry_test.go](registry_test.go) memverifikasi exact-key planning yang konservatif. Validator wire dan boundary lintas record dijelaskan pada bagian C01 di bawah.
 
 ## Benchmark dan perhatian performa
 
@@ -24,7 +24,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-Kontrak/validator C01 dan tipe boundary job/publication S01 sudah aktif; lihat [cakupan implementasi C01](../../../../doc/contracts-implementation.md). Helper domain parsing/graph/retrieval/answer masih mengikuti paket pemiliknya. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
+Kontrak/validator C01, tipe boundary job/publication S01, serta planner exact regulation identity K01 sudah aktif; lihat [cakupan implementasi C01](../../../../doc/contracts-implementation.md). Planner mengharuskan issuer/type/number/year/title konsisten dan jurisdiction policy eksplisit; metadata kurang atau konflik menghasilkan review. Alokasi canonical ID berada pada adapter PostgreSQL, sedangkan binding ke `Regulation`/`ProvisionVersion` belum aktif. Helper domain parsing/graph/retrieval/answer lain masih mengikuti paket pemiliknya. Build dan fixture tidak membuktikan target kualitas atau latency.
 
 ## Rekomendasi implementasi anak
 
@@ -36,6 +36,7 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | [chunks.go](chunks.go) | Construct chunk and parent views retaining provision version, source spans and tokenizer identity. | Test missing parents, split Unicode and overlong units without source loss; avoid redundant conversion/allocation across batches. |
 | [documents.go](documents.go) | Construct validated document/source/provision views over generated types; keep observation time separate from legal dates. | Test stable IDs, raw/normalized mappings and historical version ambiguity; avoid redundant conversion/allocation across batches. |
 | [entities.go](entities.go) | Expose scoped canonical identity/revision and resolution decision helpers without autonomous registry writes. | Test alias ambiguity, merge/split lineage and deterministic identity comparison; avoid redundant conversion/allocation across batches. |
+| [registry.go](registry.go) | Pertahankan exact-key planning fail-closed; tambahkan transform assignment menjadi Regulation/Edition/Provision/Version tanpa menganggap metadata portal sebagai kebenaran terverifikasi. | Uji false merge/split, missing/conflict review, stale key, duplicate/foreign provenance, serta throughput batch; semantic merge tetap membutuhkan gold set. |
 | [evidence.go](evidence.go) | Expose snapshot-bound evidence/path operations while retaining primary provenance. | Test corpus/version/snapshot mismatches and missing support hydration; avoid redundant conversion/allocation across batches. |
 | [relations.go](relations.go) | Expose assertion/support and qualifier invariants without collapsing shared evidence. | Test endpoint types, source withdrawal and negation/condition preservation; avoid redundant conversion/allocation across batches. |
 | [operations.go](operations.go) | Pertahankan tipe domain job/publication tanpa dependency SDK storage. | Compile-time interface checks dan integration test adapter/workflow saat field berkembang. |
