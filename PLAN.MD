@@ -68,7 +68,7 @@ BM25 Vector         Graph
 
 ## Keputusan runtime dan struktur
 
-Pembagian bahasa telah disetujui dengan prioritas latency dan throughput: Go di src/server, Rust di src/ingestion, C++ di src/inference, dan Python di evaluation/tooling. src/contracts menyimpan schema lintas runtime. Lihat [arsitektur](doc/architecture.md) dan [keputusan 0002](doc/decisions/0002-polyglot-runtime.md). Status proyek masih scaffold; deskripsi sistem di atas merupakan target, belum hasil implementasi atau benchmark.
+Pembagian bahasa telah disetujui dengan prioritas latency dan throughput: Go di src/server, Rust di src/ingestion, C++ di src/inference, dan Python di evaluation/tooling. src/contracts menyimpan schema lintas runtime. Lihat [arsitektur](doc/architecture.md) dan [keputusan 0002](doc/decisions/0002-polyglot-runtime.md). Fondasi kontrak/evaluasi/storage serta sebagian I01 (PDF parsing, normalisasi, struktur hukum, dan parent-aware chunking) sudah aktif; sistem end-to-end dan benchmark masih target yang belum selesai atau belum diukur.
 
 ## Desain lengkap sebelum implementasi
 

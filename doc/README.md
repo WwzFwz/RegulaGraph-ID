@@ -29,8 +29,8 @@ Lihat [kebijakan benchmark](benchmark-policy.md) untuk protokol pengukuran dan p
 ## Status implementasi
 
 Collector dan audit inventory D01, kontrak/validator C01, evaluator offline E01, fondasi control-plane
-storage/publication S01, serta parser PDFium dan normalizer teks I01 sudah aktif. Profiler M01 telah membandingkan tiga
-engine PDF. Worker parsing dan transformasi struktur/chunk I01 berikutnya, graph/retrieval, mutasi backend Qdrant/Neo4j,
+storage/publication S01, serta parser PDFium, normalizer teks, parser struktur hukum, dan parent-aware chunk builder I01 sudah aktif. Profiler M01 telah membandingkan tiga
+engine PDF. Worker/batch wire I01 berikutnya, graph/retrieval, mutasi backend Qdrant/Neo4j,
 layanan model, gold dataset, serta acceptance run produksi belum aktif. Status anak dijelaskan pada header
 masing-masing; profil parser, audit integrity, test correctness S01, dan evaluator sintetis tidak membuktikan
 target kualitas atau latency produksi.
