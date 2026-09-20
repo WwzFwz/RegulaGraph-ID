@@ -49,12 +49,25 @@ class Estimate:
     denominator: int
 
 
+def _finite_divide(numerator: int | float, denominator: int | float, label: str) -> float:
+    try:
+        value = numerator / denominator
+    except (OverflowError, ZeroDivisionError) as exc:
+        raise MetricError(f"{label} is outside finite numeric range") from exc
+    if not math.isfinite(value):
+        raise MetricError(f"{label} is outside finite numeric range")
+    return float(value)
+
+
 def _numbers(values: Iterable[float], *, allow_infinity: bool = False) -> list[float]:
     result: list[float] = []
     for value in values:
         if isinstance(value, bool) or not isinstance(value, (int, float)):
             raise MetricError("sample must be numeric")
-        number = float(value)
+        try:
+            number = float(value)
+        except OverflowError as exc:
+            raise MetricError("sample exceeds finite numeric range") from exc
         if math.isnan(number) or (math.isinf(number) and not allow_infinity):
             raise MetricError("sample must be finite")
         result.append(number)
@@ -85,7 +98,7 @@ def ratio(numerator: int, denominator: int) -> Estimate:
         raise MetricError("ratio counts must be integers")
     if denominator <= 0 or numerator < 0 or numerator > denominator:
         raise MetricError("invalid ratio counts")
-    return Estimate(numerator / denominator, denominator)
+    return Estimate(_finite_divide(numerator, denominator, "ratio"), denominator)
 
 
 def quotient(numerator: int, denominator: int) -> Estimate:
@@ -94,7 +107,7 @@ def quotient(numerator: int, denominator: int) -> Estimate:
         raise MetricError("quotient counts must be integers")
     if denominator <= 0 or numerator < 0:
         raise MetricError("invalid quotient counts")
-    return Estimate(numerator / denominator, denominator)
+    return Estimate(_finite_divide(numerator, denominator, "quotient"), denominator)
 
 
 def throughput(completed: int, duration_seconds: float) -> Estimate:
@@ -103,7 +116,7 @@ def throughput(completed: int, duration_seconds: float) -> Estimate:
     duration = _numbers([duration_seconds])[0]
     if duration <= 0:
         raise MetricError("throughput duration must be positive")
-    return Estimate(completed / duration, completed)
+    return Estimate(_finite_divide(completed, duration, "throughput"), completed)
 
 
 def macro_mean(group_scores: Mapping[str, float]) -> Estimate:
@@ -135,13 +148,14 @@ def micro_f1(true_positive: int, false_positive: int, false_negative: int) -> Es
     denominator = 2 * true_positive + false_positive + false_negative
     if denominator == 0:
         raise MetricError("empty F1 denominator")
-    return Estimate(2 * true_positive / denominator, true_positive + false_negative)
+    return Estimate(_finite_divide(2 * true_positive, denominator, "micro F1"),
+                    true_positive + false_negative)
 
 
 def corpus_error_rate(edits: int, gold_units: int) -> Estimate:
     if any(isinstance(v, bool) or not isinstance(v, int) for v in (edits, gold_units)) or edits < 0 or gold_units <= 0:
         raise MetricError("invalid corpus error counts")
-    return Estimate(edits / gold_units, gold_units)
+    return Estimate(_finite_divide(edits, gold_units, "corpus error rate"), gold_units)
 
 
 def scalar(value: float, denominator: int, *, non_negative: bool = False) -> Estimate:

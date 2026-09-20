@@ -18,6 +18,23 @@ ROOT = Path(__file__).resolve().parents[2]
 HASH = {"sha256": "a" * 64}
 
 
+def _mixed_evidence(mixed, baseline, mixed_succeeded=None, baseline_succeeded=None):
+    interval = 100_000_000  # 10 RPS from the frozen retrieval workload.
+    population = len(mixed)
+    return {
+        "with_ingestion_samples_ms": mixed,
+        "baseline_samples_ms": baseline,
+        "with_ingestion_succeeded": (sum(value is not None and value <= 2000 for value in mixed)
+                                      if mixed_succeeded is None else mixed_succeeded),
+        "with_ingestion_scheduled": population,
+        "baseline_succeeded": (sum(value is not None and value <= 2000 for value in baseline)
+                               if baseline_succeeded is None else baseline_succeeded),
+        "baseline_scheduled": len(baseline),
+        "with_ingestion_scheduled_offsets_ns": [index * interval for index in range(population)],
+        "baseline_scheduled_offsets_ns": [index * interval for index in range(len(baseline))],
+    }
+
+
 class EvaluationGatesTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -162,13 +179,12 @@ class EvaluationGatesTest(unittest.TestCase):
         measurement = {"ISOLATION.QUERY_P95_RATIO": {
             "workload": "mixed_load", "statistic": "ratio", "unit": "ratio",
             "runs": [{"run_id": value, "sample_count": 10000,
-                      "evidence": {"with_ingestion_samples_ms": [10], "baseline_samples_ms": [10],
-                                   "with_ingestion_succeeded": 1, "with_ingestion_scheduled": 1}}
+                      "evidence": _mixed_evidence([10], [10])}
                      for value in ("a", "b", "c")],
         }}
         result = next(r for r in self.evaluate(measurement).results if r.gate_id == "ISOLATION.QUERY_P95_RATIO")
         self.assertEqual(result.status, pb.GATE_STATUS_BLOCKED)
-        self.assertIn("does not match evidence denominator", result.reason)
+        self.assertIn("open-loop measurement window", result.reason)
 
     def test_verified_corpus_population_replaces_suite_minimum(self):
         measurement = {"INVARIANT.ORPHAN_EDGES": {
@@ -185,18 +201,141 @@ class EvaluationGatesTest(unittest.TestCase):
         self.assertIn("verified population", result.reason)
 
     def test_mixed_ratio_cannot_hide_absolute_query_failure(self):
-        slow = [100_000] * 10000
+        slow = [100_000] * 12000
         measurement = {"ISOLATION.QUERY_P95_RATIO": {
             "workload": "mixed_load", "statistic": "ratio", "unit": "ratio",
-            "runs": [{"run_id": value, "sample_count": 10000,
-                      "evidence": {"with_ingestion_samples_ms": slow, "baseline_samples_ms": slow,
-                                   "with_ingestion_succeeded": 10000, "with_ingestion_scheduled": 10000}}
+            "runs": [{"run_id": value, "sample_count": 12000,
+                      "evidence": _mixed_evidence(slow, slow)}
                      for value in ("a", "b", "c")],
         }}
         result = next(r for r in self.evaluate(measurement).results if r.gate_id == "ISOLATION.QUERY_P95_RATIO")
         self.assertEqual(result.status, pb.GATE_STATUS_FAIL)
         self.assertEqual(result.estimate, 1)
         self.assertIn("absolute QUERY.EVIDENCE_P95", result.reason)
+
+    def test_mixed_ratio_reconciles_unfinished_samples_with_success(self):
+        samples = [10] * 11881 + [None] * 119
+        measurement = {"ISOLATION.QUERY_P95_RATIO": {
+            "workload": "mixed_load", "statistic": "ratio", "unit": "ratio",
+            "runs": [{"run_id": value, "sample_count": 12000,
+                      "evidence": _mixed_evidence(samples, [10] * 12000, mixed_succeeded=12000)}
+                     for value in ("a", "b", "c")],
+        }}
+        result = next(r for r in self.evaluate(measurement).results if r.gate_id == "ISOLATION.QUERY_P95_RATIO")
+        self.assertEqual(result.status, pb.GATE_STATUS_BLOCKED)
+        self.assertIn("on-time latency", result.reason)
+
+    def test_mixed_ratio_rejects_unfinished_baseline(self):
+        measurement = {"ISOLATION.QUERY_P95_RATIO": {
+            "workload": "mixed_load", "statistic": "ratio", "unit": "ratio",
+            "runs": [{"run_id": value, "sample_count": 12000,
+                      "evidence": _mixed_evidence([10] * 12000, [None] * 12000)}
+                     for value in ("a", "b", "c")],
+        }}
+        result = next(r for r in self.evaluate(measurement).results if r.gate_id == "ISOLATION.QUERY_P95_RATIO")
+        self.assertEqual(result.status, pb.GATE_STATUS_BLOCKED)
+        self.assertIn("finite baseline", result.reason)
+
+    def test_mixed_ratio_reconciles_success_with_completion_deadline(self):
+        late = [10] * 11940 + [2001] * 60
+        measurement = {"ISOLATION.QUERY_P95_RATIO": {
+            "workload": "mixed_load", "statistic": "ratio", "unit": "ratio",
+            "runs": [{"run_id": value, "sample_count": 12000,
+                      "evidence": _mixed_evidence(late, [10] * 12000, mixed_succeeded=12000)}
+                     for value in ("a", "b", "c")],
+        }}
+        result = next(r for r in self.evaluate(measurement).results if r.gate_id == "ISOLATION.QUERY_P95_RATIO")
+        self.assertEqual(result.status, pb.GATE_STATUS_BLOCKED)
+        self.assertIn("on-time", result.reason)
+
+    def test_parity_uses_answerable_population_minimum(self):
+        ids = [f"question-{index}" for index in range(900)]
+        measurement = {"PARITY.RECALL_DROP": {
+            "workload": "model_parity", "statistic": "difference", "unit": "percentage_points",
+            "runs": [{"run_id": value, "sample_count": 900, "population_ids": ids,
+                      "evidence": {"value": 0.0, "denominator": 900}}
+                     for value in ("a", "b", "c")],
+        }}
+        result = next(r for r in self.evaluate(measurement).results if r.gate_id == "PARITY.RECALL_DROP")
+        self.assertEqual(result.status, pb.GATE_STATUS_PASS)
+
+    def test_combined_denominator_overflow_is_blocked(self):
+        huge = 1 << 63
+        measurement = {"PARITY.RECALL_DROP": {
+            "workload": "model_parity", "statistic": "difference", "unit": "percentage_points",
+            "runs": [{"run_id": value, "sample_count": huge, "population_ids": ["question"],
+                      "evidence": {"value": 0.0, "denominator": huge}}
+                     for value in ("a", "b", "c")],
+        }}
+        result = next(r for r in self.evaluate(measurement).results if r.gate_id == "PARITY.RECALL_DROP")
+        self.assertEqual(result.status, pb.GATE_STATUS_BLOCKED)
+        self.assertIn("uint64", result.reason)
+
+    def test_extreme_numeric_evidence_is_blocked_without_exception(self):
+        update = {"UPDATE.REBUILD_RATIO": {
+            "workload": "incremental", "statistic": "ratio", "unit": "ratio",
+            "runs": [{"run_id": value, "sample_count": 100,
+                      "evidence": {"changed_documents": 100, "update_duration_seconds": 10 ** 400,
+                                   "full_rebuild_duration_seconds": 1, "logical_state_diff_count": 0}}
+                     for value in ("a", "b", "c")],
+        }}
+        update_result = next(r for r in self.evaluate(update).results if r.gate_id == "UPDATE.REBUILD_RATIO")
+        self.assertEqual(update_result.status, pb.GATE_STATUS_BLOCKED)
+
+        ids = [f"question-{index}" for index in range(900)]
+        quality = {"QUALITY.ANSWER_CORRECT": {
+            "workload": "quality", "statistic": "ratio", "unit": "ratio",
+            "runs": [{"run_id": value, "sample_count": 900, "population_ids": ids,
+                      "uncertainty": 10 ** 400, "evidence": {"numerator": 900, "denominator": 900}}
+                     for value in ("a", "b", "c")],
+        }}
+        quality_result = next(r for r in self.evaluate(quality).results if r.gate_id == "QUALITY.ANSWER_CORRECT")
+        self.assertEqual(quality_result.status, pb.GATE_STATUS_BLOCKED)
+
+        ingestion = {"ISOLATION.INGESTION_RATIO": {
+            "workload": "mixed_load", "statistic": "ratio", "unit": "ratio",
+            "runs": [{"run_id": value, "sample_count": 10000,
+                      "evidence": {"mixed_completed": 10000, "mixed_duration_seconds": 1e-308,
+                                   "alone_completed": 10000, "alone_duration_seconds": 1e-308}}
+                     for value in ("a", "b", "c")],
+        }}
+        ingestion_result = next(r for r in self.evaluate(ingestion).results
+                                if r.gate_id == "ISOLATION.INGESTION_RATIO")
+        self.assertEqual(ingestion_result.status, pb.GATE_STATUS_BLOCKED)
+
+        ratio_overflow = {"ISOLATION.INGESTION_RATIO": {
+            "workload": "mixed_load", "statistic": "ratio", "unit": "ratio",
+            "runs": [{"run_id": value, "sample_count": 10000,
+                      "evidence": {"mixed_completed": 10000, "mixed_duration_seconds": 1e-303,
+                                   "alone_completed": 10000, "alone_duration_seconds": 1e308}}
+                     for value in ("a", "b", "c")],
+        }}
+        overflow_result = next(r for r in self.evaluate(ratio_overflow).results
+                               if r.gate_id == "ISOLATION.INGESTION_RATIO")
+        self.assertEqual(overflow_result.status, pb.GATE_STATUS_BLOCKED)
+
+    def test_parsing_f1_is_recomputed_from_each_page(self):
+        pages = [f"page-{index}" for index in range(1000)]
+        counts = {page: {"true_positive": 1, "false_positive": 0, "false_negative": 0} for page in pages}
+        measurement = {"PARSING.STRUCTURE_F1": {
+            "workload": "parsing_quality", "statistic": "micro_f1", "unit": "ratio",
+            "runs": [{"run_id": value, "sample_count": 1000, "population_ids": pages,
+                      "evidence": {"page_counts": counts}} for value in ("a", "b", "c")],
+        }}
+        result = next(r for r in self.evaluate(measurement).results if r.gate_id == "PARSING.STRUCTURE_F1")
+        self.assertEqual(result.status, pb.GATE_STATUS_PASS)
+        self.assertEqual(result.estimate, 1)
+
+    def test_wire_invariant_is_recomputed_from_fixture_ids(self):
+        ids = ["go-rust", "go-cpp"]
+        measurement = {"INVARIANT.WIRE_PARITY": {
+            "workload": "invariants", "statistic": "ratio", "unit": "ratio",
+            "runs": [{"run_id": value, "sample_count": 2, "population_ids": ids,
+                      "evidence": {"matching_fixture_ids": ids, "mismatching_fixture_ids": []}}
+                     for value in ("a", "b", "c")],
+        }}
+        result = next(r for r in self.evaluate(measurement).results if r.gate_id == "INVARIANT.WIRE_PARITY")
+        self.assertEqual(result.status, pb.GATE_STATUS_PASS)
 
 
 if __name__ == "__main__":

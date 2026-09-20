@@ -177,6 +177,7 @@ class EvaluationRunnerIntegrationTest(unittest.TestCase):
         wire = next(json.loads(line) for line in (output / "gate-results.jsonl").read_text(encoding="utf-8").splitlines()
                     if json.loads(line)["gate_id"] == "INVARIANT.WIRE_PARITY")
         self.assertEqual(wire["status"], "GATE_STATUS_BLOCKED")
+        self.assertIn("published-record invariant inventory missing", wire["reason"])
         with self.assertRaises(RunnerInputError):
             run_bundle(ROOT / "configs/evaluation.yaml", source, output, ROOT)
 

@@ -43,11 +43,21 @@ capacity/timing boundary, serta versi Go, Rust, C++, PostgreSQL, Neo4j, dan Qdra
 evidence. Count dipisah per gate karena subset answerable, unanswerable, slice, claim, dan relation dapat
 memiliki denominator berbeda dalam run workload yang sama.
 
-Jika `parsing_quality` atau `graph_quality` berstatus measured, workload artifact juga wajib menunjuk
+Jika `parsing_quality`, `graph_quality`, atau `invariants` berstatus measured, workload artifact juga wajib menunjuk
 `eligibility_artifacts` yang ada dalam supporting artifacts. Inventory parsing memuat ID halaman annotated,
 scan standar/sulit, serta token kritis; inventory graph memuat ID relasi, mention, pasangan same-entity,
-dan confusing-different. Setiap semantic run membawa `population_ids` yang harus sama dengan gold aktual.
-Tanpa inventory, workload tersebut harus BLOCKED dan tidak dapat menghasilkan PASS.
+dan confusing-different. Inventory invariant memuat seluruh ID chunk, edge, citation terbit, request
+pemeriksaan snapshot, event update/replay, dan wire fixture; jumlah chunk/edge harus sama dengan corpus
+manifest dan daftar citation/fixture tidak boleh hilang. Setiap semantic atau
+source-mapping run membawa `population_ids` yang harus sama dengan inventory aktual. Tanpa inventory,
+workload tersebut harus BLOCKED dan tidak dapat menghasilkan PASS.
+
+Evidence parsing, graph, dan invariant tidak menerima aggregate count yang lepas dari inventory. Structure F1 dan OCR
+CER membawa count per page; critical-token membawa partisi ID benar/salah; extraction membawa predicted,
+matched, dan missed relation IDs; entity resolution membawa predicted/matched/missed pair IDs. Evaluator
+menghitung ulang aggregate dari ID tersebut, memeriksa coverage tepat, dan mewajibkan precision/recall pada
+run yang sama memakai outcome yang identik. Semua invariant memakai partisi ID berhasil/gagal agar record,
+request, event, atau fixture yang hilang tidak dapat disembunyikan oleh aggregate deklaratif.
 
 Gate latency/success/stage hanya boleh berasal dari Observation, bukan measurement manual. Runner mengikat
 Observation ke corpus/run, memastikan arrival mengikuti open-loop constant rate dan durasi minimum,
@@ -59,6 +69,12 @@ count dan durasi mixed/ingestion-only. Quality
 run wajib membawa grouped-bootstrap uncertainty. Tiga run independen
 dibutuhkan oleh suite saat ini; nilai terburuk dibandingkan ke threshold. Unfinished latency dari telemetry
 menjadi infinity dan menghasilkan FAIL tanpa mencoba menyimpan angka non-finite dalam protobuf.
+Untuk mixed load, `with_ingestion_succeeded` wajib sama dengan jumlah latency finite sehingga unfinished
+request tidak dapat dilaporkan sukses. Baseline memiliki rekonsiliasi yang sama; kedua sisi membawa offset
+arrival pada jadwal open-loop 10 RPS, harus mencakup window minimum, dan hanya completion di dalam deadline
+yang boleh dihitung sukses. Evidence throughput memakai durasi yang sama dengan measured window pada
+workload artifact, sehingga active-time-only throughput tidak diterima. Nilai input maupun hasil operasi
+di luar rentang numerik finite/uint64 diblokir sebelum output.
 
 ## Output dan status
 

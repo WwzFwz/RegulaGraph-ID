@@ -33,6 +33,10 @@ class EvaluationMetricsTest(unittest.TestCase):
             runtime.estimate("macro_mean", {"group_scores": [1]})
         with self.assertRaises(runtime.MetricError):
             runtime.estimate("count", {"value": -1, "denominator": 1})
+        with self.assertRaises(runtime.MetricError):
+            runtime.maximum([10 ** 400])
+        with self.assertRaises(runtime.MetricError):
+            runtime.throughput(10_000, 1e-308)
 
     def test_retrieval_ranking_and_required_sets(self):
         ranked = ["b", "a", "c"]

@@ -204,9 +204,13 @@ def _load_workload_evidence(path: Path, suite: Any, profile_id: str, protocol: A
     if environment["generator_placement"] != generator["placement"]:
         errors.append("generator placement differs from reference")
     rtt = environment["generator_network_rtt_p95_ms"]
-    if isinstance(rtt, bool) or not isinstance(rtt, (int, float)) or not math.isfinite(rtt) or rtt < 0:
+    try:
+        finite_rtt = float(rtt)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise RunnerInputError("generator_network_rtt_p95_ms must be finite and non-negative") from exc
+    if isinstance(rtt, bool) or not math.isfinite(finite_rtt) or finite_rtt < 0:
         raise RunnerInputError("generator_network_rtt_p95_ms must be finite and non-negative")
-    if rtt > generator["network_rtt_p95_ms_max"]:
+    if finite_rtt > generator["network_rtt_p95_ms_max"]:
         errors.append("generator network RTT exceeds reference")
     if environment["generator_capacity_sustained"] is not True:
         errors.append("generator capacity was not sustained")
@@ -220,10 +224,10 @@ def _load_workload_evidence(path: Path, suite: Any, profile_id: str, protocol: A
         raise RunnerInputError("workload artifact.runs must be a list")
     eligibility_artifacts = value["eligibility_artifacts"]
     if (not isinstance(eligibility_artifacts, dict)
-            or any(key not in {"parsing_quality", "graph_quality"} or not isinstance(item, str) or not item
+            or any(key not in {"parsing_quality", "graph_quality", "invariants"} or not isinstance(item, str) or not item
                    for key, item in eligibility_artifacts.items())):
         raise RunnerInputError("eligibility_artifacts must map supported workloads to artifact IDs")
-    for workload_name in ("parsing_quality", "graph_quality"):
+    for workload_name in ("parsing_quality", "graph_quality", "invariants"):
         declaration = workloads.get(workload_name) if isinstance(workloads, dict) else None
         if isinstance(declaration, dict) and declaration.get("status") == "measured" and workload_name not in eligibility_artifacts:
             errors.append(f"{workload_name} measured without a gold eligibility artifact")
@@ -253,7 +257,7 @@ def _load_workload_evidence(path: Path, suite: Any, profile_id: str, protocol: A
 
 def _inventory_evidence(repo_root: Path, artifacts: Sequence[common.ArtifactRef],
                         artifact_ids: Mapping[str, str], suite: Any,
-                        workloads: Mapping[str, Any]) -> tuple[Mapping[str, set[str]], list[str]]:
+                        workloads: Mapping[str, Any], corpus_facts: Any) -> tuple[Mapping[str, set[str]], list[str]]:
     populations: dict[str, set[str]] = {}
     errors: list[str] = []
     if "parsing_quality" in artifact_ids:
@@ -299,6 +303,40 @@ def _inventory_evidence(repo_root: Path, artifacts: Sequence[common.ArtifactRef]
         graph_declaration = workloads.get("graph_quality") if isinstance(workloads, dict) else None
         if isinstance(graph_declaration, dict) and graph_declaration.get("status") == "measured":
             errors.append("graph quality inventory missing")
+    if "invariants" in artifact_ids:
+        reference = _artifact_with_id(artifacts, artifact_ids["invariants"])
+        inventory = load_id_inventory(_artifact_path(repo_root, reference),
+                                      ("published_chunk_ids", "published_edge_ids", "published_citation_ids",
+                                       "retrieval_request_ids", "update_event_ids", "wire_fixture_ids"))
+        if len(inventory["published_chunk_ids"]) != corpus_facts.chunks:
+            errors.append("published chunk inventory differs from corpus manifest")
+        if len(inventory["published_edge_ids"]) != corpus_facts.graph_edges:
+            errors.append("published edge inventory differs from corpus manifest")
+        if not inventory["published_citation_ids"]:
+            errors.append("published citation inventory is empty")
+        if len(inventory["retrieval_request_ids"]) < suite.workloads["retrieval"]["requests_per_run_min"]:
+            errors.append("snapshot invariant request inventory is below retrieval minimum")
+        if len(inventory["update_event_ids"]) < suite.workloads["update"]["events_min"]:
+            errors.append("update invariant inventory is below event minimum")
+        if not inventory["wire_fixture_ids"]:
+            errors.append("wire fixture inventory is empty")
+        source_population = {
+            *(f"chunk:{item}" for item in inventory["published_chunk_ids"]),
+            *(f"edge:{item}" for item in inventory["published_edge_ids"]),
+            *(f"citation:{item}" for item in inventory["published_citation_ids"]),
+        }
+        populations["INVARIANT.SOURCE_MAPPING"] = source_population
+        populations["INVARIANT.ORPHAN_EDGES"] = {
+            f"edge:{item}" for item in inventory["published_edge_ids"]
+        }
+        populations["INVARIANT.SNAPSHOT_MISMATCH"] = set(inventory["retrieval_request_ids"])
+        populations["INVARIANT.UNCHANGED_REEXTRACTION"] = set(inventory["update_event_ids"])
+        populations["INVARIANT.REPLAY_DIFF"] = set(inventory["update_event_ids"])
+        populations["INVARIANT.WIRE_PARITY"] = set(inventory["wire_fixture_ids"])
+    else:
+        invariant_declaration = workloads.get("invariants") if isinstance(workloads, dict) else None
+        if isinstance(invariant_declaration, dict) and invariant_declaration.get("status") == "measured":
+            errors.append("published-record invariant inventory missing")
     return populations, errors
 
 
@@ -322,6 +360,13 @@ def _quality_populations(questions: Sequence[pb.GoldQuestion]) -> Mapping[str, s
     return populations
 
 
+def _string_id_set(value: Any) -> set[str] | None:
+    """Return validated IDs without allowing unhashable malformed values to escape as TypeError."""
+    if not isinstance(value, list) or any(not isinstance(item, str) or not item for item in value):
+        return None
+    return set(value)
+
+
 def _measurement_population_errors(measurements: Mapping[str, Any], populations: Mapping[str, set[str]],
                                    questions: Sequence[pb.GoldQuestion]) -> list[str]:
     errors: list[str] = []
@@ -341,6 +386,58 @@ def _measurement_population_errors(measurements: Mapping[str, Any], populations:
                 errors.append(f"{gate_id} population IDs do not match the frozen gold population")
                 continue
             evidence = run.get("evidence")
+            if gate_id == "PARSING.STRUCTURE_F1" and isinstance(evidence, dict):
+                counts = evidence.get("page_counts")
+                if not isinstance(counts, dict) or set(counts) != expected:
+                    errors.append("PARSING.STRUCTURE_F1 page outcomes do not cover annotated pages")
+            if gate_id == "PARSING.OCR_CER" and isinstance(evidence, dict):
+                counts = evidence.get("page_counts")
+                if not isinstance(counts, dict) or set(counts) != expected:
+                    errors.append("PARSING.OCR_CER page outcomes do not cover standard scan pages")
+            if gate_id == "PARSING.CRITICAL_TOKENS" and isinstance(evidence, dict):
+                correct, incorrect = evidence.get("correct_token_ids"), evidence.get("incorrect_token_ids")
+                correct_ids, incorrect_ids = _string_id_set(correct), _string_id_set(incorrect)
+                if (correct_ids is None or incorrect_ids is None
+                        or correct_ids | incorrect_ids != expected or correct_ids & incorrect_ids):
+                    errors.append("PARSING.CRITICAL_TOKENS outcomes do not partition critical tokens")
+            if gate_id in {"EXTRACTION.PRECISION", "EXTRACTION.RECALL"} and isinstance(evidence, dict):
+                matched, missed = evidence.get("matched_gold_relation_ids"), evidence.get("missed_gold_relation_ids")
+                matched_ids, missed_ids = _string_id_set(matched), _string_id_set(missed)
+                if (matched_ids is None or missed_ids is None
+                        or matched_ids | missed_ids != expected or matched_ids & missed_ids):
+                    errors.append(f"{gate_id} outcomes do not partition labeled gold relations")
+            if gate_id in {"RESOLUTION.PAIR_PRECISION", "RESOLUTION.PAIR_RECALL"} and isinstance(evidence, dict):
+                matched, missed = evidence.get("matched_same_pair_ids"), evidence.get("missed_same_pair_ids")
+                same_pairs = populations.get("RESOLUTION.PAIR_RECALL", set())
+                pair_universe = populations.get("RESOLUTION.PAIR_PRECISION", set())
+                predicted = evidence.get("predicted_same_pair_ids")
+                matched_ids, missed_ids, predicted_ids = (
+                    _string_id_set(matched), _string_id_set(missed), _string_id_set(predicted))
+                if (matched_ids is None or missed_ids is None or predicted_ids is None
+                        or matched_ids | missed_ids != same_pairs or matched_ids & missed_ids
+                        or not predicted_ids <= pair_universe):
+                    errors.append(f"{gate_id} outcomes do not cover the frozen pair population")
+            if gate_id == "RESOLUTION.BLOCKING_RECALL" and isinstance(evidence, dict):
+                blocked, missed = evidence.get("blocked_same_pair_ids"), evidence.get("missed_same_pair_ids")
+                blocked_ids, missed_ids = _string_id_set(blocked), _string_id_set(missed)
+                if (blocked_ids is None or missed_ids is None
+                        or blocked_ids | missed_ids != expected or blocked_ids & missed_ids):
+                    errors.append("RESOLUTION.BLOCKING_RECALL outcomes do not partition same-entity pairs")
+            invariant_fields = {
+                "INVARIANT.SOURCE_MAPPING": ("mapped_record_ids", "unmapped_record_ids"),
+                "INVARIANT.ORPHAN_EDGES": ("valid_edge_ids", "orphan_edge_ids"),
+                "INVARIANT.SNAPSHOT_MISMATCH": ("compatible_request_ids", "mismatched_request_ids"),
+                "INVARIANT.UNCHANGED_REEXTRACTION": (
+                    "unchanged_without_reextraction_ids", "unexpectedly_reextracted_ids"),
+                "INVARIANT.REPLAY_DIFF": ("identical_event_ids", "differing_event_ids"),
+                "INVARIANT.WIRE_PARITY": ("matching_fixture_ids", "mismatching_fixture_ids"),
+            }
+            if gate_id in invariant_fields and isinstance(evidence, dict):
+                good, bad = (evidence.get(field) for field in invariant_fields[gate_id])
+                good_ids, bad_ids = _string_id_set(good), _string_id_set(bad)
+                if (good_ids is None or bad_ids is None
+                        or good_ids | bad_ids != expected or good_ids & bad_ids):
+                    errors.append(f"{gate_id} outcomes do not partition its verified inventory")
             if gate_id in {"QUALITY.RECALL_AT_20", "QUALITY.NDCG_AT_10"} and isinstance(evidence, dict):
                 scores = evidence.get("group_scores")
                 if not isinstance(scores, dict) or set(scores) != expected:
@@ -348,8 +445,7 @@ def _measurement_population_errors(measurements: Mapping[str, Any], populations:
             exact_denominator_gates = {
                 "QUALITY.MULTIHOP_COMPLETE", "QUALITY.CONTEXT_COMPLETE", "QUALITY.ANSWER_CORRECT",
                 "QUALITY.TEMPORAL_ACCURACY", "QUALITY.ABSTENTION_RECALL", "QUALITY.FALSE_ABSTENTION",
-                "PARSING.CRITICAL_TOKENS", "EXTRACTION.RECALL", "RESOLUTION.PAIR_RECALL",
-                "RESOLUTION.BLOCKING_RECALL", "PARITY.RECALL_DROP", "PARITY.NDCG_DROP",
+                "PARITY.RECALL_DROP", "PARITY.NDCG_DROP",
             }
             if gate_id in exact_denominator_gates and isinstance(evidence, dict):
                 denominator = evidence.get("denominator")
@@ -362,6 +458,20 @@ def _measurement_population_errors(measurements: Mapping[str, Any], populations:
                         expected_count = sum(slice_name in question.slice_labels for question in answerable_questions.values())
                         if not isinstance(item, dict) or item.get("denominator") != expected_count:
                             errors.append(f"QUALITY.SLICE_MIN denominator for {slice_name} differs from gold")
+    for left, right in (("EXTRACTION.PRECISION", "EXTRACTION.RECALL"),
+                        ("RESOLUTION.PAIR_PRECISION", "RESOLUTION.PAIR_RECALL")):
+        left_runs = measurements.get(left, {}).get("runs", []) if isinstance(measurements.get(left), dict) else []
+        right_runs = measurements.get(right, {}).get("runs", []) if isinstance(measurements.get(right), dict) else []
+        if not isinstance(left_runs, list):
+            left_runs = []
+        if not isinstance(right_runs, list):
+            right_runs = []
+        left_evidence = {run["run_id"]: run.get("evidence") for run in left_runs
+                         if isinstance(run, dict) and isinstance(run.get("run_id"), str)}
+        right_evidence = {run["run_id"]: run.get("evidence") for run in right_runs
+                          if isinstance(run, dict) and isinstance(run.get("run_id"), str)}
+        if left_evidence and right_evidence and left_evidence != right_evidence:
+            errors.append(f"{left} and {right} must use identical per-run outcomes")
     return errors
 
 
@@ -370,6 +480,7 @@ def _measurement_run_errors(measurements: Mapping[str, Any], suite: Any,
     errors: list[str] = []
     performance_workloads = {gate.workload for gate in suite.gates.values()
                              if gate.statistic in {"p50", "p95", "p99", "max", "throughput"}}
+    performance_workloads.add("mixed_load")
     for gate_id, measurement in measurements.items():
         if gate_id not in suite.gates or not isinstance(measurement, dict) or not isinstance(measurement.get("runs"), list):
             continue
@@ -391,6 +502,29 @@ def _measurement_run_errors(measurements: Mapping[str, Any], suite: Any,
                     errors.append(f"{gate_id} run {run['run_id']} warmup is too short")
                 if declared["measured_seconds"] < suite.protocol["measured_seconds_min"]:
                     errors.append(f"{gate_id} run {run['run_id']} measurement window is too short")
+            evidence = run.get("evidence")
+            gate = suite.gates[gate_id]
+            if gate.statistic == "throughput" and isinstance(evidence, dict):
+                duration = evidence.get("duration_seconds")
+                if (isinstance(duration, bool) or not isinstance(duration, (int, float))
+                        or duration != declared["measured_seconds"]):
+                    errors.append(f"{gate_id} run {run['run_id']} throughput duration differs from measured window")
+            if gate_id == "ISOLATION.INGESTION_RATIO" and isinstance(evidence, dict):
+                if (evidence.get("mixed_duration_seconds") != declared["measured_seconds"]
+                        or evidence.get("alone_duration_seconds") != declared["measured_seconds"]):
+                    errors.append(f"{gate_id} run {run['run_id']} comparison durations differ from measured window")
+            request_denominator = (
+                gate_id == "ISOLATION.QUERY_P95_RATIO"
+                or (workload in {"retrieval", "answer"} and gate_id != "QUERY.INTER_TOKEN_P95")
+            )
+            rate_target = (suite.workloads["retrieval"] if gate_id == "ISOLATION.QUERY_P95_RATIO"
+                           else suite.workloads.get(workload, {}))
+            rate = rate_target.get("requests_per_second")
+            sample_count = run.get("sample_count")
+            if (request_denominator and rate is not None and isinstance(sample_count, int)
+                    and not isinstance(sample_count, bool)
+                    and sample_count != declared["measured_seconds"] * rate):
+                errors.append(f"{gate_id} run {run['run_id']} arrival population differs from measured window")
     return errors
 
 
@@ -470,7 +604,7 @@ def run_bundle(config_path: str | Path, input_path: str | Path, output_path: str
         _artifact_path(root, workload_artifact), suite, profile_id, bundle["protocol"],
         bundle["workloads"], manifest)
     inventory_populations, inventory_errors = _inventory_evidence(
-        root, artifacts, eligibility_artifact_ids, suite, bundle["workloads"])
+        root, artifacts, eligibility_artifact_ids, suite, bundle["workloads"], corpus_facts)
     observation_runs, observations = _parse_observation_runs(bundle["observation_runs"])
     unknown_observation_workloads = {workload for _, workload, _ in observation_runs} - set(suite.workloads)
     if unknown_observation_workloads:
@@ -502,11 +636,15 @@ def run_bundle(config_path: str | Path, input_path: str | Path, output_path: str
     measurements = {**bundle["measurements"], **derived}
     populations = {**_quality_populations(questions), **inventory_populations}
     population_requirements = {
-        "INVARIANT.SOURCE_MAPPING": corpus_facts.chunks + corpus_facts.graph_edges,
-        "INVARIANT.ORPHAN_EDGES": corpus_facts.graph_edges,
         "UPDATE.REBUILD_RATIO": math.ceil(
             corpus_facts.documents * suite.workloads["incremental"]["changed_document_ratio"]),
     }
+    for gate_id in (
+        "INVARIANT.SOURCE_MAPPING", "INVARIANT.ORPHAN_EDGES", "INVARIANT.SNAPSHOT_MISMATCH",
+        "INVARIANT.UNCHANGED_REEXTRACTION", "INVARIANT.REPLAY_DIFF", "INVARIANT.WIRE_PARITY",
+    ):
+        if gate_id in populations:
+            population_requirements[gate_id] = len(populations[gate_id])
     eligibility_errors = (
         dataset_eligibility_errors(questions, suite.workloads["quality"])
         + corpus_eligibility_errors(corpus_facts, manifest.corpus_snapshot, suite.reference["corpus"])
