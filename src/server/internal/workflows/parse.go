@@ -1,0 +1,286 @@
+// Dispatches one durable ingestion lease to the Rust PARSE worker and persists its terminal handoff.
+//
+// The executor rebuilds ProcessBatchRequest only from the claimed PostgreSQL job and its immutable
+// IngestionRequest, binds corpus/attempt/fence/deadline, registers the returned artifact, saves the
+// worker-produced checkpoint, then advances state. It never publishes a snapshot. Calls are bounded by
+// the lease and configured timeout; retryable transport failures enter RETRY_WAIT while permanent input
+// failures become FAILED. Measure queue/RPC/checkpoint p95/p99 and lease loss against benchmark targets.
+package workflows
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"time"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
+	pb "regulagraph.local/server/gen/regulagraph/v1"
+	"regulagraph.local/server/internal/domain"
+)
+
+type ParseExecutionStore interface {
+	JobStore
+	ClaimParseJob(context.Context, string, time.Duration) (domain.JobRecord, error)
+	LoadIngestionRequest(context.Context, string) (*pb.IngestionRequest, error)
+	RegisterArtifact(context.Context, string, *pb.ArtifactRef) error
+	CancellationRequested(context.Context, string, string, uint64) (bool, error)
+	CompleteParseAttempt(context.Context, string, string, uint64, pb.JobState) (pb.JobState, error)
+}
+
+type ParseWorker interface {
+	ProcessBatch(context.Context, *pb.ProcessBatchRequest) (*pb.ProcessBatchResponse, error)
+	Cancel(context.Context, *pb.WorkerStatusRequest) (*pb.WorkerStatusResponse, error)
+}
+
+type ParseExecutorConfig struct {
+	OwnerID          string
+	AuthScope        string
+	Lease            time.Duration
+	CallTimeout      time.Duration
+	CancellationPoll time.Duration
+}
+
+type ParseExecutor struct {
+	store  ParseExecutionStore
+	worker ParseWorker
+	config ParseExecutorConfig
+}
+
+func NewParseExecutor(store ParseExecutionStore, worker ParseWorker, config ParseExecutorConfig) (*ParseExecutor, error) {
+	if store == nil || worker == nil {
+		return nil, errors.New("parse store and worker are required")
+	}
+	if config.OwnerID == "" || config.AuthScope == "" || config.Lease <= 0 || config.CallTimeout <= 0 || config.CallTimeout >= config.Lease {
+		return nil, errors.New("parse executor requires owner, auth scope, and call timeout shorter than lease")
+	}
+	if config.CancellationPoll <= 0 {
+		config.CancellationPoll = 250 * time.Millisecond
+	}
+	return &ParseExecutor{store: store, worker: worker, config: config}, nil
+}
+
+// RunOnce claims at most one durable job and executes its PARSE stage.
+func (e *ParseExecutor) RunOnce(ctx context.Context) (domain.JobRecord, *pb.ProcessBatchResponse, error) {
+	job, err := e.store.ClaimParseJob(ctx, e.config.OwnerID, e.config.Lease)
+	if err != nil {
+		return domain.JobRecord{}, nil, err
+	}
+	response, err := e.executeClaimed(ctx, job)
+	return job, response, err
+}
+
+func (e *ParseExecutor) executeClaimed(ctx context.Context, job domain.JobRecord) (*pb.ProcessBatchResponse, error) {
+	attemptCtx, cancelAttempt := context.WithDeadline(ctx, job.LeaseExpiresAt)
+	defer cancelAttempt()
+	request, err := e.store.LoadIngestionRequest(attemptCtx, job.JobID)
+	if err != nil {
+		return nil, e.finishAfterError(attemptCtx, job, fmt.Errorf("load ingestion request: %w", err))
+	}
+	batch, err := e.processRequest(job, request)
+	if err != nil {
+		return nil, e.finishAfterError(attemptCtx, job, err)
+	}
+	callCtx, cancelCall := context.WithDeadline(attemptCtx, batch.Context.Deadline.AsTime())
+	monitorResult := make(chan error, 1)
+	go e.monitorCancellation(callCtx, cancelCall, job, monitorResult)
+	response, err := e.worker.ProcessBatch(callCtx, batch)
+	cancelCall()
+	monitorErr := <-monitorResult
+	if monitorErr != nil {
+		e.cancelDetached(job, batch)
+		return nil, e.finishAfterError(attemptCtx, job, monitorErr)
+	}
+	if err != nil {
+		if attemptCtx.Err() != nil {
+			e.cancelDetached(job, batch)
+		}
+		return nil, e.finishAfterError(attemptCtx, job, err)
+	}
+	if err = domain.VerifyWorkerResponse(batch, response); err != nil {
+		cause := status.Error(codes.FailedPrecondition, fmt.Sprintf("verify PARSE response: %v", err))
+		return nil, e.finishAfterError(attemptCtx, job, cause)
+	}
+	if response.GetCheckpoint() == nil || response.GetDocumentBatch() == nil || response.GetGraphDelta() != nil || response.GetIndexBatch() != nil {
+		cause := status.Error(codes.FailedPrecondition, "PARSE worker response requires only checkpoint and document batch outputs")
+		return nil, e.finishAfterError(attemptCtx, job, cause)
+	}
+	if requested, pollErr := e.store.CancellationRequested(attemptCtx, job.JobID, job.LeaseOwner, job.LeaseFence); pollErr != nil {
+		return nil, e.finishAfterError(attemptCtx, job, fmt.Errorf("confirm job cancellation: %w", pollErr))
+	} else if requested {
+		return nil, e.finishAfterError(attemptCtx, job, errJobCancellationRequested)
+	}
+	if err = e.store.RegisterArtifact(attemptCtx, job.CorpusID, response.DocumentBatch); err != nil {
+		return nil, e.finishAfterError(attemptCtx, job, fmt.Errorf("register document batch: %w", err))
+	}
+	if err = e.store.SaveCheckpoint(attemptCtx, response.Checkpoint, job.LeaseOwner); err != nil {
+		return nil, e.finishAfterError(attemptCtx, job, fmt.Errorf("save PARSE checkpoint: %w", err))
+	}
+
+	next, err := terminalState(response.Status)
+	if err != nil {
+		cause := status.Error(codes.FailedPrecondition, err.Error())
+		return nil, e.finishAfterError(attemptCtx, job, cause)
+	}
+	actual, err := e.store.CompleteParseAttempt(attemptCtx, job.JobID, job.LeaseOwner, job.LeaseFence, next)
+	if err != nil {
+		return nil, fmt.Errorf("advance PARSE job state: %w", err)
+	}
+	if actual == pb.JobState_JOB_STATE_CANCELLED && next != pb.JobState_JOB_STATE_CANCELLED {
+		return response, errJobCancellationRequested
+	}
+	return response, nil
+}
+
+var errJobCancellationRequested = errors.New("durable job cancellation requested")
+
+func (e *ParseExecutor) monitorCancellation(ctx context.Context, cancel context.CancelFunc, job domain.JobRecord, result chan<- error) {
+	ticker := time.NewTicker(e.config.CancellationPoll)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			result <- nil
+			return
+		case <-ticker.C:
+			requested, err := e.store.CancellationRequested(ctx, job.JobID, job.LeaseOwner, job.LeaseFence)
+			if err != nil {
+				if ctx.Err() != nil {
+					result <- nil
+					return
+				}
+				result <- fmt.Errorf("poll job cancellation: %w", err)
+				cancel()
+				return
+			}
+			if requested {
+				result <- errJobCancellationRequested
+				cancel()
+				return
+			}
+		}
+	}
+}
+
+func (e *ParseExecutor) processRequest(job domain.JobRecord, request *pb.IngestionRequest) (*pb.ProcessBatchRequest, error) {
+	if request == nil {
+		return nil, status.Error(codes.FailedPrecondition, "persisted ingestion request is missing")
+	}
+	if err := domain.ValidateWire(request, domain.DefaultWireLimits); err != nil {
+		return nil, status.Error(codes.FailedPrecondition, fmt.Sprintf("invalid persisted ingestion request: %v", err))
+	}
+	if request.ConfigManifest == nil || request.ConfigManifest.ConfigHash == nil || job.State != pb.JobState_JOB_STATE_RUNNING || job.Stage != pb.JobStage_JOB_STAGE_PARSE || job.Attempt == 0 || job.LeaseFence == 0 || job.LeaseOwner != e.config.OwnerID || job.CorpusID != request.GetCorpusId() {
+		return nil, status.Error(codes.FailedPrecondition, "claimed job and ingestion request are inconsistent")
+	}
+	now := time.Now()
+	deadline := now.Add(e.config.CallTimeout)
+	if job.LeaseExpiresAt.Before(deadline) {
+		deadline = job.LeaseExpiresAt
+	}
+	if !deadline.After(now) {
+		return nil, status.Error(codes.DeadlineExceeded, "claimed job lease has elapsed")
+	}
+	sources := make([]*pb.ArtifactRef, 0, len(request.Sources))
+	for _, locator := range request.Sources {
+		if locator == nil || locator.GetBlob() == nil {
+			return nil, status.Error(codes.FailedPrecondition, "PARSE dispatch requires acquired blob sources; URL locators remain in ACQUIRE")
+		}
+		sources = append(sources, proto.Clone(locator.GetBlob()).(*pb.ArtifactRef))
+	}
+	correlation := sha256.Sum256([]byte(fmt.Sprintf("%s\x00%d\x00%d", job.JobID, job.Attempt, job.LeaseFence)))
+	requestID := "parse:" + hex.EncodeToString(correlation[:])
+	batch := &pb.ProcessBatchRequest{
+		Context: &pb.RequestContext{
+			SchemaVersion:     1,
+			RequestId:         requestID,
+			TraceId:           requestID,
+			CorpusId:          job.CorpusID,
+			Deadline:          timestamppb.New(deadline),
+			ConfigFingerprint: proto.Clone(request.ConfigManifest.ConfigHash).(*pb.ContentHash),
+			AuthScopeRef:      e.config.AuthScope,
+		},
+		JobId:   job.JobID,
+		Attempt: job.Attempt,
+		Lease: &pb.Lease{
+			OwnerId:   job.LeaseOwner,
+			Fence:     job.LeaseFence,
+			ExpiresAt: timestamppb.New(job.LeaseExpiresAt),
+		},
+		Sources:  sources,
+		Manifest: proto.Clone(request.ConfigManifest).(*pb.ProducerManifest),
+		Stages:   []pb.JobStage{pb.JobStage_JOB_STAGE_PARSE},
+	}
+	if err := domain.ValidateWire(batch, domain.DefaultWireLimits); err != nil {
+		return nil, status.Error(codes.FailedPrecondition, fmt.Sprintf("constructed PARSE request is invalid: %v", err))
+	}
+	return batch, nil
+}
+
+func terminalState(completion pb.CompletionStatus) (pb.JobState, error) {
+	switch completion {
+	case pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED:
+		return pb.JobState_JOB_STATE_STAGED, nil
+	case pb.CompletionStatus_COMPLETION_STATUS_FAILED:
+		return pb.JobState_JOB_STATE_WAITING_REVIEW, nil
+	case pb.CompletionStatus_COMPLETION_STATUS_CANCELLED:
+		return pb.JobState_JOB_STATE_CANCELLED, nil
+	default:
+		return pb.JobState_JOB_STATE_UNSPECIFIED, errors.New("worker returned unspecified completion status")
+	}
+}
+
+func (e *ParseExecutor) finishAfterError(ctx context.Context, job domain.JobRecord, cause error) error {
+	next := pb.JobState_JOB_STATE_RETRY_WAIT
+	switch status.Code(cause) {
+	case codes.InvalidArgument, codes.FailedPrecondition, codes.PermissionDenied, codes.Unauthenticated, codes.Unimplemented, codes.OutOfRange, codes.DataLoss:
+		next = pb.JobState_JOB_STATE_FAILED
+	}
+	if errors.Is(cause, errJobCancellationRequested) {
+		next = pb.JobState_JOB_STATE_CANCELLED
+	}
+	if errors.Is(cause, domain.ErrPersistentIntegrity) {
+		next = pb.JobState_JOB_STATE_FAILED
+	}
+	transitionCtx := ctx
+	cancel := func() {}
+	if ctx.Err() != nil {
+		transitionCtx, cancel = context.WithTimeout(context.Background(), 2*time.Second)
+	}
+	defer cancel()
+	actual, err := e.store.CompleteParseAttempt(transitionCtx, job.JobID, job.LeaseOwner, job.LeaseFence, next)
+	if err != nil {
+		return errors.Join(cause, fmt.Errorf("record PARSE failure as %s: %w", next, err))
+	}
+	if actual == pb.JobState_JOB_STATE_CANCELLED && next != pb.JobState_JOB_STATE_CANCELLED {
+		return errors.Join(cause, errJobCancellationRequested)
+	}
+	return cause
+}
+
+func (e *ParseExecutor) cancelDetached(job domain.JobRecord, batch *pb.ProcessBatchRequest) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	deadline := time.Now().Add(2 * time.Second)
+	if job.LeaseExpiresAt.Before(deadline) {
+		deadline = job.LeaseExpiresAt
+	}
+	if !deadline.After(time.Now()) {
+		return
+	}
+	_, _ = e.worker.Cancel(ctx, &pb.WorkerStatusRequest{
+		Context: &pb.RequestContext{
+			SchemaVersion:     1,
+			RequestId:         batch.Context.RequestId + ":cancel",
+			TraceId:           batch.Context.TraceId,
+			CorpusId:          job.CorpusID,
+			Deadline:          timestamppb.New(deadline),
+			ConfigFingerprint: proto.Clone(batch.Context.ConfigFingerprint).(*pb.ContentHash),
+			AuthScopeRef:      e.config.AuthScope,
+		},
+		JobId: job.JobID, Attempt: job.Attempt, Fence: job.LeaseFence,
+	})
+}
