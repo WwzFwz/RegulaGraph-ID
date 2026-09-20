@@ -1,10 +1,11 @@
 //! Executable loopback gRPC worker for verified PDF parse batches.
 //!
 //! Configuration is explicit through REGULAGRAPH_WORKER_* environment variables. The process binds
-//! PDFium once, serves bounded C01 messages, and writes immutable outputs under the shared artifact root.
+//! PDFium and one pinned Hugging Face tokenizer once, serves bounded C01 messages, and writes immutable outputs under the shared artifact root.
 //! Production remote transport requires a TLS front end; this binary refuses non-loopback listeners.
 
 use regulagraph_ingestion::adapters::storage::{ArtifactStore, ArtifactStoreConfig};
+use regulagraph_ingestion::document::chunking::tokenizer::HuggingFaceTokenizer;
 use regulagraph_ingestion::document::parsing::pdf::{PdfParser, PdfParserConfig};
 use regulagraph_ingestion::worker::transport::worker_server::WorkerServer;
 use regulagraph_ingestion::worker::{
@@ -14,6 +15,7 @@ use std::env;
 use std::error::Error;
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::sync::Arc;
 use tonic::transport::Server;
 
 const DEFAULT_MAX_MESSAGE_BYTES: usize = 16 << 20;
@@ -30,6 +32,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let pdfium_library = PathBuf::from(required("REGULAGRAPH_WORKER_PDFIUM_LIBRARY")?);
     let pdfium_sha256 = required("REGULAGRAPH_WORKER_PDFIUM_SHA256")?;
     let pdfium_version = required("REGULAGRAPH_WORKER_PDFIUM_VERSION")?;
+    let tokenizer_json = PathBuf::from(required("REGULAGRAPH_WORKER_TOKENIZER_JSON")?);
+    let tokenizer_sha256 = required("REGULAGRAPH_WORKER_TOKENIZER_SHA256")?;
     let maximum_message_bytes = parse_positive(
         "REGULAGRAPH_WORKER_MAX_MESSAGE_BYTES",
         DEFAULT_MAX_MESSAGE_BYTES,
@@ -53,7 +57,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
         pdfium_version,
         PdfParserConfig::default(),
     )?;
-    let processor = ParseBatchProcessor::new(store, parser, ParseBatchProcessorConfig::default())?;
+    let tokenizer = Arc::new(HuggingFaceTokenizer::from_file(
+        tokenizer_json,
+        &tokenizer_sha256,
+    )?);
+    let processor = ParseBatchProcessor::new(
+        store,
+        Some(parser),
+        tokenizer,
+        ParseBatchProcessorConfig::default(),
+    )?;
     let service = WorkerService::new(
         processor,
         WorkerServiceConfig {

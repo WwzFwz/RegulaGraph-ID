@@ -1,13 +1,14 @@
-//! PARSE/STRUCTURE batch processor backed by PDFium, conservative normalization and immutable artifacts.
+//! PARSE/STRUCTURE/CHUNK processor backed by pinned native and tokenizer dependencies.
 //!
-//! STRUCTURE consumes the immutable PARSE `DocumentBatch` and emits derived hierarchy only. Legal
-//! provision/version binding remains a later registry-owned step; this processor never fabricates
-//! provisions, canonical entities, or publication state.
+//! STRUCTURE emits hierarchy, while CHUNK consumes a registry-bound immutable `DocumentBatch` and
+//! emits source-mapped, parent-aware chunks. The processor never fabricates legal identities or
+//! publication state; every node-to-version binding must already be explicit and unambiguous.
 
 use super::service::{BatchProcessor, ProcessError};
 use crate::adapters::document_batches::{load_document_batch, persist_document_batch};
 use crate::adapters::storage::{ArtifactDescriptor, ArtifactStore};
 use crate::adapters::text_artifacts::{load_normalized_text, persist_text_artifact};
+use crate::document::chunking::builder::{build_bound_chunks_bounded, ChunkerConfig, TokenCounter};
 use crate::document::chunking::structural::{
     parse_structure, StructureIdentity, StructureParserConfig,
 };
@@ -16,13 +17,16 @@ use crate::document::parsing::pdf::{PdfParseRequest, PdfParser};
 use crate::domain::document_batch::{
     assemble_document_batch, build_source_blob, DocumentBatchConfig, DocumentBatchParts,
 };
-use crate::domain::document_wire::{project_structures, DocumentWireConfig};
+use crate::domain::document_wire::{
+    project_bound_structure_and_chunks, project_structures, DocumentWireConfig,
+};
 use crate::domain::text_artifact_wire::TextArtifactWireConfig;
 use crate::wire::{common, jobs};
 use protobuf::{EnumOrUnknown, MessageField};
 use sha2::{Digest, Sha256};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use tonic::Code;
 
 #[derive(Clone, Debug)]
@@ -34,6 +38,7 @@ pub struct ParseBatchProcessorConfig {
     pub maximum_sources: usize,
     pub maximum_input_bytes: u64,
     pub structure: StructureParserConfig,
+    pub chunker: ChunkerConfig,
     pub document_wire: DocumentWireConfig,
 }
 
@@ -47,6 +52,7 @@ impl Default for ParseBatchProcessorConfig {
             maximum_sources: 256,
             maximum_input_bytes: 2 * 1024 * 1024 * 1024,
             structure: StructureParserConfig::default(),
+            chunker: ChunkerConfig::default(),
             document_wire: DocumentWireConfig::default(),
         }
     }
@@ -54,16 +60,24 @@ impl Default for ParseBatchProcessorConfig {
 
 pub struct ParseBatchProcessor {
     store: ArtifactStore,
-    parser: PdfParser,
+    parser: Option<PdfParser>,
+    tokenizer: Arc<dyn TokenCounter>,
     config: ParseBatchProcessorConfig,
 }
 
 impl ParseBatchProcessor {
     pub fn new(
         store: ArtifactStore,
-        parser: PdfParser,
+        parser: Option<PdfParser>,
+        tokenizer: Arc<dyn TokenCounter>,
         config: ParseBatchProcessorConfig,
     ) -> Result<Self, ProcessError> {
+        if tokenizer.tokenizer_id().trim().is_empty() {
+            return Err(ProcessError::new(
+                Code::InvalidArgument,
+                "worker tokenizer identity is required",
+            ));
+        }
         if config.maximum_pages_per_document == 0
             || config.maximum_batch_pages == 0
             || config.maximum_sources == 0
@@ -83,6 +97,7 @@ impl ParseBatchProcessor {
         Ok(Self {
             store,
             parser,
+            tokenizer,
             config,
         })
     }
@@ -100,12 +115,17 @@ impl BatchProcessor for ParseBatchProcessor {
         {
             return self.process_structure(request, cancelled, progress);
         }
+        if request.stages.len() == 1
+            && request.stages[0].enum_value() == Ok(jobs::JobStage::JOB_STAGE_CHUNK)
+        {
+            return self.process_chunk(request, cancelled, progress);
+        }
         if request.stages.len() != 1
             || request.stages[0].enum_value() != Ok(jobs::JobStage::JOB_STAGE_PARSE)
         {
             return Err(ProcessError::new(
                 Code::Unimplemented,
-                "worker accepts exactly one PARSE or STRUCTURE stage",
+                "worker accepts exactly one PARSE, STRUCTURE, or CHUNK stage",
             ));
         }
         let context = request
@@ -167,6 +187,13 @@ impl BatchProcessor for ParseBatchProcessor {
             let text_artifact_id = format!("text:{source_hash}");
             let parsed = self
                 .parser
+                .as_ref()
+                .ok_or_else(|| {
+                    ProcessError::new(
+                        Code::FailedPrecondition,
+                        "PARSE capability is unavailable because PDFium is not configured",
+                    )
+                })?
                 .parse_file(PdfParseRequest {
                     source_id: format!("source:{source_hash}"),
                     source_blob_id: source_blob_id.clone(),
@@ -512,6 +539,629 @@ impl ParseBatchProcessor {
             ..Default::default()
         })
     }
+
+    fn process_chunk(
+        &self,
+        request: jobs::ProcessBatchRequest,
+        cancelled: &AtomicBool,
+        progress: &dyn Fn(jobs::JobStage, u64, u64),
+    ) -> Result<jobs::ProcessBatchResponse, ProcessError> {
+        let context = request
+            .context
+            .as_ref()
+            .ok_or_else(|| ProcessError::new(Code::InvalidArgument, "request context is required"))?
+            .clone();
+        if request.sources.len() != 1 {
+            return Err(ProcessError::new(
+                Code::InvalidArgument,
+                "CHUNK requires exactly one BIND DocumentBatch input",
+            ));
+        }
+        let input_ref = &request.sources[0];
+        let descriptor = ArtifactDescriptor::from_wire_ref(input_ref)
+            .map_err(|error| ProcessError::new(Code::InvalidArgument, error.to_string()))?;
+        let mut input = load_document_batch(&self.store, &descriptor)
+            .map_err(|error| ProcessError::new(Code::FailedPrecondition, error.to_string()))?;
+        if input.context.corpus_id != context.corpus_id {
+            return Err(ProcessError::new(
+                Code::FailedPrecondition,
+                "CHUNK input corpus differs from request corpus",
+            ));
+        }
+        if input.completeness.enum_value() != Ok(common::Completeness::COMPLETENESS_COMPLETE)
+            || input.structures.is_empty()
+            || input.provisions.is_empty()
+            || input.versions.is_empty()
+            || !input.chunks.is_empty()
+        {
+            return Err(ProcessError::new(
+                Code::FailedPrecondition,
+                "CHUNK requires a complete bound batch with structure/provision/version records and no chunks",
+            ));
+        }
+
+        let text_artifacts: HashMap<&str, &crate::wire::documents::TextArtifact> = input
+            .text_artifacts
+            .iter()
+            .map(|artifact| (artifact.meta.record_id.as_str(), artifact))
+            .collect();
+        if text_artifacts.len() != input.text_artifacts.len() {
+            return Err(ProcessError::new(
+                Code::FailedPrecondition,
+                "CHUNK input contains duplicate text artifact IDs",
+            ));
+        }
+        let nodes: HashMap<&str, &crate::wire::documents::StructureNode> = input
+            .structures
+            .iter()
+            .map(|node| (node.meta.record_id.as_str(), node))
+            .collect();
+        let provisions: HashMap<&str, &crate::wire::documents::Provision> = input
+            .provisions
+            .iter()
+            .map(|provision| (provision.meta.record_id.as_str(), provision))
+            .collect();
+        let regulation_ids: HashSet<&str> = input
+            .regulations
+            .iter()
+            .map(|regulation| regulation.meta.record_id.as_str())
+            .collect();
+        if nodes.len() != input.structures.len()
+            || provisions.len() != input.provisions.len()
+            || regulation_ids.len() != input.regulations.len()
+            || regulation_ids.is_empty()
+        {
+            return Err(ProcessError::new(
+                Code::FailedPrecondition,
+                "CHUNK input contains duplicate structure or provision IDs",
+            ));
+        }
+        let mut path_cache = HashMap::with_capacity(input.structures.len());
+        for node in &input.structures {
+            structure_path(
+                node.meta.record_id.as_str(),
+                &nodes,
+                &mut path_cache,
+                &mut HashSet::new(),
+            )?;
+        }
+        let mut nodes_by_binding = HashMap::with_capacity(input.structures.len());
+        for node in &input.structures {
+            let span_key = exact_span_key(&node.source_spans)?;
+            let path = path_cache
+                .get(node.meta.record_id.as_str())
+                .ok_or_else(|| {
+                    ProcessError::new(
+                        Code::FailedPrecondition,
+                        "structure path cache is incomplete",
+                    )
+                })?;
+            let key = binding_key(&span_key, path);
+            if nodes_by_binding
+                .insert(key, node.meta.record_id.clone())
+                .is_some()
+            {
+                return Err(ProcessError::new(
+                    Code::FailedPrecondition,
+                    "multiple structure nodes share one exact span and canonical path",
+                ));
+            }
+        }
+        let mut version_by_node = HashMap::with_capacity(input.versions.len());
+        let mut provision_by_node = HashMap::with_capacity(input.versions.len());
+        for version in &input.versions {
+            let span_key = exact_span_key(&version.spans)?;
+            let provision = provisions
+                .get(version.provision_id.as_str())
+                .ok_or_else(|| {
+                    ProcessError::new(
+                        Code::FailedPrecondition,
+                        "provision version references an unknown provision",
+                    )
+                })?;
+            if !regulation_ids.contains(provision.regulation_id.as_str()) {
+                return Err(ProcessError::new(
+                    Code::FailedPrecondition,
+                    "provision references a regulation outside the bound batch",
+                ));
+            }
+            let key = binding_key(&span_key, &provision.structural_path);
+            let node_id = nodes_by_binding.get(&key).ok_or_else(|| {
+                ProcessError::new(
+                    Code::FailedPrecondition,
+                    "provision version does not match one exact structure span and canonical path",
+                )
+            })?;
+            let text_id = version.spans[0].text_artifact_id.as_str();
+            let artifact = text_artifacts.get(text_id).ok_or_else(|| {
+                ProcessError::new(
+                    Code::FailedPrecondition,
+                    "provision version references an unknown text artifact",
+                )
+            })?;
+            if version.text_ref.as_ref() != artifact.normalized_text_ref.as_ref() {
+                return Err(ProcessError::new(
+                    Code::FailedPrecondition,
+                    "provision version text_ref differs from its normalized text artifact",
+                ));
+            }
+            if version_by_node
+                .insert(node_id.clone(), version.meta.record_id.clone())
+                .is_some()
+            {
+                return Err(ProcessError::new(
+                    Code::FailedPrecondition,
+                    "multiple provision versions bind one structure node",
+                ));
+            }
+            provision_by_node.insert(node_id.clone(), provision.meta.record_id.clone());
+        }
+        if version_by_node.len() != input.structures.len() {
+            return Err(ProcessError::new(
+                Code::FailedPrecondition,
+                "every structure node must have exactly one provision version before tokenization",
+            ));
+        }
+        let mut regulation_by_text = HashMap::new();
+        for node in &input.structures {
+            let provision_id = provision_by_node.get(&node.meta.record_id).ok_or_else(|| {
+                ProcessError::new(Code::FailedPrecondition, "structure has no bound provision")
+            })?;
+            let provision = provisions.get(provision_id.as_str()).ok_or_else(|| {
+                ProcessError::new(Code::FailedPrecondition, "bound provision is missing")
+            })?;
+            let expected_parent = match node.parent_id.as_ref() {
+                Some(parent) => Some(
+                    provision_by_node
+                        .get(parent)
+                        .ok_or_else(|| {
+                            ProcessError::new(
+                                Code::FailedPrecondition,
+                                "parent structure has no provision",
+                            )
+                        })?
+                        .as_str(),
+                ),
+                None => None,
+            };
+            if provision.parent_provision_id.as_deref() != expected_parent {
+                return Err(ProcessError::new(
+                    Code::FailedPrecondition,
+                    "provision hierarchy differs from the structure hierarchy",
+                ));
+            }
+            let text_id = node.source_spans[0].text_artifact_id.as_str();
+            if let Some(previous) =
+                regulation_by_text.insert(text_id, provision.regulation_id.as_str())
+            {
+                if previous != provision.regulation_id.as_str() {
+                    return Err(ProcessError::new(
+                        Code::FailedPrecondition,
+                        "one structured document is bound to multiple regulations",
+                    ));
+                }
+            }
+        }
+
+        let fixed_records = document_record_count_without_chunks(&input)?;
+        let chunk_budget = self
+            .config
+            .document_batch
+            .maximum_records
+            .checked_sub(fixed_records)
+            .ok_or_else(|| {
+                ProcessError::new(
+                    Code::OutOfRange,
+                    "CHUNK input already exceeds the DocumentBatch record limit",
+                )
+            })?;
+        let total = input.text_artifacts.len() as u64;
+        let mut chunks = Vec::new();
+        for (index, artifact) in input.text_artifacts.iter().enumerate() {
+            if cancelled.load(Ordering::Acquire) {
+                return Err(ProcessError::new(
+                    Code::Cancelled,
+                    "batch cancellation acknowledged",
+                ));
+            }
+            let normalized = load_normalized_text(&self.store, artifact, &self.config.normalizer)
+                .map_err(|error| {
+                ProcessError::new(Code::FailedPrecondition, error.to_string())
+            })?;
+            let tree = parse_structure(
+                &normalized,
+                &StructureIdentity {
+                    source_blob_id: artifact.source_blob_id.clone(),
+                    text_artifact_id: artifact.meta.record_id.clone(),
+                },
+                &self.config.structure,
+            )
+            .map_err(|error| ProcessError::new(Code::FailedPrecondition, error.to_string()))?;
+            let projected_structures = project_structures(
+                &tree,
+                &DocumentWireConfig {
+                    corpus_id: context.corpus_id.clone(),
+                    ..self.config.document_wire.clone()
+                },
+            )
+            .map_err(|error| ProcessError::new(Code::FailedPrecondition, error.to_string()))?;
+            let bound_structures: Vec<_> = input
+                .structures
+                .iter()
+                .filter(|node| {
+                    node.source_spans
+                        .first()
+                        .is_some_and(|span| span.text_artifact_id == artifact.meta.record_id)
+                })
+                .cloned()
+                .collect();
+            if !same_structures(&projected_structures, &bound_structures) {
+                return Err(ProcessError::new(
+                    Code::FailedPrecondition,
+                    "bound structure differs from deterministic reconstruction",
+                ));
+            }
+            let bindings: HashMap<String, String> = tree
+                .nodes
+                .iter()
+                .map(|node| {
+                    version_by_node
+                        .get(&node.id)
+                        .cloned()
+                        .map(|version| (node.id.clone(), version))
+                        .ok_or_else(|| {
+                            ProcessError::new(
+                                Code::FailedPrecondition,
+                                "reconstructed structure is missing a provision version binding",
+                            )
+                        })
+                })
+                .collect::<Result<_, _>>()?;
+            let remaining = chunk_budget.checked_sub(chunks.len()).ok_or_else(|| {
+                ProcessError::new(Code::OutOfRange, "CHUNK output exceeds the record limit")
+            })?;
+            if remaining == 0 {
+                return Err(ProcessError::new(
+                    Code::OutOfRange,
+                    "CHUNK output exhausts the record limit",
+                ));
+            }
+            let chunk_batch = build_bound_chunks_bounded(
+                &normalized,
+                &tree,
+                &bindings,
+                &self.config.chunker,
+                remaining,
+                self.tokenizer.as_ref(),
+            )
+            .map_err(|error| ProcessError::new(Code::FailedPrecondition, error.to_string()))?;
+            let mut projected = project_bound_structure_and_chunks(
+                &tree,
+                &chunk_batch,
+                &DocumentWireConfig {
+                    corpus_id: context.corpus_id.clone(),
+                    ..self.config.document_wire.clone()
+                },
+            )
+            .map_err(|error| ProcessError::new(Code::FailedPrecondition, error.to_string()))?;
+            if !same_structures(&projected.structures, &bound_structures) {
+                return Err(ProcessError::new(
+                    Code::FailedPrecondition,
+                    "CHUNK projection changed bound structures",
+                ));
+            }
+            if projected.chunks.len() > remaining {
+                return Err(ProcessError::new(
+                    Code::OutOfRange,
+                    "CHUNK projection exceeds the remaining record limit",
+                ));
+            }
+            chunks.append(&mut projected.chunks);
+            progress(jobs::JobStage::JOB_STAGE_CHUNK, (index + 1) as u64, total);
+        }
+        if chunks.is_empty() {
+            return Err(ProcessError::new(
+                Code::FailedPrecondition,
+                "CHUNK produced no searchable text",
+            ));
+        }
+
+        let request_id = context.request_id.clone();
+        let identity = response_identity(
+            &request_id,
+            &request.job_id,
+            request.attempt,
+            request.lease.fence,
+        );
+        let manifest = chunk_runtime_manifest(input_ref, &self.config, self.tokenizer.as_ref())?;
+        let dependencies = derived_dependencies(&input, input_ref)?;
+        let lookup_scope_revisions = input
+            .dependency_manifest
+            .as_ref()
+            .map(|manifest| manifest.lookup_scope_revisions.clone())
+            .unwrap_or_default();
+        let output = assemble_document_batch(
+            DocumentBatchParts {
+                batch_id: format!("document-batch:{identity}"),
+                context,
+                sources: std::mem::take(&mut input.sources),
+                text_artifacts: std::mem::take(&mut input.text_artifacts),
+                structures: std::mem::take(&mut input.structures),
+                provisions: std::mem::take(&mut input.provisions),
+                versions: std::mem::take(&mut input.versions),
+                chunks,
+                issues: std::mem::take(&mut input.issues),
+                editions: std::mem::take(&mut input.editions),
+                regulations: std::mem::take(&mut input.regulations),
+                observations: std::mem::take(&mut input.observations),
+                changes: std::mem::take(&mut input.changes),
+                dependency_manifest: common::DependencyManifest {
+                    artifact_id: format!("dependency-manifest:{identity}"),
+                    dependencies,
+                    producer_manifest: MessageField::some(manifest.clone()),
+                    lookup_scope_revisions,
+                    ..Default::default()
+                },
+            },
+            &self.config.document_batch,
+        )
+        .map_err(|error| ProcessError::new(Code::FailedPrecondition, error.to_string()))?;
+        let persisted = persist_document_batch(&self.store, &output)
+            .map_err(|error| ProcessError::new(Code::Internal, error.to_string()))?;
+        let document_batch_ref = persisted.reference;
+        let document_batch_hash = document_batch_ref
+            .content_hash
+            .as_ref()
+            .cloned()
+            .ok_or_else(|| ProcessError::new(Code::Internal, "document batch hash is missing"))?;
+        Ok(jobs::ProcessBatchResponse {
+            request_id,
+            job_id: request.job_id.clone(),
+            attempt: request.attempt,
+            fence: request.lease.fence,
+            checkpoint: MessageField::some(jobs::Checkpoint {
+                meta: MessageField::some(common::RecordMeta {
+                    schema_version: 1,
+                    corpus_id: output.context.corpus_id.clone(),
+                    record_id: format!("checkpoint:{identity}"),
+                    ..Default::default()
+                }),
+                job_id: request.job_id,
+                stage: EnumOrUnknown::new(jobs::JobStage::JOB_STAGE_CHUNK),
+                completed_batch_keys: vec![document_batch_ref.artifact_id.clone()],
+                artifact_hashes: vec![document_batch_hash],
+                manifest: MessageField::some(manifest),
+                fence: request.lease.fence,
+                terminal_status: EnumOrUnknown::new(
+                    common::CompletionStatus::COMPLETION_STATUS_SUCCEEDED,
+                ),
+                ..Default::default()
+            }),
+            document_batch: MessageField::some(document_batch_ref),
+            status: EnumOrUnknown::new(common::CompletionStatus::COMPLETION_STATUS_SUCCEEDED),
+            ..Default::default()
+        })
+    }
+}
+
+fn exact_span_key(spans: &[common::TextSpan]) -> Result<String, ProcessError> {
+    if spans.is_empty() {
+        return Err(ProcessError::new(
+            Code::FailedPrecondition,
+            "registry-bound record has no source spans",
+        ));
+    }
+    let text_id = spans[0].text_artifact_id.as_str();
+    if text_id.is_empty()
+        || spans
+            .iter()
+            .any(|span| span.text_artifact_id != text_id || span.start_byte >= span.end_byte)
+    {
+        return Err(ProcessError::new(
+            Code::FailedPrecondition,
+            "registry-bound spans must be nonempty and belong to one text artifact",
+        ));
+    }
+    let mut key = String::new();
+    for span in spans {
+        key.push_str(&format!(
+            "{}:{}:{}:{};",
+            span.text_artifact_id.len(),
+            span.text_artifact_id,
+            span.start_byte,
+            span.end_byte
+        ));
+    }
+    Ok(key)
+}
+
+fn binding_key(span_key: &str, path: &[String]) -> String {
+    let mut key = String::with_capacity(span_key.len() + path.len() * 24);
+    key.push_str(span_key);
+    key.push('|');
+    for component in path {
+        let normalized = normalize_identity_text(component);
+        key.push_str(&normalized.len().to_string());
+        key.push(':');
+        key.push_str(&normalized);
+        key.push(';');
+    }
+    key
+}
+
+fn same_structures(
+    left: &[crate::wire::documents::StructureNode],
+    right: &[crate::wire::documents::StructureNode],
+) -> bool {
+    if left.len() != right.len() {
+        return false;
+    }
+    let by_id: HashMap<&str, &crate::wire::documents::StructureNode> = right
+        .iter()
+        .map(|node| (node.meta.record_id.as_str(), node))
+        .collect();
+    by_id.len() == right.len()
+        && left
+            .iter()
+            .all(|node| by_id.get(node.meta.record_id.as_str()) == Some(&node))
+}
+
+fn structure_path(
+    node_id: &str,
+    nodes: &HashMap<&str, &crate::wire::documents::StructureNode>,
+    cache: &mut HashMap<String, Vec<String>>,
+    visiting: &mut HashSet<String>,
+) -> Result<Vec<String>, ProcessError> {
+    if let Some(path) = cache.get(node_id) {
+        return Ok(path.clone());
+    }
+    if visiting.len() >= 256 {
+        return Err(ProcessError::new(
+            Code::OutOfRange,
+            "structure path exceeds the CHUNK depth limit",
+        ));
+    }
+    let node = nodes.get(node_id).ok_or_else(|| {
+        ProcessError::new(
+            Code::FailedPrecondition,
+            "structure path references an unknown node",
+        )
+    })?;
+    if !visiting.insert(node_id.to_owned()) {
+        return Err(ProcessError::new(
+            Code::FailedPrecondition,
+            "structure path contains a cycle",
+        ));
+    }
+    let mut path = if let Some(parent) = node.parent_id.as_deref() {
+        structure_path(parent, nodes, cache, visiting)?
+    } else {
+        Vec::new()
+    };
+    if path.len() >= 256 {
+        return Err(ProcessError::new(
+            Code::OutOfRange,
+            "structure path exceeds the CHUNK depth limit",
+        ));
+    }
+    let label = node.label.split_whitespace().collect::<Vec<_>>().join(" ");
+    path.push(format!("{}:{label}", node.kind.value()));
+    visiting.remove(node_id);
+    cache.insert(node_id.to_owned(), path.clone());
+    Ok(path)
+}
+
+fn normalize_identity_text(value: &str) -> String {
+    value
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .chars()
+        .flat_map(char::to_lowercase)
+        .collect()
+}
+
+fn document_record_count_without_chunks(
+    batch: &crate::wire::documents::DocumentBatch,
+) -> Result<usize, ProcessError> {
+    [
+        1usize,
+        batch.sources.len(),
+        batch.text_artifacts.len(),
+        batch.structures.len(),
+        batch.provisions.len(),
+        batch.versions.len(),
+        batch.issues.len(),
+        batch.editions.len(),
+        batch.regulations.len(),
+        batch.observations.len(),
+        batch.changes.len(),
+    ]
+    .into_iter()
+    .try_fold(0usize, |sum, count| sum.checked_add(count))
+    .ok_or_else(|| ProcessError::new(Code::OutOfRange, "CHUNK record count overflow"))
+}
+
+fn derived_dependencies(
+    input: &crate::wire::documents::DocumentBatch,
+    input_ref: &common::ArtifactRef,
+) -> Result<Vec<common::Dependency>, ProcessError> {
+    let input_hash = input_ref.content_hash.as_ref().ok_or_else(|| {
+        ProcessError::new(Code::InvalidArgument, "derived input hash is required")
+    })?;
+    let mut by_id: HashMap<String, common::Dependency> = HashMap::new();
+    if let Some(manifest) = input.dependency_manifest.as_ref() {
+        for dependency in &manifest.dependencies {
+            let fingerprint = dependency.fingerprint.as_ref().ok_or_else(|| {
+                ProcessError::new(
+                    Code::FailedPrecondition,
+                    "inherited dependency has no fingerprint",
+                )
+            })?;
+            if let Some(previous) = by_id.get(&dependency.dependency_id) {
+                if previous.fingerprint.as_ref() != Some(fingerprint) {
+                    return Err(ProcessError::new(
+                        Code::FailedPrecondition,
+                        "inherited dependency fingerprints conflict",
+                    ));
+                }
+            } else {
+                by_id.insert(dependency.dependency_id.clone(), dependency.clone());
+            }
+        }
+    }
+    let input_dependency = common::Dependency {
+        dependency_id: input_ref.artifact_id.clone(),
+        fingerprint: MessageField::some(input_hash.clone()),
+        ..Default::default()
+    };
+    if let Some(previous) = by_id.get(&input_dependency.dependency_id) {
+        if previous.fingerprint.as_ref() != input_dependency.fingerprint.as_ref() {
+            return Err(ProcessError::new(
+                Code::FailedPrecondition,
+                "input artifact conflicts with an inherited dependency",
+            ));
+        }
+    } else {
+        by_id.insert(input_dependency.dependency_id.clone(), input_dependency);
+    }
+    let mut dependencies: Vec<_> = by_id.into_values().collect();
+    dependencies.sort_by(|left, right| left.dependency_id.cmp(&right.dependency_id));
+    Ok(dependencies)
+}
+
+fn chunk_runtime_manifest(
+    input: &common::ArtifactRef,
+    config: &ParseBatchProcessorConfig,
+    tokenizer: &dyn TokenCounter,
+) -> Result<common::ProducerManifest, ProcessError> {
+    let input_hash =
+        input.content_hash.as_ref().cloned().ok_or_else(|| {
+            ProcessError::new(Code::InvalidArgument, "CHUNK input hash is required")
+        })?;
+    let mut hasher = Sha256::new();
+    hasher.update(b"regulagraph-chunk-config-v2\0");
+    hasher.update(config.chunker.maximum_chunk_bytes.to_le_bytes());
+    hasher.update(config.chunker.maximum_chunk_tokens.to_le_bytes());
+    hasher.update(config.chunker.minimum_split_bytes.to_le_bytes());
+    hasher.update(config.chunker.overlap_bytes.to_le_bytes());
+    hasher.update(config.chunker.maximum_chunks.to_le_bytes());
+    hasher.update(config.chunker.maximum_parent_depth.to_le_bytes());
+    hasher.update(config.document_wire.maximum_records.to_le_bytes());
+    hasher.update(tokenizer.tokenizer_id().as_bytes());
+    Ok(common::ProducerManifest {
+        software: "regulagraph-ingestion".to_owned(),
+        build: env!("CARGO_PKG_VERSION").to_owned(),
+        schema_version: 1,
+        parser_version: Some("structure-v1".to_owned()),
+        chunker_version: Some("chunker-v2".to_owned()),
+        config_hash: MessageField::some(common::ContentHash {
+            sha256: format!("{:x}", hasher.finalize()),
+            ..Default::default()
+        }),
+        input_hashes: vec![input_hash],
+        ..Default::default()
+    })
 }
 
 fn structure_runtime_manifest(
@@ -697,4 +1347,355 @@ fn response_identity(request_id: &str, job_id: &str, attempt: u32, fence: u64) -
     hasher.update(attempt.to_le_bytes());
     hasher.update(fence.to_le_bytes());
     format!("{:x}", hasher.finalize())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::adapters::storage::ArtifactStoreConfig;
+    use crate::document::normalization::text::normalize_text;
+    use crate::document::parsing::pdf::{
+        NormalizedBoundingBox, PdfDocumentStatus, PdfDocumentText, PdfPageResult, PdfPageStatus,
+        PdfParserManifest, PdfTextBlock,
+    };
+    use crate::domain::document_batch::build_source_blob;
+    use crate::domain::text_artifact_wire::TextArtifactWireConfig;
+    use crate::wire::documents;
+    use protobuf::well_known_types::timestamp::Timestamp;
+    use std::fs;
+    use std::path::PathBuf;
+    use std::sync::atomic::AtomicU64;
+
+    static TEST_SEQUENCE: AtomicU64 = AtomicU64::new(1);
+
+    struct Words;
+
+    impl TokenCounter for Words {
+        fn tokenizer_id(&self) -> &str {
+            "test:chunk-worker-words-v1"
+        }
+
+        fn count_tokens(&self, text: &str) -> Result<u32, String> {
+            u32::try_from(text.split_whitespace().count()).map_err(|error| error.to_string())
+        }
+    }
+
+    struct TestDir(PathBuf);
+
+    impl TestDir {
+        fn new() -> Self {
+            let sequence = TEST_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+            let path = std::env::temp_dir().join(format!(
+                "regulagraph-chunk-worker-test-{}-{sequence}",
+                std::process::id()
+            ));
+            fs::create_dir_all(&path).expect("test root");
+            Self(path)
+        }
+    }
+
+    impl Drop for TestDir {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn chunk_stage_requires_exact_bindings_and_persists_parent_aware_output() {
+        let root = TestDir::new();
+        let store = ArtifactStore::open(
+            &root.0,
+            ArtifactStoreConfig {
+                maximum_artifact_bytes: 16 * 1024 * 1024,
+                sync_data: false,
+            },
+        )
+        .unwrap();
+        let source_bytes = b"%PDF-registry-bound-fixture";
+        let source_ref = store
+            .put_bytes("source-pdf", "application/pdf", 1, source_bytes)
+            .unwrap()
+            .to_wire_ref()
+            .unwrap();
+        let source_id = "source-blob:fixture";
+        let source = build_source_blob("corpus:fixture", source_id, source_ref).unwrap();
+        let raw_text = "BAB I\r\nPasal 1\r\n(1) Setiap orang wajib memelihara data yang akurat dan lengkap.\r\n";
+        let parsed = PdfDocumentText {
+            source_id: "source:fixture".to_owned(),
+            source_blob_id: source_id.to_owned(),
+            raw_text: raw_text.to_owned(),
+            blocks: vec![PdfTextBlock {
+                page_number: 1,
+                start_byte: 0,
+                end_byte: raw_text.len() as u64,
+                bounding_box: NormalizedBoundingBox {
+                    x0: 0.0,
+                    y0: 0.0,
+                    x1: 1.0,
+                    y1: 1.0,
+                },
+            }],
+            pages: vec![PdfPageResult {
+                page_number: 1,
+                start_byte: 0,
+                end_byte: raw_text.len() as u64,
+                image_objects: 0,
+                elapsed_microseconds: 1,
+                status: PdfPageStatus::Text,
+            }],
+            status: PdfDocumentStatus::Complete,
+            manifest: PdfParserManifest {
+                schema_version: 1,
+                engine: "pdfium",
+                binding: "pdfium-render",
+                binding_version: "fixture",
+                api_feature: "fixture",
+                declared_core_version: "fixture".to_owned(),
+                library_sha256: "1".repeat(64),
+                config_sha256: "2".repeat(64),
+                input_sha256: format!("{:x}", Sha256::digest(source_bytes)),
+            },
+        };
+        let normalizer = TextNormalizerConfig::default();
+        let normalized = normalize_text(raw_text, &normalizer).unwrap();
+        let persisted_text = persist_text_artifact(
+            &store,
+            &parsed,
+            &normalized,
+            &normalizer,
+            &TextArtifactWireConfig {
+                corpus_id: "corpus:fixture".to_owned(),
+                text_artifact_id: "text:fixture".to_owned(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let tree = parse_structure(
+            &normalized,
+            &StructureIdentity {
+                source_blob_id: source_id.to_owned(),
+                text_artifact_id: "text:fixture".to_owned(),
+            },
+            &StructureParserConfig::default(),
+        )
+        .unwrap();
+        let structures = project_structures(
+            &tree,
+            &DocumentWireConfig {
+                corpus_id: "corpus:fixture".to_owned(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let provision_ids: HashMap<_, _> = structures
+            .iter()
+            .enumerate()
+            .map(|(index, node)| {
+                (
+                    node.meta.record_id.clone(),
+                    format!("provision:{}", index + 1),
+                )
+            })
+            .collect();
+        let structure_index: HashMap<_, _> = structures
+            .iter()
+            .map(|node| (node.meta.record_id.as_str(), node))
+            .collect();
+        let mut fixture_paths = HashMap::new();
+        for node in &structures {
+            structure_path(
+                node.meta.record_id.as_str(),
+                &structure_index,
+                &mut fixture_paths,
+                &mut HashSet::new(),
+            )
+            .unwrap();
+        }
+        let provisions: Vec<_> = structures
+            .iter()
+            .map(|node| documents::Provision {
+                meta: MessageField::some(meta(
+                    "corpus:fixture",
+                    &provision_ids[&node.meta.record_id],
+                )),
+                regulation_id: "regulation:fixture".to_owned(),
+                structural_path: fixture_paths[&node.meta.record_id].clone(),
+                parent_provision_id: node
+                    .parent_id
+                    .as_ref()
+                    .map(|parent| provision_ids[parent].clone()),
+                ..Default::default()
+            })
+            .collect();
+        let versions: Vec<_> = structures
+            .iter()
+            .enumerate()
+            .map(|(index, node)| documents::ProvisionVersion {
+                meta: MessageField::some(meta("corpus:fixture", &format!("version:{}", index + 1))),
+                provision_id: provision_ids[&node.meta.record_id].clone(),
+                text_ref: persisted_text.artifact.normalized_text_ref.clone(),
+                spans: node.source_spans.clone(),
+                legal_interval: MessageField::some(common::LegalInterval {
+                    start: MessageField::some(unknown_date()),
+                    end: MessageField::some(unknown_date()),
+                    ..Default::default()
+                }),
+                legal_status: EnumOrUnknown::new(documents::LegalStatus::LEGAL_STATUS_UNKNOWN),
+                review_state: EnumOrUnknown::new(common::ReviewState::REVIEW_STATE_UNREVIEWED),
+                ..Default::default()
+            })
+            .collect();
+        let context = request_context("bind:fixture");
+        let bound = assemble_document_batch(
+            DocumentBatchParts {
+                batch_id: "document-batch:bound-fixture".to_owned(),
+                context: context.clone(),
+                sources: vec![source],
+                text_artifacts: vec![persisted_text.artifact],
+                structures,
+                provisions,
+                versions,
+                regulations: vec![documents::Regulation {
+                    meta: MessageField::some(meta("corpus:fixture", "regulation:fixture")),
+                    kind: "peraturan".to_owned(),
+                    issuer_id: "organization:fixture".to_owned(),
+                    jurisdiction: "ID".to_owned(),
+                    official_number: "1".to_owned(),
+                    year: 2026,
+                    title: "Peraturan Uji".to_owned(),
+                    identity_status: EnumOrUnknown::new(
+                        documents::IdentityStatus::IDENTITY_STATUS_UNRESOLVED,
+                    ),
+                    ..Default::default()
+                }],
+                dependency_manifest: common::DependencyManifest {
+                    artifact_id: "dependency-manifest:bound-fixture".to_owned(),
+                    dependencies: vec![common::Dependency {
+                        dependency_id: "organization:fixture".to_owned(),
+                        fingerprint: MessageField::some(hash('a')),
+                        ..Default::default()
+                    }],
+                    producer_manifest: MessageField::some(producer()),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            &DocumentBatchConfig::default(),
+        )
+        .unwrap();
+        let bound_ref = persist_document_batch(&store, &bound).unwrap().reference;
+        let processor = ParseBatchProcessor::new(
+            store,
+            None,
+            Arc::new(Words),
+            ParseBatchProcessorConfig {
+                chunker: ChunkerConfig {
+                    maximum_chunk_bytes: 96,
+                    maximum_chunk_tokens: 4,
+                    minimum_split_bytes: 16,
+                    overlap_bytes: 8,
+                    maximum_chunks: 100,
+                    maximum_parent_depth: 16,
+                },
+                document_wire: DocumentWireConfig {
+                    corpus_id: "corpus:fixture".to_owned(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let response = processor
+            .process(
+                jobs::ProcessBatchRequest {
+                    context: MessageField::some(request_context("chunk:fixture")),
+                    job_id: "job:fixture".to_owned(),
+                    attempt: 1,
+                    lease: MessageField::some(jobs::Lease {
+                        owner_id: "worker:fixture".to_owned(),
+                        fence: 7,
+                        expires_at: MessageField::some(Timestamp {
+                            seconds: 2_000_000_100,
+                            ..Default::default()
+                        }),
+                        ..Default::default()
+                    }),
+                    sources: vec![bound_ref],
+                    manifest: MessageField::some(producer()),
+                    stages: vec![EnumOrUnknown::new(jobs::JobStage::JOB_STAGE_CHUNK)],
+                    ..Default::default()
+                },
+                &AtomicBool::new(false),
+                &|_, _, _| {},
+            )
+            .unwrap();
+        assert_eq!(
+            response.status.enum_value(),
+            Ok(common::CompletionStatus::COMPLETION_STATUS_SUCCEEDED)
+        );
+        let descriptor =
+            ArtifactDescriptor::from_wire_ref(response.document_batch.as_ref().unwrap()).unwrap();
+        let output = load_document_batch(&processor.store, &descriptor).unwrap();
+        assert!(!output.chunks.is_empty());
+        assert!(output.chunks.iter().all(|chunk| {
+            chunk.provision_version_refs.len() == 1
+                && chunk.structure_node_refs.len() == 1
+                && chunk.token_counts.len() == 1
+                && chunk.token_counts[0].input_tokens <= 4
+        }));
+        assert!(output
+            .dependency_manifest
+            .dependencies
+            .iter()
+            .any(|dependency| dependency.dependency_id == "organization:fixture"));
+    }
+
+    fn meta(corpus_id: &str, record_id: &str) -> common::RecordMeta {
+        common::RecordMeta {
+            schema_version: 1,
+            corpus_id: corpus_id.to_owned(),
+            record_id: record_id.to_owned(),
+            ..Default::default()
+        }
+    }
+
+    fn hash(character: char) -> common::ContentHash {
+        common::ContentHash {
+            sha256: character.to_string().repeat(64),
+            ..Default::default()
+        }
+    }
+
+    fn producer() -> common::ProducerManifest {
+        common::ProducerManifest {
+            software: "fixture".to_owned(),
+            build: "fixture".to_owned(),
+            schema_version: 1,
+            config_hash: MessageField::some(hash('b')),
+            ..Default::default()
+        }
+    }
+
+    fn request_context(request_id: &str) -> common::RequestContext {
+        common::RequestContext {
+            schema_version: 1,
+            request_id: request_id.to_owned(),
+            trace_id: request_id.to_owned(),
+            corpus_id: "corpus:fixture".to_owned(),
+            deadline: MessageField::some(Timestamp {
+                seconds: 2_000_000_000,
+                ..Default::default()
+            }),
+            config_fingerprint: MessageField::some(hash('c')),
+            auth_scope_ref: "scope:fixture".to_owned(),
+            ..Default::default()
+        }
+    }
+
+    fn unknown_date() -> common::DateAssertion {
+        common::DateAssertion {
+            knowledge: EnumOrUnknown::new(common::DateKnowledge::DATE_KNOWLEDGE_UNKNOWN),
+            ..Default::default()
+        }
+    }
 }

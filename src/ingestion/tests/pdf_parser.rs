@@ -10,6 +10,7 @@ use regulagraph_ingestion::adapters::document_batches::load_document_batch;
 use regulagraph_ingestion::adapters::storage::{
     ArtifactDescriptor, ArtifactStore, ArtifactStoreConfig,
 };
+use regulagraph_ingestion::document::chunking::builder::TokenCounter;
 use regulagraph_ingestion::document::normalization::text::TextNormalizerConfig;
 use regulagraph_ingestion::document::parsing::pdf::{
     PdfDocumentStatus, PdfParseError, PdfParseRequest, PdfParser, PdfParserConfig,
@@ -23,6 +24,19 @@ use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
+
+struct FixtureTokenizer;
+
+impl TokenCounter for FixtureTokenizer {
+    fn tokenizer_id(&self) -> &str {
+        "test:fixture-words-v1"
+    }
+
+    fn count_tokens(&self, text: &str) -> Result<u32, String> {
+        u32::try_from(text.split_whitespace().count()).map_err(|error| error.to_string())
+    }
+}
 
 #[test]
 fn pdfium_boundary_parses_and_binds_real_inputs() {
@@ -131,7 +145,8 @@ fn pdfium_boundary_parses_and_binds_real_inputs() {
         .unwrap();
     let processor = ParseBatchProcessor::new(
         store,
-        parser,
+        Some(parser),
+        Arc::new(FixtureTokenizer),
         ParseBatchProcessorConfig {
             normalizer: TextNormalizerConfig::default(),
             document_batch: DocumentBatchConfig::default(),
