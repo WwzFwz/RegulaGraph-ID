@@ -286,3 +286,165 @@ fn valid_ascii_id(value: &str) -> bool {
             byte.is_ascii_alphanumeric() || matches!(byte, b':' | b'_' | b'-' | b'.' | b'/')
         })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::document::chunking::builder::{build_chunks, ChunkerConfig, TokenCounter};
+    use crate::document::chunking::structural::{
+        parse_structure, StructureIdentity, StructureParserConfig,
+    };
+    use crate::document::normalization::text::{normalize_text, TextNormalizerConfig};
+    use protobuf::Message;
+
+    struct Words;
+
+    impl TokenCounter for Words {
+        fn tokenizer_id(&self) -> &str {
+            "test:words-v1"
+        }
+
+        fn count_tokens(&self, text: &str) -> Result<u32, String> {
+            u32::try_from(text.split_whitespace().count()).map_err(|error| error.to_string())
+        }
+    }
+
+    fn fixture() -> (StructureTree, ChunkBatch) {
+        let normalized = normalize_text(
+            "BAB I\r\nPasal 1\r\n(1) Setiap warga wajib patuh.\r\na. membawa bukti.\r\n",
+            &TextNormalizerConfig::default(),
+        )
+        .expect("fixture normalizes");
+        let tree = parse_structure(
+            &normalized,
+            &StructureIdentity {
+                source_blob_id: "source:fixture".to_owned(),
+                text_artifact_id: "text:fixture".to_owned(),
+                provision_version_id: "version:fixture".to_owned(),
+            },
+            &StructureParserConfig::default(),
+        )
+        .expect("fixture structure parses");
+        let batch = build_chunks(&normalized, &tree, &ChunkerConfig::default(), &Words)
+            .expect("fixture chunks build");
+        (tree, batch)
+    }
+
+    #[test]
+    fn projects_ids_offsets_manifest_and_token_usage() {
+        let (tree, batch) = fixture();
+        let projection =
+            project_structure_and_chunks(&tree, &batch, &DocumentWireConfig::default())
+                .expect("wire projection succeeds");
+
+        assert_eq!(projection.structures.len(), tree.nodes.len());
+        assert_eq!(projection.chunks.len(), batch.chunks.len());
+        for (local, wire) in tree.nodes.iter().zip(&projection.structures) {
+            assert_eq!(wire.meta.record_id, local.id);
+            assert_eq!(wire.meta.corpus_id, "regulagraph-id");
+            assert_eq!(wire.parent_id, local.parent_id);
+            assert_eq!(wire.ordered_children, local.ordered_children);
+            assert_eq!(wire.source_spans.len(), 1);
+            assert_eq!(wire.source_spans[0].text_artifact_id, tree.text_artifact_id);
+            assert_eq!(
+                wire.source_spans[0].start_byte,
+                local.normalized_span.start as u64
+            );
+            assert_eq!(
+                wire.source_spans[0].end_byte,
+                local.normalized_span.end as u64
+            );
+        }
+        for (local, wire) in batch.chunks.iter().zip(&projection.chunks) {
+            assert_eq!(wire.meta.record_id, local.id);
+            assert_eq!(wire.provision_version_refs, local.provision_version_refs);
+            assert_eq!(wire.structure_node_refs, local.structure_node_refs);
+            assert_eq!(wire.parent_refs, local.parent_refs);
+            assert_eq!(
+                wire.text_span.start_byte,
+                local.text_span.normalized.start as u64
+            );
+            assert_eq!(
+                wire.text_span.end_byte,
+                local.text_span.normalized.end as u64
+            );
+            assert_eq!(wire.token_counts.len(), local.token_counts.len());
+            assert_eq!(
+                wire.chunker_manifest.config_hash.sha256,
+                batch.chunker_config_sha256
+            );
+            validate_wire(wire).expect("projected chunk passes C01 validator");
+        }
+    }
+
+    #[test]
+    fn protobuf_roundtrip_preserves_contract_fields() {
+        let (tree, batch) = fixture();
+        let projection =
+            project_structure_and_chunks(&tree, &batch, &DocumentWireConfig::default())
+                .expect("wire projection succeeds");
+        let chunk = &projection.chunks[0];
+
+        let encoded = chunk.write_to_bytes().expect("chunk serializes");
+        let decoded = documents::Chunk::parse_from_bytes(&encoded).expect("chunk decodes");
+
+        assert_eq!(decoded.meta.record_id, chunk.meta.record_id);
+        assert_eq!(decoded.text_span, chunk.text_span);
+        assert_eq!(decoded.structure_node_refs, chunk.structure_node_refs);
+        assert_eq!(decoded.parent_refs, chunk.parent_refs);
+        assert_eq!(decoded.token_counts, chunk.token_counts);
+        validate_wire(&decoded).expect("roundtripped chunk remains valid");
+    }
+
+    #[test]
+    fn rejects_cross_artifact_identity_and_unknown_structure_refs() {
+        let (tree, mut batch) = fixture();
+        batch.normalized_sha256 = "0".repeat(64);
+        assert_eq!(
+            project_structure_and_chunks(&tree, &batch, &DocumentWireConfig::default())
+                .unwrap_err(),
+            DocumentWireError::IdentityMismatch("normalized_sha256")
+        );
+
+        let (tree, mut batch) = fixture();
+        batch.chunks[0].source_blob_id = "source:other".to_owned();
+        assert_eq!(
+            project_structure_and_chunks(&tree, &batch, &DocumentWireConfig::default())
+                .unwrap_err(),
+            DocumentWireError::IdentityMismatch("source_blob_id")
+        );
+
+        let (tree, mut batch) = fixture();
+        batch.chunks[0].structure_node_refs = vec!["structure:missing".to_owned()];
+        assert_eq!(
+            project_structure_and_chunks(&tree, &batch, &DocumentWireConfig::default())
+                .unwrap_err(),
+            DocumentWireError::UnknownStructureReference("structure:missing".to_owned())
+        );
+    }
+
+    #[test]
+    fn enforces_projection_config_and_record_limit() {
+        let (tree, batch) = fixture();
+        let invalid = DocumentWireConfig {
+            corpus_id: "invalid corpus".to_owned(),
+            ..DocumentWireConfig::default()
+        };
+        assert_eq!(
+            project_structure_and_chunks(&tree, &batch, &invalid).unwrap_err(),
+            DocumentWireError::InvalidConfig("corpus_id")
+        );
+
+        let limited = DocumentWireConfig {
+            maximum_records: 1,
+            ..DocumentWireConfig::default()
+        };
+        assert_eq!(
+            project_structure_and_chunks(&tree, &batch, &limited).unwrap_err(),
+            DocumentWireError::RecordLimit {
+                actual: tree.nodes.len() + batch.chunks.len(),
+                maximum: 1
+            }
+        );
+    }
+}
