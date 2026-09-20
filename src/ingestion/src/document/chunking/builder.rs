@@ -35,6 +35,7 @@ use std::ops::Range;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ChunkerConfig {
     pub maximum_chunk_bytes: usize,
+    pub maximum_chunk_tokens: u32,
     pub minimum_split_bytes: usize,
     pub overlap_bytes: usize,
     pub maximum_chunks: usize,
@@ -45,6 +46,7 @@ impl Default for ChunkerConfig {
     fn default() -> Self {
         Self {
             maximum_chunk_bytes: 4_096,
+            maximum_chunk_tokens: 512,
             minimum_split_bytes: 1_024,
             overlap_bytes: 256,
             maximum_chunks: 2_000_000,
@@ -53,7 +55,7 @@ impl Default for ChunkerConfig {
     }
 }
 
-pub trait TokenCounter {
+pub trait TokenCounter: Send + Sync {
     fn tokenizer_id(&self) -> &str;
     fn count_tokens(&self, text: &str) -> Result<u32, String>;
 }
@@ -115,7 +117,7 @@ impl Display for ChunkBuildError {
 
 impl Error for ChunkBuildError {}
 
-pub fn build_chunks<T: TokenCounter>(
+pub fn build_chunks<T: TokenCounter + ?Sized>(
     normalized: &NormalizedText,
     tree: &StructureTree,
     provision_version_id: &str,
@@ -135,14 +137,38 @@ pub fn build_chunks<T: TokenCounter>(
 
 /// Builds chunks with one registry-owned provision version per structure node. Exact coverage is
 /// required so preambles and container text cannot silently inherit an unrelated article version.
-pub fn build_bound_chunks<T: TokenCounter>(
+pub fn build_bound_chunks<T: TokenCounter + ?Sized>(
     normalized: &NormalizedText,
     tree: &StructureTree,
     provision_versions: &HashMap<String, String>,
     config: &ChunkerConfig,
     tokenizer: &T,
 ) -> Result<ChunkBatch, ChunkBuildError> {
+    build_bound_chunks_bounded(
+        normalized,
+        tree,
+        provision_versions,
+        config,
+        config.maximum_chunks,
+        tokenizer,
+    )
+}
+
+/// Applies an execution-only output budget without changing the chunker fingerprint or stable IDs.
+/// A caller combining several text artifacts can therefore fail before allocating beyond its
+/// remaining batch capacity while producing byte-identical chunks whenever the budget is sufficient.
+pub fn build_bound_chunks_bounded<T: TokenCounter + ?Sized>(
+    normalized: &NormalizedText,
+    tree: &StructureTree,
+    provision_versions: &HashMap<String, String>,
+    config: &ChunkerConfig,
+    maximum_output_chunks: usize,
+    tokenizer: &T,
+) -> Result<ChunkBatch, ChunkBuildError> {
     validate_config(config)?;
+    if maximum_output_chunks == 0 {
+        return Err(ChunkBuildError::ChunkLimit { maximum: 0 });
+    }
     if !valid_ascii_id(tokenizer.tokenizer_id()) {
         return Err(ChunkBuildError::InvalidTokenizerId);
     }
@@ -177,30 +203,32 @@ pub fn build_bound_chunks<T: TokenCounter>(
         }
     }
     let mut chunks = Vec::new();
+    let effective_maximum = config.maximum_chunks.min(maximum_output_chunks);
 
     for node in &tree.nodes {
         let provision_version_id = provision_versions
             .get(&node.id)
             .expect("binding coverage was validated before chunking");
         for owned_span in owned_text_spans(node, &structure_nodes, &normalized.text)? {
-            let remaining = config.maximum_chunks.saturating_sub(chunks.len());
-            for split in split_span(&normalized.text, owned_span, config, remaining)? {
-                let text = &normalized.text[split.clone()];
-                let tokens = tokenizer
-                    .count_tokens(text)
-                    .map_err(ChunkBuildError::Tokenization)?;
-                if tokens == 0 {
-                    return Err(ChunkBuildError::EmptyTokenCount);
-                }
+            let remaining = effective_maximum.saturating_sub(chunks.len());
+            for split in split_span(
+                &normalized.text,
+                owned_span,
+                config,
+                remaining,
+                effective_maximum,
+                tokenizer,
+            )? {
+                let text = &normalized.text[split.span.clone()];
                 let raw = normalized
-                    .raw_cover(split.clone())
+                    .raw_cover(split.span.clone())
                     .map_err(ChunkBuildError::SourceMapping)?;
                 let id = stable_chunk_id(
                     &tree.text_artifact_id,
                     provision_version_id,
                     &node.id,
                     &config_sha256,
-                    &split,
+                    &split.span,
                 );
                 let mut chunk = ChunkView {
                     schema_version: CHUNK_SCHEMA_VERSION,
@@ -212,14 +240,14 @@ pub fn build_bound_chunks<T: TokenCounter>(
                     parent_refs: Vec::new(),
                     exception_refs: Vec::new(),
                     text_span: SourceMappedSpan {
-                        normalized: split,
+                        normalized: split.span,
                         raw,
                     },
                     text_sha256: text_sha256(text),
                     chunker_config_sha256: config_sha256.clone(),
                     token_counts: vec![TokenCount {
                         tokenizer_id: tokenizer.tokenizer_id().to_owned(),
-                        tokens,
+                        tokens: split.tokens,
                     }],
                 };
                 parent_index
@@ -284,30 +312,128 @@ fn push_trimmed_span(text: &str, span: Range<usize>, output: &mut Vec<Range<usiz
     }
 }
 
-fn split_span(
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct TokenizedSpan {
+    span: Range<usize>,
+    tokens: u32,
+}
+
+fn split_span<T: TokenCounter + ?Sized>(
     text: &str,
     span: Range<usize>,
     config: &ChunkerConfig,
     maximum_output: usize,
-) -> Result<Vec<Range<usize>>, ChunkBuildError> {
+    reported_maximum: usize,
+    tokenizer: &T,
+) -> Result<Vec<TokenizedSpan>, ChunkBuildError> {
     let mut output = Vec::new();
     let mut start = span.start;
-    while span.end - start > config.maximum_chunk_bytes {
-        enforce_split_capacity(output.len(), maximum_output, config.maximum_chunks)?;
-        let hard_end = previous_char_boundary(text, start + config.maximum_chunk_bytes);
-        let minimum_end =
-            next_char_boundary(text, start + config.minimum_split_bytes).min(hard_end);
-        let end = preferred_break(text, minimum_end, hard_end).unwrap_or(hard_end);
-        output.push(start..end);
+    while start < span.end {
+        enforce_split_capacity(output.len(), maximum_output, reported_maximum)?;
+        let byte_end = previous_char_boundary(
+            text,
+            start
+                .checked_add(config.maximum_chunk_bytes)
+                .unwrap_or(usize::MAX)
+                .min(span.end),
+        );
+        let (token_end, token_count) = fit_token_limit(
+            text,
+            start,
+            byte_end,
+            config.maximum_chunk_tokens,
+            tokenizer,
+        )?;
+        let split_required = token_end < span.end;
+        let minimum_end = next_char_boundary(
+            text,
+            start
+                .checked_add(config.minimum_split_bytes)
+                .unwrap_or(usize::MAX)
+                .min(token_end),
+        )
+        .min(token_end);
+        let preferred = if split_required && minimum_end < token_end {
+            preferred_break(text, minimum_end, token_end)
+        } else {
+            None
+        };
+        let end = preferred.unwrap_or(token_end);
+        let tokens = if end == token_end {
+            token_count
+        } else {
+            count_nonempty_tokens(tokenizer, &text[start..end])?
+        };
+        if tokens > config.maximum_chunk_tokens {
+            return Err(ChunkBuildError::Tokenization(
+                "tokenizer prefix count is not stable under a shorter split".to_owned(),
+            ));
+        }
+        output.push(TokenizedSpan {
+            span: start..end,
+            tokens,
+        });
+        if end == span.end {
+            break;
+        }
         let overlap_target = end.saturating_sub(config.overlap_bytes).max(start + 1);
         let next = next_word_boundary(text, overlap_target, end);
         start = if next >= end { end } else { next };
     }
-    if start < span.end {
-        enforce_split_capacity(output.len(), maximum_output, config.maximum_chunks)?;
-        output.push(start..span.end);
-    }
     Ok(output)
+}
+
+fn fit_token_limit<T: TokenCounter + ?Sized>(
+    text: &str,
+    start: usize,
+    mut end: usize,
+    maximum_tokens: u32,
+    tokenizer: &T,
+) -> Result<(usize, u32), ChunkBuildError> {
+    loop {
+        if end <= start {
+            return Err(ChunkBuildError::Tokenization(
+                "token limit cannot fit one UTF-8 scalar".to_owned(),
+            ));
+        }
+        let count = count_nonempty_tokens(tokenizer, &text[start..end])?;
+        if count <= maximum_tokens {
+            return Ok((end, count));
+        }
+        let width = end - start;
+        let scaled = width
+            .saturating_mul(maximum_tokens as usize)
+            .checked_div(count as usize)
+            .unwrap_or(0);
+        let proposed = start.saturating_add(scaled.max(1)).min(end - 1);
+        let next_end = previous_char_boundary(text, proposed);
+        end = if next_end > start {
+            next_end
+        } else {
+            text[start..end]
+                .char_indices()
+                .nth(1)
+                .map(|(offset, _)| start + offset)
+                .ok_or_else(|| {
+                    ChunkBuildError::Tokenization(
+                        "one UTF-8 scalar exceeds maximum_chunk_tokens".to_owned(),
+                    )
+                })?
+        };
+    }
+}
+
+fn count_nonempty_tokens<T: TokenCounter + ?Sized>(
+    tokenizer: &T,
+    text: &str,
+) -> Result<u32, ChunkBuildError> {
+    let tokens = tokenizer
+        .count_tokens(text)
+        .map_err(ChunkBuildError::Tokenization)?;
+    if tokens == 0 {
+        return Err(ChunkBuildError::EmptyTokenCount);
+    }
+    Ok(tokens)
 }
 
 fn enforce_split_capacity(
@@ -381,6 +507,9 @@ fn validate_config(config: &ChunkerConfig) -> Result<(), ChunkBuildError> {
     if config.maximum_chunk_bytes < 64 {
         return Err(ChunkBuildError::InvalidConfig("maximum_chunk_bytes"));
     }
+    if config.maximum_chunk_tokens == 0 {
+        return Err(ChunkBuildError::InvalidConfig("maximum_chunk_tokens"));
+    }
     if config.minimum_split_bytes == 0 || config.minimum_split_bytes > config.maximum_chunk_bytes {
         return Err(ChunkBuildError::InvalidConfig("minimum_split_bytes"));
     }
@@ -398,8 +527,9 @@ fn validate_config(config: &ChunkerConfig) -> Result<(), ChunkBuildError> {
 
 fn config_fingerprint(config: &ChunkerConfig, tokenizer_id: &str) -> String {
     let canonical = format!(
-        "chunker-v1\nmaximum_chunk_bytes={}\nminimum_split_bytes={}\noverlap_bytes={}\nmaximum_chunks={}\nmaximum_parent_depth={}\ntokenizer_id={tokenizer_id}\n",
+        "chunker-v2\nmaximum_chunk_bytes={}\nmaximum_chunk_tokens={}\nminimum_split_bytes={}\noverlap_bytes={}\nmaximum_chunks={}\nmaximum_parent_depth={}\ntokenizer_id={tokenizer_id}\n",
         config.maximum_chunk_bytes,
+        config.maximum_chunk_tokens,
         config.minimum_split_bytes,
         config.overlap_bytes,
         config.maximum_chunks,
@@ -446,7 +576,7 @@ mod tests {
         parse_structure, StructureIdentity, StructureParserConfig,
     };
     use crate::document::normalization::text::{normalize_text, TextNormalizerConfig};
-    use std::cell::Cell;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     struct Words;
 
@@ -461,7 +591,7 @@ mod tests {
     }
 
     struct CountingWords {
-        calls: Cell<usize>,
+        calls: AtomicUsize,
     }
 
     impl TokenCounter for CountingWords {
@@ -470,7 +600,7 @@ mod tests {
         }
 
         fn count_tokens(&self, text: &str) -> Result<u32, String> {
-            self.calls.set(self.calls.get() + 1);
+            self.calls.fetch_add(1, Ordering::Relaxed);
             u32::try_from(text.split_whitespace().count()).map_err(|error| error.to_string())
         }
     }
@@ -514,6 +644,7 @@ mod tests {
     fn small_config() -> ChunkerConfig {
         ChunkerConfig {
             maximum_chunk_bytes: 96,
+            maximum_chunk_tokens: 512,
             minimum_split_bytes: 40,
             overlap_bytes: 16,
             maximum_chunks: 100,
@@ -591,18 +722,46 @@ mod tests {
         let mut missing = bindings.clone();
         missing.remove(&tree.root().id);
         let counting = CountingWords {
-            calls: Cell::new(0),
+            calls: AtomicUsize::new(0),
         };
         assert!(matches!(
             build_bound_chunks(&normalized, &tree, &missing, &small_config(), &counting),
             Err(ChunkBuildError::MissingProvisionVersion(_))
         ));
-        assert_eq!(counting.calls.get(), 0);
+        assert_eq!(counting.calls.load(Ordering::Relaxed), 0);
         let mut unknown = bindings;
         unknown.insert("structure:unknown".to_owned(), "version:unknown".to_owned());
         assert!(matches!(
             build_bound_chunks(&normalized, &tree, &unknown, &small_config(), &Words),
             Err(ChunkBuildError::UnknownProvisionBinding(_))
+        ));
+    }
+
+    #[test]
+    fn execution_budget_fails_bounded_without_changing_successful_chunk_identity() {
+        let body = "ketentuan panjang untuk menguji batas eksekusi. ".repeat(30);
+        let (normalized, tree) = fixture(&format!("Pasal 1\n(1) {body}\n"));
+        let bindings: HashMap<String, String> = tree
+            .nodes
+            .iter()
+            .map(|node| (node.id.clone(), "version:fixture".to_owned()))
+            .collect();
+        let config = small_config();
+        let ordinary = build_bound_chunks(&normalized, &tree, &bindings, &config, &Words)
+            .expect("ordinary chunk build");
+        let bounded = build_bound_chunks_bounded(
+            &normalized,
+            &tree,
+            &bindings,
+            &config,
+            ordinary.chunks.len(),
+            &Words,
+        )
+        .expect("sufficient execution budget");
+        assert_eq!(ordinary, bounded);
+        assert!(matches!(
+            build_bound_chunks_bounded(&normalized, &tree, &bindings, &config, 1, &Words),
+            Err(ChunkBuildError::ChunkLimit { maximum: 1 })
         ));
     }
 
@@ -765,19 +924,21 @@ mod tests {
         let text = format!("{}§{}", "a".repeat(63), "b".repeat(80));
         let config = ChunkerConfig {
             maximum_chunk_bytes: 64,
+            maximum_chunk_tokens: 512,
             minimum_split_bytes: 64,
             overlap_bytes: 8,
             maximum_chunks: 10,
             maximum_parent_depth: 4,
         };
 
-        let spans = split_span(&text, 0..text.len(), &config, 10).expect("bounded split succeeds");
+        let spans = split_span(&text, 0..text.len(), &config, 10, 10, &Words)
+            .expect("bounded split succeeds");
 
         assert!(spans.len() >= 2);
         assert!(spans.iter().all(|span| {
-            text.is_char_boundary(span.start)
-                && text.is_char_boundary(span.end)
-                && span.end - span.start <= config.maximum_chunk_bytes
+            text.is_char_boundary(span.span.start)
+                && text.is_char_boundary(span.span.end)
+                && span.span.end - span.span.start <= config.maximum_chunk_bytes
         }));
     }
 
@@ -786,17 +947,19 @@ mod tests {
         let text = format!("{}\u{000C}{}", "a".repeat(50), "b".repeat(80));
         let config = ChunkerConfig {
             maximum_chunk_bytes: 64,
+            maximum_chunk_tokens: 512,
             minimum_split_bytes: 32,
             overlap_bytes: 0,
             maximum_chunks: 10,
             maximum_parent_depth: 4,
         };
 
-        let spans = split_span(&text, 0..text.len(), &config, 10).expect("bounded split succeeds");
+        let spans = split_span(&text, 0..text.len(), &config, 10, 10, &Words)
+            .expect("bounded split succeeds");
 
-        assert_eq!(spans[0].end, 51);
+        assert_eq!(spans[0].span.end, 51);
         assert_eq!(
-            &text[spans[0].clone()],
+            &text[spans[0].span.clone()],
             format!("{}\u{000C}", "a".repeat(50))
         );
     }
@@ -806,6 +969,7 @@ mod tests {
         let text = "kata ".repeat(10_000);
         let config = ChunkerConfig {
             maximum_chunk_bytes: 64,
+            maximum_chunk_tokens: 512,
             minimum_split_bytes: 32,
             overlap_bytes: 8,
             maximum_chunks: 2,
@@ -813,7 +977,7 @@ mod tests {
         };
 
         assert_eq!(
-            split_span(&text, 0..text.len(), &config, 2),
+            split_span(&text, 0..text.len(), &config, 2, 2, &Words),
             Err(ChunkBuildError::ChunkLimit { maximum: 2 })
         );
     }

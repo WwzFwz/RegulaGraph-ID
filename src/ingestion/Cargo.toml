@@ -20,8 +20,12 @@ protobuf = "=3.7.2"
 sha2 = "=0.10.9"
 tokio = { version = "=1.47.1", features = ["macros", "rt-multi-thread", "signal", "sync", "time"] }
 tonic = "=0.13.1"
+tokenizers = { version = "=0.21.4", default-features = false, features = ["fancy-regex"] }
 
 [build-dependencies]
 protoc-bin-vendored = "=3.2.0"
 protobuf-codegen = "=3.7.2"
 tonic-build = "=0.13.1"
+
+[dev-dependencies]
+ahash = "=0.8.12"
