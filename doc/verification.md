@@ -10,7 +10,7 @@ Gunakan [verifikasi kontrak](verification-contracts.md) untuk boundary data, [ve
 
 ## Kapan agent verifikasi bekerja
 
-Setiap paket perubahan perilaku, schema, storage, inference, atau evaluasi harus mendapat review agent terpisah setelah implementasi dan pemeriksaan awal, sebelum dinyatakan selesai. Untuk dokumentasi substantif, verifikasi konsistensi keputusan, status implementasi, dan tautan; tidak perlu menjalankan ulang seluruh benchmark. Koreksi ejaan kecil cukup diperiksa secara proporsional.
+Agent terpisah bekerja pada milestone atau boundary kritis setelah satu paket perubahan koheren selesai diuji implementer. Boundary kritis mencakup schema/kontrak lintas bahasa, integritas data dan provenance, storage/publication/recovery, security, versioning atau entity resolution hukum, pemilihan model dan evaluasi kualitas, integrasi retrieval-answer, serta acceptance benchmark/release. Perubahan rutin berisiko rendah—helper lokal, refactor tanpa perubahan kontrak, dokumentasi status, dan koreksi kecil—cukup diperiksa implementer secara proporsional dan digabung ke audit milestone berikutnya. Kebijakan berbasis risiko ini mencegah reviewer membaca ulang konteks yang sama pada setiap commit tanpa mengurangi gate pada bagian yang dapat merusak correctness, akurasi, atau performa sistem.
 
 Implementer tetap bertanggung jawab menjalankan tes dan memperbaiki temuan. Agent verifikasi membaca kode/desain/bukti secara independen; ia tidak menerima klaim implementer sebagai bukti. Mulai dalam mode read-only agar temuan dan perbaikannya dapat ditelusuri. Reviewer bukan pengganti penilaian manusia untuk gold label/keberlakuan hukum. Jika fasilitas agent terpisah tidak tersedia, lakukan review manual terstruktur, nyatakan keterbatasan independensinya, dan tandai review independen sebagai pekerjaan belum terverifikasi; jangan mengarang approval.
 
@@ -18,7 +18,7 @@ Implementer tetap bertanggung jawab menjalankan tes dan memperbaiki temuan. Agen
 
 1. Tetapkan paket, use case, file, kontrak, dependensi, dan expected behavior sebelum coding. Tuliskan input valid/tidak valid, output yang diharapkan, efek samping, serta cara membuktikan kegagalan ditangani.
 2. Implementer menyelesaikan perubahan dan menjalankan pemeriksaan yang sesuai. Simpan raw output, versi lingkungan, dan hasil aktual; jangan hanya menyimpan kalimat “tes lulus”.
-3. Agent verifikasi meninjau diff final, spesifikasi, serta bukti; jalankan ulang pemeriksaan berisiko tinggi atau susun kasus tandingan bila perlu. Bedakan bug paket sekarang dari pekerjaan paket mendatang.
+3. Pada boundary/milestone kritis, agent verifikasi meninjau diff final gabungan, spesifikasi, serta bukti; jalankan ulang pemeriksaan berisiko tinggi atau susun kasus tandingan bila perlu. Pada perubahan rutin, implementer mencatat pemeriksaan untuk dibawa ke audit milestone berikutnya. Bedakan bug paket sekarang dari pekerjaan paket mendatang.
 4. Implementer memperbaiki bug, menambahkan regression test yang bermakna, dan menguji ulang bagian terdampak. Agent memeriksa penyelesaian temuan; jangan mengubah status temuan tanpa bukti.
 5. Simpan laporan akhir yang merujuk revision/fingerprint kode dan perintah aktual. Perubahan setelah laporan memerlukan verifikasi ulang pada bagian yang berubah.
 
