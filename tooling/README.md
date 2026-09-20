@@ -14,7 +14,7 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
-Subfolder: [models/](models/README.md).
+Subfolder: [models/](models/README.md), [corpus/](corpus/README.md).
 
 Berkas: [__init__.py](__init__.py).
 
@@ -26,4 +26,4 @@ Ikuti [kebijakan benchmark](../doc/benchmark-policy.md). Angka wajib mengikuti [
 
 ## Status
 
-Status lintas repositori: collector PDF dan kontrak/validator C01 sudah tersedia; lihat [cakupan implementasi C01](../doc/contracts-implementation.md). Pipeline parsing/graph/retrieval, adapter storage, layanan model dan evaluator benchmark masih belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
+Collector/audit D01, kontrak C01, evaluator E01, serta control-plane S01 tersedia. Profiler corpus baseline M01 aktif di tooling/corpus; pemilihan parser/OCR/model native dan benchmark produksi belum selesai. Status anak dijelaskan pada header masing-masing; heuristic profile tidak membuktikan kualitas parsing atau target latency.
