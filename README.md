@@ -2,7 +2,7 @@
 
 Repositori ini menampung pengembangan Hybrid GraphRAG untuk regulasi Indonesia dengan pemisahan runtime berdasarkan latency dan throughput. README ini menjadi peta fungsi, pemilik komponen, dan cara memeriksa struktur build.
 
-**Status: collector PDF, kontrak/validator C01, dan evaluator offline E01 tersedia; pipeline GraphRAG dan layanan inference belum aktif.** Go/Rust/C++ memegang runtime produk; Python untuk evaluasi/tooling offline. E01 menolak false PASS melalui eligibility, raw evidence, dan telemetry validation, tetapi belum ada target benchmark atau SLA yang diklaim tercapai. Mulai kelanjutan dari [panduan implementasi](doc/implementation-guide.md), [runner evaluasi](doc/evaluation-runner.md), dan [protokol verifikasi](doc/verification.md).
+**Status: collector PDF, kontrak/validator C01, evaluator offline E01, dan fondasi storage/publication S01 tersedia; pipeline GraphRAG dan layanan inference belum aktif.** Go/Rust/C++ memegang runtime produk; Python untuk evaluasi/tooling offline. S01 menyediakan job/lease/fence/checkpoint durable, metadata artefak immutable, publication ledger, active-snapshot CAS, dan read pin pada PostgreSQL; adapter backend Qdrant/Neo4j serta benchmark produksi masih belum aktif. E01 menolak false PASS melalui eligibility, raw evidence, dan telemetry validation, tetapi belum ada target benchmark atau SLA yang diklaim tercapai. Mulai kelanjutan dari [panduan implementasi](doc/implementation-guide.md), [runner evaluasi](doc/evaluation-runner.md), dan [protokol verifikasi](doc/verification.md).
 
 ## Struktur dan cakupan
 
