@@ -9,7 +9,7 @@
 //! Benchmark dan gate penerimaan:
 //! Ukur p50/p95/p99, throughput, waktu antre, serta RSS/VRAM sesuai workload. Ambang wajib ada di configs/benchmark-targets.yaml (REQUIRED_UNMEASURED); ukur cold/warm terpisah dan pertahankan kualitas sumber/versi.
 //!
-//! Status: boundary parser PDFium I01 aktif sebagai library; worker batch dan modul pipeline lain masih scaffold.
+//! Status: parser PDFium dan normalizer teks I01 aktif sebagai library; worker batch dan modul lain masih scaffold.
 
 pub mod adapters;
 pub mod document;

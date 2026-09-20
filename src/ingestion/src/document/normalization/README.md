@@ -24,7 +24,7 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. Pipeline parsing/graph/retrieval, mutasi backend, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan target kualitas atau latency.
+[text.rs](text.rs) menyediakan normalisasi line ending, whitespace horizontal, ligature Unicode, dan soft hyphen dengan mapping byte raw-normalized yang lengkap, hash/fingerprint, limit input/mapping, canonical replay, serta proyeksi span normalized ke raw. Dehyphenation lintas baris dan penghapusan header/footer belum aktif karena memerlukan gold agar tidak mengubah istilah atau struktur hukum. Mapping artefak wire, integrasi worker, benchmark 100 MiB, dan acceptance produksi belum aktif.
 
 ## Rekomendasi implementasi anak
 
@@ -32,4 +32,4 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
-| [text.rs](text.rs) | Normalize mechanical OCR/layout artifacts with an auditable raw-to-normalized UTF-8 span mapping. | Test ligatures, line hyphens, deleted headers and many-to-one mapping; never erase negation, units or years. |
+| [text.rs](text.rs) | Integrasikan mapping aktif ke artefak C01; evaluasi dehyphenation dan header/footer hanya dengan gold serta policy versioned. | Uji locator end-to-end dari chunk ke raw PDF, critical token, adversarial layout, throughput 100 MiB, dan peak RSS. |

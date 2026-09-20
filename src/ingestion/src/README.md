@@ -26,4 +26,4 @@ Ikuti [kebijakan benchmark](../../../doc/benchmark-policy.md). Angka wajib mengi
 
 ## Status
 
-Modul `document::parsing::pdf` telah menjadi boundary parser PDFium I01 aktif di library. Modul Rust lain masih scaffold sampai normalisasi, chunking, versioning, knowledge graph, indexing, adapter, dan worker batch diimplementasikan. Build dan fixture native parser tidak membuktikan target kualitas corpus atau latency produksi.
+Modul `document::parsing::pdf` dan `document::normalization::text` telah aktif di library I01. Modul Rust lain masih scaffold sampai struktur hukum, chunking, versioning, knowledge graph, indexing, adapter, dan worker batch diimplementasikan. Build serta fixture parser/normalizer tidak membuktikan target kualitas corpus atau latency produksi.

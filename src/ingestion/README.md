@@ -26,7 +26,7 @@ Ikuti [kebijakan benchmark](../../doc/benchmark-policy.md). Angka wajib mengikut
 
 ## Status
 
-Boundary parser PDFium I01 sudah aktif sebagai library dengan verifikasi hash input/library, teks dan locator per halaman, status kebutuhan OCR, serta manifest producer lokal. Executable worker, normalisasi, chunking, graph/index batch, OCR, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture native tidak membuktikan target kualitas atau latency.
+Boundary parser PDFium dan normalizer teks konservatif I01 sudah aktif sebagai library. Parser memverifikasi hash input/library serta menghasilkan teks dan locator per halaman; normalizer menjaga mapping byte raw-normalized dan menolak hasil/config yang tidak canonical. Executable worker, struktur hukum, chunking, graph/index batch, OCR, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
 
 ## Penambahan C01 dan panduan verifikasi
 
