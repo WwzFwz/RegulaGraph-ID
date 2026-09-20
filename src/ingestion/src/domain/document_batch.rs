@@ -822,3 +822,391 @@ fn valid_ascii_id(value: &str) -> bool {
             byte.is_ascii_alphanumeric() || matches!(byte, b':' | b'_' | b'-' | b'.' | b'/')
         })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use protobuf::well_known_types::timestamp::Timestamp;
+    use protobuf::Message;
+
+    const CORPUS: &str = "regulagraph-id";
+
+    fn hash(character: char) -> String {
+        character.to_string().repeat(64)
+    }
+
+    fn content_hash(character: char) -> common::ContentHash {
+        common::ContentHash {
+            sha256: hash(character),
+            ..Default::default()
+        }
+    }
+
+    fn artifact_ref(id: &str, character: char, media_type: &str, size: u64) -> common::ArtifactRef {
+        let hash = hash(character);
+        common::ArtifactRef {
+            artifact_id: id.to_owned(),
+            content_hash: MessageField::some(content_hash(character)),
+            storage_key: format!("sha256/{}/{}/{}.bin", &hash[..2], &hash[2..4], hash),
+            media_type: media_type.to_owned(),
+            byte_size: size,
+            schema_version: 1,
+            ..Default::default()
+        }
+    }
+
+    fn producer() -> common::ProducerManifest {
+        common::ProducerManifest {
+            software: "regulagraph-ingestion".to_owned(),
+            build: "test-build".to_owned(),
+            schema_version: 1,
+            config_hash: MessageField::some(content_hash('a')),
+            ..Default::default()
+        }
+    }
+
+    fn context() -> common::RequestContext {
+        common::RequestContext {
+            schema_version: 1,
+            request_id: "request:fixture".to_owned(),
+            trace_id: "trace:fixture".to_owned(),
+            corpus_id: CORPUS.to_owned(),
+            deadline: MessageField::some(Timestamp {
+                seconds: 1_900_000_000,
+                nanos: 0,
+                ..Default::default()
+            }),
+            config_fingerprint: MessageField::some(content_hash('b')),
+            auth_scope_ref: "scope:ingestion".to_owned(),
+            ..Default::default()
+        }
+    }
+
+    fn meta(id: &str) -> common::RecordMeta {
+        record_meta(CORPUS, id)
+    }
+
+    fn unknown_date() -> common::DateAssertion {
+        common::DateAssertion {
+            knowledge: EnumOrUnknown::new(common::DateKnowledge::DATE_KNOWLEDGE_UNKNOWN),
+            ..Default::default()
+        }
+    }
+
+    fn fixture() -> DocumentBatchParts {
+        let source_artifact = artifact_ref("artifact:source:fixture", 'c', "application/pdf", 1024);
+        let source = build_source_blob(CORPUS, "source-blob:fixture", source_artifact).unwrap();
+        let raw_ref = artifact_ref("artifact:raw:fixture", 'd', "text/plain;charset=utf-8", 32);
+        let normalized_ref = artifact_ref(
+            "artifact:normalized:fixture",
+            'e',
+            "text/plain;charset=utf-8",
+            31,
+        );
+        let mapping_ref = artifact_ref(
+            "artifact:mapping:fixture",
+            'f',
+            "application/vnd.regulagraph.text-mapping+protobuf",
+            128,
+        );
+        let text_artifact = documents::TextArtifact {
+            meta: MessageField::some(meta("text:fixture")),
+            source_blob_id: "source-blob:fixture".to_owned(),
+            parser_manifest: MessageField::some(producer()),
+            raw_text_ref: MessageField::some(raw_ref),
+            normalized_text_ref: MessageField::some(normalized_ref.clone()),
+            mapping_ref: MessageField::some(mapping_ref),
+            page_results: vec![documents::PageResult {
+                page_number: 1,
+                status: EnumOrUnknown::new(common::CompletionStatus::COMPLETION_STATUS_SUCCEEDED),
+                spans: vec![common::TextSpan {
+                    text_artifact_id: "text:fixture".to_owned(),
+                    start_byte: 0,
+                    end_byte: 31,
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let structure = documents::StructureNode {
+            meta: MessageField::some(meta("structure:root")),
+            kind: EnumOrUnknown::new(documents::StructureKind::STRUCTURE_KIND_DOCUMENT),
+            source_spans: vec![common::TextSpan {
+                text_artifact_id: "text:fixture".to_owned(),
+                start_byte: 0,
+                end_byte: 31,
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let regulation = documents::Regulation {
+            meta: MessageField::some(meta("regulation:fixture")),
+            kind: "peraturan".to_owned(),
+            issuer_id: "entity:issuer".to_owned(),
+            jurisdiction: "ID".to_owned(),
+            official_number: "1".to_owned(),
+            year: 2026,
+            title: "Peraturan Fixture".to_owned(),
+            identity_status: EnumOrUnknown::new(
+                documents::IdentityStatus::IDENTITY_STATUS_VERIFIED,
+            ),
+            ..Default::default()
+        };
+        let provision = documents::Provision {
+            meta: MessageField::some(meta("provision:fixture")),
+            regulation_id: "regulation:fixture".to_owned(),
+            structural_path: vec!["Pasal 1".to_owned()],
+            ..Default::default()
+        };
+        let version = documents::ProvisionVersion {
+            meta: MessageField::some(meta("version:fixture")),
+            provision_id: "provision:fixture".to_owned(),
+            text_ref: MessageField::some(normalized_ref),
+            spans: vec![common::TextSpan {
+                text_artifact_id: "text:fixture".to_owned(),
+                start_byte: 0,
+                end_byte: 31,
+                ..Default::default()
+            }],
+            legal_interval: MessageField::some(common::LegalInterval {
+                start: MessageField::some(unknown_date()),
+                end: MessageField::some(unknown_date()),
+                ..Default::default()
+            }),
+            legal_status: EnumOrUnknown::new(documents::LegalStatus::LEGAL_STATUS_UNKNOWN),
+            review_state: EnumOrUnknown::new(common::ReviewState::REVIEW_STATE_UNREVIEWED),
+            ..Default::default()
+        };
+        let chunk = documents::Chunk {
+            meta: MessageField::some(meta("chunk:fixture")),
+            provision_version_refs: vec!["version:fixture".to_owned()],
+            text_span: MessageField::some(common::TextSpan {
+                text_artifact_id: "text:fixture".to_owned(),
+                start_byte: 0,
+                end_byte: 31,
+                ..Default::default()
+            }),
+            structure_node_refs: vec!["structure:root".to_owned()],
+            chunker_manifest: MessageField::some(producer()),
+            ..Default::default()
+        };
+        DocumentBatchParts {
+            batch_id: "document-batch:fixture".to_owned(),
+            context: context(),
+            sources: vec![source],
+            text_artifacts: vec![text_artifact],
+            structures: vec![structure],
+            provisions: vec![provision],
+            versions: vec![version],
+            chunks: vec![chunk],
+            dependency_manifest: common::DependencyManifest {
+                artifact_id: "dependency-manifest:fixture".to_owned(),
+                dependencies: vec![common::Dependency {
+                    dependency_id: "entity:issuer".to_owned(),
+                    fingerprint: MessageField::some(content_hash('9')),
+                    ..Default::default()
+                }],
+                producer_manifest: MessageField::some(producer()),
+                ..Default::default()
+            },
+            regulations: vec![regulation],
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn assembles_complete_batch_and_roundtrips() {
+        let batch = assemble_document_batch(fixture(), &DocumentBatchConfig::default())
+            .expect("complete batch assembles");
+
+        assert_eq!(batch.meta.record_id, "document-batch:fixture");
+        assert_eq!(batch.context.corpus_id, CORPUS);
+        assert_eq!(
+            batch.completeness.value(),
+            common::Completeness::COMPLETENESS_COMPLETE as i32
+        );
+        assert!(batch.issues.is_empty());
+        assert_eq!(batch.sources.len(), 1);
+        assert_eq!(batch.text_artifacts.len(), 1);
+        assert_eq!(batch.chunks.len(), 1);
+
+        let bytes = batch.write_to_bytes().expect("batch serializes");
+        let decoded = documents::DocumentBatch::parse_from_bytes(&bytes).unwrap();
+        assert_eq!(decoded, batch);
+        validate_wire(&decoded).expect("roundtrip remains valid");
+    }
+
+    #[test]
+    fn derives_partial_and_none_without_hiding_failed_pages() {
+        let mut parts = fixture();
+        let page = &mut parts.text_artifacts[0].page_results[0];
+        page.status = EnumOrUnknown::new(common::CompletionStatus::COMPLETION_STATUS_FAILED);
+        page.errors.push(common::OperationError {
+            code: EnumOrUnknown::new(common::ErrorCode::ERROR_CODE_NOT_IMPLEMENTED),
+            safe_message: "page requires OCR".to_owned(),
+            stage: "pdf_text_extraction".to_owned(),
+            retryable: true,
+            item_id: Some("page:1".to_owned()),
+            ..Default::default()
+        });
+
+        let partial =
+            assemble_document_batch(parts.clone(), &DocumentBatchConfig::default()).unwrap();
+        assert_eq!(
+            partial.completeness.value(),
+            common::Completeness::COMPLETENESS_PARTIAL as i32
+        );
+        assert_eq!(partial.issues.len(), 1);
+        assert_eq!(partial.issues[0].code, "PAGE_EXTRACTION_INCOMPLETE");
+
+        parts.chunks.clear();
+        let none = assemble_document_batch(parts, &DocumentBatchConfig::default()).unwrap();
+        assert_eq!(
+            none.completeness.value(),
+            common::Completeness::COMPLETENESS_NONE as i32
+        );
+    }
+
+    #[test]
+    fn rejects_missing_duplicate_and_cross_corpus_records() {
+        let mut parts = fixture();
+        parts.chunks[0].provision_version_refs = vec!["version:missing".to_owned()];
+        assert_eq!(
+            assemble_document_batch(parts, &DocumentBatchConfig::default()).unwrap_err(),
+            DocumentBatchError::MissingReference {
+                field: "chunk.provision_version_refs",
+                id: "version:missing".to_owned()
+            }
+        );
+
+        let mut parts = fixture();
+        parts.chunks[0].meta = MessageField::some(meta("structure:root"));
+        assert_eq!(
+            assemble_document_batch(parts, &DocumentBatchConfig::default()).unwrap_err(),
+            DocumentBatchError::DuplicateRecordId("structure:root".to_owned())
+        );
+
+        let mut parts = fixture();
+        parts.versions[0].meta = MessageField::some(common::RecordMeta {
+            schema_version: 1,
+            corpus_id: "other-corpus".to_owned(),
+            record_id: "version:fixture".to_owned(),
+            ..Default::default()
+        });
+        assert_eq!(
+            assemble_document_batch(parts, &DocumentBatchConfig::default()).unwrap_err(),
+            DocumentBatchError::InvalidIdentity("record corpus_id")
+        );
+    }
+
+    #[test]
+    fn rejects_asymmetric_and_cyclic_structure_graphs() {
+        let mut parts = fixture();
+        parts.structures.push(documents::StructureNode {
+            meta: MessageField::some(meta("structure:child")),
+            kind: EnumOrUnknown::new(documents::StructureKind::STRUCTURE_KIND_ARTICLE),
+            parent_id: Some("structure:root".to_owned()),
+            source_spans: vec![common::TextSpan {
+                text_artifact_id: "text:fixture".to_owned(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
+        assert_eq!(
+            assemble_document_batch(parts, &DocumentBatchConfig::default()).unwrap_err(),
+            DocumentBatchError::MissingReference {
+                field: "structure.parent_children",
+                id: "structure:root".to_owned()
+            }
+        );
+
+        let mut parts = fixture();
+        parts.structures = vec![
+            documents::StructureNode {
+                meta: MessageField::some(meta("structure:a")),
+                kind: EnumOrUnknown::new(documents::StructureKind::STRUCTURE_KIND_DOCUMENT),
+                parent_id: Some("structure:b".to_owned()),
+                ordered_children: vec!["structure:b".to_owned()],
+                source_spans: vec![common::TextSpan {
+                    text_artifact_id: "text:fixture".to_owned(),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            },
+            documents::StructureNode {
+                meta: MessageField::some(meta("structure:b")),
+                kind: EnumOrUnknown::new(documents::StructureKind::STRUCTURE_KIND_ARTICLE),
+                parent_id: Some("structure:a".to_owned()),
+                ordered_children: vec!["structure:a".to_owned()],
+                source_spans: vec![common::TextSpan {
+                    text_artifact_id: "text:fixture".to_owned(),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            },
+        ];
+        parts.chunks[0].structure_node_refs = vec!["structure:a".to_owned()];
+        assert!(matches!(
+            assemble_document_batch(parts, &DocumentBatchConfig::default()),
+            Err(DocumentBatchError::StructureCycle(_))
+        ));
+    }
+
+    #[test]
+    fn enforces_generated_issue_and_reference_limits() {
+        let mut parts = fixture();
+        parts.text_artifacts[0].page_results[0].status =
+            EnumOrUnknown::new(common::CompletionStatus::COMPLETION_STATUS_FAILED);
+        parts.text_artifacts[0].page_results[0]
+            .errors
+            .push(common::OperationError {
+                code: EnumOrUnknown::new(common::ErrorCode::ERROR_CODE_INTERNAL),
+                safe_message: "failed".to_owned(),
+                stage: "parse".to_owned(),
+                ..Default::default()
+            });
+        let count_before_generated_issue = record_count(&parts).unwrap();
+        assert_eq!(
+            assemble_document_batch(
+                parts,
+                &DocumentBatchConfig {
+                    maximum_records: count_before_generated_issue,
+                    maximum_reference_edges: 100,
+                },
+            )
+            .unwrap_err(),
+            DocumentBatchError::RecordLimit {
+                actual: count_before_generated_issue + 1,
+                maximum: count_before_generated_issue
+            }
+        );
+
+        assert!(matches!(
+            assemble_document_batch(
+                fixture(),
+                &DocumentBatchConfig {
+                    maximum_records: 100,
+                    maximum_reference_edges: 1,
+                },
+            ),
+            Err(DocumentBatchError::ReferenceLimit { .. })
+        ));
+    }
+
+    #[test]
+    fn source_blob_builder_rejects_hash_size_inconsistency() {
+        let reference = artifact_ref("artifact:source:fixture", '1', "application/pdf", 10);
+        let source = build_source_blob(CORPUS, "source-blob:fixture", reference).unwrap();
+        assert_eq!(source.raw_sha256.sha256, hash('1'));
+        assert_eq!(source.byte_size, 10);
+        assert_eq!(source.artifact_ref.byte_size, 10);
+
+        let mut invalid = artifact_ref("artifact:source:invalid", '2', "application/pdf", 10);
+        invalid.schema_version = 0;
+        assert!(matches!(
+            build_source_blob(CORPUS, "source-blob:invalid", invalid),
+            Err(DocumentBatchError::WireValidation(_))
+        ));
+    }
+}
