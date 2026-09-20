@@ -29,7 +29,7 @@ type ParseExecutionStore interface {
 	LoadIngestionRequest(context.Context, string) (*pb.IngestionRequest, error)
 	RegisterArtifact(context.Context, string, *pb.ArtifactRef) error
 	CancellationRequested(context.Context, string, string, uint64) (bool, error)
-	CompleteParseAttempt(context.Context, string, string, uint64, pb.JobState) (pb.JobState, error)
+	CompleteParseAttempt(context.Context, string, string, uint64, pb.JobState, time.Duration) (pb.JobState, error)
 }
 
 type ParseWorker interface {
@@ -43,6 +43,8 @@ type ParseExecutorConfig struct {
 	Lease            time.Duration
 	CallTimeout      time.Duration
 	CancellationPoll time.Duration
+	RetryBase        time.Duration
+	RetryMax         time.Duration
 }
 
 type ParseExecutor struct {
@@ -60,6 +62,15 @@ func NewParseExecutor(store ParseExecutionStore, worker ParseWorker, config Pars
 	}
 	if config.CancellationPoll <= 0 {
 		config.CancellationPoll = 250 * time.Millisecond
+	}
+	if config.RetryBase <= 0 {
+		config.RetryBase = time.Second
+	}
+	if config.RetryMax <= 0 {
+		config.RetryMax = time.Minute
+	}
+	if config.RetryMax < config.RetryBase {
+		return nil, errors.New("parse retry maximum must not be shorter than retry base")
 	}
 	return &ParseExecutor{store: store, worker: worker, config: config}, nil
 }
@@ -126,7 +137,7 @@ func (e *ParseExecutor) executeClaimed(ctx context.Context, job domain.JobRecord
 		cause := status.Error(codes.FailedPrecondition, err.Error())
 		return nil, e.finishAfterError(attemptCtx, job, cause)
 	}
-	actual, err := e.store.CompleteParseAttempt(attemptCtx, job.JobID, job.LeaseOwner, job.LeaseFence, next)
+	actual, err := e.store.CompleteParseAttempt(attemptCtx, job.JobID, job.LeaseOwner, job.LeaseFence, next, 0)
 	if err != nil {
 		return nil, fmt.Errorf("advance PARSE job state: %w", err)
 	}
@@ -251,7 +262,11 @@ func (e *ParseExecutor) finishAfterError(ctx context.Context, job domain.JobReco
 		transitionCtx, cancel = context.WithTimeout(context.Background(), 2*time.Second)
 	}
 	defer cancel()
-	actual, err := e.store.CompleteParseAttempt(transitionCtx, job.JobID, job.LeaseOwner, job.LeaseFence, next)
+	retryDelay := time.Duration(0)
+	if next == pb.JobState_JOB_STATE_RETRY_WAIT {
+		retryDelay = e.retryDelay(job.Attempt)
+	}
+	actual, err := e.store.CompleteParseAttempt(transitionCtx, job.JobID, job.LeaseOwner, job.LeaseFence, next, retryDelay)
 	if err != nil {
 		return errors.Join(cause, fmt.Errorf("record PARSE failure as %s: %w", next, err))
 	}
@@ -259,6 +274,20 @@ func (e *ParseExecutor) finishAfterError(ctx context.Context, job domain.JobReco
 		return errors.Join(cause, errJobCancellationRequested)
 	}
 	return cause
+}
+
+func (e *ParseExecutor) retryDelay(attempt uint32) time.Duration {
+	delay := e.config.RetryBase
+	for step := uint32(1); step < attempt && delay < e.config.RetryMax; step++ {
+		if delay > e.config.RetryMax/2 {
+			return e.config.RetryMax
+		}
+		delay *= 2
+	}
+	if delay > e.config.RetryMax {
+		return e.config.RetryMax
+	}
+	return delay
 }
 
 func (e *ParseExecutor) cancelDetached(job domain.JobRecord, batch *pb.ProcessBatchRequest) {

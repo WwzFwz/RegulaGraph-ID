@@ -6,7 +6,7 @@
 // Benchmark: ukur queue time, claim throughput, p50/p95/p99 query, pool saturation, retry,
 // dan contention pada concurrency profil referensi.
 // Target numerik required: configs/benchmark-targets.yaml; status REQUIRED_UNMEASURED.
-// Status: primitive job S01 dan claim/cancellation PARSE aktif; retry schedule durable belum tersedia.
+// Status: primitive job S01, claim/cancellation PARSE, retry availability, dan max-attempt aktif.
 package postgres
 
 import (
@@ -106,8 +106,9 @@ func (r *Repository) ClaimJob(ctx context.Context, ownerID string, leaseDuration
 	}
 	row := r.pool.QueryRow(ctx, `WITH candidate AS (
         SELECT job_id FROM jobs
-        WHERE cancellation_requested=false AND (
-		  state IN ($1,$2) OR (state IN ($3,$6,$7,$8) AND lease_expires_at < clock_timestamp()))
+		WHERE cancellation_requested=false AND (stage<>$9 OR state IN ($6,$7,$8)) AND (
+		  state=$1 OR (state=$2 AND next_attempt_at <= clock_timestamp() AND attempt < max_attempts)
+		  OR (state IN ($3,$6,$7,$8) AND lease_expires_at < clock_timestamp()))
         ORDER BY created_at, job_id
         FOR UPDATE SKIP LOCKED LIMIT 1)
 		UPDATE jobs j SET state=CASE WHEN j.state IN ($1,$2) THEN $3 ELSE j.state END,
@@ -121,7 +122,7 @@ func (r *Repository) ClaimJob(ctx context.Context, ownerID string, leaseDuration
 		int16(pb.JobState_JOB_STATE_QUEUED), int16(pb.JobState_JOB_STATE_RETRY_WAIT),
 		int16(pb.JobState_JOB_STATE_RUNNING), ownerID, leaseDuration.String(),
 		int16(pb.JobState_JOB_STATE_STAGED), int16(pb.JobState_JOB_STATE_VALIDATING),
-		int16(pb.JobState_JOB_STATE_PUBLISHING))
+		int16(pb.JobState_JOB_STATE_PUBLISHING), int16(pb.JobStage_JOB_STAGE_PARSE))
 	record, err := scanJob(row)
 	if err == pgx.ErrNoRows {
 		return JobRecord{}, ErrLeaseUnavailable
@@ -138,11 +139,25 @@ func (r *Repository) ClaimParseJob(ctx context.Context, ownerID string, leaseDur
 	if !storageIDPattern.MatchString(ownerID) || leaseDuration <= 0 {
 		return JobRecord{}, errors.New("valid owner and positive lease duration required")
 	}
+	if _, err := r.pool.Exec(ctx, `WITH exhausted AS (
+		SELECT job_id FROM jobs WHERE stage=$2 AND attempt>=max_attempts AND
+		(state=$3 OR (state=$4 AND lease_expires_at < clock_timestamp()))
+		ORDER BY updated_at,job_id FOR UPDATE SKIP LOCKED LIMIT 64)
+		UPDATE jobs j SET state=CASE WHEN j.cancellation_requested THEN $5::smallint ELSE $1::smallint END,
+		lease_owner=NULL,lease_expires_at=NULL,updated_at=clock_timestamp()
+		FROM exhausted e WHERE j.job_id=e.job_id`,
+		int16(pb.JobState_JOB_STATE_FAILED), int16(pb.JobStage_JOB_STAGE_PARSE),
+		int16(pb.JobState_JOB_STATE_RETRY_WAIT), int16(pb.JobState_JOB_STATE_RUNNING),
+		int16(pb.JobState_JOB_STATE_CANCELLED)); err != nil {
+		return JobRecord{}, fmt.Errorf("finalize exhausted PARSE jobs: %w", err)
+	}
 	row := r.pool.QueryRow(ctx, `WITH candidate AS (
         SELECT job_id FROM jobs
         WHERE cancellation_requested=false
           AND stage=$6
           AND (state IN ($1,$2) OR (state=$3 AND lease_expires_at < clock_timestamp()))
+          AND attempt < max_attempts
+          AND (state<>$2 OR next_attempt_at <= clock_timestamp())
         ORDER BY created_at, job_id
         FOR UPDATE SKIP LOCKED LIMIT 1)
 		UPDATE jobs j SET state=$3,attempt=j.attempt+1,lease_owner=$4,
@@ -208,21 +223,31 @@ func (r *Repository) CancellationRequested(ctx context.Context, jobID, ownerID s
 
 // CompleteParseAttempt atomically gives durable cancellation precedence over a PARSE result.
 // It prevents a cancellation arriving after the RPC monitor exits from stranding a RUNNING job.
-func (r *Repository) CompleteParseAttempt(ctx context.Context, jobID, ownerID string, fence uint64, desired pb.JobState) (pb.JobState, error) {
+func (r *Repository) CompleteParseAttempt(ctx context.Context, jobID, ownerID string, fence uint64, desired pb.JobState, retryDelay time.Duration) (pb.JobState, error) {
 	if !storageIDPattern.MatchString(jobID) || !storageIDPattern.MatchString(ownerID) || fence == 0 ||
-		!domain.AllowedJobTransition(pb.JobState_JOB_STATE_RUNNING, desired) {
+		!domain.AllowedJobTransition(pb.JobState_JOB_STATE_RUNNING, desired) || retryDelay < 0 ||
+		desired == pb.JobState_JOB_STATE_RETRY_WAIT && retryDelay == 0 ||
+		desired != pb.JobState_JOB_STATE_RETRY_WAIT && retryDelay != 0 {
 		return pb.JobState_JOB_STATE_UNSPECIFIED, errors.New("valid PARSE completion identity and state required")
+	}
+	retryMicroseconds := retryDelay.Microseconds()
+	if retryDelay > 0 && retryMicroseconds == 0 {
+		retryMicroseconds = 1
 	}
 	var actual int16
 	err := r.pool.QueryRow(ctx, `UPDATE jobs SET
-		state=CASE WHEN cancellation_requested THEN $6::smallint ELSE $5::smallint END,
+		state=CASE WHEN cancellation_requested THEN $6::smallint
+			WHEN $5::smallint=$7::smallint AND attempt>=max_attempts THEN $8::smallint ELSE $5::smallint END,
 		updated_at=clock_timestamp(),
+		next_attempt_at=CASE WHEN NOT cancellation_requested AND $5::smallint=$7::smallint
+			AND attempt<max_attempts THEN clock_timestamp()+$9::bigint*interval '1 microsecond' ELSE '-infinity'::timestamptz END,
 		lease_owner=CASE WHEN cancellation_requested OR $5::smallint IN (3,7,8,9,10) THEN NULL ELSE lease_owner END,
 		lease_expires_at=CASE WHEN cancellation_requested OR $5::smallint IN (3,7,8,9,10) THEN NULL ELSE lease_expires_at END
 		WHERE job_id=$1 AND lease_owner=$2 AND lease_fence=$3 AND state=$4
 		AND lease_expires_at >= clock_timestamp()
 		RETURNING state`, jobID, ownerID, int64(fence), int16(pb.JobState_JOB_STATE_RUNNING),
-		int16(desired), int16(pb.JobState_JOB_STATE_CANCELLED)).Scan(&actual)
+		int16(desired), int16(pb.JobState_JOB_STATE_CANCELLED), int16(pb.JobState_JOB_STATE_RETRY_WAIT),
+		int16(pb.JobState_JOB_STATE_FAILED), retryMicroseconds).Scan(&actual)
 	if err == pgx.ErrNoRows {
 		return pb.JobState_JOB_STATE_UNSPECIFIED, ErrStaleFence
 	}

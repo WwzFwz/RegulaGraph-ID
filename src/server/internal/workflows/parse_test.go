@@ -26,6 +26,7 @@ type parseStoreFake struct {
 	cancelled    bool
 	cancelOnSave bool
 	loadErr      error
+	retryDelay   time.Duration
 }
 
 func (s *parseStoreFake) SubmitJob(context.Context, domain.JobIntent) (domain.JobRecord, bool, error) {
@@ -64,7 +65,8 @@ func (s *parseStoreFake) RegisterArtifact(_ context.Context, _ string, artifact 
 func (s *parseStoreFake) CancellationRequested(context.Context, string, string, uint64) (bool, error) {
 	return s.cancelled, nil
 }
-func (s *parseStoreFake) CompleteParseAttempt(_ context.Context, _, _ string, _ uint64, desired pb.JobState) (pb.JobState, error) {
+func (s *parseStoreFake) CompleteParseAttempt(_ context.Context, _, _ string, _ uint64, desired pb.JobState, retryDelay time.Duration) (pb.JobState, error) {
+	s.retryDelay = retryDelay
 	if s.cancelled {
 		desired = pb.JobState_JOB_STATE_CANCELLED
 	}
@@ -170,6 +172,21 @@ func TestParseExecutorRetriesUnavailableWorker(t *testing.T) {
 	}
 	if got := store.transitions; len(got) != 1 || got[0] != pb.JobState_JOB_STATE_RETRY_WAIT {
 		t.Fatalf("unexpected transitions: %v", got)
+	}
+	if store.retryDelay != time.Second {
+		t.Fatalf("first retry delay=%s", store.retryDelay)
+	}
+}
+
+func TestParseRetryDelayIsExponentiallyBounded(t *testing.T) {
+	executor, _ := NewParseExecutor(parseFixtureStore(false), &parseWorkerFake{}, ParseExecutorConfig{
+		OwnerID: "executor:fixture", AuthScope: "scope:ingestion", Lease: 10 * time.Second,
+		CallTimeout: 2 * time.Second, RetryBase: 2 * time.Second, RetryMax: 10 * time.Second,
+	})
+	for attempt, expected := range map[uint32]time.Duration{1: 2 * time.Second, 2: 4 * time.Second, 3: 8 * time.Second, 4: 10 * time.Second, 32: 10 * time.Second} {
+		if got := executor.retryDelay(attempt); got != expected {
+			t.Fatalf("attempt %d delay=%s want=%s", attempt, got, expected)
+		}
 	}
 }
 

@@ -35,6 +35,8 @@ type runtimeConfig struct {
 	callTimeout      time.Duration
 	cancellationPoll time.Duration
 	idlePoll         time.Duration
+	retryBase        time.Duration
+	retryMax         time.Duration
 	maxMessageBytes  int
 }
 
@@ -70,6 +72,7 @@ func run(ctx context.Context) error {
 	executor, err := workflows.NewParseExecutor(repository, worker, workflows.ParseExecutorConfig{
 		OwnerID: config.ownerID, AuthScope: config.authScope, Lease: config.lease,
 		CallTimeout: config.callTimeout, CancellationPoll: config.cancellationPoll,
+		RetryBase: config.retryBase, RetryMax: config.retryMax,
 	})
 	if err != nil {
 		return err
@@ -139,12 +142,21 @@ func loadConfig() (runtimeConfig, error) {
 	if config.idlePoll, err = durationEnv("REGULAGRAPH_COORDINATOR_IDLE_POLL", 500*time.Millisecond); err != nil {
 		return runtimeConfig{}, err
 	}
+	if config.retryBase, err = durationEnv("REGULAGRAPH_COORDINATOR_RETRY_BASE", time.Second); err != nil {
+		return runtimeConfig{}, err
+	}
+	if config.retryMax, err = durationEnv("REGULAGRAPH_COORDINATOR_RETRY_MAX", time.Minute); err != nil {
+		return runtimeConfig{}, err
+	}
 	config.maxMessageBytes, err = positiveIntEnv("REGULAGRAPH_WORKER_MAX_MESSAGE_BYTES", workeradapter.DefaultMaxMessageBytes)
 	if err != nil {
 		return runtimeConfig{}, err
 	}
 	if config.callTimeout >= config.lease {
 		return runtimeConfig{}, errors.New("coordinator call timeout must be shorter than its lease")
+	}
+	if config.retryMax < config.retryBase {
+		return runtimeConfig{}, errors.New("coordinator retry maximum must not be shorter than retry base")
 	}
 	return config, nil
 }

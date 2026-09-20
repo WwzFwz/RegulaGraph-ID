@@ -169,7 +169,7 @@ func TestStorageFoundationAgainstPostgres(t *testing.T) {
 		t.Fatalf("expected checkpoint stage regression rejection, got %v", err)
 	}
 	time.Sleep(250 * time.Millisecond)
-	reclaimed, err := repo.ClaimJob(ctx, "worker-recovery", time.Minute)
+	reclaimed, err := repo.ClaimParseJob(ctx, "worker-recovery", time.Minute)
 	if err != nil || reclaimed.LeaseFence <= claimed.LeaseFence {
 		t.Fatalf("reclaim=%+v err=%v", reclaimed, err)
 	}
@@ -387,9 +387,51 @@ func TestStorageFoundationAgainstPostgres(t *testing.T) {
 		t.Fatalf("cancelled lease renewed: %v", err)
 	}
 	actual, err := repo.CompleteParseAttempt(ctx, cancelJob, cancelledClaim.LeaseOwner, cancelledClaim.LeaseFence,
-		pb.JobState_JOB_STATE_STAGED)
+		pb.JobState_JOB_STATE_STAGED, 0)
 	if err != nil || actual != pb.JobState_JOB_STATE_CANCELLED {
 		t.Fatalf("durable cancellation did not win PARSE completion: state=%s err=%v", actual, err)
+	}
+
+	retryCorpus, retryJob := "retry-corpus-"+suffix, "retry-job-"+suffix
+	retryRequest := ingestionRequestFixture(retryCorpus, "retry-request-"+suffix, "https://example.test/retry.pdf")
+	retryPayload, marshalErr := proto.MarshalOptions{Deterministic: true}.Marshal(retryRequest)
+	if marshalErr != nil {
+		t.Fatal(marshalErr)
+	}
+	retryDigest := sha256.Sum256(retryPayload)
+	if _, _, err = repo.SubmitJob(ctx, JobIntent{
+		JobID: retryJob, CorpusID: retryCorpus, Operation: pb.JobOperation_JOB_OPERATION_INGEST,
+		InitialStage: pb.JobStage_JOB_STAGE_PARSE, InputFingerprint: ingestionFingerprint(t, retryRequest),
+		IdempotencyKey: retryRequest.IdempotencyKey, RequestHash: hex.EncodeToString(retryDigest[:]), RequestPayload: retryPayload,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = repo.pool.Exec(ctx, `UPDATE jobs SET max_attempts=2 WHERE job_id=$1`, retryJob); err != nil {
+		t.Fatal(err)
+	}
+	firstRetry, err := repo.ClaimParseJob(ctx, "worker-retry", time.Minute)
+	if err != nil || firstRetry.JobID != retryJob {
+		t.Fatalf("claim first retry job=%+v err=%v", firstRetry, err)
+	}
+	actual, err = repo.CompleteParseAttempt(ctx, retryJob, firstRetry.LeaseOwner, firstRetry.LeaseFence,
+		pb.JobState_JOB_STATE_RETRY_WAIT, time.Minute)
+	if err != nil || actual != pb.JobState_JOB_STATE_RETRY_WAIT {
+		t.Fatalf("schedule retry state=%s err=%v", actual, err)
+	}
+	if _, err = repo.ClaimParseJob(ctx, "worker-too-early", time.Minute); !errors.Is(err, ErrLeaseUnavailable) {
+		t.Fatalf("retry claimed before durable availability: %v", err)
+	}
+	if _, err = repo.pool.Exec(ctx, `UPDATE jobs SET next_attempt_at=clock_timestamp()-interval '1 second' WHERE job_id=$1`, retryJob); err != nil {
+		t.Fatal(err)
+	}
+	lastRetry, err := repo.ClaimParseJob(ctx, "worker-last-retry", time.Minute)
+	if err != nil || lastRetry.JobID != retryJob || lastRetry.Attempt != 2 {
+		t.Fatalf("claim last retry job=%+v err=%v", lastRetry, err)
+	}
+	actual, err = repo.CompleteParseAttempt(ctx, retryJob, lastRetry.LeaseOwner, lastRetry.LeaseFence,
+		pb.JobState_JOB_STATE_RETRY_WAIT, time.Minute)
+	if err != nil || actual != pb.JobState_JOB_STATE_FAILED {
+		t.Fatalf("attempt budget did not terminate retry: state=%s err=%v", actual, err)
 	}
 }
 
