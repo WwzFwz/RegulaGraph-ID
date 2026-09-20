@@ -14,7 +14,7 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
-Berkas: [chunks.rs](chunks.rs), [documents.rs](documents.rs), [entities.rs](entities.rs), [evidence.rs](evidence.rs), [mod.rs](mod.rs), [relations.rs](relations.rs).
+Berkas: [chunks.rs](chunks.rs), [documents.rs](documents.rs), [document_wire.rs](document_wire.rs), [entities.rs](entities.rs), [evidence.rs](evidence.rs), [mod.rs](mod.rs), [relations.rs](relations.rs), dan [wire.rs](wire.rs).
 
 ## Benchmark dan perhatian performa
 
@@ -24,7 +24,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-`chunks.rs` kini menyediakan record lokal dan validator provenance/source mapping/token count untuk hasil chunking I01. Wire validator C01 juga aktif; tipe domain lain tetap scaffold sampai document versioning, graph/index pipeline, dan worker batch diimplementasikan. Fixture unit tidak membuktikan target kualitas atau latency produksi.
+`chunks.rs` menyediakan record lokal dan validator provenance/source mapping/token count untuk hasil chunking I01. `document_wire.rs` memproyeksikan structure tree dan chunk batch tervalidasi ke pesan C01 serta mempertahankan source, corpus, provision-version, producer manifest, dan offset normalisasi. Wire validator C01 juga aktif; konstruksi `TextArtifact`/`DocumentBatch`, document versioning, graph/index pipeline, dan worker batch belum diimplementasikan. Fixture unit tidak membuktikan target kualitas atau latency produksi.
 
 ## Rekomendasi implementasi anak
 
@@ -32,7 +32,8 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
-| [chunks.rs](chunks.rs) | Tambahkan konversi satu arah ke `regulagraph.v1.Chunk` di boundary worker tanpa menduplikasi schema. | Uji golden wire parity, missing refs, overflow, dan alokasi batch besar. |
+| [chunks.rs](chunks.rs) | Pertahankan invariant record lokal ketika tokenizer atau kebijakan overlap berkembang; hindari menambahkan schema wire paralel. | Uji boundary Unicode, overlap, overflow, dan alokasi batch besar terhadap konfigurasi produksi. |
+| [document_wire.rs](document_wire.rs) | Lengkapi proyeksi `TextArtifact`, page result, dan `DocumentBatch` setelah kontrak versioning menyediakan provision/version yang tervalidasi. | Uji golden wire lintas bahasa, missing refs, hash mismatch, batas jumlah record, dan serialisasi batch besar. |
 | [documents.rs](documents.rs) | Construct validated document/source/provision views over generated types; keep observation time separate from legal dates. | Test stable IDs, raw/normalized mappings and historical version ambiguity; avoid redundant conversion/allocation across batches. |
 | [entities.rs](entities.rs) | Expose scoped canonical identity/revision and resolution decision helpers without autonomous registry writes. | Test alias ambiguity, merge/split lineage and deterministic identity comparison; avoid redundant conversion/allocation across batches. |
 | [evidence.rs](evidence.rs) | Expose snapshot-bound evidence/path operations while retaining primary provenance. | Test corpus/version/snapshot mismatches and missing support hydration; avoid redundant conversion/allocation across batches. |

@@ -8,7 +8,7 @@ Logika di luar cakupan ini ditempatkan pada komponen pemiliknya. Jika fungsi bar
 
 ## Peran dan integrasi anak
 
-lib.rs mengekspos module tree; tidak ada server atau main worker sampai kontrak transport diimplementasikan.
+lib.rs mengekspos module tree, proyeksi wire C01, dan adapter artefak lokal; executable worker belum tersedia sampai kontrak transport diimplementasikan.
 
 Pertahankan source/canonical/provision-version/snapshot ID dan schema version lintas anak. Boundary runtime mengikuti [src/contracts](../../contracts/README.md), dengan pekerjaan batch atau inference yang jelas. Perubahan bentuk data, error/status, serta offset sumber harus didokumentasikan bersama konsumennya; jangan menggandakan kebijakan publikasi di beberapa runtime.
 
@@ -26,4 +26,4 @@ Ikuti [kebijakan benchmark](../../../doc/benchmark-policy.md). Angka wajib mengi
 
 ## Status
 
-Modul `document::parsing::pdf`, `document::normalization::text`, `document::chunking::structural`, `document::chunking::builder`, `document::chunking::parents`, dan validator `domain::chunks` telah aktif di library I01. Modul Rust lain masih scaffold sampai versioning, table/OCR handling, knowledge graph, indexing, adapter, dan worker batch diimplementasikan. Build serta fixture unit tidak membuktikan target kualitas corpus atau latency produksi.
+Modul `document::parsing::pdf`, `document::normalization::text`, `document::chunking::structural`, `document::chunking::builder`, `document::chunking::parents`, validator `domain::chunks`, proyeksi `domain::document_wire`, dan `adapters::storage` telah aktif. Modul Rust lain masih scaffold sampai versioning, table/OCR handling, knowledge graph, indexing, object storage, dan worker batch diimplementasikan. Build serta fixture unit tidak membuktikan target kualitas corpus, durability storage, atau latency produksi.

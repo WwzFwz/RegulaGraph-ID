@@ -8,7 +8,7 @@ Logika di luar cakupan ini ditempatkan pada komponen pemiliknya. Jika fungsi bar
 
 ## Peran dan integrasi anak
 
-Rust menyiapkan data, Go mengoordinasikan commit/publikasi, C/C++ menyediakan engine parsing/inference. Belum ada transport job aktif.
+Rust menyiapkan data dan artefak immutable, Go mengoordinasikan job serta commit/publikasi, dan C/C++ menyediakan engine parsing/inference. Belum ada transport job aktif.
 
 Pertahankan source/canonical/provision-version/snapshot ID dan schema version lintas anak. Boundary runtime mengikuti [src/contracts](../contracts/README.md), dengan pekerjaan batch atau inference yang jelas. Perubahan bentuk data, error/status, serta offset sumber harus didokumentasikan bersama konsumennya; jangan menggandakan kebijakan publikasi di beberapa runtime.
 
@@ -26,7 +26,7 @@ Ikuti [kebijakan benchmark](../../doc/benchmark-policy.md). Angka wajib mengikut
 
 ## Status
 
-Boundary parser PDFium, normalizer teks konservatif, parser struktur hukum, structural chunk builder, dan parent index I01 sudah aktif sebagai library. Parser memverifikasi hash input/library serta menghasilkan teks dan locator per halaman; transformasi berikutnya menjaga mapping byte raw-normalized, provision/source identity, token count, dan parent refs. Executable worker, konversi batch wire, versioning, tabel, graph/index batch, OCR, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
+Boundary parser PDFium, normalizer teks konservatif, parser struktur hukum, structural chunk builder, parent index, proyeksi structure/chunk ke C01, dan penyimpanan artefak lokal immutable sudah aktif sebagai library. Parser memverifikasi hash input/library serta menghasilkan teks dan locator per halaman; transformasi berikutnya menjaga mapping byte raw-normalized, provision/source identity, token count, parent refs, dan hash artefak. Executable worker, `TextArtifact`/`DocumentBatch` lengkap, versioning, tabel, graph/index batch, OCR, gold dataset, object storage, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas, durability, atau latency produksi.
 
 ## Penambahan C01 dan panduan verifikasi
 

@@ -8,7 +8,7 @@ Logika di luar cakupan ini ditempatkan pada komponen pemiliknya. Jika fungsi bar
 
 ## Peran dan integrasi anak
 
-Boundary native menjelaskan kepemilikan buffer dan lifetime; boundary inference memakai batch serta model/snapshot identity.
+Boundary native menjelaskan kepemilikan buffer dan lifetime; boundary inference memakai batch serta model/snapshot identity. Adapter storage menyediakan penyimpanan lokal immutable dan content-addressed bagi artefak worker, sedangkan commit dan publication tetap dimiliki coordinator Go.
 
 Pertahankan source/canonical/provision-version/snapshot ID dan schema version lintas anak. Boundary runtime mengikuti [src/contracts](../../../contracts/README.md), dengan pekerjaan batch atau inference yang jelas. Perubahan bentuk data, error/status, serta offset sumber harus didokumentasikan bersama konsumennya; jangan menggandakan kebijakan publikasi di beberapa runtime.
 
@@ -24,7 +24,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. Pipeline parsing/graph/retrieval, mutasi backend, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan target kualitas atau latency.
+Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. `storage.rs` sudah menulis dan membaca artefak lokal immutable dengan key SHA-256, deduplikasi, atomic rename, batas ukuran, dan verifikasi hash. Object storage jarak jauh, publication artefak, pipeline graph/retrieval, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan durability atau target latency produksi.
 
 ## Rekomendasi implementasi anak
 
@@ -34,4 +34,4 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | --- | --- | --- |
 | [inference.rs](inference.rs) | Send typed semantic/embedding batches to pinned services; retain item IDs, producer manifests and bounded retry. | Test missing/duplicate/reordered items and partial errors; verify no model initialization per chunk. |
 | [pdf_engine.rs](pdf_engine.rs) | Bind the parser selected by M01 with explicit buffer ownership, safe page lifetimes and bounded worker concurrency. | Test malformed/encrypted/large PDFs and native error propagation; measure pages/s and RSS without copying entire corpus. |
-| [storage.rs](storage.rs) | Read coordinator-authorized artifacts by locator/hash and emit immutable batch artifacts for Go publication. | Test checksum mismatch, truncated reads and retry cleanup; reject unsafe paths and avoid writing publication markers. |
+| [storage.rs](storage.rs) | Tambahkan backend object storage dengan semantik descriptor yang sama, lifecycle temporary-object, dan integrasi descriptor ke `ArtifactRef`; pertahankan publication sebagai tanggung jawab Go. | Jalankan fault injection untuk crash sebelum/sesudah rename, filesystem penuh, permission error, retry cleanup, dan durability; ukur throughput, p95/p99, fsync cost, serta peak RSS pada workload resmi. |
