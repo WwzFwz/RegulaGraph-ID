@@ -189,6 +189,25 @@ pub fn validate_extract_response(
             "semantic extraction response context/model mismatch",
         ));
     }
+    let producer = response.producer_manifest.as_ref().ok_or_else(|| {
+        SemanticClientError::new(
+            Code::FailedPrecondition,
+            "semantic extraction response producer manifest is missing",
+        )
+    })?;
+    if !producer.models.iter().any(|model| model == expected_model)
+        || expected_model.prompt_hash.as_ref().is_none_or(|prompt| {
+            !producer
+                .prompt_hashes
+                .iter()
+                .any(|candidate| candidate == prompt)
+        })
+    {
+        return Err(SemanticClientError::new(
+            Code::FailedPrecondition,
+            "semantic extraction producer does not bind the model and prompt",
+        ));
+    }
     let mut missing = expected_items.clone();
     for result in &response.results {
         if !missing.remove(&result.item_id) {
@@ -336,6 +355,7 @@ mod tests {
     fn response_fixture(
         request: &inference::ExtractBatchRequest,
     ) -> inference::ExtractBatchResponse {
+        let model = request.batch.model.as_ref().unwrap().clone();
         inference::ExtractBatchResponse {
             request_id: request.batch.context.request_id.clone(),
             results: request
@@ -353,6 +373,15 @@ mod tests {
             model: request.batch.model.clone(),
             usage: MessageField::some(common::TokenUsage {
                 tokenizer_id: "tokenizer:fixture".to_owned(),
+                ..Default::default()
+            }),
+            producer_manifest: MessageField::some(common::ProducerManifest {
+                software: "semantic-gateway".to_owned(),
+                build: "test".to_owned(),
+                schema_version: 1,
+                models: vec![model.clone()],
+                prompt_hashes: vec![model.prompt_hash.as_ref().unwrap().clone()],
+                config_hash: MessageField::some(hash('f')),
                 ..Default::default()
             }),
             ..Default::default()

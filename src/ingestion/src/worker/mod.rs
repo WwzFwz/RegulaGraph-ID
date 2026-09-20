@@ -13,5 +13,5 @@ pub mod transport {
 mod processor;
 mod service;
 
-pub use processor::{ParseBatchProcessor, ParseBatchProcessorConfig};
+pub use processor::{ExtractionRuntimeConfig, ParseBatchProcessor, ParseBatchProcessorConfig};
 pub use service::{BatchProcessor, ProcessError, WorkerService, WorkerServiceConfig};

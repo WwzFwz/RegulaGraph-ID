@@ -6,6 +6,8 @@
 
 use super::service::{BatchProcessor, ProcessError};
 use crate::adapters::document_batches::{load_document_batch, persist_document_batch};
+use crate::adapters::extraction_batches::persist_extraction_batch;
+use crate::adapters::inference::ExtractionInference;
 use crate::adapters::storage::{ArtifactDescriptor, ArtifactStore};
 use crate::adapters::text_artifacts::{load_normalized_text, persist_text_artifact};
 use crate::document::chunking::builder::{build_bound_chunks_bounded, ChunkerConfig, TokenCounter};
@@ -21,7 +23,11 @@ use crate::domain::document_wire::{
     project_bound_structure_and_chunks, project_structures, DocumentWireConfig,
 };
 use crate::domain::text_artifact_wire::TextArtifactWireConfig;
-use crate::wire::{common, jobs};
+use crate::domain::wire::{self, Limits};
+use crate::knowledge_graph::extraction::extractor::{
+    assemble_extraction_batch, ExtractionBatchConfig, ExtractionBatchParts,
+};
+use crate::wire::{common, inference, jobs};
 use protobuf::{EnumOrUnknown, MessageField};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
@@ -40,6 +46,21 @@ pub struct ParseBatchProcessorConfig {
     pub structure: StructureParserConfig,
     pub chunker: ChunkerConfig,
     pub document_wire: DocumentWireConfig,
+}
+
+#[derive(Clone, Debug)]
+pub struct ExtractionRuntimeConfig {
+    pub model: common::ModelManifest,
+    pub ontology_version: String,
+    pub output_schema: common::ArtifactRef,
+    pub batch: ExtractionBatchConfig,
+    pub maximum_items_per_rpc: usize,
+    pub maximum_input_bytes_per_rpc: usize,
+}
+
+struct ExtractionRuntime {
+    inference: Arc<dyn ExtractionInference>,
+    config: ExtractionRuntimeConfig,
 }
 
 impl Default for ParseBatchProcessorConfig {
@@ -63,6 +84,7 @@ pub struct ParseBatchProcessor {
     parser: Option<PdfParser>,
     tokenizer: Arc<dyn TokenCounter>,
     config: ParseBatchProcessorConfig,
+    extraction: Option<ExtractionRuntime>,
 }
 
 impl ParseBatchProcessor {
@@ -99,7 +121,18 @@ impl ParseBatchProcessor {
             parser,
             tokenizer,
             config,
+            extraction: None,
         })
+    }
+
+    pub fn with_extraction(
+        mut self,
+        inference: Arc<dyn ExtractionInference>,
+        config: ExtractionRuntimeConfig,
+    ) -> Result<Self, ProcessError> {
+        validate_extraction_runtime(&config)?;
+        self.extraction = Some(ExtractionRuntime { inference, config });
+        Ok(self)
     }
 }
 
@@ -120,12 +153,17 @@ impl BatchProcessor for ParseBatchProcessor {
         {
             return self.process_chunk(request, cancelled, progress);
         }
+        if request.stages.len() == 1
+            && request.stages[0].enum_value() == Ok(jobs::JobStage::JOB_STAGE_EXTRACT)
+        {
+            return self.process_extract(request, cancelled, progress);
+        }
         if request.stages.len() != 1
             || request.stages[0].enum_value() != Ok(jobs::JobStage::JOB_STAGE_PARSE)
         {
             return Err(ProcessError::new(
                 Code::Unimplemented,
-                "worker accepts exactly one PARSE, STRUCTURE, or CHUNK stage",
+                "worker accepts exactly one PARSE, STRUCTURE, CHUNK, or EXTRACT stage",
             ));
         }
         let context = request
@@ -942,6 +980,553 @@ impl ParseBatchProcessor {
             ..Default::default()
         })
     }
+
+    fn process_extract(
+        &self,
+        request: jobs::ProcessBatchRequest,
+        cancelled: &AtomicBool,
+        progress: &dyn Fn(jobs::JobStage, u64, u64),
+    ) -> Result<jobs::ProcessBatchResponse, ProcessError> {
+        let runtime = self.extraction.as_ref().ok_or_else(|| {
+            ProcessError::new(
+                Code::FailedPrecondition,
+                "EXTRACT runtime is not configured",
+            )
+        })?;
+        let context = request
+            .context
+            .as_ref()
+            .ok_or_else(|| ProcessError::new(Code::InvalidArgument, "request context is required"))?
+            .clone();
+        if request.sources.len() != 1 {
+            return Err(ProcessError::new(
+                Code::InvalidArgument,
+                "EXTRACT requires exactly one CHUNK DocumentBatch input",
+            ));
+        }
+        let input_ref = request.sources[0].clone();
+        let descriptor = ArtifactDescriptor::from_wire_ref(&input_ref)
+            .map_err(|error| ProcessError::new(Code::InvalidArgument, error.to_string()))?;
+        let input = load_document_batch(&self.store, &descriptor)
+            .map_err(|error| ProcessError::new(Code::FailedPrecondition, error.to_string()))?;
+        if input.context.corpus_id != context.corpus_id {
+            return Err(ProcessError::new(
+                Code::FailedPrecondition,
+                "EXTRACT input corpus differs from request corpus",
+            ));
+        }
+        if input.completeness.enum_value() != Ok(common::Completeness::COMPLETENESS_COMPLETE)
+            || input.chunks.is_empty()
+        {
+            return Err(ProcessError::new(
+                Code::FailedPrecondition,
+                "EXTRACT requires a complete CHUNK DocumentBatch with searchable chunks",
+            ));
+        }
+
+        let items = build_extraction_items(&self.store, &input, &self.config, cancelled)?;
+        let item_batches = partition_extraction_items(
+            items,
+            runtime.config.maximum_items_per_rpc,
+            runtime.config.maximum_input_bytes_per_rpc,
+        )?;
+        let total_items: u64 = item_batches.iter().map(|batch| batch.len() as u64).sum();
+        progress(jobs::JobStage::JOB_STAGE_EXTRACT, 0, total_items);
+
+        let mut mentions = Vec::new();
+        let mut assertions = Vec::new();
+        let mut supports = Vec::new();
+        let mut issues = Vec::new();
+        let mut operation_errors = Vec::new();
+        let mut accepted = 0u64;
+        let mut completed = 0u64;
+        let mut producer: Option<common::ProducerManifest> = None;
+        let mut token_usage = common::TokenUsage::default();
+        let mut durations = Vec::new();
+
+        for (batch_index, items) in item_batches.into_iter().enumerate() {
+            if cancelled.load(Ordering::Acquire) {
+                return Err(ProcessError::new(
+                    Code::Cancelled,
+                    "batch cancellation acknowledged",
+                ));
+            }
+            let operation_key =
+                extraction_operation_key(&input_ref, &runtime.config, batch_index, &items)?;
+            let response = runtime
+                .inference
+                .extract_batch(
+                    inference::ExtractBatchRequest {
+                        batch: MessageField::some(inference::SemanticBatchContext {
+                            context: MessageField::some(context.clone()),
+                            model: MessageField::some(runtime.config.model.clone()),
+                            operation_key,
+                            ontology_version: runtime.config.ontology_version.clone(),
+                            output_schema: MessageField::some(runtime.config.output_schema.clone()),
+                            ..Default::default()
+                        }),
+                        items,
+                        ..Default::default()
+                    },
+                    cancelled,
+                )
+                .map_err(|error| ProcessError::new(error.code(), error.to_string()))?;
+            let response_producer = response.producer_manifest.as_ref().ok_or_else(|| {
+                ProcessError::new(
+                    Code::FailedPrecondition,
+                    "semantic response producer manifest is missing",
+                )
+            })?;
+            if producer
+                .as_ref()
+                .is_some_and(|expected| expected != response_producer)
+            {
+                return Err(ProcessError::new(
+                    Code::FailedPrecondition,
+                    "semantic producer changed within one EXTRACT artifact",
+                ));
+            }
+            producer.get_or_insert_with(|| response_producer.clone());
+            let usage = response.usage.as_ref().ok_or_else(|| {
+                ProcessError::new(Code::FailedPrecondition, "semantic token usage is missing")
+            })?;
+            if token_usage.tokenizer_id.is_empty() {
+                token_usage.tokenizer_id = usage.tokenizer_id.clone();
+            } else if token_usage.tokenizer_id != usage.tokenizer_id {
+                return Err(ProcessError::new(
+                    Code::FailedPrecondition,
+                    "semantic tokenizer identity changed within one EXTRACT artifact",
+                ));
+            }
+            token_usage.input_tokens = token_usage
+                .input_tokens
+                .checked_add(usage.input_tokens)
+                .ok_or_else(|| ProcessError::new(Code::OutOfRange, "input token count overflow"))?;
+            token_usage.output_tokens = token_usage
+                .output_tokens
+                .checked_add(usage.output_tokens)
+                .ok_or_else(|| {
+                    ProcessError::new(Code::OutOfRange, "output token count overflow")
+                })?;
+            durations.extend(response.durations);
+
+            for result in response.results {
+                let item_id = result.item_id.clone();
+                match result.result {
+                    Some(inference::extract_item_result::Result::Proposal(proposal))
+                        if !proposal.issues.iter().any(|issue| {
+                            issue.severity.enum_value() == Ok(common::Severity::SEVERITY_ERROR)
+                        }) =>
+                    {
+                        accepted += 1;
+                        mentions.extend(proposal.mentions);
+                        assertions.extend(proposal.assertions);
+                        supports.extend(proposal.supports);
+                        issues.extend(proposal.issues);
+                    }
+                    Some(inference::extract_item_result::Result::Proposal(mut proposal)) => {
+                        for issue in &mut proposal.issues {
+                            issue.record_id = item_id.clone();
+                            issue.evidence_refs.clear();
+                        }
+                        issues.extend(proposal.issues);
+                        operation_errors.push(common::OperationError {
+                            code: EnumOrUnknown::new(
+                                common::ErrorCode::ERROR_CODE_INVALID_ARGUMENT,
+                            ),
+                            safe_message: "semantic proposal failed extraction validation"
+                                .to_owned(),
+                            stage: "extract".to_owned(),
+                            retryable: false,
+                            item_id: Some(item_id),
+                            ..Default::default()
+                        });
+                    }
+                    Some(inference::extract_item_result::Result::Error(mut error)) => {
+                        error.item_id = Some(item_id.clone());
+                        issues.push(extraction_error_issue(&item_id, &error));
+                        operation_errors.push(error);
+                    }
+                    None => {
+                        return Err(ProcessError::new(
+                            Code::FailedPrecondition,
+                            "semantic response item has no result",
+                        ));
+                    }
+                }
+                completed += 1;
+                progress(jobs::JobStage::JOB_STAGE_EXTRACT, completed, total_items);
+            }
+        }
+
+        let producer = producer.ok_or_else(|| {
+            ProcessError::new(
+                Code::FailedPrecondition,
+                "semantic extraction produced no batch manifest",
+            )
+        })?;
+        let prompt_hash = runtime
+            .config
+            .model
+            .prompt_hash
+            .as_ref()
+            .cloned()
+            .ok_or_else(|| {
+                ProcessError::new(Code::InvalidArgument, "EXTRACT prompt hash is required")
+            })?;
+        let rejected = total_items.checked_sub(accepted).ok_or_else(|| {
+            ProcessError::new(Code::Internal, "semantic item accounting underflow")
+        })?;
+        let request_id = context.request_id.clone();
+        let identity = response_identity(
+            &request_id,
+            &request.job_id,
+            request.attempt,
+            request.lease.fence,
+        );
+        let output = assemble_extraction_batch(
+            ExtractionBatchParts {
+                batch_id: format!("extraction-batch:{identity}"),
+                context,
+                source_document_batch: input_ref.clone(),
+                mentions,
+                assertions,
+                supports,
+                issues,
+                dependencies: common::DependencyManifest {
+                    artifact_id: format!("dependency-manifest:{identity}"),
+                    dependencies: vec![common::Dependency {
+                        dependency_id: input_ref.artifact_id.clone(),
+                        fingerprint: input_ref.content_hash.clone(),
+                        ..Default::default()
+                    }],
+                    producer_manifest: MessageField::some(producer.clone()),
+                    ..Default::default()
+                },
+                ontology_version: runtime.config.ontology_version.clone(),
+                model_manifest: runtime.config.model.clone(),
+                prompt_hash,
+                item_counts: common::Counts {
+                    expected: total_items,
+                    accepted,
+                    rejected,
+                    ..Default::default()
+                },
+                token_usage,
+                durations,
+            },
+            &input,
+            &runtime.config.batch,
+        )
+        .map_err(|error| ProcessError::new(Code::FailedPrecondition, error.to_string()))?;
+        let persisted = persist_extraction_batch(&self.store, &output, &input)
+            .map_err(|error| ProcessError::new(Code::Internal, error.to_string()))?;
+        let output_ref = persisted.reference;
+        let output_hash =
+            output_ref.content_hash.as_ref().cloned().ok_or_else(|| {
+                ProcessError::new(Code::Internal, "extraction batch hash is missing")
+            })?;
+        let completion = if rejected == 0 {
+            common::CompletionStatus::COMPLETION_STATUS_SUCCEEDED
+        } else {
+            common::CompletionStatus::COMPLETION_STATUS_FAILED
+        };
+        Ok(jobs::ProcessBatchResponse {
+            request_id,
+            job_id: request.job_id.clone(),
+            attempt: request.attempt,
+            fence: request.lease.fence,
+            checkpoint: MessageField::some(jobs::Checkpoint {
+                meta: MessageField::some(common::RecordMeta {
+                    schema_version: 1,
+                    corpus_id: output.meta.corpus_id.clone(),
+                    record_id: format!("checkpoint:{identity}"),
+                    ..Default::default()
+                }),
+                job_id: request.job_id,
+                stage: EnumOrUnknown::new(jobs::JobStage::JOB_STAGE_EXTRACT),
+                completed_batch_keys: vec![output_ref.artifact_id.clone()],
+                artifact_hashes: vec![output_hash],
+                manifest: MessageField::some(producer),
+                fence: request.lease.fence,
+                terminal_status: EnumOrUnknown::new(completion),
+                ..Default::default()
+            }),
+            status: EnumOrUnknown::new(completion),
+            errors: operation_errors,
+            extraction_batch: MessageField::some(output_ref),
+            ..Default::default()
+        })
+    }
+}
+
+fn validate_extraction_runtime(config: &ExtractionRuntimeConfig) -> Result<(), ProcessError> {
+    wire::validate(&config.model, Limits::default())
+        .map_err(|error| ProcessError::new(Code::InvalidArgument, error))?;
+    wire::validate(&config.output_schema, Limits::default())
+        .map_err(|error| ProcessError::new(Code::InvalidArgument, error))?;
+    if config.model.task.enum_value() != Ok(common::ModelTask::MODEL_TASK_EXTRACT)
+        || config.model.prompt_hash.is_none()
+    {
+        return Err(ProcessError::new(
+            Code::InvalidArgument,
+            "EXTRACT runtime requires an EXTRACT model with prompt hash",
+        ));
+    }
+    if config.ontology_version.trim().is_empty() {
+        return Err(ProcessError::new(
+            Code::InvalidArgument,
+            "EXTRACT ontology version is required",
+        ));
+    }
+    if config.output_schema.media_type != "application/schema+json" {
+        return Err(ProcessError::new(
+            Code::InvalidArgument,
+            "EXTRACT output schema must use application/schema+json",
+        ));
+    }
+    if config.maximum_items_per_rpc == 0
+        || config.maximum_input_bytes_per_rpc == 0
+        || config.batch.maximum_records == 0
+        || config.batch.maximum_reference_edges == 0
+    {
+        return Err(ProcessError::new(
+            Code::InvalidArgument,
+            "EXTRACT runtime limits must be positive",
+        ));
+    }
+    Ok(())
+}
+
+fn build_extraction_items(
+    store: &ArtifactStore,
+    input: &crate::wire::documents::DocumentBatch,
+    processor_config: &ParseBatchProcessorConfig,
+    cancelled: &AtomicBool,
+) -> Result<Vec<inference::TextItem>, ProcessError> {
+    let mut normalized_texts = HashMap::with_capacity(input.text_artifacts.len());
+    for artifact in &input.text_artifacts {
+        if cancelled.load(Ordering::Acquire) {
+            return Err(ProcessError::new(
+                Code::Cancelled,
+                "batch cancellation acknowledged",
+            ));
+        }
+        let normalized = load_normalized_text(store, artifact, &processor_config.normalizer)
+            .map_err(|error| ProcessError::new(Code::FailedPrecondition, error.to_string()))?;
+        normalized_texts.insert(artifact.meta.record_id.clone(), normalized.text);
+    }
+    let version_by_id: HashMap<_, _> = input
+        .versions
+        .iter()
+        .map(|version| (version.meta.record_id.as_str(), version))
+        .collect();
+    let provision_by_id: HashMap<_, _> = input
+        .provisions
+        .iter()
+        .map(|provision| (provision.meta.record_id.as_str(), provision))
+        .collect();
+    let source_by_text: HashMap<_, _> = input
+        .text_artifacts
+        .iter()
+        .map(|artifact| {
+            (
+                artifact.meta.record_id.as_str(),
+                artifact.source_blob_id.as_str(),
+            )
+        })
+        .collect();
+    let structure_by_id: HashMap<_, _> = input
+        .structures
+        .iter()
+        .map(|structure| (structure.meta.record_id.as_str(), structure))
+        .collect();
+    let mut items = Vec::with_capacity(input.chunks.len());
+    for chunk in &input.chunks {
+        let span = chunk.text_span.as_ref().ok_or_else(|| {
+            ProcessError::new(Code::FailedPrecondition, "chunk text span is missing")
+        })?;
+        let normalized = normalized_texts
+            .get(&span.text_artifact_id)
+            .ok_or_else(|| {
+                ProcessError::new(
+                    Code::FailedPrecondition,
+                    "chunk references unavailable normalized text",
+                )
+            })?;
+        wire::check_utf8_span(normalized.as_bytes(), span.start_byte, span.end_byte)
+            .map_err(|error| ProcessError::new(Code::FailedPrecondition, error))?;
+        if span.start_byte == span.end_byte {
+            return Err(ProcessError::new(
+                Code::FailedPrecondition,
+                "EXTRACT refuses an empty chunk",
+            ));
+        }
+        let text = normalized[span.start_byte as usize..span.end_byte as usize].to_owned();
+        let mut sources = Vec::new();
+        let mut source_keys = HashSet::new();
+        for version_id in &chunk.provision_version_refs {
+            let version = version_by_id.get(version_id.as_str()).ok_or_else(|| {
+                ProcessError::new(
+                    Code::FailedPrecondition,
+                    "chunk provision version is unavailable",
+                )
+            })?;
+            let provision = provision_by_id
+                .get(version.provision_id.as_str())
+                .ok_or_else(|| {
+                    ProcessError::new(Code::FailedPrecondition, "chunk provision is unavailable")
+                })?;
+            let source_blob_id = version
+                .spans
+                .iter()
+                .find(|version_span| {
+                    version_span.text_artifact_id == span.text_artifact_id
+                        && version_span.start_byte <= span.start_byte
+                        && version_span.end_byte >= span.end_byte
+                })
+                .and_then(|version_span| {
+                    source_by_text
+                        .get(version_span.text_artifact_id.as_str())
+                        .copied()
+                })
+                .ok_or_else(|| {
+                    ProcessError::new(
+                        Code::FailedPrecondition,
+                        "chunk span is not covered by its provision version",
+                    )
+                })?;
+            let key = (
+                source_blob_id.to_owned(),
+                version_id.clone(),
+                provision.regulation_id.clone(),
+            );
+            if source_keys.insert(key.clone()) {
+                sources.push(common::SourceVersionRef {
+                    source_blob_id: key.0,
+                    provision_version_id: key.1,
+                    regulation_id: key.2,
+                    ..Default::default()
+                });
+            }
+        }
+        let mut locators = Vec::new();
+        for structure_id in &chunk.structure_node_refs {
+            let structure = structure_by_id.get(structure_id.as_str()).ok_or_else(|| {
+                ProcessError::new(
+                    Code::FailedPrecondition,
+                    "chunk structure node is unavailable",
+                )
+            })?;
+            locators.extend(structure.page_locators.iter().cloned());
+        }
+        items.push(inference::TextItem {
+            item_id: chunk.meta.record_id.clone(),
+            text,
+            provenance: MessageField::some(common::Provenance {
+                sources,
+                spans: vec![span.clone()],
+                locators,
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+    }
+    Ok(items)
+}
+
+fn partition_extraction_items(
+    items: Vec<inference::TextItem>,
+    maximum_items: usize,
+    maximum_bytes: usize,
+) -> Result<Vec<Vec<inference::TextItem>>, ProcessError> {
+    let mut batches = Vec::new();
+    let mut current = Vec::new();
+    let mut current_bytes = 0usize;
+    for item in items {
+        let item_bytes = item.text.len();
+        if item_bytes > maximum_bytes {
+            return Err(ProcessError::new(
+                Code::ResourceExhausted,
+                "one EXTRACT item exceeds the semantic RPC byte limit",
+            ));
+        }
+        if !current.is_empty()
+            && (current.len() == maximum_items
+                || current_bytes
+                    .checked_add(item_bytes)
+                    .is_none_or(|size| size > maximum_bytes))
+        {
+            batches.push(std::mem::take(&mut current));
+            current_bytes = 0;
+        }
+        current_bytes = current_bytes
+            .checked_add(item_bytes)
+            .ok_or_else(|| ProcessError::new(Code::OutOfRange, "EXTRACT byte count overflow"))?;
+        current.push(item);
+    }
+    if !current.is_empty() {
+        batches.push(current);
+    }
+    if batches.is_empty() {
+        return Err(ProcessError::new(
+            Code::FailedPrecondition,
+            "EXTRACT has no semantic items",
+        ));
+    }
+    Ok(batches)
+}
+
+fn extraction_operation_key(
+    input: &common::ArtifactRef,
+    config: &ExtractionRuntimeConfig,
+    batch_index: usize,
+    items: &[inference::TextItem],
+) -> Result<String, ProcessError> {
+    let mut hasher = Sha256::new();
+    hasher.update(b"regulagraph-semantic-extract-v1\0");
+    for hash in [
+        input.content_hash.as_ref(),
+        config.model.weights_hash.as_ref(),
+        config.model.tokenizer_hash.as_ref(),
+        config.model.prompt_hash.as_ref(),
+        config.output_schema.content_hash.as_ref(),
+    ] {
+        hasher.update(
+            hash.ok_or_else(|| {
+                ProcessError::new(Code::InvalidArgument, "EXTRACT hash identity is missing")
+            })?
+            .sha256
+            .as_bytes(),
+        );
+        hasher.update([0]);
+    }
+    hasher.update(config.ontology_version.as_bytes());
+    hasher.update(batch_index.to_le_bytes());
+    for item in items {
+        hasher.update(item.item_id.as_bytes());
+        hasher.update([0]);
+        hasher.update(Sha256::digest(item.text.as_bytes()));
+    }
+    Ok(format!("semantic-extract:{:x}", hasher.finalize()))
+}
+
+fn extraction_error_issue(
+    item_id: &str,
+    error: &common::OperationError,
+) -> common::ValidationIssue {
+    common::ValidationIssue {
+        code: format!("SEMANTIC_{:?}", error.code.enum_value().unwrap_or_default()),
+        severity: EnumOrUnknown::new(common::Severity::SEVERITY_ERROR),
+        record_id: item_id.to_owned(),
+        field_path: "semantic.result".to_owned(),
+        disposition: if error.retryable {
+            "retry".to_owned()
+        } else {
+            "quarantine".to_owned()
+        },
+        ..Default::default()
+    }
 }
 
 fn exact_span_key(spans: &[common::TextSpan]) -> Result<String, ProcessError> {
@@ -1364,7 +1949,7 @@ mod tests {
     use protobuf::well_known_types::timestamp::Timestamp;
     use std::fs;
     use std::path::PathBuf;
-    use std::sync::atomic::AtomicU64;
+    use std::sync::atomic::{AtomicU64, AtomicUsize};
 
     static TEST_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
@@ -1377,6 +1962,77 @@ mod tests {
 
         fn count_tokens(&self, text: &str) -> Result<u32, String> {
             u32::try_from(text.split_whitespace().count()).map_err(|error| error.to_string())
+        }
+    }
+
+    struct EmptyExtraction {
+        calls: Arc<AtomicUsize>,
+        reject_first_call: bool,
+    }
+
+    impl ExtractionInference for EmptyExtraction {
+        fn extract_batch(
+            &self,
+            request: inference::ExtractBatchRequest,
+            _cancelled: &AtomicBool,
+        ) -> Result<inference::ExtractBatchResponse, crate::adapters::inference::SemanticClientError>
+        {
+            let call_index = self.calls.fetch_add(1, Ordering::AcqRel);
+            let model = request.batch.model.as_ref().unwrap().clone();
+            Ok(inference::ExtractBatchResponse {
+                request_id: request.batch.context.request_id.clone(),
+                results: request
+                    .items
+                    .into_iter()
+                    .enumerate()
+                    .map(|(item_index, item)| inference::ExtractItemResult {
+                        item_id: item.item_id.clone(),
+                        result: Some(
+                            if self.reject_first_call && call_index == 0 && item_index == 0 {
+                                inference::extract_item_result::Result::Error(
+                                    common::OperationError {
+                                        code: EnumOrUnknown::new(
+                                            common::ErrorCode::ERROR_CODE_INVALID_ARGUMENT,
+                                        ),
+                                        safe_message: "fixture rejection".to_owned(),
+                                        stage: "extract".to_owned(),
+                                        retryable: false,
+                                        item_id: Some(item.item_id),
+                                        ..Default::default()
+                                    },
+                                )
+                            } else {
+                                inference::extract_item_result::Result::Proposal(
+                                    inference::ExtractionProposal::default(),
+                                )
+                            },
+                        ),
+                        ..Default::default()
+                    })
+                    .collect(),
+                model: MessageField::some(model.clone()),
+                usage: MessageField::some(common::TokenUsage {
+                    input_tokens: 10,
+                    output_tokens: 1,
+                    tokenizer_id: "tokenizer:semantic-fixture".to_owned(),
+                    ..Default::default()
+                }),
+                durations: vec![common::StageDuration {
+                    stage: "semantic_extract".to_owned(),
+                    duration_ns: 10,
+                    ..Default::default()
+                }],
+                producer_manifest: MessageField::some(common::ProducerManifest {
+                    software: "semantic-fixture".to_owned(),
+                    build: "v1".to_owned(),
+                    schema_version: 1,
+                    models: vec![model.clone()],
+                    prompt_hashes: vec![model.prompt_hash.as_ref().unwrap().clone()],
+                    config_hash: MessageField::some(hash('f')),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            })
         }
     }
 
@@ -1648,6 +2304,138 @@ mod tests {
             .dependencies
             .iter()
             .any(|dependency| dependency.dependency_id == "organization:fixture"));
+
+        let calls = Arc::new(AtomicUsize::new(0));
+        let prompt_hash = hash('d');
+        let model = common::ModelManifest {
+            model_id: "model:extract-fixture".to_owned(),
+            version: "v1".to_owned(),
+            weights_hash: MessageField::some(hash('8')),
+            tokenizer_hash: MessageField::some(hash('9')),
+            task: EnumOrUnknown::new(common::ModelTask::MODEL_TASK_EXTRACT),
+            max_tokens: 4096,
+            precision: "provider".to_owned(),
+            backend: "fixture".to_owned(),
+            prompt_hash: MessageField::some(prompt_hash),
+            ..Default::default()
+        };
+        let extraction_config = ExtractionRuntimeConfig {
+            model,
+            ontology_version: "ontology:fixture-v1".to_owned(),
+            output_schema: common::ArtifactRef {
+                artifact_id: "artifact:schema:extract".to_owned(),
+                content_hash: MessageField::some(hash('e')),
+                storage_key: format!("sha256/ee/ee/{}.bin", "e".repeat(64)),
+                media_type: "application/schema+json".to_owned(),
+                byte_size: 1,
+                schema_version: 1,
+                ..Default::default()
+            },
+            batch: ExtractionBatchConfig::default(),
+            maximum_items_per_rpc: 1,
+            maximum_input_bytes_per_rpc: 1024,
+        };
+        let processor = processor
+            .with_extraction(
+                Arc::new(EmptyExtraction {
+                    calls: Arc::clone(&calls),
+                    reject_first_call: false,
+                }),
+                extraction_config.clone(),
+            )
+            .unwrap();
+        let extract_response = processor
+            .process(
+                jobs::ProcessBatchRequest {
+                    context: MessageField::some(request_context("extract:fixture")),
+                    job_id: "job:extract-fixture".to_owned(),
+                    attempt: 1,
+                    lease: MessageField::some(jobs::Lease {
+                        owner_id: "worker:fixture".to_owned(),
+                        fence: 8,
+                        expires_at: MessageField::some(Timestamp {
+                            seconds: 2_000_000_100,
+                            ..Default::default()
+                        }),
+                        ..Default::default()
+                    }),
+                    sources: vec![response.document_batch.as_ref().unwrap().clone()],
+                    manifest: MessageField::some(producer()),
+                    stages: vec![EnumOrUnknown::new(jobs::JobStage::JOB_STAGE_EXTRACT)],
+                    ..Default::default()
+                },
+                &AtomicBool::new(false),
+                &|_, _, _| {},
+            )
+            .unwrap();
+        assert_eq!(
+            extract_response.status.enum_value(),
+            Ok(common::CompletionStatus::COMPLETION_STATUS_SUCCEEDED)
+        );
+        assert_eq!(calls.load(Ordering::Acquire), output.chunks.len());
+        let extract_descriptor =
+            ArtifactDescriptor::from_wire_ref(extract_response.extraction_batch.as_ref().unwrap())
+                .unwrap();
+        let extracted = crate::adapters::extraction_batches::load_extraction_batch(
+            &processor.store,
+            &extract_descriptor,
+            &output,
+        )
+        .unwrap();
+        assert_eq!(extracted.item_counts.expected, output.chunks.len() as u64);
+        assert_eq!(extracted.item_counts.accepted, output.chunks.len() as u64);
+        assert!(extracted.mentions.is_empty());
+
+        let rejected_calls = Arc::new(AtomicUsize::new(0));
+        let processor = processor
+            .with_extraction(
+                Arc::new(EmptyExtraction {
+                    calls: Arc::clone(&rejected_calls),
+                    reject_first_call: true,
+                }),
+                extraction_config,
+            )
+            .unwrap();
+        let rejected_response = processor
+            .process(
+                jobs::ProcessBatchRequest {
+                    context: MessageField::some(request_context("extract:partial-fixture")),
+                    job_id: "job:extract-partial-fixture".to_owned(),
+                    attempt: 1,
+                    lease: MessageField::some(jobs::Lease {
+                        owner_id: "worker:fixture".to_owned(),
+                        fence: 9,
+                        expires_at: MessageField::some(Timestamp {
+                            seconds: 2_000_000_100,
+                            ..Default::default()
+                        }),
+                        ..Default::default()
+                    }),
+                    sources: vec![response.document_batch.as_ref().unwrap().clone()],
+                    manifest: MessageField::some(producer()),
+                    stages: vec![EnumOrUnknown::new(jobs::JobStage::JOB_STAGE_EXTRACT)],
+                    ..Default::default()
+                },
+                &AtomicBool::new(false),
+                &|_, _, _| {},
+            )
+            .unwrap();
+        assert_eq!(
+            rejected_response.status.enum_value(),
+            Ok(common::CompletionStatus::COMPLETION_STATUS_FAILED)
+        );
+        assert_eq!(rejected_response.errors.len(), 1);
+        let rejected_descriptor =
+            ArtifactDescriptor::from_wire_ref(rejected_response.extraction_batch.as_ref().unwrap())
+                .unwrap();
+        let rejected = crate::adapters::extraction_batches::load_extraction_batch(
+            &processor.store,
+            &rejected_descriptor,
+            &output,
+        )
+        .unwrap();
+        assert_eq!(rejected.item_counts.rejected, 1);
+        assert_eq!(rejected.issues.len(), 1);
     }
 
     fn meta(corpus_id: &str, record_id: &str) -> common::RecordMeta {
