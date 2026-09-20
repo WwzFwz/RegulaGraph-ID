@@ -51,6 +51,10 @@ impl ProcessError {
             message: message.into(),
         }
     }
+
+    pub fn code(&self) -> Code {
+        self.code
+    }
 }
 
 impl Display for ProcessError {

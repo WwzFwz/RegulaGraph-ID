@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	pb "regulagraph.local/server/gen/regulagraph/v1"
 	"regulagraph.local/server/internal/domain"
 )
@@ -102,11 +103,13 @@ type parseWorkerFake struct {
 	cancelCalls      int
 	blockUntilCancel bool
 	deadlineObserved bool
+	lastRequest      *pb.ProcessBatchRequest
 	mutateResponse   func(*pb.ProcessBatchResponse)
 }
 
 func (w *parseWorkerFake) ProcessBatch(ctx context.Context, request *pb.ProcessBatchRequest) (*pb.ProcessBatchResponse, error) {
 	w.calls++
+	w.lastRequest = proto.Clone(request).(*pb.ProcessBatchRequest)
 	deadline, ok := ctx.Deadline()
 	w.deadlineObserved = ok && deadline.Equal(request.Context.Deadline.AsTime())
 	if w.blockUntilCancel {
@@ -296,6 +299,38 @@ func TestParseExecutorPersistsCheckpointAndStagesCompleteBatch(t *testing.T) {
 	}
 	if got := store.transitions; len(got) != 1 || got[0] != pb.JobState_JOB_STATE_STAGED {
 		t.Fatalf("unexpected transitions: %v", got)
+	}
+}
+
+func TestParseExecutorForwardsOnlySourceBoundObservations(t *testing.T) {
+	store := parseFixtureStore(false)
+	blobHash := store.request.Sources[0].GetBlob().GetContentHash().GetSha256()
+	store.request.Observations = []*pb.SourceObservation{{
+		Meta:     &pb.RecordMeta{SchemaVersion: 1, CorpusId: store.job.CorpusID, RecordId: "source-observation:fixture"},
+		PortalId: "bpk", DetailUrl: "https://peraturan.bpk.go.id/Details/1/example",
+		FetchedAt: timestamppb.New(time.Now().UTC()), Status: pb.ObservationStatus_OBSERVATION_STATUS_COMPLETE,
+		SourceBlobId: func() *string { value := "source-blob:" + blobHash; return &value }(),
+	}}
+	worker := &parseWorkerFake{completion: pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED}
+	executor, _ := NewParseExecutor(store, worker, parseExecutorConfig())
+	if _, _, err := executor.RunOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(worker.lastRequest.GetObservations()) != 1 || worker.lastRequest.GetObservations()[0].GetMeta().GetRecordId() != "source-observation:fixture" {
+		t.Fatalf("source observation was not forwarded: %v", worker.lastRequest)
+	}
+
+	store = parseFixtureStore(false)
+	store.request.Observations = []*pb.SourceObservation{{
+		Meta:     &pb.RecordMeta{SchemaVersion: 1, CorpusId: store.job.CorpusID, RecordId: "source-observation:forged"},
+		PortalId: "komdigi", DetailUrl: "https://jdih.komdigi.go.id/produk_hukum/view/id/1",
+		FetchedAt: timestamppb.New(time.Now().UTC()), Status: pb.ObservationStatus_OBSERVATION_STATUS_COMPLETE,
+		SourceBlobId: func() *string { value := "source-blob:" + blobHash; return &value }(),
+	}}
+	worker = &parseWorkerFake{completion: pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED}
+	executor, _ = NewParseExecutor(store, worker, parseExecutorConfig())
+	if _, _, err := executor.RunOnce(context.Background()); status.Code(err) != codes.FailedPrecondition || worker.calls != 0 {
+		t.Fatalf("observation from an unrelated portal was dispatched: calls=%d err=%v", worker.calls, err)
 	}
 }
 

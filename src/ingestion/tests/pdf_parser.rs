@@ -15,7 +15,7 @@ use regulagraph_ingestion::document::parsing::pdf::{
     PdfDocumentStatus, PdfParseError, PdfParseRequest, PdfParser, PdfParserConfig,
 };
 use regulagraph_ingestion::domain::document_batch::DocumentBatchConfig;
-use regulagraph_ingestion::wire::{common, jobs};
+use regulagraph_ingestion::wire::{common, documents, jobs};
 use regulagraph_ingestion::worker::{
     BatchProcessor, ParseBatchProcessor, ParseBatchProcessorConfig,
 };
@@ -142,7 +142,7 @@ fn pdfium_boundary_parses_and_binds_real_inputs() {
     .unwrap();
     let response = processor
         .process(
-            worker_request(input),
+            worker_request(input.clone()),
             &AtomicBool::new(false),
             &|_, _, _| {},
         )
@@ -187,6 +187,18 @@ fn pdfium_boundary_parses_and_binds_real_inputs() {
     assert!(batch.provisions.is_empty());
     assert!(batch.versions.is_empty());
     assert!(batch.chunks.is_empty());
+    assert_eq!(batch.observations.len(), 1);
+    assert_eq!(
+        batch.observations[0].source_blob_id.as_deref(),
+        Some(batch.sources[0].meta.record_id.as_str())
+    );
+
+    let mut forged = worker_request(input);
+    forged.observations[0].source_blob_id = Some(format!("source-blob:{}", "0".repeat(64)));
+    let forged_error = processor
+        .process(forged, &AtomicBool::new(false), &|_, _, _| {})
+        .expect_err("observation bound to unrelated bytes must be rejected");
+    assert_eq!(forged_error.code(), tonic::Code::InvalidArgument);
 
     fs::remove_file(fixture).expect("fixture PDF must be removable");
     fs::remove_file(malformed).expect("malformed fixture must be removable");
@@ -198,6 +210,7 @@ fn worker_request(source: common::ArtifactRef) -> jobs::ProcessBatchRequest {
         sha256: character.to_string().repeat(64),
         ..Default::default()
     };
+    let source_blob_id = format!("source-blob:{}", source.content_hash.sha256);
     jobs::ProcessBatchRequest {
         context: MessageField::some(common::RequestContext {
             schema_version: 1,
@@ -224,6 +237,23 @@ fn worker_request(source: common::ArtifactRef) -> jobs::ProcessBatchRequest {
             ..Default::default()
         }),
         sources: vec![source],
+        observations: vec![documents::SourceObservation {
+            meta: MessageField::some(common::RecordMeta {
+                schema_version: 1,
+                corpus_id: "regulagraph-id".to_owned(),
+                record_id: "source-observation:pdf-worker-test".to_owned(),
+                ..Default::default()
+            }),
+            portal_id: "bpk".to_owned(),
+            detail_url: "https://peraturan.bpk.go.id/Details/1/test".to_owned(),
+            fetched_at: MessageField::some(Timestamp {
+                seconds: 1_800_000_000,
+                ..Default::default()
+            }),
+            status: EnumOrUnknown::new(documents::ObservationStatus::OBSERVATION_STATUS_COMPLETE),
+            source_blob_id: Some(source_blob_id),
+            ..Default::default()
+        }],
         manifest: MessageField::some(common::ProducerManifest {
             software: "regulagraph-ingestion".to_owned(),
             build: "pdf-worker-test".to_owned(),

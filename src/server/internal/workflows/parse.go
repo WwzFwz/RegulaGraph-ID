@@ -281,6 +281,7 @@ func (e *ParseExecutor) processRequest(ctx context.Context, job domain.JobRecord
 		return nil, status.Error(codes.DeadlineExceeded, "claimed job lease has elapsed")
 	}
 	var sources []*pb.ArtifactRef
+	var observations []*pb.SourceObservation
 	if job.Stage == pb.JobStage_JOB_STAGE_PARSE {
 		sources = make([]*pb.ArtifactRef, 0, len(request.Sources))
 		for _, locator := range request.Sources {
@@ -288,6 +289,11 @@ func (e *ParseExecutor) processRequest(ctx context.Context, job domain.JobRecord
 				return nil, status.Error(codes.FailedPrecondition, "PARSE dispatch requires acquired blob sources; URL locators remain in ACQUIRE")
 			}
 			sources = append(sources, proto.Clone(locator.GetBlob()).(*pb.ArtifactRef))
+		}
+		var observationErr error
+		observations, observationErr = parseObservations(request)
+		if observationErr != nil {
+			return nil, status.Error(codes.FailedPrecondition, observationErr.Error())
 		}
 	} else {
 		checkpoint, checkpointErr := e.store.LoadLatestCheckpoint(ctx, job.JobID)
@@ -330,14 +336,50 @@ func (e *ParseExecutor) processRequest(ctx context.Context, job domain.JobRecord
 			Fence:     job.LeaseFence,
 			ExpiresAt: timestamppb.New(job.LeaseExpiresAt),
 		},
-		Sources:  sources,
-		Manifest: proto.Clone(request.ConfigManifest).(*pb.ProducerManifest),
-		Stages:   []pb.JobStage{job.Stage},
+		Sources:      sources,
+		Manifest:     proto.Clone(request.ConfigManifest).(*pb.ProducerManifest),
+		Stages:       []pb.JobStage{job.Stage},
+		Observations: observations,
 	}
 	if err := domain.ValidateWire(batch, domain.DefaultWireLimits); err != nil {
 		return nil, status.Error(codes.FailedPrecondition, fmt.Sprintf("constructed document request is invalid: %v", err))
 	}
 	return batch, nil
+}
+
+// parseObservations binds acquisition provenance to immutable source content before dispatch.
+// Empty observations remain valid for legacy jobs, but any supplied record must refer only to a
+// source/portal present in the request so metadata cannot be attached to unrelated PDF bytes.
+func parseObservations(request *pb.IngestionRequest) ([]*pb.SourceObservation, error) {
+	portals := map[string]bool{}
+	bindings := map[string]map[string]bool{}
+	for _, locator := range request.Sources {
+		if locator == nil || locator.GetBlob() == nil || locator.GetBlob().GetContentHash() == nil {
+			continue
+		}
+		portals[locator.PortalId] = true
+		blobID := "source-blob:" + locator.GetBlob().GetContentHash().GetSha256()
+		if bindings[blobID] == nil {
+			bindings[blobID] = map[string]bool{}
+		}
+		bindings[blobID][locator.PortalId] = true
+	}
+	result := make([]*pb.SourceObservation, 0, len(request.Observations))
+	seen := map[string]bool{}
+	for _, observation := range request.Observations {
+		if observation == nil || observation.GetMeta() == nil || seen[observation.GetMeta().GetRecordId()] {
+			return nil, errors.New("ingestion observations require unique complete identities")
+		}
+		seen[observation.GetMeta().GetRecordId()] = true
+		if !portals[observation.PortalId] {
+			return nil, errors.New("ingestion observation portal is absent from source locators")
+		}
+		if observation.SourceBlobId != nil && !bindings[observation.GetSourceBlobId()][observation.PortalId] {
+			return nil, errors.New("ingestion observation is not bound to source bytes from the same portal")
+		}
+		result = append(result, proto.Clone(observation).(*pb.SourceObservation))
+	}
+	return result, nil
 }
 
 func documentRequestID(job domain.JobRecord) string {

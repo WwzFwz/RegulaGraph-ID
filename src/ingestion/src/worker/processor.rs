@@ -119,6 +119,7 @@ impl BatchProcessor for ParseBatchProcessor {
         preflight_sources(&request.sources, &self.config)?;
         let request_id = context.request_id.clone();
         let corpus_id = context.corpus_id.clone();
+        preflight_observations(&request.observations, &request.sources, &corpus_id)?;
         let total = request.sources.len() as u64;
         let mut sources = Vec::with_capacity(request.sources.len());
         let mut text_artifacts = Vec::with_capacity(request.sources.len());
@@ -229,6 +230,7 @@ impl BatchProcessor for ParseBatchProcessor {
                 context,
                 sources,
                 text_artifacts,
+                observations: request.observations,
                 dependency_manifest: common::DependencyManifest {
                     artifact_id: format!("dependency-manifest:{identity}"),
                     dependencies,
@@ -575,6 +577,55 @@ fn preflight_sources(
                 config.maximum_input_bytes
             ),
         ));
+    }
+    Ok(())
+}
+
+fn preflight_observations(
+    observations: &[crate::wire::documents::SourceObservation],
+    sources: &[common::ArtifactRef],
+    corpus_id: &str,
+) -> Result<(), ProcessError> {
+    let mut source_blob_ids = HashSet::with_capacity(sources.len());
+    let mut source_artifact_ids = HashSet::with_capacity(sources.len());
+    for source in sources {
+        if !source_artifact_ids.insert(source.artifact_id.as_str()) {
+            return Err(ProcessError::new(
+                Code::InvalidArgument,
+                "source artifact IDs must be unique within a batch",
+            ));
+        }
+        let source_hash = source
+            .content_hash
+            .as_ref()
+            .ok_or_else(|| ProcessError::new(Code::InvalidArgument, "source hash is required"))?;
+        source_blob_ids.insert(format!("source-blob:{}", source_hash.sha256));
+    }
+
+    let mut observation_ids = HashSet::with_capacity(observations.len());
+    for observation in observations {
+        if !observation_ids.insert(observation.meta.record_id.as_str()) {
+            return Err(ProcessError::new(
+                Code::InvalidArgument,
+                "source observation IDs must be unique within a batch",
+            ));
+        }
+        if observation.meta.corpus_id != corpus_id {
+            return Err(ProcessError::new(
+                Code::InvalidArgument,
+                "source observation corpus differs from request corpus",
+            ));
+        }
+        if observation
+            .source_blob_id
+            .as_ref()
+            .is_some_and(|source_id| !source_blob_ids.contains(source_id))
+        {
+            return Err(ProcessError::new(
+                Code::InvalidArgument,
+                "source observation references bytes outside the request",
+            ));
+        }
     }
     Ok(())
 }
