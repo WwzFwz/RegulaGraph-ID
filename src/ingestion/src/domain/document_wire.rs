@@ -133,6 +133,26 @@ pub fn project_structure_and_chunks(
     provision_version_id: &str,
     config: &DocumentWireConfig,
 ) -> Result<DocumentWireProjection, DocumentWireError> {
+    project_structure_and_chunks_internal(tree, batch, Some(provision_version_id), config)
+}
+
+/// Projects a chunk batch whose nodes already carry registry-owned provision-version bindings.
+/// Each chunk must reference exactly one valid version; the caller remains responsible for
+/// validating those IDs against the bound DocumentBatch before publication.
+pub fn project_bound_structure_and_chunks(
+    tree: &StructureTree,
+    batch: &ChunkBatch,
+    config: &DocumentWireConfig,
+) -> Result<DocumentWireProjection, DocumentWireError> {
+    project_structure_and_chunks_internal(tree, batch, None, config)
+}
+
+fn project_structure_and_chunks_internal(
+    tree: &StructureTree,
+    batch: &ChunkBatch,
+    expected_provision_version_id: Option<&str>,
+    config: &DocumentWireConfig,
+) -> Result<DocumentWireProjection, DocumentWireError> {
     validate_config(config)?;
     if batch.normalized_sha256 != tree.normalized_sha256 {
         return Err(DocumentWireError::IdentityMismatch("normalized_sha256"));
@@ -167,9 +187,17 @@ pub fn project_structure_and_chunks(
         if chunk.chunker_config_sha256 != batch.chunker_config_sha256 {
             return Err(DocumentWireError::IdentityMismatch("chunker_config_sha256"));
         }
-        if chunk.provision_version_refs != [provision_version_id] {
+        if let Some(expected) = expected_provision_version_id {
+            if chunk.provision_version_refs != [expected] {
+                return Err(DocumentWireError::IdentityMismatch(
+                    "provision_version_refs",
+                ));
+            }
+        } else if chunk.provision_version_refs.len() != 1
+            || !valid_ascii_id(&chunk.provision_version_refs[0])
+        {
             return Err(DocumentWireError::IdentityMismatch(
-                "provision_version_refs",
+                "bound provision_version_refs",
             ));
         }
         for structure_id in chunk
@@ -425,6 +453,29 @@ mod tests {
         assert_eq!(decoded.parent_refs, chunk.parent_refs);
         assert_eq!(decoded.token_counts, chunk.token_counts);
         validate_wire(&decoded).expect("roundtripped chunk remains valid");
+    }
+
+    #[test]
+    fn projects_per_node_bound_provision_versions() {
+        let (tree, mut batch) = fixture();
+        for (index, chunk) in batch.chunks.iter_mut().enumerate() {
+            chunk.provision_version_refs = vec![format!("version:bound:{}", index + 1)];
+        }
+        let projection =
+            project_bound_structure_and_chunks(&tree, &batch, &DocumentWireConfig::default())
+                .expect("bound wire projection succeeds");
+        assert!(projection
+            .chunks
+            .iter()
+            .zip(&batch.chunks)
+            .all(|(wire, local)| wire.provision_version_refs == local.provision_version_refs));
+        assert!(project_structure_and_chunks(
+            &tree,
+            &batch,
+            "version:fixture",
+            &DocumentWireConfig::default(),
+        )
+        .is_err());
     }
 
     #[test]

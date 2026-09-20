@@ -78,6 +78,8 @@ pub enum ChunkBuildError {
     EmptyTokenCount,
     ChunkLimit { maximum: usize },
     InvalidStructureSpan,
+    MissingProvisionVersion(String),
+    UnknownProvisionBinding(String),
 }
 
 impl Display for ChunkBuildError {
@@ -95,6 +97,18 @@ impl Display for ChunkBuildError {
             Self::InvalidStructureSpan => {
                 write!(formatter, "invalid or overlapping structure span")
             }
+            Self::MissingProvisionVersion(node_id) => {
+                write!(
+                    formatter,
+                    "structure node {node_id} has no provision-version binding"
+                )
+            }
+            Self::UnknownProvisionBinding(node_id) => {
+                write!(
+                    formatter,
+                    "provision-version binding references unknown node {node_id}"
+                )
+            }
         }
     }
 }
@@ -108,10 +122,27 @@ pub fn build_chunks<T: TokenCounter>(
     config: &ChunkerConfig,
     tokenizer: &T,
 ) -> Result<ChunkBatch, ChunkBuildError> {
-    validate_config(config)?;
     if !valid_ascii_id(provision_version_id) {
         return Err(ChunkBuildError::InvalidConfig("provision_version_id"));
     }
+    let bindings: HashMap<String, String> = tree
+        .nodes
+        .iter()
+        .map(|node| (node.id.clone(), provision_version_id.to_owned()))
+        .collect();
+    build_bound_chunks(normalized, tree, &bindings, config, tokenizer)
+}
+
+/// Builds chunks with one registry-owned provision version per structure node. Exact coverage is
+/// required so preambles and container text cannot silently inherit an unrelated article version.
+pub fn build_bound_chunks<T: TokenCounter>(
+    normalized: &NormalizedText,
+    tree: &StructureTree,
+    provision_versions: &HashMap<String, String>,
+    config: &ChunkerConfig,
+    tokenizer: &T,
+) -> Result<ChunkBatch, ChunkBuildError> {
+    validate_config(config)?;
     if !valid_ascii_id(tokenizer.tokenizer_id()) {
         return Err(ChunkBuildError::InvalidTokenizerId);
     }
@@ -132,9 +163,25 @@ pub fn build_chunks<T: TokenCounter>(
         .iter()
         .map(|node| (node.id.as_str(), node))
         .collect();
+    for (node_id, version_id) in provision_versions {
+        if !structure_nodes.contains_key(node_id.as_str()) {
+            return Err(ChunkBuildError::UnknownProvisionBinding(node_id.clone()));
+        }
+        if !valid_ascii_id(version_id) {
+            return Err(ChunkBuildError::InvalidConfig("provision_version_id"));
+        }
+    }
+    for node in &tree.nodes {
+        if !provision_versions.contains_key(&node.id) {
+            return Err(ChunkBuildError::MissingProvisionVersion(node.id.clone()));
+        }
+    }
     let mut chunks = Vec::new();
 
     for node in &tree.nodes {
+        let provision_version_id = provision_versions
+            .get(&node.id)
+            .expect("binding coverage was validated before chunking");
         for owned_span in owned_text_spans(node, &structure_nodes, &normalized.text)? {
             let remaining = config.maximum_chunks.saturating_sub(chunks.len());
             for split in split_span(&normalized.text, owned_span, config, remaining)? {
@@ -160,7 +207,7 @@ pub fn build_chunks<T: TokenCounter>(
                     id,
                     source_blob_id: tree.source_blob_id.clone(),
                     text_artifact_id: tree.text_artifact_id.clone(),
-                    provision_version_refs: vec![provision_version_id.to_owned()],
+                    provision_version_refs: vec![provision_version_id.clone()],
                     structure_node_refs: vec![node.id.clone()],
                     parent_refs: Vec::new(),
                     exception_refs: Vec::new(),
@@ -399,6 +446,7 @@ mod tests {
         parse_structure, StructureIdentity, StructureParserConfig,
     };
     use crate::document::normalization::text::{normalize_text, TextNormalizerConfig};
+    use std::cell::Cell;
 
     struct Words;
 
@@ -408,6 +456,21 @@ mod tests {
         }
 
         fn count_tokens(&self, text: &str) -> Result<u32, String> {
+            u32::try_from(text.split_whitespace().count()).map_err(|error| error.to_string())
+        }
+    }
+
+    struct CountingWords {
+        calls: Cell<usize>,
+    }
+
+    impl TokenCounter for CountingWords {
+        fn tokenizer_id(&self) -> &str {
+            "test:counting-words-v1"
+        }
+
+        fn count_tokens(&self, text: &str) -> Result<u32, String> {
+            self.calls.set(self.calls.get() + 1);
             u32::try_from(text.split_whitespace().count()).map_err(|error| error.to_string())
         }
     }
@@ -504,6 +567,43 @@ mod tests {
             .map(|id| tree.node(id).expect("parent exists").label.as_str())
             .collect();
         assert_eq!(parent_labels, ["BAB I", "Pasal 1", "(1)"]);
+    }
+
+    #[test]
+    fn bound_chunks_use_each_structure_nodes_registry_version() {
+        let (normalized, tree) = fixture(
+            "PEMBUKAAN\nBAB I\nKETENTUAN UMUM\nPasal 1\n(1) Syarat pertama.\n(2) Syarat kedua.\n",
+        );
+        let bindings: HashMap<String, String> = tree
+            .nodes
+            .iter()
+            .enumerate()
+            .map(|(index, node)| (node.id.clone(), format!("version:{}", index + 1)))
+            .collect();
+        let batch = build_bound_chunks(&normalized, &tree, &bindings, &small_config(), &Words)
+            .expect("bound chunks");
+        assert!(!batch.chunks.is_empty());
+        for chunk in &batch.chunks {
+            let node_id = &chunk.structure_node_refs[0];
+            assert_eq!(chunk.provision_version_refs, [bindings[node_id].clone()]);
+        }
+
+        let mut missing = bindings.clone();
+        missing.remove(&tree.root().id);
+        let counting = CountingWords {
+            calls: Cell::new(0),
+        };
+        assert!(matches!(
+            build_bound_chunks(&normalized, &tree, &missing, &small_config(), &counting),
+            Err(ChunkBuildError::MissingProvisionVersion(_))
+        ));
+        assert_eq!(counting.calls.get(), 0);
+        let mut unknown = bindings;
+        unknown.insert("structure:unknown".to_owned(), "version:unknown".to_owned());
+        assert!(matches!(
+            build_bound_chunks(&normalized, &tree, &unknown, &small_config(), &Words),
+            Err(ChunkBuildError::UnknownProvisionBinding(_))
+        ));
     }
 
     #[test]
