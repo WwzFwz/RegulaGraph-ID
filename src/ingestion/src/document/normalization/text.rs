@@ -68,6 +68,7 @@ pub struct TextMappingSpan {
 pub struct NormalizedText {
     pub schema_version: u32,
     pub raw_sha256: String,
+    pub raw_byte_length: usize,
     pub normalized_sha256: String,
     pub config_sha256: String,
     pub text: String,
@@ -75,22 +76,76 @@ pub struct NormalizedText {
 }
 
 impl NormalizedText {
+    /// Memeriksa integritas mandiri sebelum artefak dipakai tanpa raw text di boundary berikutnya.
+    pub fn validate_integrity(&self) -> Result<(), NormalizeError> {
+        if self.schema_version != SCHEMA_VERSION {
+            return Err(NormalizeError::SchemaMismatch {
+                actual: self.schema_version,
+            });
+        }
+        if !is_sha256(&self.raw_sha256)
+            || !is_sha256(&self.normalized_sha256)
+            || !is_sha256(&self.config_sha256)
+            || sha256(self.text.as_bytes()) != self.normalized_sha256
+        {
+            return Err(NormalizeError::HashMismatch);
+        }
+        let mut raw_cursor = 0usize;
+        let mut normalized_cursor = 0usize;
+        for span in &self.mapping {
+            let raw_start = usize::try_from(span.raw_start_byte)
+                .map_err(|_| NormalizeError::InvalidMapping("raw_start_byte"))?;
+            let raw_end = usize::try_from(span.raw_end_byte)
+                .map_err(|_| NormalizeError::InvalidMapping("raw_end_byte"))?;
+            let normalized_start = usize::try_from(span.normalized_start_byte)
+                .map_err(|_| NormalizeError::InvalidMapping("normalized_start_byte"))?;
+            let normalized_end = usize::try_from(span.normalized_end_byte)
+                .map_err(|_| NormalizeError::InvalidMapping("normalized_end_byte"))?;
+            if raw_start != raw_cursor
+                || normalized_start != normalized_cursor
+                || raw_start >= raw_end
+                || raw_end > self.raw_byte_length
+                || normalized_start > normalized_end
+                || normalized_end > self.text.len()
+                || !self.text.is_char_boundary(normalized_start)
+                || !self.text.is_char_boundary(normalized_end)
+                || (normalized_start == normalized_end
+                    && span.kind != MappingKind::SoftHyphenRemoval)
+            {
+                return Err(NormalizeError::InvalidMapping("span integrity"));
+            }
+            raw_cursor = raw_end;
+            normalized_cursor = normalized_end;
+        }
+        if raw_cursor != self.raw_byte_length || normalized_cursor != self.text.len() {
+            return Err(NormalizeError::InvalidMapping("integrity coverage"));
+        }
+        if self.raw_byte_length == 0 && !self.mapping.is_empty() {
+            return Err(NormalizeError::InvalidMapping("empty input"));
+        }
+        Ok(())
+    }
+
     /// Mengembalikan raw cover minimal untuk span normalized non-kosong pada batas karakter UTF-8.
     pub fn raw_cover(&self, normalized: Range<usize>) -> Result<Range<usize>, NormalizeError> {
         validate_requested_span(&self.text, &normalized)?;
         if normalized.is_empty() {
             return Err(NormalizeError::EmptyRequestedSpan);
         }
-        let first = self
+        let first_index = self
             .mapping
+            .partition_point(|span| span.normalized_end_byte <= normalized.start as u64);
+        let first = self.mapping[first_index..]
             .iter()
             .find(|span| {
                 span.normalized_end_byte > normalized.start as u64
                     && span.normalized_start_byte < normalized.end as u64
             })
             .ok_or(NormalizeError::UnmappedSpan)?;
-        let last = self
+        let after_last = self
             .mapping
+            .partition_point(|span| span.normalized_start_byte < normalized.end as u64);
+        let last = self.mapping[..after_last]
             .iter()
             .rev()
             .find(|span| {
@@ -116,11 +171,7 @@ impl NormalizedText {
         config: &TextNormalizerConfig,
     ) -> Result<(), NormalizeError> {
         validate_config(config)?;
-        if self.schema_version != SCHEMA_VERSION {
-            return Err(NormalizeError::SchemaMismatch {
-                actual: self.schema_version,
-            });
-        }
+        self.validate_integrity()?;
         if config_fingerprint(config) != self.config_sha256 {
             return Err(NormalizeError::ConfigMismatch);
         }
@@ -130,12 +181,7 @@ impl NormalizedText {
                 maximum: config.maximum_input_bytes,
             });
         }
-        if !is_sha256(&self.raw_sha256)
-            || !is_sha256(&self.normalized_sha256)
-            || !is_sha256(&self.config_sha256)
-            || sha256(raw.as_bytes()) != self.raw_sha256
-            || sha256(self.text.as_bytes()) != self.normalized_sha256
-        {
+        if raw.len() != self.raw_byte_length || sha256(raw.as_bytes()) != self.raw_sha256 {
             return Err(NormalizeError::HashMismatch);
         }
         let mut raw_cursor = 0usize;
@@ -243,6 +289,7 @@ pub fn normalize_text(
     Ok(NormalizedText {
         schema_version: SCHEMA_VERSION,
         raw_sha256: sha256(raw.as_bytes()),
+        raw_byte_length: raw.len(),
         normalized_sha256: sha256(builder.text.as_bytes()),
         config_sha256: config_fingerprint(config),
         text: builder.text,
@@ -624,6 +671,21 @@ mod tests {
             result.validate_mapping(raw, &TextNormalizerConfig::default()),
             Err(NormalizeError::HashMismatch)
         );
+
+        let mut result = normalize_text(raw, &TextNormalizerConfig::default()).unwrap();
+        result.mapping[0].raw_start_byte += 100_000;
+        result.mapping[0].raw_end_byte += 100_000;
+        assert!(matches!(
+            result.validate_integrity(),
+            Err(NormalizeError::InvalidMapping(_))
+        ));
+
+        let mut result = normalize_text(raw, &TextNormalizerConfig::default()).unwrap();
+        result.raw_byte_length += 1;
+        assert!(matches!(
+            result.validate_integrity(),
+            Err(NormalizeError::InvalidMapping(_))
+        ));
 
         let result = normalize_text(raw, &TextNormalizerConfig::default()).unwrap();
         let changed_config = TextNormalizerConfig {
