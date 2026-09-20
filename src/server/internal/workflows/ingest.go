@@ -76,12 +76,21 @@ func (s *JobScheduler) Submit(ctx context.Context, jobID string, request *pb.Ing
 		JobID:            jobID,
 		CorpusID:         request.CorpusId,
 		Operation:        request.Operation,
-		InitialStage:     pb.JobStage_JOB_STAGE_ACQUIRE,
+		InitialStage:     initialIngestionStage(request),
 		InputFingerprint: hex.EncodeToString(inputDigest[:]),
 		IdempotencyKey:   request.IdempotencyKey,
 		RequestHash:      hex.EncodeToString(requestDigest[:]),
 		RequestPayload:   payload,
 	})
+}
+
+func initialIngestionStage(request *pb.IngestionRequest) pb.JobStage {
+	for _, source := range request.GetSources() {
+		if source.GetBlob() == nil {
+			return pb.JobStage_JOB_STAGE_ACQUIRE
+		}
+	}
+	return pb.JobStage_JOB_STAGE_PARSE
 }
 
 func (s *JobScheduler) Claim(ctx context.Context, ownerID string, leaseDuration time.Duration) (domain.JobRecord, error) {

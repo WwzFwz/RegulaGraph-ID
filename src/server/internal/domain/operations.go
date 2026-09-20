@@ -10,10 +10,15 @@
 package domain
 
 import (
+	"errors"
 	"time"
 
 	pb "regulagraph.local/server/gen/regulagraph/v1"
 )
+
+// ErrPersistentIntegrity marks durable bytes/state that cannot succeed on an identical retry.
+// Workflows use it to quarantine or fail the job while transport and database availability errors retry.
+var ErrPersistentIntegrity = errors.New("persistent integrity violation")
 
 type JobIntent struct {
 	JobID            string

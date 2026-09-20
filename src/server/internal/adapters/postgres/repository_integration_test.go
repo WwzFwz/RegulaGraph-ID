@@ -351,6 +351,46 @@ func TestStorageFoundationAgainstPostgres(t *testing.T) {
 	if err != nil || active != secondSnapshot {
 		t.Fatalf("abort changed active snapshot: active=%s err=%v", active, err)
 	}
+
+	// A PARSE coordinator must ignore later-stage recovery and may still record a durable
+	// cancellation after the cancellation flag prevents further lease renewal.
+	if _, err = repo.pool.Exec(ctx, `UPDATE jobs SET state=$2,stage=$3,lease_expires_at=clock_timestamp()-interval '1 second'
+		WHERE job_id=$1`, foreignJob, int16(pb.JobState_JOB_STATE_STAGED), int16(pb.JobStage_JOB_STAGE_INDEX)); err != nil {
+		t.Fatal(err)
+	}
+	cancelCorpus, cancelJob := "cancel-corpus-"+suffix, "cancel-job-"+suffix
+	cancelRequest := ingestionRequestFixture(cancelCorpus, "cancel-request-"+suffix, "https://example.test/cancel.pdf")
+	cancelPayload, marshalErr := proto.MarshalOptions{Deterministic: true}.Marshal(cancelRequest)
+	if marshalErr != nil {
+		t.Fatal(marshalErr)
+	}
+	cancelDigest := sha256.Sum256(cancelPayload)
+	if _, _, err = repo.SubmitJob(ctx, JobIntent{
+		JobID: cancelJob, CorpusID: cancelCorpus, Operation: pb.JobOperation_JOB_OPERATION_INGEST,
+		InitialStage: pb.JobStage_JOB_STAGE_PARSE, InputFingerprint: ingestionFingerprint(t, cancelRequest),
+		IdempotencyKey: cancelRequest.IdempotencyKey, RequestHash: hex.EncodeToString(cancelDigest[:]), RequestPayload: cancelPayload,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	cancelledClaim, err := repo.ClaimParseJob(ctx, "worker-cancel", time.Minute)
+	if err != nil || cancelledClaim.JobID != cancelJob {
+		t.Fatalf("PARSE claim selected wrong lifecycle job: claim=%+v err=%v", cancelledClaim, err)
+	}
+	if _, err = repo.pool.Exec(ctx, `UPDATE jobs SET cancellation_requested=true WHERE job_id=$1`, cancelJob); err != nil {
+		t.Fatal(err)
+	}
+	requested, err := repo.CancellationRequested(ctx, cancelJob, cancelledClaim.LeaseOwner, cancelledClaim.LeaseFence)
+	if err != nil || !requested {
+		t.Fatalf("durable cancellation was not observable: requested=%v err=%v", requested, err)
+	}
+	if _, err = repo.RenewLease(ctx, cancelJob, cancelledClaim.LeaseOwner, cancelledClaim.LeaseFence, time.Minute); !errors.Is(err, ErrStaleFence) {
+		t.Fatalf("cancelled lease renewed: %v", err)
+	}
+	actual, err := repo.CompleteParseAttempt(ctx, cancelJob, cancelledClaim.LeaseOwner, cancelledClaim.LeaseFence,
+		pb.JobState_JOB_STATE_STAGED)
+	if err != nil || actual != pb.JobState_JOB_STATE_CANCELLED {
+		t.Fatalf("durable cancellation did not win PARSE completion: state=%s err=%v", actual, err)
+	}
 }
 
 func checkpointFixture(corpusID, jobID string, fence uint64) *pb.Checkpoint {

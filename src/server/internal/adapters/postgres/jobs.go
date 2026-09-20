@@ -6,7 +6,7 @@
 // Benchmark: ukur queue time, claim throughput, p50/p95/p99 query, pool saturation, retry,
 // dan contention pada concurrency profil referensi.
 // Target numerik required: configs/benchmark-targets.yaml; status REQUIRED_UNMEASURED.
-// Status: primitive job S01 aktif; dispatch stage Rust/model diselesaikan paket berikutnya.
+// Status: primitive job S01 dan claim/cancellation PARSE aktif; retry schedule durable belum tersedia.
 package postgres
 
 import (
@@ -132,6 +132,39 @@ func (r *Repository) ClaimJob(ctx context.Context, ownerID string, leaseDuration
 	return record, nil
 }
 
+// ClaimParseJob leases only new/retrying PARSE inputs or an expired PARSE attempt. Later pipeline
+// states remain available to their owning coordinators and cannot be consumed by the PARSE daemon.
+func (r *Repository) ClaimParseJob(ctx context.Context, ownerID string, leaseDuration time.Duration) (JobRecord, error) {
+	if !storageIDPattern.MatchString(ownerID) || leaseDuration <= 0 {
+		return JobRecord{}, errors.New("valid owner and positive lease duration required")
+	}
+	row := r.pool.QueryRow(ctx, `WITH candidate AS (
+        SELECT job_id FROM jobs
+        WHERE cancellation_requested=false
+          AND stage=$6
+          AND (state IN ($1,$2) OR (state=$3 AND lease_expires_at < clock_timestamp()))
+        ORDER BY created_at, job_id
+        FOR UPDATE SKIP LOCKED LIMIT 1)
+		UPDATE jobs j SET state=$3,attempt=j.attempt+1,lease_owner=$4,
+        lease_fence=j.lease_fence+1,lease_expires_at=clock_timestamp()+$5::interval,
+        updated_at=clock_timestamp()
+      FROM candidate c WHERE j.job_id=c.job_id
+      RETURNING j.job_id,j.corpus_id,j.operation,j.state,j.stage,j.input_fingerprint,
+		j.idempotency_key,j.request_hash,j.base_snapshot_id,j.latest_checkpoint_id,j.attempt,j.lease_owner,
+        j.lease_fence,j.lease_expires_at,j.cancellation_requested,j.created_at,j.updated_at`,
+		int16(pb.JobState_JOB_STATE_QUEUED), int16(pb.JobState_JOB_STATE_RETRY_WAIT),
+		int16(pb.JobState_JOB_STATE_RUNNING), ownerID, leaseDuration.String(),
+		int16(pb.JobStage_JOB_STAGE_PARSE))
+	record, err := scanJob(row)
+	if err == pgx.ErrNoRows {
+		return JobRecord{}, ErrLeaseUnavailable
+	}
+	if err != nil {
+		return JobRecord{}, fmt.Errorf("claim PARSE job: %w", err)
+	}
+	return record, nil
+}
+
 func (r *Repository) RenewLease(ctx context.Context, jobID, ownerID string, fence uint64, leaseDuration time.Duration) (time.Time, error) {
 	if leaseDuration <= 0 || fence == 0 {
 		return time.Time{}, errors.New("positive fence and lease duration required")
@@ -140,6 +173,7 @@ func (r *Repository) RenewLease(ctx context.Context, jobID, ownerID string, fenc
 	err := r.pool.QueryRow(ctx, `UPDATE jobs SET lease_expires_at=clock_timestamp()+$4::interval,
       updated_at=clock_timestamp() WHERE job_id=$1 AND lease_owner=$2 AND lease_fence=$3
 		AND state IN ($5,$6,$7,$8) AND lease_expires_at >= clock_timestamp()
+		AND cancellation_requested=false
       RETURNING lease_expires_at`, jobID, ownerID, int64(fence), leaseDuration.String(),
 		int16(pb.JobState_JOB_STATE_RUNNING), int16(pb.JobState_JOB_STATE_STAGED),
 		int16(pb.JobState_JOB_STATE_VALIDATING), int16(pb.JobState_JOB_STATE_PUBLISHING)).Scan(&expires)
@@ -150,6 +184,52 @@ func (r *Repository) RenewLease(ctx context.Context, jobID, ownerID string, fenc
 		return time.Time{}, fmt.Errorf("renew lease: %w", err)
 	}
 	return expires, nil
+}
+
+func (r *Repository) CancellationRequested(ctx context.Context, jobID, ownerID string, fence uint64) (bool, error) {
+	if !storageIDPattern.MatchString(jobID) || !storageIDPattern.MatchString(ownerID) || fence == 0 {
+		return false, errors.New("valid job, owner, and fence required")
+	}
+	var requested bool
+	err := r.pool.QueryRow(ctx, `SELECT cancellation_requested FROM jobs
+		WHERE job_id=$1 AND lease_owner=$2 AND lease_fence=$3
+		AND state IN ($4,$5,$6,$7) AND lease_expires_at >= clock_timestamp()`,
+		jobID, ownerID, int64(fence), int16(pb.JobState_JOB_STATE_RUNNING),
+		int16(pb.JobState_JOB_STATE_STAGED), int16(pb.JobState_JOB_STATE_VALIDATING),
+		int16(pb.JobState_JOB_STATE_PUBLISHING)).Scan(&requested)
+	if err == pgx.ErrNoRows {
+		return false, ErrStaleFence
+	}
+	if err != nil {
+		return false, fmt.Errorf("read job cancellation: %w", err)
+	}
+	return requested, nil
+}
+
+// CompleteParseAttempt atomically gives durable cancellation precedence over a PARSE result.
+// It prevents a cancellation arriving after the RPC monitor exits from stranding a RUNNING job.
+func (r *Repository) CompleteParseAttempt(ctx context.Context, jobID, ownerID string, fence uint64, desired pb.JobState) (pb.JobState, error) {
+	if !storageIDPattern.MatchString(jobID) || !storageIDPattern.MatchString(ownerID) || fence == 0 ||
+		!domain.AllowedJobTransition(pb.JobState_JOB_STATE_RUNNING, desired) {
+		return pb.JobState_JOB_STATE_UNSPECIFIED, errors.New("valid PARSE completion identity and state required")
+	}
+	var actual int16
+	err := r.pool.QueryRow(ctx, `UPDATE jobs SET
+		state=CASE WHEN cancellation_requested THEN $6::smallint ELSE $5::smallint END,
+		updated_at=clock_timestamp(),
+		lease_owner=CASE WHEN cancellation_requested OR $5::smallint IN (3,7,8,9,10) THEN NULL ELSE lease_owner END,
+		lease_expires_at=CASE WHEN cancellation_requested OR $5::smallint IN (3,7,8,9,10) THEN NULL ELSE lease_expires_at END
+		WHERE job_id=$1 AND lease_owner=$2 AND lease_fence=$3 AND state=$4
+		AND lease_expires_at >= clock_timestamp()
+		RETURNING state`, jobID, ownerID, int64(fence), int16(pb.JobState_JOB_STATE_RUNNING),
+		int16(desired), int16(pb.JobState_JOB_STATE_CANCELLED)).Scan(&actual)
+	if err == pgx.ErrNoRows {
+		return pb.JobState_JOB_STATE_UNSPECIFIED, ErrStaleFence
+	}
+	if err != nil {
+		return pb.JobState_JOB_STATE_UNSPECIFIED, fmt.Errorf("complete PARSE attempt: %w", err)
+	}
+	return pb.JobState(actual), nil
 }
 
 func (r *Repository) SaveCheckpoint(ctx context.Context, checkpoint *pb.Checkpoint, ownerID string) error {
@@ -213,8 +293,10 @@ func (r *Repository) TransitionJob(ctx context.Context, jobID, ownerID string, f
 		lease_owner=CASE WHEN $5::smallint IN (3,7,8,9,10) THEN NULL ELSE lease_owner END,
 		lease_expires_at=CASE WHEN $5::smallint IN (3,7,8,9,10) THEN NULL ELSE lease_expires_at END
 		WHERE job_id=$1 AND lease_owner=$2 AND lease_fence=$3 AND state=$4
-		AND lease_expires_at >= clock_timestamp() AND cancellation_requested=false`,
-		jobID, ownerID, int64(fence), int16(expected), int16(next))
+		AND lease_expires_at >= clock_timestamp()
+		AND (cancellation_requested=false OR $5::smallint=$6::smallint)`,
+		jobID, ownerID, int64(fence), int16(expected), int16(next),
+		int16(pb.JobState_JOB_STATE_CANCELLED))
 	if err != nil {
 		return fmt.Errorf("transition job: %w", err)
 	}
@@ -256,21 +338,21 @@ func (r *Repository) LoadIngestionRequest(ctx context.Context, jobID string) (*p
 	var expectedHash string
 	err := r.pool.QueryRow(ctx, `SELECT request_payload,request_hash FROM jobs WHERE job_id=$1`, jobID).Scan(&payload, &expectedHash)
 	if err == pgx.ErrNoRows {
-		return nil, ErrNotFound
+		return nil, fmt.Errorf("claimed job request is missing: %w", domain.ErrPersistentIntegrity)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("load ingestion request: %w", err)
 	}
 	digest := sha256.Sum256(payload)
 	if hex.EncodeToString(digest[:]) != expectedHash {
-		return nil, fmt.Errorf("persisted ingestion request checksum mismatch: %w", ErrConflict)
+		return nil, fmt.Errorf("persisted ingestion request checksum mismatch: %w", errors.Join(ErrConflict, domain.ErrPersistentIntegrity))
 	}
 	request := &pb.IngestionRequest{}
 	if err = proto.Unmarshal(payload, request); err != nil {
-		return nil, fmt.Errorf("decode persisted ingestion request: %w", err)
+		return nil, fmt.Errorf("decode persisted ingestion request: %w", errors.Join(err, domain.ErrPersistentIntegrity))
 	}
 	if err = domain.ValidateWire(request, domain.DefaultWireLimits); err != nil {
-		return nil, fmt.Errorf("validate persisted ingestion request: %w", err)
+		return nil, fmt.Errorf("validate persisted ingestion request: %w", errors.Join(err, domain.ErrPersistentIntegrity))
 	}
 	return request, nil
 }
