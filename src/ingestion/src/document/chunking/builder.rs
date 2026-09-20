@@ -26,7 +26,7 @@ use crate::domain::chunks::{
     CHUNK_SCHEMA_VERSION,
 };
 use sha2::{Digest, Sha256};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::ops::Range;
@@ -122,16 +122,17 @@ pub fn build_chunks<T: TokenCounter>(
     .map_err(ChunkBuildError::Parent)?;
     let known_structure_ids: HashSet<&str> =
         tree.nodes.iter().map(|node| node.id.as_str()).collect();
+    let structure_nodes: HashMap<&str, &StructureNode> = tree
+        .nodes
+        .iter()
+        .map(|node| (node.id.as_str(), node))
+        .collect();
     let mut chunks = Vec::new();
 
     for node in &tree.nodes {
-        for owned_span in owned_text_spans(node, tree, &normalized.text)? {
-            for split in split_span(&normalized.text, owned_span, config) {
-                if chunks.len() >= config.maximum_chunks {
-                    return Err(ChunkBuildError::ChunkLimit {
-                        maximum: config.maximum_chunks,
-                    });
-                }
+        for owned_span in owned_text_spans(node, &structure_nodes, &normalized.text)? {
+            let remaining = config.maximum_chunks.saturating_sub(chunks.len());
+            for split in split_span(&normalized.text, owned_span, config, remaining)? {
                 let text = &normalized.text[split.clone()];
                 let tokens = tokenizer
                     .count_tokens(text)
@@ -190,18 +191,19 @@ pub fn build_chunks<T: TokenCounter>(
 
 fn owned_text_spans(
     node: &StructureNode,
-    tree: &StructureTree,
+    structure_nodes: &HashMap<&str, &StructureNode>,
     text: &str,
 ) -> Result<Vec<Range<usize>>, ChunkBuildError> {
-    let mut children: Vec<&StructureNode> = node
+    let children: Vec<&StructureNode> = node
         .ordered_children
         .iter()
         .map(|child_id| {
-            tree.node(child_id)
+            structure_nodes
+                .get(child_id.as_str())
+                .copied()
                 .ok_or(ChunkBuildError::InvalidStructureSpan)
         })
         .collect::<Result<_, _>>()?;
-    children.sort_by_key(|child| child.normalized_span.start);
     let mut spans = Vec::with_capacity(children.len() + 1);
     let mut cursor = node.normalized_span.start;
     for child in children {
@@ -230,10 +232,16 @@ fn push_trimmed_span(text: &str, span: Range<usize>, output: &mut Vec<Range<usiz
     }
 }
 
-fn split_span(text: &str, span: Range<usize>, config: &ChunkerConfig) -> Vec<Range<usize>> {
+fn split_span(
+    text: &str,
+    span: Range<usize>,
+    config: &ChunkerConfig,
+    maximum_output: usize,
+) -> Result<Vec<Range<usize>>, ChunkBuildError> {
     let mut output = Vec::new();
     let mut start = span.start;
     while span.end - start > config.maximum_chunk_bytes {
+        enforce_split_capacity(output.len(), maximum_output, config.maximum_chunks)?;
         let hard_end = previous_char_boundary(text, start + config.maximum_chunk_bytes);
         let minimum_end =
             next_char_boundary(text, start + config.minimum_split_bytes).min(hard_end);
@@ -244,9 +252,23 @@ fn split_span(text: &str, span: Range<usize>, config: &ChunkerConfig) -> Vec<Ran
         start = if next >= end { end } else { next };
     }
     if start < span.end {
+        enforce_split_capacity(output.len(), maximum_output, config.maximum_chunks)?;
         output.push(start..span.end);
     }
-    output
+    Ok(output)
+}
+
+fn enforce_split_capacity(
+    current: usize,
+    maximum_output: usize,
+    configured_maximum: usize,
+) -> Result<(), ChunkBuildError> {
+    if current >= maximum_output {
+        return Err(ChunkBuildError::ChunkLimit {
+            maximum: configured_maximum,
+        });
+    }
+    Ok(())
 }
 
 fn preferred_break(text: &str, minimum: usize, maximum: usize) -> Option<usize> {
@@ -609,7 +631,7 @@ mod tests {
             maximum_parent_depth: 4,
         };
 
-        let spans = split_span(&text, 0..text.len(), &config);
+        let spans = split_span(&text, 0..text.len(), &config, 10).expect("bounded split succeeds");
 
         assert!(spans.len() >= 2);
         assert!(spans.iter().all(|span| {
@@ -630,12 +652,29 @@ mod tests {
             maximum_parent_depth: 4,
         };
 
-        let spans = split_span(&text, 0..text.len(), &config);
+        let spans = split_span(&text, 0..text.len(), &config, 10).expect("bounded split succeeds");
 
         assert_eq!(spans[0].end, 51);
         assert_eq!(
             &text[spans[0].clone()],
             format!("{}\u{000C}", "a".repeat(50))
+        );
+    }
+
+    #[test]
+    fn stops_splitting_when_output_limit_is_reached() {
+        let text = "kata ".repeat(10_000);
+        let config = ChunkerConfig {
+            maximum_chunk_bytes: 64,
+            minimum_split_bytes: 32,
+            overlap_bytes: 8,
+            maximum_chunks: 2,
+            maximum_parent_depth: 4,
+        };
+
+        assert_eq!(
+            split_span(&text, 0..text.len(), &config, 2),
+            Err(ChunkBuildError::ChunkLimit { maximum: 2 })
         );
     }
 }
