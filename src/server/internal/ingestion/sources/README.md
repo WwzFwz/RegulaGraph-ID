@@ -14,9 +14,9 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
-Berkas: [local.go](local.go), [official.go](official.go), [inventory.go](inventory.go), [http.go](http.go), [html.go](html.go), [download.go](download.go), [collector_test.go](collector_test.go), [listing.go](listing.go), [audit.go](audit.go), dan [audit_test.go](audit_test.go).
+Berkas: [local.go](local.go), [official.go](official.go), [inventory.go](inventory.go), [http.go](http.go), [html.go](html.go), [download.go](download.go), [handoff.go](handoff.go), [handoff_test.go](handoff_test.go), [collector_test.go](collector_test.go), [listing.go](listing.go), [audit.go](audit.go), dan [audit_test.go](audit_test.go).
 
-Collector D01 aktif untuk metadata detail dan PDF sumber: official mengatur satu sumber, http mengatur akses/retry/rate serta discovery terbatas, html membaca metadata/tautan, download menyimpan blob/checksum/receipt, dan inventory mendefinisikan format artefak lokal. Workflow Go memanggil collector ini dengan concurrency terbatas. Adapter local.go dan kontrak produksi C01 tetap belum diimplementasikan. Lihat [panduan penggunaan](../../../../../doc/acquisition.md).
+Collector D01 aktif untuk metadata detail dan PDF sumber: official mengatur satu sumber, http mengatur akses/retry/rate serta discovery terbatas, html membaca metadata/tautan, download menyimpan blob/checksum/receipt, dan inventory mendefinisikan format artefak lokal. `handoff.go` mengubah record complete menjadi locator blob dan `SourceObservation` C01 deterministik yang mengikat metadata portal ke hash PDF tanpa menetapkannya sebagai kebenaran canonical. Workflow Go memanggil collector ini dengan concurrency terbatas. Adapter local.go tetap belum diimplementasikan. Lihat [panduan penggunaan](../../../../../doc/acquisition.md).
 
 listing.go mengambil HTML katalog saja, menyimpan hash/HTML sumber serta judul tautan untuk workflow discover. Tidak mengikuti tautan PDF. Parser mendukung link detail /doc/ JDIHN; ini belum berarti adapter unduhan/metadata JDIHN lengkap.
 
@@ -30,7 +30,7 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Collector, discovery, serta audit inventory D01 sudah aktif dan audit corpus lokal 3 GB lulus integrity. Connector JDIHN, queue/reference coverage, PDF format strata, dan gold set belum lengkap. Pipeline parsing/graph/retrieval dan layanan model belum aktif; audit hash tidak membuktikan kualitas hukum atau target performa.
+Collector, discovery, audit inventory D01, serta handoff provenance collector→PARSE sudah aktif; audit corpus lokal 3 GB lulus integrity. Connector JDIHN, queue/reference coverage, PDF format strata, dan gold set belum lengkap. Metadata portal tetap assertion unverified sampai registry/review, dan audit hash tidak membuktikan kualitas hukum atau target performa.
 
 ## Rekomendasi implementasi anak
 
@@ -42,7 +42,7 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | [download.go](download.go) | Preserve streamed hash/size/PDF envelope validation and durable receipts; integrate stronger PDF diagnostics through parser output. | Test short body, wrong media, corrupt existing blobs and disk errors; bound temporary bytes and report download throughput. |
 | [html.go](html.go) | Maintain deterministic source HTML parsing with canonical URL resolution and explicit unsupported-layout failures. | Test malformed markup, relative URLs, duplicate links and script-driven pages; do not infer PDFs from absent links. |
 | [http.go](http.go) | Keep per-host throttling, connection reuse and redirect policy; propagate cancellation and retry budgets. | Test Retry-After, cross-host redirect rejection and transient failures; measure waiting separately from transferred bytes. |
-| [inventory.go](inventory.go) | Preserve versioned receipt/history and checksum-based reuse; map acquisition observations into production source records at S01/D01 integration. | Test metadata schema change, missing/corrupt artifacts and atomic latest-pointer update; never drop historical receipts. |
+| [inventory.go](inventory.go) dan [handoff.go](handoff.go) | Pertahankan history/checksum serta pemetaan deterministic ke source records; hubungkan handoff ke submit job S01 tanpa menghapus observation lama. | Uji perubahan metadata, blob duplikat, portal/blob forgery, corrupt artifact, dan replay; metadata portal tidak boleh otomatis menjadi canonical truth. |
 | [audit.go](audit.go) | Pertahankan manifest deterministik dan confinement; integrasikan inventory yang sudah dibekukan ke pemilihan sample M01/G01. | Uji concurrent collector exclusion/crash, cold-cache throughput/peak RSS, dan perubahan provenance selalu mengubah inventory ID. |
 | [listing.go](listing.go) | Extend bounded listing discovery with source-specific pagination and persistent page provenance. | Test next-page cycles, duplicate URLs and incremental resume; distinguish URL count from unique regulations/PDFs. |
 | [local.go](local.go) | Import explicitly selected local files through the same hash/receipt contracts as official acquisition. | Test invalid paths, corrupt/duplicate PDFs and interruption; avoid interpreting file timestamps as legal effective dates. |
