@@ -7,9 +7,9 @@
 //!
 //! Kontrak integrasi dan perhatian implementasi:
 //! Root storage harus direktori operator-owned. Key dibentuk dari SHA-256, bukan path dari input.
-//! Write memakai temporary file pada direktori tujuan, optional data sync, lalu atomic rename.
-//! Existing object selalu diverifikasi hash dan size sebelum dipakai ulang. Read membatasi ukuran
-//! sebelum alokasi dan memverifikasi hash setelah streaming.
+//! Write menolak symlink/reparse point, memeriksa canonical containment, memakai temporary file pada
+//! direktori tujuan, optional data sync, lalu atomic rename. Existing object selalu diverifikasi hash
+//! dan size sebelum dipakai ulang. Read membatasi ukuran sebelum alokasi dan memverifikasi hash.
 //!
 //! Benchmark dan gate penerimaan:
 //! Ukur throughput byte, p95/p99 write/read, fsync cost, peak RSS, dedup hit, dan cleanup failure.
@@ -176,28 +176,39 @@ impl ArtifactStore {
         let parent = destination
             .parent()
             .ok_or(ArtifactStoreError::UnsafeStorageKey)?;
+        self.reject_existing_links(parent)?;
         fs::create_dir_all(parent).map_err(|error| io_error("create shard", error))?;
+        self.verify_directory(parent)?;
 
-        if destination.exists() {
-            self.verify_file(&destination, &sha256, bytes.len() as u64)?;
-        } else {
-            let sequence = TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-            let temporary =
-                parent.join(format!(".{sha256}.{}.{}.tmp", std::process::id(), sequence));
-            let write_result = self.write_temporary(&temporary, bytes).and_then(|()| {
-                match fs::rename(&temporary, &destination) {
-                    Ok(()) => Ok(()),
-                    Err(_error) if destination.exists() => {
-                        let _ = fs::remove_file(&temporary);
-                        self.verify_file(&destination, &sha256, bytes.len() as u64)
-                    }
-                    Err(error) => Err(io_error("atomic rename", error)),
+        match fs::symlink_metadata(&destination) {
+            Ok(metadata) => {
+                if is_link_or_reparse_point(&metadata) || !metadata.is_file() {
+                    return Err(ArtifactStoreError::UnsafeStorageKey);
                 }
-            });
-            if write_result.is_err() {
-                let _ = fs::remove_file(&temporary);
+                self.verify_file(&destination, &sha256, bytes.len() as u64)?;
             }
-            write_result?;
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                let sequence = TEMP_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+                let temporary =
+                    parent.join(format!(".{sha256}.{}.{}.tmp", std::process::id(), sequence));
+                let write_result = self.write_temporary(&temporary, bytes).and_then(|()| {
+                    match fs::rename(&temporary, &destination) {
+                        Ok(()) => Ok(()),
+                        Err(rename_error) => match fs::symlink_metadata(&destination) {
+                            Ok(_) => {
+                                let _ = fs::remove_file(&temporary);
+                                self.verify_file(&destination, &sha256, bytes.len() as u64)
+                            }
+                            Err(_) => Err(io_error("atomic rename", rename_error)),
+                        },
+                    }
+                });
+                if write_result.is_err() {
+                    let _ = fs::remove_file(&temporary);
+                }
+                write_result?;
+            }
+            Err(error) => return Err(io_error("inspect destination", error)),
         }
 
         Ok(ArtifactDescriptor {
@@ -222,10 +233,8 @@ impl ArtifactStore {
             });
         }
         let path = self.resolve_key(&descriptor.storage_key)?;
+        self.verify_existing_file(&path)?;
         let metadata = fs::metadata(&path).map_err(|error| io_error("metadata", error))?;
-        if !metadata.is_file() {
-            return Err(ArtifactStoreError::InvalidMetadata("artifact file"));
-        }
         if metadata.len() != descriptor.byte_size {
             return Err(ArtifactStoreError::SizeMismatch {
                 expected: descriptor.byte_size,
@@ -238,9 +247,17 @@ impl ArtifactStore {
                 maximum: self.config.maximum_artifact_bytes,
             }
         })?;
-        let mut bytes = Vec::with_capacity(capacity);
-        let mut reader =
-            BufReader::new(File::open(&path).map_err(|error| io_error("open", error))?);
+        let mut bytes = Vec::with_capacity(capacity.saturating_add(1));
+        let reader = BufReader::new(File::open(&path).map_err(|error| io_error("open", error))?);
+        let read_limit =
+            descriptor
+                .byte_size
+                .checked_add(1)
+                .ok_or(ArtifactStoreError::ArtifactTooLarge {
+                    actual: descriptor.byte_size,
+                    maximum: self.config.maximum_artifact_bytes,
+                })?;
+        let mut reader = reader.take(read_limit);
         reader
             .read_to_end(&mut bytes)
             .map_err(|error| io_error("read", error))?;
@@ -286,10 +303,8 @@ impl ArtifactStore {
         expected_hash: &str,
         expected_size: u64,
     ) -> Result<(), ArtifactStoreError> {
+        self.verify_existing_file(path)?;
         let metadata = fs::metadata(path).map_err(|error| io_error("metadata", error))?;
-        if !metadata.is_file() {
-            return Err(ArtifactStoreError::InvalidMetadata("artifact file"));
-        }
         if metadata.len() != expected_size {
             return Err(ArtifactStoreError::SizeMismatch {
                 expected: expected_size,
@@ -318,6 +333,70 @@ impl ArtifactStore {
             .split('/')
             .fold(self.root.clone(), |path, part| path.join(part)))
     }
+
+    fn reject_existing_links(&self, path: &Path) -> Result<(), ArtifactStoreError> {
+        let relative = path
+            .strip_prefix(&self.root)
+            .map_err(|_| ArtifactStoreError::UnsafeStorageKey)?;
+        let mut current = self.root.clone();
+        for component in relative.components() {
+            current.push(component.as_os_str());
+            match fs::symlink_metadata(&current) {
+                Ok(metadata) => {
+                    if is_link_or_reparse_point(&metadata) || !metadata.is_dir() {
+                        return Err(ArtifactStoreError::UnsafeStorageKey);
+                    }
+                    let canonical = fs::canonicalize(&current)
+                        .map_err(|error| io_error("canonicalize path", error))?;
+                    if !canonical.starts_with(&self.root) {
+                        return Err(ArtifactStoreError::UnsafeStorageKey);
+                    }
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => break,
+                Err(error) => return Err(io_error("inspect path", error)),
+            }
+        }
+        Ok(())
+    }
+
+    fn verify_directory(&self, path: &Path) -> Result<(), ArtifactStoreError> {
+        self.reject_existing_links(path)?;
+        let canonical =
+            fs::canonicalize(path).map_err(|error| io_error("canonicalize path", error))?;
+        if !canonical.starts_with(&self.root) {
+            return Err(ArtifactStoreError::UnsafeStorageKey);
+        }
+        Ok(())
+    }
+
+    fn verify_existing_file(&self, path: &Path) -> Result<(), ArtifactStoreError> {
+        let parent = path.parent().ok_or(ArtifactStoreError::UnsafeStorageKey)?;
+        self.verify_directory(parent)?;
+        let metadata = fs::symlink_metadata(path).map_err(|error| io_error("metadata", error))?;
+        if is_link_or_reparse_point(&metadata) || !metadata.is_file() {
+            return Err(ArtifactStoreError::UnsafeStorageKey);
+        }
+        let canonical =
+            fs::canonicalize(path).map_err(|error| io_error("canonicalize file", error))?;
+        if !canonical.starts_with(&self.root) {
+            return Err(ArtifactStoreError::UnsafeStorageKey);
+        }
+        Ok(())
+    }
+}
+
+#[cfg(windows)]
+fn is_link_or_reparse_point(metadata: &fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+
+    const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+    metadata.file_type().is_symlink()
+        || metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+}
+
+#[cfg(not(windows))]
+fn is_link_or_reparse_point(metadata: &fs::Metadata) -> bool {
+    metadata.file_type().is_symlink()
 }
 
 fn validate_metadata(
@@ -619,5 +698,33 @@ mod tests {
         let mut files = Vec::new();
         list_files(&store.root, &mut files);
         assert!(files.is_empty());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn rejects_junction_shards_before_writing_outside_root() {
+        use std::process::Command;
+
+        let root = TestDir::new();
+        let outside = TestDir::new();
+        let store = store(&root.0);
+        let junction = root.0.join("sha256");
+        let status = Command::new("cmd")
+            .args(["/c", "mklink", "/J"])
+            .arg(&junction)
+            .arg(&outside.0)
+            .status()
+            .expect("junction command runs");
+        assert!(status.success(), "junction fixture is created");
+
+        let result = store.put_bytes("batch", "application/octet-stream", 1, b"outside");
+        fs::remove_dir(&junction).expect("junction is removed without traversing its target");
+
+        assert_eq!(result.unwrap_err(), ArtifactStoreError::UnsafeStorageKey);
+        assert_eq!(
+            fs::read_dir(&outside.0).unwrap().count(),
+            0,
+            "rejected write must not create shards in the junction target"
+        );
     }
 }
