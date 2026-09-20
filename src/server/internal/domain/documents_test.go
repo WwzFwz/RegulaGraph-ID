@@ -339,7 +339,7 @@ func provisionAssignments(t *testing.T, candidates []ProvisionIdentityCandidate,
 
 func bindingConfig(revision uint64) DocumentBindingConfig {
 	return DocumentBindingConfig{
-		Software: "regulagraph-server", Build: "test", Language: "id",
+		Software: "regulagraph-server", Build: "test", Language: "id", Jurisdiction: "ID", RegistryBatchSize: 10_000,
 		DocumentKind: pb.DocumentKind_DOCUMENT_KIND_REGULATION, RegistryRevision: revision,
 		MaximumRecords: 100, WireLimits: WireLimits{MaxBytes: 4 << 20, MaxDepth: 64, MaxItems: 1000},
 	}

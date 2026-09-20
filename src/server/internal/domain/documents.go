@@ -55,13 +55,15 @@ type ProvisionIdentityCandidate struct {
 // DocumentBindingConfig records the authoritative registry revision and deterministic producer
 // identity used by the enriched immutable DocumentBatch.
 type DocumentBindingConfig struct {
-	Software         string
-	Build            string
-	Language         string
-	DocumentKind     pb.DocumentKind
-	RegistryRevision uint64
-	MaximumRecords   int
-	WireLimits       WireLimits
+	Software          string
+	Build             string
+	Language          string
+	Jurisdiction      string
+	RegistryBatchSize int
+	DocumentKind      pb.DocumentKind
+	RegistryRevision  uint64
+	MaximumRecords    int
+	WireLimits        WireLimits
 }
 
 // CanonicalClaim binds a provision proposal to both its exact path identity and complete sourced
@@ -695,8 +697,9 @@ func equalRegulationCandidates(left, right RegulationIdentityCandidate) bool {
 
 func validateDocumentBindingConfig(config DocumentBindingConfig) error {
 	if strings.TrimSpace(config.Software) == "" || strings.TrimSpace(config.Build) == "" ||
-		strings.TrimSpace(config.Language) == "" || config.DocumentKind == pb.DocumentKind_DOCUMENT_KIND_UNSPECIFIED ||
-		config.RegistryRevision == 0 || config.MaximumRecords <= 0 || config.WireLimits.MaxBytes <= 0 ||
+		strings.TrimSpace(config.Language) == "" || strings.TrimSpace(config.Jurisdiction) == "" || config.RegistryBatchSize <= 0 ||
+		config.DocumentKind == pb.DocumentKind_DOCUMENT_KIND_UNSPECIFIED ||
+		config.MaximumRecords <= 0 || config.WireLimits.MaxBytes <= 0 ||
 		config.WireLimits.MaxDepth <= 0 || config.WireLimits.MaxItems <= 0 {
 		return errors.New("complete bounded document binding config is required")
 	}
@@ -751,9 +754,11 @@ func derivedDocumentID(prefix string, parts ...string) string {
 
 func bindingProducerManifest(config DocumentBindingConfig, inputHash [sha256.Size]byte) *pb.ProducerManifest {
 	configRaw, _ := json.Marshal(struct {
-		Language string `json:"language"`
-		Kind     int32  `json:"document_kind"`
-	}{config.Language, int32(config.DocumentKind)})
+		Language          string `json:"language"`
+		Jurisdiction      string `json:"jurisdiction"`
+		Kind              int32  `json:"document_kind"`
+		RegistryBatchSize int    `json:"registry_batch_size"`
+	}{config.Language, config.Jurisdiction, int32(config.DocumentKind), config.RegistryBatchSize})
 	configHash := sha256.Sum256(configRaw)
 	return &pb.ProducerManifest{
 		Software: config.Software, Build: config.Build, SchemaVersion: 1,
@@ -813,7 +818,9 @@ func bindingLookupRevisions(batch *pb.DocumentBatch, revision uint64) []*pb.Look
 	for _, item := range batch.GetDependencyManifest().GetLookupScopeRevisions() {
 		byScope[item.ScopeId] = proto.Clone(item).(*pb.LookupScopeRevision)
 	}
-	byScope["canonical-registry"] = &pb.LookupScopeRevision{ScopeId: "canonical-registry", Revision: revision}
+	byScope["canonical-registry"] = &pb.LookupScopeRevision{
+		ScopeId: "canonical-registry", Revision: revision, EmptyResult: revision == 0,
+	}
 	result := make([]*pb.LookupScopeRevision, 0, len(byScope))
 	for _, item := range byScope {
 		result = append(result, item)

@@ -13,6 +13,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"google.golang.org/grpc/codes"
@@ -51,9 +52,10 @@ type ParseExecutorConfig struct {
 }
 
 type ParseExecutor struct {
-	store  ParseExecutionStore
-	worker ParseWorker
-	config ParseExecutorConfig
+	store         ParseExecutionStore
+	worker        ParseWorker
+	config        ParseExecutorConfig
+	claimSequence atomic.Uint64
 }
 
 func NewParseExecutor(store ParseExecutionStore, worker ParseWorker, config ParseExecutorConfig) (*ParseExecutor, error) {
@@ -78,11 +80,22 @@ func NewParseExecutor(store ParseExecutionStore, worker ParseWorker, config Pars
 	return &ParseExecutor{store: store, worker: worker, config: config}, nil
 }
 
-// RunOnce claims at most one durable job, preferring new PARSE work before STRUCTURE handoffs.
+// RunOnce claims at most one durable job and alternates first preference between PARSE and
+// STRUCTURE so a sustained input backlog cannot starve completed PARSE handoffs.
 func (e *ParseExecutor) RunOnce(ctx context.Context) (domain.JobRecord, *pb.ProcessBatchResponse, error) {
-	job, err := e.store.ClaimParseJob(ctx, e.config.OwnerID, e.config.Lease)
+	claimParse := func() (domain.JobRecord, error) {
+		return e.store.ClaimParseJob(ctx, e.config.OwnerID, e.config.Lease)
+	}
+	claimStructure := func() (domain.JobRecord, error) {
+		return e.store.ClaimStructureJob(ctx, e.config.OwnerID, e.config.Lease)
+	}
+	first, second := claimParse, claimStructure
+	if e.claimSequence.Add(1)%2 == 0 {
+		first, second = claimStructure, claimParse
+	}
+	job, err := first()
 	if errors.Is(err, domain.ErrLeaseUnavailable) {
-		job, err = e.store.ClaimStructureJob(ctx, e.config.OwnerID, e.config.Lease)
+		job, err = second()
 	}
 	if err != nil {
 		return domain.JobRecord{}, nil, err

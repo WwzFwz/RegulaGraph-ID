@@ -6,6 +6,8 @@ package main
 import (
 	"testing"
 	"time"
+
+	"regulagraph.local/server/internal/domain"
 )
 
 func TestRequireLoopback(t *testing.T) {
@@ -18,6 +20,51 @@ func TestRequireLoopback(t *testing.T) {
 		if err := requireLoopback(endpoint); err == nil {
 			t.Fatalf("expected rejection for %s", endpoint)
 		}
+	}
+}
+
+func TestCoordinatorAlternatesParseAndBindingPreference(t *testing.T) {
+	order := []string{}
+	parse := func() (domain.JobRecord, map[string]any, error) {
+		order = append(order, "parse")
+		return domain.JobRecord{}, nil, nil
+	}
+	binding := func() (domain.JobRecord, map[string]any, error) {
+		order = append(order, "bind")
+		return domain.JobRecord{}, nil, nil
+	}
+	for _, preferBinding := range []bool{false, true} {
+		attempts := coordinatorAttempts(preferBinding, parse, binding)
+		_, _, _ = attempts[0]()
+	}
+	if got := order; len(got) != 2 || got[0] != "parse" || got[1] != "bind" {
+		t.Fatalf("coordinator preference did not alternate: %v", got)
+	}
+}
+
+func TestLoadConfigIncludesBoundedBindingRuntime(t *testing.T) {
+	values := map[string]string{
+		"REGULAGRAPH_POSTGRES_DSN": "postgres://fixture", "REGULAGRAPH_WORKER_ENDPOINT": "127.0.0.1:50051",
+		"REGULAGRAPH_COORDINATOR_OWNER": "coordinator:test", "REGULAGRAPH_COORDINATOR_AUTH_SCOPE": "scope:test",
+		"REGULAGRAPH_WORKER_ARTIFACT_ROOT": t.TempDir(), "REGULAGRAPH_CORPUS_JURISDICTION": "ID",
+		"REGULAGRAPH_BUILD_ID": "test-build", "REGULAGRAPH_BIND_MAX_BATCH_BYTES": "4096",
+		"REGULAGRAPH_BIND_MAX_RECORDS":         "200",
+		"REGULAGRAPH_BIND_REGISTRY_BATCH_SIZE": "128",
+	}
+	for name, value := range values {
+		t.Setenv(name, value)
+	}
+	config, err := loadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.artifactRoot == "" || config.jurisdiction != "ID" || config.buildID != "test-build" ||
+		config.bindMaxBytes != 4096 || config.bindMaxRecords != 200 || config.bindRegistryBatch != 128 {
+		t.Fatalf("binding runtime configuration was not retained: %+v", config)
+	}
+	t.Setenv("REGULAGRAPH_BIND_MAX_RECORDS", "0")
+	if _, err = loadConfig(); err == nil {
+		t.Fatal("zero BIND record bound accepted")
 	}
 }
 

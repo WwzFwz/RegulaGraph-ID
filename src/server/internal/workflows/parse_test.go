@@ -19,18 +19,20 @@ import (
 )
 
 type parseStoreFake struct {
-	job             domain.JobRecord
-	request         *pb.IngestionRequest
-	registered      *pb.ArtifactRef
-	checkpoint      *pb.Checkpoint
-	transitions     []pb.JobState
-	cancelled       bool
-	cancelOnSave    bool
-	loadErr         error
-	retryDelay      time.Duration
-	claimParseErr   error
-	priorCheckpoint *pb.Checkpoint
-	priorArtifact   *pb.ArtifactRef
+	job               domain.JobRecord
+	request           *pb.IngestionRequest
+	registered        *pb.ArtifactRef
+	checkpoint        *pb.Checkpoint
+	transitions       []pb.JobState
+	cancelled         bool
+	cancelOnSave      bool
+	loadErr           error
+	retryDelay        time.Duration
+	claimParseErr     error
+	claimStructureErr error
+	claimOrder        []string
+	priorCheckpoint   *pb.Checkpoint
+	priorArtifact     *pb.ArtifactRef
 }
 
 func (s *parseStoreFake) SubmitJob(context.Context, domain.JobIntent) (domain.JobRecord, bool, error) {
@@ -40,12 +42,17 @@ func (s *parseStoreFake) ClaimJob(context.Context, string, time.Duration) (domai
 	return s.job, nil
 }
 func (s *parseStoreFake) ClaimParseJob(context.Context, string, time.Duration) (domain.JobRecord, error) {
+	s.claimOrder = append(s.claimOrder, "parse")
 	if s.claimParseErr != nil {
 		return domain.JobRecord{}, s.claimParseErr
 	}
 	return s.job, nil
 }
 func (s *parseStoreFake) ClaimStructureJob(context.Context, string, time.Duration) (domain.JobRecord, error) {
+	s.claimOrder = append(s.claimOrder, "structure")
+	if s.claimStructureErr != nil {
+		return domain.JobRecord{}, s.claimStructureErr
+	}
 	return s.job, nil
 }
 func (s *parseStoreFake) RenewLease(context.Context, string, string, uint64, time.Duration) (time.Time, error) {
@@ -105,6 +112,24 @@ type parseWorkerFake struct {
 	deadlineObserved bool
 	lastRequest      *pb.ProcessBatchRequest
 	mutateResponse   func(*pb.ProcessBatchResponse)
+}
+
+func TestParseExecutorAlternatesParseAndStructurePreference(t *testing.T) {
+	store := parseFixtureStore(false)
+	worker := &parseWorkerFake{completion: pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED}
+	executor, err := NewParseExecutor(store, worker, parseExecutorConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err = executor.RunOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err = executor.RunOnce(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(store.claimOrder) != 2 || store.claimOrder[0] != "parse" || store.claimOrder[1] != "structure" {
+		t.Fatalf("PARSE/STRUCTURE preference did not alternate: %v", store.claimOrder)
+	}
 }
 
 func (w *parseWorkerFake) ProcessBatch(ctx context.Context, request *pb.ProcessBatchRequest) (*pb.ProcessBatchResponse, error) {

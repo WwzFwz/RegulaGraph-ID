@@ -1,8 +1,8 @@
 // Runs the durable Go ingestion coordinator against PostgreSQL and the loopback Rust document worker.
 //
 // Configuration is loaded explicitly from REGULAGRAPH_* environment variables. Startup opens each
-// dependency once; the loop advances PARSE→STRUCTURE jobs, emits JSON operational events, and drains through signal
-// cancellation. Migrations and snapshot publication remain separate operational stages. Measure queue and
+// dependency once; the loop advances PARSE→STRUCTURE→BIND jobs, emits JSON operational events, and drains through
+// signal cancellation. Migrations, CHUNK, and snapshot publication remain separate operational stages. Measure queue and
 // stage p95/p99 plus retry/cancellation behavior against configs/benchmark-targets.yaml.
 package main
 
@@ -21,24 +21,35 @@ import (
 	"time"
 
 	"google.golang.org/grpc/credentials/insecure"
+	pb "regulagraph.local/server/gen/regulagraph/v1"
 	"regulagraph.local/server/internal/adapters/postgres"
+	artifactstorage "regulagraph.local/server/internal/adapters/storage"
 	workeradapter "regulagraph.local/server/internal/adapters/worker"
+	"regulagraph.local/server/internal/domain"
 	"regulagraph.local/server/internal/workflows"
 )
 
 type runtimeConfig struct {
-	postgresDSN      string
-	workerEndpoint   string
-	ownerID          string
-	authScope        string
-	lease            time.Duration
-	callTimeout      time.Duration
-	cancellationPoll time.Duration
-	idlePoll         time.Duration
-	retryBase        time.Duration
-	retryMax         time.Duration
-	maxMessageBytes  int
+	postgresDSN       string
+	workerEndpoint    string
+	ownerID           string
+	authScope         string
+	lease             time.Duration
+	callTimeout       time.Duration
+	cancellationPoll  time.Duration
+	idlePoll          time.Duration
+	retryBase         time.Duration
+	retryMax          time.Duration
+	maxMessageBytes   int
+	artifactRoot      string
+	jurisdiction      string
+	buildID           string
+	bindMaxBytes      int
+	bindMaxRecords    int
+	bindRegistryBatch int
 }
+
+type coordinatorAttempt func() (domain.JobRecord, map[string]any, error)
 
 var coordinatorIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$`)
 
@@ -64,12 +75,17 @@ func run(ctx context.Context) error {
 		return err
 	}
 	defer repository.Close()
+	artifacts, err := artifactstorage.NewFileStore(config.artifactRoot)
+	if err != nil {
+		return err
+	}
+	defer artifacts.Close()
 	worker, err := workeradapter.New(config.workerEndpoint, insecure.NewCredentials(), config.maxMessageBytes)
 	if err != nil {
 		return err
 	}
 	defer worker.Close()
-	executor, err := workflows.NewParseExecutor(repository, worker, workflows.ParseExecutorConfig{
+	parseExecutor, err := workflows.NewParseExecutor(repository, worker, workflows.ParseExecutorConfig{
 		OwnerID: config.ownerID, AuthScope: config.authScope, Lease: config.lease,
 		CallTimeout: config.callTimeout, CancellationPoll: config.cancellationPoll,
 		RetryBase: config.retryBase, RetryMax: config.retryMax,
@@ -77,15 +93,50 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	bindExecutor, err := workflows.NewBindingExecutor(repository, artifacts, workflows.BindingExecutorConfig{
+		OwnerID: config.ownerID, Jurisdiction: config.jurisdiction,
+		Software: "regulagraph-server", Build: config.buildID, Language: "id",
+		DocumentKind: pb.DocumentKind_DOCUMENT_KIND_REGULATION, Lease: config.lease,
+		RetryBase: config.retryBase, RetryMax: config.retryMax,
+		MaximumBytes: uint64(config.bindMaxBytes), MaximumRecords: config.bindMaxRecords,
+		RegistryBatchSize: config.bindRegistryBatch,
+		WireLimits:        domain.WireLimits{MaxBytes: config.bindMaxBytes, MaxDepth: 64, MaxItems: config.bindMaxRecords},
+	})
+	if err != nil {
+		return err
+	}
 	encoder := json.NewEncoder(os.Stdout)
+	preferBinding := false
 	for ctx.Err() == nil {
-		job, response, executeErr := executor.RunOnce(ctx)
-		if executeErr == nil {
-			if err = encoder.Encode(map[string]any{
+		parseAttempt := func() (domain.JobRecord, map[string]any, error) {
+			job, response, executeErr := parseExecutor.RunOnce(ctx)
+			if executeErr != nil {
+				return job, nil, executeErr
+			}
+			return job, map[string]any{
 				"level": "info", "component": "ingestion-worker", "job_id": job.JobID,
 				"attempt": job.Attempt, "fence": job.LeaseFence, "completion": response.Status.String(),
-			}); err != nil {
-				return fmt.Errorf("write worker event: %w", err)
+			}, nil
+		}
+		bindingAttempt := func() (domain.JobRecord, map[string]any, error) {
+			bindingJob, result, bindingErr := bindExecutor.RunOnce(ctx)
+			if bindingErr != nil {
+				return bindingJob, nil, bindingErr
+			}
+			return bindingJob, map[string]any{
+				"level": "info", "component": "ingestion-worker", "stage": "BIND", "job_id": bindingJob.JobID,
+				"attempt": bindingJob.Attempt, "fence": bindingJob.LeaseFence, "completeness": result.Completeness.String(),
+			}, nil
+		}
+		attempts := coordinatorAttempts(preferBinding, parseAttempt, bindingAttempt)
+		preferBinding = !preferBinding
+		job, event, executeErr := attempts[0]()
+		if errors.Is(executeErr, postgres.ErrLeaseUnavailable) {
+			job, event, executeErr = attempts[1]()
+		}
+		if executeErr == nil {
+			if err = encoder.Encode(event); err != nil {
+				return fmt.Errorf("write coordinator event: %w", err)
 			}
 			continue
 		}
@@ -115,13 +166,23 @@ func run(ctx context.Context) error {
 	return nil
 }
 
+func coordinatorAttempts(preferBinding bool, parse, binding coordinatorAttempt) [2]coordinatorAttempt {
+	if preferBinding {
+		return [2]coordinatorAttempt{binding, parse}
+	}
+	return [2]coordinatorAttempt{parse, binding}
+}
+
 func loadConfig() (runtimeConfig, error) {
 	config := runtimeConfig{
 		postgresDSN: os.Getenv("REGULAGRAPH_POSTGRES_DSN"), workerEndpoint: os.Getenv("REGULAGRAPH_WORKER_ENDPOINT"),
 		ownerID: os.Getenv("REGULAGRAPH_COORDINATOR_OWNER"), authScope: os.Getenv("REGULAGRAPH_COORDINATOR_AUTH_SCOPE"),
+		artifactRoot: os.Getenv("REGULAGRAPH_WORKER_ARTIFACT_ROOT"), jurisdiction: os.Getenv("REGULAGRAPH_CORPUS_JURISDICTION"),
+		buildID: os.Getenv("REGULAGRAPH_BUILD_ID"),
 	}
-	if config.postgresDSN == "" || config.workerEndpoint == "" || config.ownerID == "" || config.authScope == "" {
-		return runtimeConfig{}, errors.New("PostgreSQL DSN, worker endpoint, coordinator owner, and auth scope are required")
+	if config.postgresDSN == "" || config.workerEndpoint == "" || config.ownerID == "" || config.authScope == "" ||
+		config.artifactRoot == "" || config.jurisdiction == "" || config.buildID == "" {
+		return runtimeConfig{}, errors.New("PostgreSQL DSN, worker endpoint, artifact root, coordinator owner/auth scope, corpus jurisdiction, and build ID are required")
 	}
 	if !coordinatorIDPattern.MatchString(config.ownerID) || !printableOpaqueID(config.authScope) {
 		return runtimeConfig{}, errors.New("coordinator owner or auth scope is not a valid opaque ID")
@@ -149,6 +210,18 @@ func loadConfig() (runtimeConfig, error) {
 		return runtimeConfig{}, err
 	}
 	config.maxMessageBytes, err = positiveIntEnv("REGULAGRAPH_WORKER_MAX_MESSAGE_BYTES", workeradapter.DefaultMaxMessageBytes)
+	if err != nil {
+		return runtimeConfig{}, err
+	}
+	config.bindMaxBytes, err = positiveIntEnv("REGULAGRAPH_BIND_MAX_BATCH_BYTES", 512<<20)
+	if err != nil {
+		return runtimeConfig{}, err
+	}
+	config.bindMaxRecords, err = positiveIntEnv("REGULAGRAPH_BIND_MAX_RECORDS", 100000)
+	if err != nil {
+		return runtimeConfig{}, err
+	}
+	config.bindRegistryBatch, err = positiveIntEnv("REGULAGRAPH_BIND_REGISTRY_BATCH_SIZE", 10000)
 	if err != nil {
 		return runtimeConfig{}, err
 	}
