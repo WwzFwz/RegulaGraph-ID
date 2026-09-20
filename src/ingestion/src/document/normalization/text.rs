@@ -114,6 +114,11 @@ impl NormalizedText {
             {
                 return Err(NormalizeError::InvalidMapping("span integrity"));
             }
+            validate_mapping_shape(
+                span.kind,
+                raw_end - raw_start,
+                normalized_end - normalized_start,
+            )?;
             raw_cursor = raw_end;
             normalized_cursor = normalized_end;
         }
@@ -159,7 +164,15 @@ impl NormalizedText {
             .map_err(|_| NormalizeError::InvalidMapping("raw_cover_start"))?;
         let raw_end = usize::try_from(raw_end)
             .map_err(|_| NormalizeError::InvalidMapping("raw_cover_end"))?;
-        if raw_start >= raw_end {
+        let first_raw_start = usize::try_from(first.raw_start_byte)
+            .map_err(|_| NormalizeError::InvalidMapping("raw_cover_first_start"))?;
+        let last_raw_end = usize::try_from(last.raw_end_byte)
+            .map_err(|_| NormalizeError::InvalidMapping("raw_cover_last_end"))?;
+        if raw_start >= raw_end
+            || raw_start < first_raw_start
+            || raw_end > last_raw_end
+            || raw_end > self.raw_byte_length
+        {
             return Err(NormalizeError::InvalidMapping("raw_cover_order"));
         }
         Ok(raw_start..raw_end)
@@ -433,6 +446,25 @@ fn validate_requested_span(text: &str, span: &Range<usize>) -> Result<(), Normal
     Ok(())
 }
 
+fn validate_mapping_shape(
+    kind: MappingKind,
+    raw_length: usize,
+    normalized_length: usize,
+) -> Result<(), NormalizeError> {
+    let valid = match kind {
+        MappingKind::Identity => raw_length == normalized_length,
+        MappingKind::LineEnding => matches!(raw_length, 1 | 2) && normalized_length == 1,
+        MappingKind::HorizontalWhitespace => raw_length >= 1 && normalized_length == 1,
+        MappingKind::LigatureExpansion => raw_length == 3 && matches!(normalized_length, 2 | 3),
+        MappingKind::SoftHyphenRemoval => raw_length == 2 && normalized_length == 0,
+    };
+    if valid {
+        Ok(())
+    } else {
+        Err(NormalizeError::InvalidMapping("transform shape"))
+    }
+}
+
 fn project_normalized_boundary(
     span: &TextMappingSpan,
     boundary: u64,
@@ -686,6 +718,15 @@ mod tests {
             result.validate_integrity(),
             Err(NormalizeError::InvalidMapping(_))
         ));
+
+        let mut result = normalize_text("Pasal 1\nWajib patuh.", &TextNormalizerConfig::default())
+            .expect("identity fixture normalizes");
+        result.mapping[0].raw_end_byte = 1;
+        result.raw_byte_length = 1;
+        assert_eq!(
+            result.validate_integrity(),
+            Err(NormalizeError::InvalidMapping("transform shape"))
+        );
 
         let result = normalize_text(raw, &TextNormalizerConfig::default()).unwrap();
         let changed_config = TextNormalizerConfig {
