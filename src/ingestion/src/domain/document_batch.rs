@@ -61,6 +61,63 @@ pub struct DocumentBatchParts {
     pub changes: Vec<documents::LegalChangeEvent>,
 }
 
+#[derive(Clone, Copy)]
+struct DocumentBatchView<'a> {
+    batch_id: &'a str,
+    sources: &'a [documents::SourceBlob],
+    text_artifacts: &'a [documents::TextArtifact],
+    structures: &'a [documents::StructureNode],
+    provisions: &'a [documents::Provision],
+    versions: &'a [documents::ProvisionVersion],
+    chunks: &'a [documents::Chunk],
+    issues: &'a [common::ValidationIssue],
+    dependency_manifest: &'a common::DependencyManifest,
+    editions: &'a [documents::DocumentEdition],
+    regulations: &'a [documents::Regulation],
+    observations: &'a [documents::SourceObservation],
+    changes: &'a [documents::LegalChangeEvent],
+}
+
+impl<'a> From<&'a DocumentBatchParts> for DocumentBatchView<'a> {
+    fn from(parts: &'a DocumentBatchParts) -> Self {
+        Self {
+            batch_id: &parts.batch_id,
+            sources: &parts.sources,
+            text_artifacts: &parts.text_artifacts,
+            structures: &parts.structures,
+            provisions: &parts.provisions,
+            versions: &parts.versions,
+            chunks: &parts.chunks,
+            issues: &parts.issues,
+            dependency_manifest: &parts.dependency_manifest,
+            editions: &parts.editions,
+            regulations: &parts.regulations,
+            observations: &parts.observations,
+            changes: &parts.changes,
+        }
+    }
+}
+
+impl<'a> From<&'a documents::DocumentBatch> for DocumentBatchView<'a> {
+    fn from(batch: &'a documents::DocumentBatch) -> Self {
+        Self {
+            batch_id: &batch.meta.record_id,
+            sources: &batch.sources,
+            text_artifacts: &batch.text_artifacts,
+            structures: &batch.structures,
+            provisions: &batch.provisions,
+            versions: &batch.versions,
+            chunks: &batch.chunks,
+            issues: &batch.issues,
+            dependency_manifest: &batch.dependency_manifest,
+            editions: &batch.editions,
+            regulations: &batch.regulations,
+            observations: &batch.observations,
+            changes: &batch.changes,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DocumentBatchError {
     InvalidConfig(&'static str),
@@ -150,7 +207,7 @@ pub fn assemble_document_batch(
         return Err(DocumentBatchError::InvalidIdentity("sources"));
     }
 
-    let total = record_count(&parts)?;
+    let total = record_count(DocumentBatchView::from(&parts))?;
     if total > config.maximum_records {
         return Err(DocumentBatchError::RecordLimit {
             actual: total,
@@ -158,18 +215,27 @@ pub fn assemble_document_batch(
         });
     }
 
-    validate_all_wire_records(&parts)?;
-    let indexes = BatchIndexes::build(&parts, &corpus_id)?;
-    validate_reference_closure(&parts, &indexes, config.maximum_reference_edges)?;
-    let generated_issues = page_issues(&parts.text_artifacts);
-    parts.issues.extend(generated_issues);
-    let total_with_generated_issues = record_count(&parts)?;
+    {
+        let view = DocumentBatchView::from(&parts);
+        validate_all_wire_records(view)?;
+        let indexes = BatchIndexes::build(view, &corpus_id)?;
+        validate_reference_closure(view, &indexes, config.maximum_reference_edges)?;
+    }
+    let missing_page_issues = missing_page_issue_count(&parts.text_artifacts, &parts.issues);
+    let total_with_generated_issues =
+        total
+            .checked_add(missing_page_issues)
+            .ok_or(DocumentBatchError::RecordLimit {
+                actual: usize::MAX,
+                maximum: config.maximum_records,
+            })?;
     if total_with_generated_issues > config.maximum_records {
         return Err(DocumentBatchError::RecordLimit {
             actual: total_with_generated_issues,
             maximum: config.maximum_records,
         });
     }
+    append_missing_page_issues(&parts.text_artifacts, &mut parts.issues);
     for issue in &parts.issues {
         validate_wire(issue)?;
     }
@@ -197,21 +263,66 @@ pub fn assemble_document_batch(
     Ok(batch)
 }
 
+/// Replays all semantic batch invariants after decoding or before persistence without cloning payloads.
+pub fn validate_document_batch(
+    batch: &documents::DocumentBatch,
+    config: &DocumentBatchConfig,
+) -> Result<(), DocumentBatchError> {
+    validate_config(config)?;
+    validate_wire(batch)?;
+    let corpus_id = batch.context.corpus_id.as_str();
+    if !valid_ascii_id(&batch.meta.record_id) {
+        return Err(DocumentBatchError::InvalidIdentity("batch.meta.record_id"));
+    }
+    if !valid_ascii_id(corpus_id) {
+        return Err(DocumentBatchError::InvalidIdentity("context.corpus_id"));
+    }
+    check_meta(&batch.meta, corpus_id)?;
+    if batch.sources.is_empty() {
+        return Err(DocumentBatchError::InvalidIdentity("sources"));
+    }
+
+    let view = DocumentBatchView::from(batch);
+    let total = record_count(view)?;
+    if total > config.maximum_records {
+        return Err(DocumentBatchError::RecordLimit {
+            actual: total,
+            maximum: config.maximum_records,
+        });
+    }
+    validate_all_wire_records(view)?;
+    let indexes = BatchIndexes::build(view, corpus_id)?;
+    validate_reference_closure(view, &indexes, config.maximum_reference_edges)?;
+    validate_page_issue_coverage(batch)?;
+
+    let expected = derive_completeness(&batch.text_artifacts, &batch.chunks, &batch.issues);
+    if batch.completeness.enum_value() != Ok(expected) {
+        return Err(DocumentBatchError::InvalidIdentity("completeness"));
+    }
+    Ok(())
+}
+
 struct BatchIndexes<'a> {
     local_ids: HashSet<&'a str>,
     dependency_ids: HashSet<&'a str>,
     source_ids: HashSet<&'a str>,
     text_ids: HashSet<&'a str>,
     structure_ids: HashSet<&'a str>,
+    chunk_ids: HashSet<&'a str>,
+    regulation_ids: HashSet<&'a str>,
     provision_ids: HashSet<&'a str>,
     version_ids: HashSet<&'a str>,
-    artifact_ids: HashSet<&'a str>,
+    observation_ids: HashSet<&'a str>,
+    change_ids: HashSet<&'a str>,
+    artifact_refs: HashMap<&'a str, &'a common::ArtifactRef>,
+    normalized_sizes: HashMap<&'a str, u64>,
+    dependency_fingerprints: HashMap<&'a str, &'a str>,
     structure_parents: HashMap<&'a str, Option<&'a str>>,
-    structure_children: HashMap<&'a str, &'a [String]>,
+    listed_parent: HashMap<&'a str, &'a str>,
 }
 
 impl<'a> BatchIndexes<'a> {
-    fn build(parts: &'a DocumentBatchParts, corpus_id: &str) -> Result<Self, DocumentBatchError> {
+    fn build(parts: DocumentBatchView<'a>, corpus_id: &str) -> Result<Self, DocumentBatchError> {
         let mut indexes = Self {
             local_ids: HashSet::new(),
             dependency_ids: parts
@@ -223,43 +334,54 @@ impl<'a> BatchIndexes<'a> {
             source_ids: HashSet::new(),
             text_ids: HashSet::new(),
             structure_ids: HashSet::new(),
+            chunk_ids: HashSet::new(),
+            regulation_ids: HashSet::new(),
             provision_ids: HashSet::new(),
             version_ids: HashSet::new(),
-            artifact_ids: HashSet::new(),
+            observation_ids: HashSet::new(),
+            change_ids: HashSet::new(),
+            artifact_refs: HashMap::new(),
+            normalized_sizes: HashMap::new(),
+            dependency_fingerprints: parts
+                .dependency_manifest
+                .dependencies
+                .iter()
+                .map(|dependency| {
+                    (
+                        dependency.dependency_id.as_str(),
+                        dependency.fingerprint.sha256.as_str(),
+                    )
+                })
+                .collect(),
             structure_parents: HashMap::new(),
-            structure_children: HashMap::new(),
+            listed_parent: HashMap::new(),
         };
         if indexes.dependency_ids.len() != parts.dependency_manifest.dependencies.len() {
             return Err(DocumentBatchError::InvalidIdentity(
                 "duplicate dependency_id",
             ));
         }
-        indexes.insert(parts.batch_id.as_str())?;
-        for source in &parts.sources {
+        indexes.insert(parts.batch_id)?;
+        for source in parts.sources {
             check_meta(&source.meta, corpus_id)?;
             let id = source.meta.record_id.as_str();
             indexes.insert(id)?;
             indexes.source_ids.insert(id);
-            indexes
-                .artifact_ids
-                .insert(source.artifact_ref.artifact_id.as_str());
+            indexes.insert_artifact(&source.artifact_ref)?;
         }
-        for artifact in &parts.text_artifacts {
+        for artifact in parts.text_artifacts {
             check_meta(&artifact.meta, corpus_id)?;
             let id = artifact.meta.record_id.as_str();
             indexes.insert(id)?;
             indexes.text_ids.insert(id);
+            indexes.insert_artifact(&artifact.raw_text_ref)?;
+            indexes.insert_artifact(&artifact.normalized_text_ref)?;
+            indexes.insert_artifact(&artifact.mapping_ref)?;
             indexes
-                .artifact_ids
-                .insert(artifact.raw_text_ref.artifact_id.as_str());
-            indexes
-                .artifact_ids
-                .insert(artifact.normalized_text_ref.artifact_id.as_str());
-            indexes
-                .artifact_ids
-                .insert(artifact.mapping_ref.artifact_id.as_str());
+                .normalized_sizes
+                .insert(id, artifact.normalized_text_ref.byte_size);
         }
-        for structure in &parts.structures {
+        for structure in parts.structures {
             check_meta(&structure.meta, corpus_id)?;
             let id = structure.meta.record_id.as_str();
             indexes.insert(id)?;
@@ -267,63 +389,133 @@ impl<'a> BatchIndexes<'a> {
             indexes
                 .structure_parents
                 .insert(id, structure.parent_id.as_deref());
-            indexes
-                .structure_children
-                .insert(id, &structure.ordered_children);
+            for child in &structure.ordered_children {
+                if indexes.listed_parent.insert(child.as_str(), id).is_some() {
+                    return Err(DocumentBatchError::InvalidIdentity(
+                        "structure child listed by multiple parents",
+                    ));
+                }
+            }
         }
-        for provision in &parts.provisions {
+        for provision in parts.provisions {
             check_meta(&provision.meta, corpus_id)?;
             let id = provision.meta.record_id.as_str();
             indexes.insert(id)?;
             indexes.provision_ids.insert(id);
         }
-        for version in &parts.versions {
+        for version in parts.versions {
             check_meta(&version.meta, corpus_id)?;
             let id = version.meta.record_id.as_str();
             indexes.insert(id)?;
             indexes.version_ids.insert(id);
         }
-        for chunk in &parts.chunks {
+        for chunk in parts.chunks {
             check_meta(&chunk.meta, corpus_id)?;
-            indexes.insert(chunk.meta.record_id.as_str())?;
+            let id = chunk.meta.record_id.as_str();
+            indexes.insert(id)?;
+            indexes.chunk_ids.insert(id);
         }
-        for edition in &parts.editions {
+        for edition in parts.editions {
             check_meta(&edition.meta, corpus_id)?;
             indexes.insert(edition.meta.record_id.as_str())?;
         }
-        for regulation in &parts.regulations {
+        for regulation in parts.regulations {
             check_meta(&regulation.meta, corpus_id)?;
-            indexes.insert(regulation.meta.record_id.as_str())?;
+            let id = regulation.meta.record_id.as_str();
+            indexes.insert(id)?;
+            indexes.regulation_ids.insert(id);
         }
-        for observation in &parts.observations {
+        for observation in parts.observations {
             check_meta(&observation.meta, corpus_id)?;
-            indexes.insert(observation.meta.record_id.as_str())?;
+            let id = observation.meta.record_id.as_str();
+            indexes.insert(id)?;
+            indexes.observation_ids.insert(id);
         }
-        for change in &parts.changes {
+        for change in parts.changes {
             check_meta(&change.meta, corpus_id)?;
-            indexes.insert(change.meta.record_id.as_str())?;
+            let id = change.meta.record_id.as_str();
+            indexes.insert(id)?;
+            indexes.change_ids.insert(id);
         }
         Ok(indexes)
     }
 
     fn insert(&mut self, id: &'a str) -> Result<(), DocumentBatchError> {
-        if !self.local_ids.insert(id) {
+        if self.dependency_ids.contains(id)
+            || self.artifact_refs.contains_key(id)
+            || !self.local_ids.insert(id)
+        {
             return Err(DocumentBatchError::DuplicateRecordId(id.to_owned()));
         }
         Ok(())
     }
 
-    fn known(&self, id: &str) -> bool {
-        self.local_ids.contains(id) || self.dependency_ids.contains(id)
+    fn typed_or_dependency(&self, id: &str, typed: &HashSet<&str>) -> bool {
+        typed.contains(id) || (!self.local_ids.contains(id) && self.dependency_ids.contains(id))
+    }
+
+    fn external_dependency(&self, id: &str) -> bool {
+        !self.local_ids.contains(id) && self.dependency_ids.contains(id)
+    }
+
+    fn insert_artifact(
+        &mut self,
+        reference: &'a common::ArtifactRef,
+    ) -> Result<(), DocumentBatchError> {
+        let id = reference.artifact_id.as_str();
+        if self.local_ids.contains(id) || self.dependency_ids.contains(id) {
+            return Err(DocumentBatchError::DuplicateRecordId(id.to_owned()));
+        }
+        if let Some(existing) = self.artifact_refs.get(id) {
+            if *existing != reference {
+                return Err(DocumentBatchError::DuplicateRecordId(id.to_owned()));
+            }
+        } else {
+            self.artifact_refs.insert(id, reference);
+        }
+        Ok(())
+    }
+
+    fn artifact_matches(&self, reference: &common::ArtifactRef) -> bool {
+        if let Some(local) = self.artifact_refs.get(reference.artifact_id.as_str()) {
+            return **local == *reference;
+        }
+        !self.local_ids.contains(reference.artifact_id.as_str())
+            && self
+                .dependency_fingerprints
+                .get(reference.artifact_id.as_str())
+                .is_some_and(|fingerprint| **fingerprint == reference.content_hash.sha256)
+    }
+
+    fn text_span_fits(&self, span: &common::TextSpan) -> bool {
+        self.normalized_sizes
+            .get(span.text_artifact_id.as_str())
+            .is_some_and(|size| span.end_byte <= *size)
+            || (!self.local_ids.contains(span.text_artifact_id.as_str())
+                && self.dependency_ids.contains(span.text_artifact_id.as_str()))
     }
 }
 
 fn validate_reference_closure(
-    parts: &DocumentBatchParts,
+    parts: DocumentBatchView<'_>,
     indexes: &BatchIndexes<'_>,
     maximum_edges: usize,
 ) -> Result<(), DocumentBatchError> {
-    let mut edges = 0usize;
+    let mut edges = parts
+        .dependency_manifest
+        .dependencies
+        .len()
+        .checked_add(parts.dependency_manifest.lookup_scope_revisions.len())
+        .ok_or(DocumentBatchError::ReferenceLimit {
+            actual: usize::MAX,
+            maximum: maximum_edges,
+        })?;
+    if edges > maximum_edges {
+        return Err(DocumentBatchError::ReferenceLimit {
+            actual: edges,
+            maximum: maximum_edges,
+        });
+    }
     let mut add_edge = |field: &'static str, id: &str, exists: bool| {
         edges = edges
             .checked_add(1)
@@ -346,43 +538,72 @@ fn validate_reference_closure(
         Ok(())
     };
 
-    for artifact in &parts.text_artifacts {
+    for artifact in parts.text_artifacts {
         add_edge(
             "text_artifact.source_blob_id",
             &artifact.source_blob_id,
-            indexes
-                .source_ids
-                .contains(artifact.source_blob_id.as_str())
-                || indexes
-                    .dependency_ids
-                    .contains(artifact.source_blob_id.as_str()),
+            indexes.typed_or_dependency(&artifact.source_blob_id, &indexes.source_ids),
         )?;
-        for page in &artifact.page_results {
+        let mut previous_span_end = 0u64;
+        let mut first_span = true;
+        for (page_index, page) in artifact.page_results.iter().enumerate() {
+            let expected_page = u32::try_from(page_index + 1)
+                .map_err(|_| DocumentBatchError::InvalidIdentity("page_number"))?;
+            if page.page_number != expected_page
+                || !matches!(
+                    page.status.enum_value(),
+                    Ok(common::CompletionStatus::COMPLETION_STATUS_SUCCEEDED
+                        | common::CompletionStatus::COMPLETION_STATUS_FAILED)
+                )
+                || (page.status.enum_value()
+                    == Ok(common::CompletionStatus::COMPLETION_STATUS_SUCCEEDED)
+                    && !page.errors.is_empty())
+                || (page.status.enum_value()
+                    == Ok(common::CompletionStatus::COMPLETION_STATUS_FAILED)
+                    && page.errors.is_empty())
+                || page.spans.is_empty()
+            {
+                return Err(DocumentBatchError::InvalidIdentity("page_result"));
+            }
+            let mut succeeded_with_text = false;
             for span in &page.spans {
                 add_edge(
                     "text_artifact.page_results.spans",
                     &span.text_artifact_id,
-                    span.text_artifact_id == artifact.meta.record_id,
+                    span.text_artifact_id == artifact.meta.record_id
+                        && indexes.text_span_fits(span)
+                        && (!first_span || span.start_byte == 0)
+                        && span.start_byte == previous_span_end,
                 )?;
+                succeeded_with_text |= span.start_byte < span.end_byte;
+                previous_span_end = span.end_byte;
+                first_span = false;
+            }
+            if page.status.enum_value() == Ok(common::CompletionStatus::COMPLETION_STATUS_SUCCEEDED)
+                && !succeeded_with_text
+            {
+                return Err(DocumentBatchError::InvalidIdentity(
+                    "succeeded page evidence",
+                ));
             }
         }
+        if previous_span_end != artifact.normalized_text_ref.byte_size {
+            return Err(DocumentBatchError::InvalidIdentity(
+                "page span normalized coverage",
+            ));
+        }
     }
-    for structure in &parts.structures {
+    for structure in parts.structures {
         if let Some(parent) = structure.parent_id.as_deref() {
             add_edge(
                 "structure.parent_id",
                 parent,
                 indexes.structure_ids.contains(parent),
             )?;
-            let parent_lists_child =
-                indexes
-                    .structure_children
-                    .get(parent)
-                    .is_some_and(|children| {
-                        children
-                            .iter()
-                            .any(|child| child == &structure.meta.record_id)
-                    });
+            let parent_lists_child = indexes
+                .listed_parent
+                .get(structure.meta.record_id.as_str())
+                .is_some_and(|listed| *listed == parent);
             add_edge("structure.parent_children", parent, parent_lists_child)?;
         }
         for child in &structure.ordered_children {
@@ -403,88 +624,77 @@ fn validate_reference_closure(
             add_edge(
                 "structure.source_spans",
                 &span.text_artifact_id,
-                indexes.text_ids.contains(span.text_artifact_id.as_str()),
+                indexes.text_span_fits(span),
             )?;
         }
         for locator in &structure.page_locators {
             add_edge(
                 "structure.page_locators",
                 &locator.source_blob_id,
-                indexes.source_ids.contains(locator.source_blob_id.as_str())
-                    || indexes
-                        .dependency_ids
-                        .contains(locator.source_blob_id.as_str()),
+                indexes.typed_or_dependency(&locator.source_blob_id, &indexes.source_ids),
             )?;
         }
     }
     validate_structure_cycles(indexes)?;
-    for provision in &parts.provisions {
+    for provision in parts.provisions {
         add_edge(
             "provision.regulation_id",
             &provision.regulation_id,
-            indexes.known(&provision.regulation_id),
+            indexes.typed_or_dependency(&provision.regulation_id, &indexes.regulation_ids),
         )?;
         if let Some(parent) = provision.parent_provision_id.as_deref() {
             add_edge(
                 "provision.parent_provision_id",
                 parent,
-                indexes.known(parent),
+                indexes.typed_or_dependency(parent, &indexes.provision_ids),
             )?;
         }
         for lineage in &provision.lineage_refs {
-            add_edge("provision.lineage_refs", lineage, indexes.known(lineage))?;
+            add_edge(
+                "provision.lineage_refs",
+                lineage,
+                indexes.typed_or_dependency(lineage, &indexes.provision_ids),
+            )?;
         }
     }
-    for version in &parts.versions {
+    for version in parts.versions {
         add_edge(
             "version.provision_id",
             &version.provision_id,
-            indexes
-                .provision_ids
-                .contains(version.provision_id.as_str())
-                || indexes
-                    .dependency_ids
-                    .contains(version.provision_id.as_str()),
+            indexes.typed_or_dependency(&version.provision_id, &indexes.provision_ids),
         )?;
         add_edge(
             "version.text_ref",
             &version.text_ref.artifact_id,
-            indexes
-                .artifact_ids
-                .contains(version.text_ref.artifact_id.as_str())
-                || indexes
-                    .dependency_ids
-                    .contains(version.text_ref.artifact_id.as_str()),
+            indexes.artifact_matches(&version.text_ref),
         )?;
         for span in &version.spans {
             add_edge(
                 "version.spans",
                 &span.text_artifact_id,
-                indexes.text_ids.contains(span.text_artifact_id.as_str())
-                    || indexes
-                        .dependency_ids
-                        .contains(span.text_artifact_id.as_str()),
+                indexes.text_span_fits(span),
             )?;
         }
         for event in &version.supporting_events {
-            add_edge("version.supporting_events", event, indexes.known(event))?;
+            add_edge(
+                "version.supporting_events",
+                event,
+                indexes.typed_or_dependency(event, &indexes.change_ids),
+            )?;
         }
     }
-    for chunk in &parts.chunks {
+    for chunk in parts.chunks {
         for version in &chunk.provision_version_refs {
             add_edge(
                 "chunk.provision_version_refs",
                 version,
-                indexes.version_ids.contains(version.as_str())
-                    || indexes.dependency_ids.contains(version.as_str()),
+                indexes.typed_or_dependency(version, &indexes.version_ids),
             )?;
         }
         add_edge(
             "chunk.text_span",
             &chunk.text_span.text_artifact_id,
-            indexes
-                .text_ids
-                .contains(chunk.text_span.text_artifact_id.as_str()),
+            indexes.text_span_fits(&chunk.text_span),
         )?;
         for structure in chunk
             .structure_node_refs
@@ -498,95 +708,111 @@ fn validate_reference_closure(
             )?;
         }
         for exception in &chunk.exception_refs {
-            add_edge("chunk.exception_refs", exception, indexes.known(exception))?;
+            add_edge(
+                "chunk.exception_refs",
+                exception,
+                indexes.typed_or_dependency(exception, &indexes.chunk_ids),
+            )?;
         }
     }
-    for edition in &parts.editions {
+    for edition in parts.editions {
         if let Some(regulation) = edition.regulation_id.as_deref() {
             add_edge(
                 "edition.regulation_id",
                 regulation,
-                indexes.known(regulation),
+                indexes.typed_or_dependency(regulation, &indexes.regulation_ids),
             )?;
         }
         for source in &edition.source_refs {
-            add_edge("edition.source_refs", source, indexes.known(source))?;
+            add_edge(
+                "edition.source_refs",
+                source,
+                indexes.typed_or_dependency(source, &indexes.observation_ids),
+            )?;
         }
     }
-    for observation in &parts.observations {
+    for observation in parts.observations {
         if let Some(source) = observation.source_blob_id.as_deref() {
-            add_edge("observation.source_blob_id", source, indexes.known(source))?;
+            add_edge(
+                "observation.source_blob_id",
+                source,
+                indexes.typed_or_dependency(source, &indexes.source_ids),
+            )?;
         }
     }
-    for regulation in &parts.regulations {
+    for regulation in parts.regulations {
         add_edge(
             "regulation.issuer_id",
             &regulation.issuer_id,
-            indexes.known(&regulation.issuer_id),
+            indexes.external_dependency(&regulation.issuer_id),
         )?;
     }
-    for change in &parts.changes {
+    for change in parts.changes {
         add_edge(
             "change.amending_source.source_blob_id",
             &change.amending_source.source_blob_id,
-            indexes.known(&change.amending_source.source_blob_id),
+            indexes
+                .typed_or_dependency(&change.amending_source.source_blob_id, &indexes.source_ids),
         )?;
         add_edge(
             "change.amending_source.provision_version_id",
             &change.amending_source.provision_version_id,
-            indexes.known(&change.amending_source.provision_version_id),
+            indexes.typed_or_dependency(
+                &change.amending_source.provision_version_id,
+                &indexes.version_ids,
+            ),
         )?;
         add_edge(
             "change.amending_source.regulation_id",
             &change.amending_source.regulation_id,
-            indexes.known(&change.amending_source.regulation_id),
+            indexes.typed_or_dependency(
+                &change.amending_source.regulation_id,
+                &indexes.regulation_ids,
+            ),
         )?;
         for provision in &change.affected_provisions {
             add_edge(
                 "change.affected_provisions",
                 provision,
-                indexes.known(provision),
+                indexes.typed_or_dependency(provision, &indexes.provision_ids),
             )?;
         }
         for span in &change.replacement_spans {
             add_edge(
                 "change.replacement_spans",
                 &span.text_artifact_id,
-                indexes.text_ids.contains(span.text_artifact_id.as_str())
-                    || indexes
-                        .dependency_ids
-                        .contains(span.text_artifact_id.as_str()),
+                indexes.text_span_fits(span),
             )?;
         }
         for source in &change.supports.sources {
             add_edge(
                 "change.supports.sources.source_blob_id",
                 &source.source_blob_id,
-                indexes.known(&source.source_blob_id),
+                indexes.typed_or_dependency(&source.source_blob_id, &indexes.source_ids),
             )?;
             add_edge(
                 "change.supports.sources.provision_version_id",
                 &source.provision_version_id,
-                indexes.known(&source.provision_version_id),
+                indexes.typed_or_dependency(&source.provision_version_id, &indexes.version_ids),
             )?;
             add_edge(
                 "change.supports.sources.regulation_id",
                 &source.regulation_id,
-                indexes.known(&source.regulation_id),
+                indexes.typed_or_dependency(&source.regulation_id, &indexes.regulation_ids),
             )?;
         }
         for span in &change.supports.spans {
             add_edge(
                 "change.supports.spans",
                 &span.text_artifact_id,
-                indexes.known(&span.text_artifact_id),
+                indexes.text_span_fits(span),
             )?;
         }
         for locator in &change.supports.locators {
             add_edge(
                 "change.supports.locators",
                 &locator.source_blob_id,
-                indexes.known(&locator.source_blob_id),
+                indexes.typed_or_dependency(&locator.source_blob_id, &indexes.source_ids),
             )?;
         }
     }
@@ -617,7 +843,22 @@ fn validate_structure_cycles(indexes: &BatchIndexes<'_>) -> Result<(), DocumentB
     Ok(())
 }
 
-fn page_issues(text_artifacts: &[documents::TextArtifact]) -> Vec<common::ValidationIssue> {
+type PageIssueKey = (String, String, String);
+
+fn page_issue_keys(issues: &[common::ValidationIssue]) -> HashSet<PageIssueKey> {
+    issues
+        .iter()
+        .map(|issue| {
+            (
+                issue.code.clone(),
+                issue.record_id.clone(),
+                issue.field_path.clone(),
+            )
+        })
+        .collect()
+}
+
+fn page_issue_severity(text_artifacts: &[documents::TextArtifact]) -> common::Severity {
     let succeeded = text_artifacts
         .iter()
         .flat_map(|artifact| &artifact.page_results)
@@ -625,32 +866,98 @@ fn page_issues(text_artifacts: &[documents::TextArtifact]) -> Vec<common::Valida
             page.status.value() == common::CompletionStatus::COMPLETION_STATUS_SUCCEEDED as i32
         })
         .count();
-    let severity = if succeeded == 0 {
+    if succeeded == 0 {
         common::Severity::SEVERITY_ERROR
     } else {
         common::Severity::SEVERITY_WARNING
-    };
-    let mut issues = Vec::new();
+    }
+}
+
+fn page_issue_key(artifact: &documents::TextArtifact, index: usize) -> PageIssueKey {
+    (
+        "PAGE_EXTRACTION_INCOMPLETE".to_owned(),
+        artifact.meta.record_id.clone(),
+        format!("page_results[{index}]"),
+    )
+}
+
+fn page_issue(
+    artifact: &documents::TextArtifact,
+    index: usize,
+    severity: common::Severity,
+) -> common::ValidationIssue {
+    let page = &artifact.page_results[index];
+    common::ValidationIssue {
+        code: "PAGE_EXTRACTION_INCOMPLETE".to_owned(),
+        severity: EnumOrUnknown::new(severity),
+        record_id: artifact.meta.record_id.clone(),
+        field_path: format!("page_results[{index}]"),
+        evidence_refs: page
+            .errors
+            .iter()
+            .filter_map(|error| error.item_id.clone())
+            .collect(),
+        disposition: "retain_partial_and_require_followup".to_owned(),
+        ..Default::default()
+    }
+}
+
+fn missing_page_issue_count(
+    text_artifacts: &[documents::TextArtifact],
+    issues: &[common::ValidationIssue],
+) -> usize {
+    let existing = page_issue_keys(issues);
+    text_artifacts
+        .iter()
+        .flat_map(|artifact| {
+            artifact
+                .page_results
+                .iter()
+                .enumerate()
+                .filter(|(_, page)| {
+                    page.status.value()
+                        != common::CompletionStatus::COMPLETION_STATUS_SUCCEEDED as i32
+                })
+                .map(|(index, _)| page_issue_key(artifact, index))
+        })
+        .filter(|key| !existing.contains(key))
+        .count()
+}
+
+fn append_missing_page_issues(
+    text_artifacts: &[documents::TextArtifact],
+    issues: &mut Vec<common::ValidationIssue>,
+) {
+    let mut existing = page_issue_keys(issues);
+    let severity = page_issue_severity(text_artifacts);
     for artifact in text_artifacts {
         for (index, page) in artifact.page_results.iter().enumerate() {
             if page.status.value() != common::CompletionStatus::COMPLETION_STATUS_SUCCEEDED as i32 {
-                issues.push(common::ValidationIssue {
-                    code: "PAGE_EXTRACTION_INCOMPLETE".to_owned(),
-                    severity: EnumOrUnknown::new(severity),
-                    record_id: artifact.meta.record_id.clone(),
-                    field_path: format!("page_results[{index}]"),
-                    evidence_refs: page
-                        .errors
-                        .iter()
-                        .filter_map(|error| error.item_id.clone())
-                        .collect(),
-                    disposition: "retain_partial_and_require_followup".to_owned(),
-                    ..Default::default()
-                });
+                let key = page_issue_key(artifact, index);
+                if existing.insert(key) {
+                    issues.push(page_issue(artifact, index, severity));
+                }
             }
         }
     }
-    issues
+}
+
+fn validate_page_issue_coverage(
+    batch: &documents::DocumentBatch,
+) -> Result<(), DocumentBatchError> {
+    let existing = page_issue_keys(&batch.issues);
+    for artifact in &batch.text_artifacts {
+        for (index, page) in artifact.page_results.iter().enumerate() {
+            if page.status.value() != common::CompletionStatus::COMPLETION_STATUS_SUCCEEDED as i32
+                && !existing.contains(&page_issue_key(artifact, index))
+            {
+                return Err(DocumentBatchError::InvalidIdentity(
+                    "failed page validation issue",
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 fn derive_completeness(
@@ -686,7 +993,7 @@ fn derive_completeness(
     }
 }
 
-fn record_count(parts: &DocumentBatchParts) -> Result<usize, DocumentBatchError> {
+fn record_count(parts: DocumentBatchView<'_>) -> Result<usize, DocumentBatchError> {
     [
         parts.sources.len(),
         parts.text_artifacts.len(),
@@ -708,7 +1015,7 @@ fn record_count(parts: &DocumentBatchParts) -> Result<usize, DocumentBatchError>
     })
 }
 
-fn validate_all_wire_records(parts: &DocumentBatchParts) -> Result<(), DocumentBatchError> {
+fn validate_all_wire_records(parts: DocumentBatchView<'_>) -> Result<(), DocumentBatchError> {
     for message in parts
         .sources
         .iter()
@@ -1166,7 +1473,7 @@ mod tests {
                 stage: "parse".to_owned(),
                 ..Default::default()
             });
-        let count_before_generated_issue = record_count(&parts).unwrap();
+        let count_before_generated_issue = record_count(DocumentBatchView::from(&parts)).unwrap();
         assert_eq!(
             assemble_document_batch(
                 parts,
@@ -1192,6 +1499,123 @@ mod tests {
             ),
             Err(DocumentBatchError::ReferenceLimit { .. })
         ));
+    }
+
+    #[test]
+    fn rejects_wrong_local_types_and_artifact_descriptor_aliases() {
+        let mut parts = fixture();
+        parts.provisions[0].regulation_id = "source-blob:fixture".to_owned();
+        assert!(matches!(
+            assemble_document_batch(parts, &DocumentBatchConfig::default()),
+            Err(DocumentBatchError::MissingReference {
+                field: "provision.regulation_id",
+                ..
+            })
+        ));
+
+        let mut parts = fixture();
+        parts.versions[0].text_ref.as_mut().unwrap().media_type =
+            "application/octet-stream".to_owned();
+        assert!(matches!(
+            assemble_document_batch(parts, &DocumentBatchConfig::default()),
+            Err(DocumentBatchError::MissingReference {
+                field: "version.text_ref",
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn rejects_out_of_bounds_spans_duplicate_pages_and_manifest_overflow() {
+        let mut parts = fixture();
+        parts.chunks[0].text_span.as_mut().unwrap().end_byte = 100_000;
+        assert!(matches!(
+            assemble_document_batch(parts, &DocumentBatchConfig::default()),
+            Err(DocumentBatchError::MissingReference {
+                field: "chunk.text_span",
+                ..
+            })
+        ));
+
+        let mut parts = fixture();
+        let duplicate_page = parts.text_artifacts[0].page_results[0].clone();
+        parts.text_artifacts[0].page_results.push(duplicate_page);
+        assert_eq!(
+            assemble_document_batch(parts, &DocumentBatchConfig::default()).unwrap_err(),
+            DocumentBatchError::InvalidIdentity("page_result")
+        );
+
+        let mut parts = fixture();
+        let mut overlapping_page = parts.text_artifacts[0].page_results[0].clone();
+        overlapping_page.page_number = 2;
+        parts.text_artifacts[0].page_results.push(overlapping_page);
+        assert!(matches!(
+            assemble_document_batch(parts, &DocumentBatchConfig::default()),
+            Err(DocumentBatchError::MissingReference {
+                field: "text_artifact.page_results.spans",
+                ..
+            })
+        ));
+
+        let mut parts = fixture();
+        parts.text_artifacts[0].page_results[0].spans.clear();
+        assert_eq!(
+            assemble_document_batch(parts, &DocumentBatchConfig::default()).unwrap_err(),
+            DocumentBatchError::InvalidIdentity("page_result")
+        );
+
+        let mut parts = fixture();
+        parts
+            .dependency_manifest
+            .dependencies
+            .push(common::Dependency {
+                dependency_id: "entity:second".to_owned(),
+                fingerprint: MessageField::some(content_hash('8')),
+                ..Default::default()
+            });
+        assert_eq!(
+            assemble_document_batch(
+                parts,
+                &DocumentBatchConfig {
+                    maximum_records: 100,
+                    maximum_reference_edges: 1,
+                },
+            )
+            .unwrap_err(),
+            DocumentBatchError::ReferenceLimit {
+                actual: 2,
+                maximum: 1,
+            }
+        );
+    }
+
+    #[test]
+    fn semantic_validation_rejects_forged_completeness_and_missing_page_issue() {
+        let mut complete =
+            assemble_document_batch(fixture(), &DocumentBatchConfig::default()).unwrap();
+        complete.completeness = EnumOrUnknown::new(common::Completeness::COMPLETENESS_NONE);
+        assert_eq!(
+            validate_document_batch(&complete, &DocumentBatchConfig::default()).unwrap_err(),
+            DocumentBatchError::InvalidIdentity("completeness")
+        );
+
+        let mut parts = fixture();
+        parts.text_artifacts[0].page_results[0].status =
+            EnumOrUnknown::new(common::CompletionStatus::COMPLETION_STATUS_FAILED);
+        parts.text_artifacts[0].page_results[0]
+            .errors
+            .push(common::OperationError {
+                code: EnumOrUnknown::new(common::ErrorCode::ERROR_CODE_INTERNAL),
+                safe_message: "failed".to_owned(),
+                stage: "parse".to_owned(),
+                ..Default::default()
+            });
+        let mut partial = assemble_document_batch(parts, &DocumentBatchConfig::default()).unwrap();
+        partial.issues.clear();
+        assert_eq!(
+            validate_document_batch(&partial, &DocumentBatchConfig::default()).unwrap_err(),
+            DocumentBatchError::InvalidIdentity("failed page validation issue")
+        );
     }
 
     #[test]

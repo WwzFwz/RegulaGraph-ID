@@ -6,9 +6,9 @@
 //! membaca byte terverifikasi, lalu menjalankan commit/publication; Rust tidak menandai batch published.
 //!
 //! Kontrak integrasi dan perhatian implementasi:
-//! Validasi C01 dilakukan sebelum serialisasi dan sesudah load. Media type serta schema descriptor
-//! dibekukan pada boundary ini. Retry payload identik menghasilkan descriptor identik; kegagalan write
-//! tidak menghasilkan response sukses dan tidak mengubah visibility snapshot.
+//! Validasi wire dan invariant semantik DocumentBatch dilakukan sebelum serialisasi dan sesudah load.
+//! Media type serta schema descriptor dibekukan pada boundary ini. Retry payload identik menghasilkan
+//! descriptor identik; kegagalan write tidak menghasilkan response sukses dan tidak mengubah visibility.
 //!
 //! Benchmark dan gate penerimaan:
 //! Ukur serialization/deserialization throughput, p95/p99 write/read, payload bytes/record, peak RSS,
@@ -19,7 +19,9 @@
 //! belum terhubung.
 
 use crate::adapters::storage::{ArtifactDescriptor, ArtifactStore, ArtifactStoreError};
-use crate::domain::wire::{self, Limits};
+use crate::domain::document_batch::{
+    validate_document_batch, DocumentBatchConfig, DocumentBatchError,
+};
 use crate::wire::{common, documents};
 use protobuf::Message;
 use std::error::Error;
@@ -39,7 +41,7 @@ pub enum DocumentBatchArtifactError {
     InvalidDescriptor(&'static str),
     Storage(ArtifactStoreError),
     Serialization(String),
-    WireValidation(String),
+    SemanticValidation(DocumentBatchError),
 }
 
 impl Display for DocumentBatchArtifactError {
@@ -52,8 +54,8 @@ impl Display for DocumentBatchArtifactError {
             Self::Serialization(detail) => {
                 write!(formatter, "document batch serialization failed: {detail}")
             }
-            Self::WireValidation(detail) => {
-                write!(formatter, "document batch wire validation failed: {detail}")
+            Self::SemanticValidation(error) => {
+                write!(formatter, "document batch validation failed: {error}")
             }
         }
     }
@@ -67,11 +69,17 @@ impl From<ArtifactStoreError> for DocumentBatchArtifactError {
     }
 }
 
+impl From<DocumentBatchError> for DocumentBatchArtifactError {
+    fn from(value: DocumentBatchError) -> Self {
+        Self::SemanticValidation(value)
+    }
+}
+
 pub fn persist_document_batch(
     store: &ArtifactStore,
     batch: &documents::DocumentBatch,
 ) -> Result<DocumentBatchArtifact, DocumentBatchArtifactError> {
-    validate_wire(batch)?;
+    validate_document_batch(batch, &DocumentBatchConfig::default())?;
     let bytes = batch
         .write_to_bytes()
         .map_err(|error| DocumentBatchArtifactError::Serialization(error.to_string()))?;
@@ -103,12 +111,8 @@ pub fn load_document_batch(
     let bytes = store.read_verified(descriptor)?;
     let batch = documents::DocumentBatch::parse_from_bytes(&bytes)
         .map_err(|error| DocumentBatchArtifactError::Serialization(error.to_string()))?;
-    validate_wire(&batch)?;
+    validate_document_batch(&batch, &DocumentBatchConfig::default())?;
     Ok(batch)
-}
-
-fn validate_wire(message: &dyn protobuf::MessageDyn) -> Result<(), DocumentBatchArtifactError> {
-    wire::validate(message, Limits::default()).map_err(DocumentBatchArtifactError::WireValidation)
 }
 
 #[cfg(test)]
@@ -257,7 +261,7 @@ mod tests {
         let store = store(&root);
         assert!(matches!(
             persist_document_batch(&store, &documents::DocumentBatch::default()),
-            Err(DocumentBatchArtifactError::WireValidation(_))
+            Err(DocumentBatchArtifactError::SemanticValidation(_))
         ));
 
         let persisted = persist_document_batch(&store, &batch()).unwrap();
@@ -274,6 +278,14 @@ mod tests {
         assert!(matches!(
             load_document_batch(&store, &malformed),
             Err(DocumentBatchArtifactError::Serialization(_))
+        ));
+
+        let mut semantically_invalid = batch();
+        semantically_invalid.completeness =
+            EnumOrUnknown::new(common::Completeness::COMPLETENESS_COMPLETE);
+        assert!(matches!(
+            persist_document_batch(&store, &semantically_invalid),
+            Err(DocumentBatchArtifactError::SemanticValidation(_))
         ));
     }
 
