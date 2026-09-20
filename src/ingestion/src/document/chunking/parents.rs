@@ -78,6 +78,25 @@ impl ParentIndex {
         for node_id in index.parents.keys() {
             index.ancestors(node_id)?;
         }
+        let mut document_roots = 0usize;
+        for (node_id, parent_id) in &index.parents {
+            let kind = index
+                .kinds
+                .get(node_id)
+                .expect("kind is inserted with every parent record");
+            match (kind, parent_id) {
+                (StructureKind::Document, None) => document_roots += 1,
+                (StructureKind::Document, Some(_)) | (_, None) => {
+                    return Err(ParentError::InvalidRoot(node_id.clone()));
+                }
+                _ => {}
+            }
+        }
+        if document_roots != 1 {
+            return Err(ParentError::InvalidRoot(
+                "expected exactly one document root".to_owned(),
+            ));
+        }
         Ok(index)
     }
 
@@ -88,6 +107,7 @@ impl ParentIndex {
         }
         let mut reversed = Vec::new();
         let mut seen = HashSet::new();
+        let mut traversed_edges = 0usize;
         let mut current = node_id;
         loop {
             if !seen.insert(current) {
@@ -100,12 +120,13 @@ impl ParentIndex {
             let Some(parent_id) = parent.as_deref() else {
                 break;
             };
-            if reversed.len() >= self.maximum_depth {
+            if traversed_edges >= self.maximum_depth {
                 return Err(ParentError::DepthLimit {
                     node_id: node_id.to_owned(),
                     maximum: self.maximum_depth,
                 });
             }
+            traversed_edges += 1;
             if self.kinds.get(parent_id) != Some(&StructureKind::Document) {
                 reversed.push(parent_id.to_owned());
             }
@@ -140,6 +161,7 @@ impl ParentIndex {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ParentError {
     InvalidConfig(&'static str),
+    InvalidRoot(String),
     DuplicateNode(String),
     MissingParent { node_id: String, parent_id: String },
     UnknownNode(String),
@@ -151,6 +173,7 @@ impl Display for ParentError {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InvalidConfig(field) => write!(formatter, "invalid parent config: {field}"),
+            Self::InvalidRoot(node_id) => write!(formatter, "invalid document root: {node_id}"),
             Self::DuplicateNode(node_id) => {
                 write!(formatter, "duplicate structure node: {node_id}")
             }
@@ -278,6 +301,36 @@ mod tests {
         let limited = ParentIndexConfig { maximum_depth: 2 };
         assert!(matches!(
             ParentIndex::build(&hierarchy(), &limited),
+            Err(ParentError::DepthLimit { .. })
+        ));
+
+        ParentIndex::build(&hierarchy(), &ParentIndexConfig { maximum_depth: 4 })
+            .expect("four parent edges including document root are allowed");
+
+        let document_child = vec![
+            node("root", StructureKind::Document, None),
+            node("nested-root", StructureKind::Document, Some("root")),
+        ];
+        assert_eq!(
+            ParentIndex::build(&document_child, &ParentIndexConfig::default()).unwrap_err(),
+            ParentError::InvalidRoot("nested-root".to_owned())
+        );
+
+        let mut document_chain = vec![node("root", StructureKind::Document, None)];
+        for index in 1..10 {
+            document_chain.push(node(
+                &format!("document-{index}"),
+                StructureKind::Document,
+                Some(if index == 1 {
+                    "root".to_owned()
+                } else {
+                    format!("document-{}", index - 1)
+                })
+                .as_deref(),
+            ));
+        }
+        assert!(matches!(
+            ParentIndex::build(&document_chain, &ParentIndexConfig { maximum_depth: 2 }),
             Err(ParentError::DepthLimit { .. })
         ));
     }
