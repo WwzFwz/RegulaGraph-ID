@@ -16,7 +16,7 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 Subfolder: [api/](api/README.md), [cli/](cli/README.md), [ingestion-worker/](ingestion-worker/README.md), [semantic-gateway/](semantic-gateway/README.md).
 
-Akuisisi sumber D01 sudah aktif melalui CLI collect, workflow batch, dan adapter sources. Daemon ingestion-worker menjalankan PARSEâ†’STRUCTUREâ†’BINDâ†’CHUNK dan worker Rust dapat memanggil Semantic Gateway untuk EXTRACT. Gateway memverifikasi model/prompt/schema/ontology yang dipin, membatasi concurrency/byte, serta memproyeksikan output menjadi kontrak C01. Commit durable output EXTRACT oleh coordinator dan stage setelahnya masih belum aktif.
+Akuisisi sumber D01 sudah aktif melalui CLI collect, workflow batch, dan adapter sources. Daemon ingestion-worker menjalankan PARSE -> STRUCTURE -> BIND -> CHUNK -> EXTRACT dan worker Rust memanggil Semantic Gateway untuk EXTRACT. Gateway memverifikasi model/prompt/schema/ontology yang dipin, membatasi concurrency/byte, serta memproyeksikan output menjadi kontrak C01. Coordinator membaca ulang source/evidence, memvalidasi closure, dan meng-commit output EXTRACT secara durable; stage setelahnya belum aktif.
 
 ## Benchmark dan perhatian performa
 
@@ -26,4 +26,4 @@ Ikuti [kebijakan benchmark](../../../doc/benchmark-policy.md). Angka wajib mengi
 
 ## Status
 
-Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, fondasi storage/publication S01, coordinator hingga CHUNK, worker EXTRACT, serta Semantic.ExtractBatch Gateway sudah tersedia. Provider/model produksi belum dipilih; hasil kualitas, latency, biaya, stage RESOLVEâ€“INDEX, query, gold dataset, dan acceptance produksi belum aktif. Test deterministic tidak membuktikan target model.
+Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, fondasi storage/publication S01, coordinator hingga EXTRACT, worker EXTRACT, serta Semantic.ExtractBatch Gateway sudah tersedia. Provider/model produksi belum dipilih; hasil kualitas, latency, biaya, stage RESOLVE-INDEX, query, gold dataset, dan acceptance produksi belum aktif. Test deterministic tidak membuktikan target model.

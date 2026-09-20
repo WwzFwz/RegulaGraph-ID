@@ -24,7 +24,7 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Assembler/validator `ExtractionBatch`, provenance source/version/span, model/prompt identity, dukungan assertion, partial accounting, persistence immutable, executor worker, dan Semantic Gateway deterministic sudah aktif. Coordinator durable EXTRACT, ontology enforcement, provider/model produksi, gold dataset, dan acceptance kualitas belum aktif.
+Assembler/validator `ExtractionBatch`, provenance source/version/span, model/prompt identity, dukungan assertion, partial accounting, persistence immutable, executor worker, Semantic Gateway deterministic, serta coordinator durable EXTRACT sudah aktif. Coordinator memeriksa config/model/prompt, source closure, exact mention bytes, UTF-8 evidence boundaries, dan recovery tanpa sampling ulang. Ontology enforcement, provider/model produksi, gold dataset, dan acceptance kualitas belum aktif.
 
 ## Rekomendasi implementasi anak
 

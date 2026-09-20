@@ -18,7 +18,7 @@ Subfolder: [cmd/](cmd/README.md), [internal/](internal/README.md).
 
 Berkas: [go.mod](go.mod), [go.sum](go.sum).
 
-CLI discover/collect/audit sudah menjalankan acquisition D01. Scheduler/job dan publication control-plane S01 aktif. Coordinator menjalankan PARSE→STRUCTURE→BIND→CHUNK durable; worker Rust dan Semantic Gateway dapat menjalankan EXTRACT dengan kontrak/prompt/model terpin. Commit durable output EXTRACT oleh coordinator, API query, retrieval/answering, RESOLVE–INDEX, dan provider/model produksi belum tersambung. Lihat [panduan akuisisi](../../doc/acquisition.md).
+CLI discover/collect/audit sudah menjalankan acquisition D01. Scheduler/job dan publication control-plane S01 aktif. Coordinator menjalankan PARSE→STRUCTURE→BIND→CHUNK→EXTRACT durable; worker Rust dan Semantic Gateway menjalankan EXTRACT dengan kontrak/prompt/model terpin. API query, retrieval/answering, RESOLVE–INDEX, dan provider/model produksi belum tersambung. Lihat [panduan akuisisi](../../doc/acquisition.md).
 
 ## Benchmark dan perhatian performa
 
@@ -28,4 +28,4 @@ Ikuti [kebijakan benchmark](../../doc/benchmark-policy.md). Angka wajib mengikut
 
 ## Status
 
-Collector/audit D01, kontrak/validator C01, evaluator E01, adapter control-plane S01, jalur durable sampai CHUNK, exact identity K01, worker EXTRACT, dan Semantic Gateway sudah tersedia. Commit EXTRACT oleh coordinator, resolusi semantik/merge-split, graph assembly, index/retrieval, mutasi backend, serta provider/model produksi belum aktif. Test correctness tidak membuktikan target kualitas atau latency.
+Collector/audit D01, kontrak/validator C01, evaluator E01, adapter control-plane S01, jalur durable sampai EXTRACT, exact identity K01, worker EXTRACT, dan Semantic Gateway sudah tersedia. Resolusi semantik/merge-split, graph assembly, index/retrieval, mutasi backend, serta provider/model produksi belum aktif. Test correctness tidak membuktikan target kualitas atau latency.
