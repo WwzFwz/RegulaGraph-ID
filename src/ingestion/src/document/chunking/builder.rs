@@ -363,3 +363,237 @@ fn valid_ascii_id(value: &str) -> bool {
             byte.is_ascii_alphanumeric() || matches!(byte, b':' | b'_' | b'-' | b'.' | b'/')
         })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::document::chunking::structural::{
+        parse_structure, StructureIdentity, StructureParserConfig,
+    };
+    use crate::document::normalization::text::{normalize_text, TextNormalizerConfig};
+
+    struct Words;
+
+    impl TokenCounter for Words {
+        fn tokenizer_id(&self) -> &str {
+            "test:words-v1"
+        }
+
+        fn count_tokens(&self, text: &str) -> Result<u32, String> {
+            u32::try_from(text.split_whitespace().count()).map_err(|error| error.to_string())
+        }
+    }
+
+    struct BrokenTokenizer {
+        mode: &'static str,
+    }
+
+    impl TokenCounter for BrokenTokenizer {
+        fn tokenizer_id(&self) -> &str {
+            if self.mode == "id" {
+                "invalid tokenizer"
+            } else {
+                "test:broken"
+            }
+        }
+
+        fn count_tokens(&self, _text: &str) -> Result<u32, String> {
+            match self.mode {
+                "error" => Err("fixture failure".to_owned()),
+                _ => Ok(0),
+            }
+        }
+    }
+
+    fn fixture(raw: &str) -> (NormalizedText, StructureTree) {
+        let normalized =
+            normalize_text(raw, &TextNormalizerConfig::default()).expect("fixture normalizes");
+        let tree = parse_structure(
+            &normalized,
+            &StructureIdentity {
+                source_blob_id: "source:fixture".to_owned(),
+                text_artifact_id: "text:fixture".to_owned(),
+                provision_version_id: "version:fixture".to_owned(),
+            },
+            &StructureParserConfig::default(),
+        )
+        .expect("fixture structure parses");
+        (normalized, tree)
+    }
+
+    fn small_config() -> ChunkerConfig {
+        ChunkerConfig {
+            maximum_chunk_bytes: 96,
+            minimum_split_bytes: 40,
+            overlap_bytes: 16,
+            maximum_chunks: 100,
+            maximum_parent_depth: 16,
+        }
+    }
+
+    #[test]
+    fn chunks_owned_structure_text_with_parent_and_source_references() {
+        let (normalized, tree) = fixture(
+            "PEMBUKAAN\r\nBAB I\r\nKETENTUAN UMUM\r\nPasal 1\r\n\
+             (1) Setiap warga memenuhi syarat utama.\r\na. membawa identitas sah;\r\n\
+             (2) Kewajiban berlaku, kecuali keadaan darurat yang dapat dibuktikan.\r\n",
+        );
+        let batch = build_chunks(&normalized, &tree, &small_config(), &Words)
+            .expect("chunks build successfully");
+
+        assert!(!batch.chunks.is_empty());
+        assert!(batch.chunks.iter().all(|chunk| {
+            chunk.text_span.normalized.end - chunk.text_span.normalized.start <= 96
+                && chunk.text_span.raw.end <= "PEMBUKAAN\r\nBAB I\r\nKETENTUAN UMUM\r\nPasal 1\r\n(1) Setiap warga memenuhi syarat utama.\r\na. membawa identitas sah;\r\n(2) Kewajiban berlaku, kecuali keadaan darurat yang dapat dibuktikan.\r\n".len()
+                && chunk.provision_version_refs == ["version:fixture"]
+                && chunk.token_counts[0].tokens > 0
+        }));
+        let rendered: Vec<_> = batch
+            .chunks
+            .iter()
+            .map(|chunk| &normalized.text[chunk.text_span.normalized.clone()])
+            .collect();
+        assert!(rendered.iter().any(|text| text.contains("PEMBUKAAN")));
+        assert!(rendered
+            .iter()
+            .any(|text| text.contains("kecuali keadaan darurat")));
+
+        let item = batch
+            .chunks
+            .iter()
+            .find(|chunk| {
+                normalized.text[chunk.text_span.normalized.clone()].contains("identitas sah")
+            })
+            .expect("item chunk exists");
+        let parent_labels: Vec<_> = item
+            .parent_refs
+            .iter()
+            .map(|id| tree.node(id).expect("parent exists").label.as_str())
+            .collect();
+        assert_eq!(parent_labels, ["BAB I", "Pasal 1", "(1)"]);
+    }
+
+    #[test]
+    fn splits_long_unicode_text_without_invalid_boundaries_and_is_deterministic() {
+        let body = "akses ﬂeksibel untuk warga. ".repeat(20);
+        let raw = format!("Pasal 1\n(1) {body}\n");
+        let (normalized, tree) = fixture(&raw);
+        let config = small_config();
+
+        let first = build_chunks(&normalized, &tree, &config, &Words).expect("first build");
+        let second = build_chunks(&normalized, &tree, &config, &Words).expect("second build");
+
+        assert_eq!(first, second);
+        assert!(first.chunks.len() > 2);
+        for chunk in &first.chunks {
+            assert!(normalized
+                .text
+                .is_char_boundary(chunk.text_span.normalized.start));
+            assert!(normalized
+                .text
+                .is_char_boundary(chunk.text_span.normalized.end));
+            assert!(chunk.text_span.normalized.end - chunk.text_span.normalized.start <= 96);
+        }
+        for pair in first.chunks.windows(2) {
+            if pair[0].structure_node_refs == pair[1].structure_node_refs {
+                assert!(pair[1].text_span.normalized.start <= pair[0].text_span.normalized.end);
+                assert!(pair[1].text_span.normalized.start > pair[0].text_span.normalized.start);
+            }
+        }
+    }
+
+    #[test]
+    fn chunks_unstructured_document_through_root_node() {
+        let (normalized, tree) = fixture("Dokumen tanpa heading tetapi tetap dapat dicari.");
+        let batch = build_chunks(&normalized, &tree, &small_config(), &Words)
+            .expect("root fallback chunks");
+
+        assert_eq!(batch.chunks.len(), 1);
+        assert_eq!(
+            batch.chunks[0].structure_node_refs,
+            [tree.root().id.clone()]
+        );
+        assert!(batch.chunks[0].parent_refs.is_empty());
+    }
+
+    #[test]
+    fn fingerprint_changes_with_config_and_tokenizer_identity() {
+        struct OtherWords;
+        impl TokenCounter for OtherWords {
+            fn tokenizer_id(&self) -> &str {
+                "test:words-v2"
+            }
+            fn count_tokens(&self, text: &str) -> Result<u32, String> {
+                u32::try_from(text.split_whitespace().count()).map_err(|error| error.to_string())
+            }
+        }
+
+        let (normalized, tree) = fixture("Pasal 1\nIsi ketentuan.\n");
+        let base = build_chunks(&normalized, &tree, &small_config(), &Words).expect("base");
+        let other_tokenizer = build_chunks(&normalized, &tree, &small_config(), &OtherWords)
+            .expect("other tokenizer");
+        let mut changed = small_config();
+        changed.overlap_bytes += 1;
+        let other_config =
+            build_chunks(&normalized, &tree, &changed, &Words).expect("other config");
+
+        assert_ne!(
+            base.chunker_config_sha256,
+            other_tokenizer.chunker_config_sha256
+        );
+        assert_ne!(
+            base.chunker_config_sha256,
+            other_config.chunker_config_sha256
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_config_tokenizer_failures_and_chunk_limit() {
+        let (normalized, tree) = fixture("Pasal 1\nIsi ketentuan.\n");
+        let invalid = ChunkerConfig {
+            maximum_chunk_bytes: 32,
+            ..small_config()
+        };
+        assert_eq!(
+            build_chunks(&normalized, &tree, &invalid, &Words),
+            Err(ChunkBuildError::InvalidConfig("maximum_chunk_bytes"))
+        );
+        assert_eq!(
+            build_chunks(
+                &normalized,
+                &tree,
+                &small_config(),
+                &BrokenTokenizer { mode: "id" }
+            ),
+            Err(ChunkBuildError::InvalidTokenizerId)
+        );
+        assert_eq!(
+            build_chunks(
+                &normalized,
+                &tree,
+                &small_config(),
+                &BrokenTokenizer { mode: "error" }
+            ),
+            Err(ChunkBuildError::Tokenization("fixture failure".to_owned()))
+        );
+        assert_eq!(
+            build_chunks(
+                &normalized,
+                &tree,
+                &small_config(),
+                &BrokenTokenizer { mode: "zero" }
+            ),
+            Err(ChunkBuildError::EmptyTokenCount)
+        );
+
+        let limited = ChunkerConfig {
+            maximum_chunks: 1,
+            ..small_config()
+        };
+        let (multi_normalized, multi_tree) = fixture("PEMBUKAAN\nPasal 1\nIsi ketentuan.\n");
+        assert_eq!(
+            build_chunks(&multi_normalized, &multi_tree, &limited, &Words),
+            Err(ChunkBuildError::ChunkLimit { maximum: 1 })
+        );
+    }
+}
