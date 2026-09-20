@@ -46,6 +46,10 @@ Simpan raw log/hasil di artifacts/verification/<run-id> dan ringkasan status yan
 
 Lakukan pemeriksaan yang sesuai perubahan. Untuk scaffold, periksa build Go, cargo check, CMake C++, syntax Python, dokumentasi folder/file, tautan lokal, serta validitas metadata/config; tidak perlu menulis unit test yang hanya mencerminkan daftar file. Untuk perilaku yang diimplementasikan kemudian, pilih pengujian bermakna dan laporkan keterbatasan verifikasinya.
 
+## Granularitas commit
+
+Pisahkan commit berdasarkan fitur, komponen, atau subkomponen yang dapat ditinjau dan diuji secara mandiri. Pesan commit menjelaskan perilaku konkret, misalnya `feat(acquisition): verify corpus artifacts and provenance`; ID paket seperti D01/S01 boleh menjadi konteks laporan tetapi tidak boleh menjadi satu-satunya penjelasan perubahan. Pisahkan implementasi library, wiring CLI/API, dokumentasi/status, generated output, dan perbaikan temuan verifikasi ketika pemisahan tersebut menghasilkan riwayat yang lebih jelas. Jangan memecah perubahan yang harus atomik sampai membuat commit per file tanpa makna fungsional.
+
 ## Kontrak lintas bahasa
 
 Setiap boundary batch atau inference menggunakan schema version serta source/canonical/provision-version/snapshot ID yang konsisten. src/contracts/proto adalah sumber wire schema; baseline C01 tercatat pada src/contracts/schema-lock.json dan diperiksa scripts/check_contracts.py. Jangan menulis ulang baseline untuk meluluskan perubahan tanpa review kompatibilitas. Source offset yang dipertukarkan direncanakan sebagai byte UTF-8, start-inclusive/end-exclusive, disertai identitas teks asli/normalisasi; implementasi harus mempertahankan pemetaan keduanya. Jangan mendefinisikan kontrak paralel yang tidak sinkron di Go/Rust/Python.
