@@ -55,6 +55,17 @@ class EvaluationConfigTest(unittest.TestCase):
         finally:
             path.unlink(missing_ok=True)
 
+    def test_profile_flags_cannot_disagree_with_retrievers(self):
+        raw = yaml.safe_load((ROOT / "evaluation/experiments/profiles.yaml").read_text(encoding="utf-8"))
+        path = self.mutation_path("profile")
+        try:
+            raw["profiles"]["vector_rag"]["graph_traversal"] = True
+            path.write_text(yaml.safe_dump(raw), encoding="utf-8")
+            with self.assertRaises(ConfigError):
+                load_profiles(path)
+        finally:
+            path.unlink(missing_ok=True)
+
 
 if __name__ == "__main__":
     unittest.main()

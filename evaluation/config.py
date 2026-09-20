@@ -1,8 +1,18 @@
-"""Strict E01 configuration and target-suite loading without import-time I/O.
+"""Strict E01 configuration, profile, and target-suite loading without import-time I/O.
 
-Input is YAML selected explicitly by the runner. Output is immutable dataclasses plus
-SHA-256 fingerprints used by RunManifest. Unknown fields and target-relaxation switches
-are rejected before any run is assessed. Parsing time is offline, outside request latency.
+Peran arsitektur:
+Loader membekukan YAML evaluator menjadi dataclass immutable dan SHA-256 yang dipakai RunManifest. Ia
+menjaga satu sumber threshold serta mencegah profile atau flag boolean tidak konsisten masuk ke runner.
+
+Kontrak integrasi dan performa:
+Path harus berada di root repositori, unknown field ditolak, target relaxation harus false, dan empat
+profile eksperimen harus tepat. File baru dibaca ketika fungsi loader dipanggil; import tidak membuka file
+atau memuat model. Parsing berlangsung offline dan tidak termasuk request latency.
+
+Benchmark dan status:
+Angka hanya dibaca dari configs/benchmark-targets.yaml dan perubahan target memerlukan persetujuan
+pengguna. Implementasi loader E01 aktif serta diuji terhadap unknown key, invalid gate/profile, path escape,
+dan fingerprint; hasil benchmark produksi tetap REQUIRED_UNMEASURED.
 """
 from __future__ import annotations
 
@@ -172,7 +182,31 @@ def load_profiles(path: str | Path) -> Mapping[str, Mapping[str, Any]]:
     profiles = _mapping(doc["profiles"], "profiles.profiles")
     if set(profiles) != {"vector_rag", "hybrid_rag", "graph_rag", "hybrid_graphrag"}:
         raise ConfigError("exactly four named experiment profiles are required")
+    profile_fields = {"retrievers", "graph_traversal", "lexical", "dense", "release_required"}
+    checked: dict[str, Mapping[str, Any]] = {}
+    for name, raw_profile in profiles.items():
+        profile = _mapping(raw_profile, f"profiles.{name}")
+        _keys(profile, profile_fields, profile_fields, f"profiles.{name}")
+        retrievers = profile["retrievers"]
+        if (not isinstance(retrievers, list) or not retrievers
+                or any(not isinstance(value, str) for value in retrievers)
+                or len(retrievers) != len(set(retrievers))
+                or any(value not in {"lexical", "dense", "graph"} for value in retrievers)):
+            raise ConfigError(f"profiles.{name}.retrievers is invalid")
+        for field in ("graph_traversal", "lexical", "dense", "release_required"):
+            if not isinstance(profile[field], bool):
+                raise ConfigError(f"profiles.{name}.{field} must be boolean")
+        expected = {
+            "lexical": "lexical" in profile["retrievers"],
+            "dense": "dense" in profile["retrievers"],
+            "graph_traversal": "graph" in profile["retrievers"],
+        }
+        if any(profile[field] != value for field, value in expected.items()):
+            raise ConfigError(f"profiles.{name} retriever flags disagree")
+        if profile["release_required"] != (name == "hybrid_graphrag"):
+            raise ConfigError(f"profiles.{name}.release_required disagrees with acceptance policy")
+        checked[name] = MappingProxyType(profile)
     acceptance = _mapping(doc["acceptance"], "profiles.acceptance")
     if acceptance.get("required_profile") != "hybrid_graphrag" or acceptance.get("baseline_policy") != "report_only":
         raise ConfigError("experiment acceptance policy changed")
-    return MappingProxyType({name: MappingProxyType(_mapping(value, f"profiles.{name}")) for name, value in profiles.items()})
+    return MappingProxyType(checked)

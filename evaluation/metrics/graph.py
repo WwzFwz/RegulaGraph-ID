@@ -1,24 +1,47 @@
 """
-Mengukur kualitas extraction, resolution, predicate, arah relasi, dan provenance.
+Mengukur kualitas ekstraksi relasi graph dan resolusi identitas canonical.
 
 Peran dalam komponen:
-Menilai kualitas graph sebelum pengaruhnya tercampur generation.
+Menilai apakah knowledge graph mempertahankan endpoint, arah, predicate, qualifier, provenance, dan
+identitas lintas sumber secara benar, bukan sekadar menghasilkan record yang valid secara schema.
 
 Kontrak integrasi dan perhatian implementasi:
-Jangan mengabaikan predicate atau menganggap satu komponen terhubung sebagai bukti benar; ukur false merge dan false split tersendiri.
+Caller harus menetapkan kecocokan relasi lengkap melalui gold review sebelum mengirim TP/FP/FN.
+Entity-resolution dinilai dengan pasangan joined yang benar terhadap pasangan prediksi dan gold.
+Precision, recall, dan micro F1 dihitung dari count eksplisit agar denominator dapat diaudit.
 
 Benchmark dan gate penerimaan:
-[EVAL] Gate: setiap run merekam dataset/split, corpus snapshot, model/prompt/config version, seed bila relevan, serta biaya. Laporkan ukuran sampel dan ketidakpastian, hindari tuning pada test set, dan pisahkan kualitas retrieval, graph, jawaban, serta waktu/biaya.
+[EVAL] Gate: setiap run merekam dataset/split, corpus snapshot, model/prompt/config version, seed bila
+relevan, serta biaya. Laporkan ukuran sampel dan ketidakpastian, hindari tuning pada test set, dan
+pisahkan kualitas retrieval, graph, jawaban, serta waktu/biaya.
 
-[EXTRACTION] Ukur precision/recall/F1 entitas dan relasi dengan predicate, arah, kondisi, serta bukti sumber; catat kegagalan schema, token, biaya/dokumen, dan waktu p50/p95. Target wajib mengikuti configs/benchmark-targets.yaml dan memerlukan gold set valid; schema valid tidak dianggap fakta benar.
-
-[RESOLUTION] Ukur pairwise precision/recall/F1, false merge, false split, mention yang hilang, waktu per batch, dan biaya. Gate: semua mention tetap terlacak; pasal dari peraturan berbeda tidak digabung hanya karena nama sama. Blocking harus diukur juga terhadap pasangan benar yang terlewat.
-Target numerik required: configs/benchmark-targets.yaml; status REQUIRED_UNMEASURED.
+[GRAPH] Ukur precision/recall/F1 relasi lengkap dan pairwise precision/recall canonical identity.
+Laporkan per tipe relasi, jenis dokumen, dan sumber; mismatch endpoint, arah, qualifier, versi, atau
+dukungan sumber harus dihitung sebagai error. Ambang wajib mengikuti configs/benchmark-targets.yaml.
+Target numerik required: configs/benchmark-targets.yaml; status REQUIRED_UNMEASURED sampai diukur oleh
+run yang memenuhi protokol.
 Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 
-Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
-Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
-Evaluate typed extraction, qualifiers, canonical resolution and supported multi-hop paths with explicit gold matching rules.
-Bukti verifikasi: Test negation, homonyms, merge/split and shared supports; report candidate recall separately from final resolution precision.
+Status: implementasi E01 aktif untuk relation precision/recall/micro-F1 dan canonical pairwise
+precision/recall; hasil benchmark produksi belum tersedia.
+Bukti verifikasi: uji zero denominator, count negatif, correct pair melebihi predicted/gold, serta
+matching yang membedakan arah, qualifier, versi, dan provenance.
 Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
 """
+from __future__ import annotations
+
+from .runtime import Estimate, MetricError, micro_f1, ratio
+
+
+def precision_recall(true_positive: int, false_positive: int, false_negative: int) -> tuple[Estimate, Estimate, Estimate]:
+    if any(isinstance(v, bool) or not isinstance(v, int) or v < 0 for v in (true_positive, false_positive, false_negative)):
+        raise MetricError("graph counts must be non-negative integers")
+    precision = ratio(true_positive, true_positive + false_positive)
+    recall = ratio(true_positive, true_positive + false_negative)
+    return precision, recall, micro_f1(true_positive, false_positive, false_negative)
+
+
+def pair_precision_recall(correct_joined: int, predicted_joined: int, gold_joined: int) -> tuple[Estimate, Estimate]:
+    if correct_joined > min(predicted_joined, gold_joined):
+        raise MetricError("correct pairs exceed predicted/gold pairs")
+    return ratio(correct_joined, predicted_joined), ratio(correct_joined, gold_joined)

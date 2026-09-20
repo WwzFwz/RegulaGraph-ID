@@ -24,7 +24,10 @@ Lihat [kebijakan benchmark](../../doc/benchmark-policy.md) untuk protokol penguk
 
 ## Status implementasi
 
-Status lintas repositori: collector PDF dan kontrak/validator C01 sudah tersedia; lihat [cakupan implementasi C01](../../doc/contracts-implementation.md). Pipeline parsing/graph/retrieval, adapter storage, layanan model dan evaluator benchmark masih belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
+Primitive deterministik untuk runtime, retrieval, graph, citation, dan answer sudah aktif sebagai bagian E01.
+Mereka menerima evidence/count hasil produksi dan tidak membuat label atau memanggil model. Hasil produksi
+belum tersedia, sehingga target tetap **REQUIRED_UNMEASURED**. Header tiap file menyatakan denominator,
+peran, kasus gagal, dan bukti verifikasi yang wajib dipertahankan sebelum perubahan.
 
 ## Rekomendasi implementasi anak
 
@@ -32,8 +35,8 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
-| [answers.py](answers.py) | Score correctness, temporal correctness, faithfulness and abstention separately; calibrate any judge against human labels. | Test ambiguous/no-answer/conflict cases and invalid denominator; report category counts and uncertainty without tuning on test labels. |
-| [citations.py](citations.py) | Score claim-level citation precision/coverage and correct version/locator against acceptable evidence sets. | Distinguish syntactic references from actual semantic support; test multiple valid evidence sets, unsupported claims and missing annotations. |
-| [graph.py](graph.py) | Evaluate typed extraction, qualifiers, canonical resolution and supported multi-hop paths with explicit gold matching rules. | Test negation, homonyms, merge/split and shared supports; report candidate recall separately from final resolution precision. |
-| [retrieval.py](retrieval.py) | Compute Recall@k, nDCG@k and all-required-evidence/path coverage using production ranked output. | Test duplicates, ties, multiple acceptable sets and unanswerable questions; keep denominators and truncation policy explicit. |
-| [runtime.py](runtime.py) | Aggregate monotonic queue/compute/TTFT/total traces, throughput, errors, memory and cost across the frozen workload. | Test percentile calculation, clock-unit mismatch and timed-out/missing requests; avoid coordinated-omission bias and success-only latency. |
+| [answers.py](answers.py) | Integrasikan reviewed label untuk ambiguity/conflict dan kalibrasi judge terhadap manusia. | Uji ambiguous/no-answer/conflict serta uncertainty tanpa tuning pada test labels. |
+| [citations.py](citations.py) | Hubungkan claim-level review dan acceptable evidence set dari scorer dataset. | Uji multiple valid sets, locator/version salah, unsupported claim, dan missing annotation. |
+| [graph.py](graph.py) | Tambahkan matcher typed relation/qualifier/provenance sebelum count dikirim ke primitive. | Uji negation, homonym, merge/split, arah, qualifier, dan shared support. |
+| [retrieval.py](retrieval.py) | Hubungkan production ranked output dan gold provision-version/path ke agregasi runner. | Uji ties policy, truncation, unanswerable, base group, dan seluruh chain multi-hop. |
+| [runtime.py](runtime.py) | Tambahkan agregasi memory/cost dan confidence interval yang format evidencenya dibekukan. | Uji price source/date, clock unit, timed-out/missing request, dan coordinated omission. |
