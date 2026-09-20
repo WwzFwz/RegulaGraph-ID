@@ -30,7 +30,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-Collector D01, kontrak/validator C01, scheduler durable S01, serta dispatch PARSE ke worker Rust sudah aktif. Coordinator saat ini memproses satu batch per loop dan mensyaratkan timeout call lebih pendek dari lease; durable exponential backoff/max-attempt, lease renewal batch panjang, stage lanjutan, answering, dan benchmark end-to-end masih mengikuti paket berikutnya. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
+Collector D01, kontrak/validator C01, scheduler durable S01, serta dispatch PARSE ke worker Rust sudah aktif. Retry transient memakai exponential backoff durable yang dibatasi, dan storage menghentikan job setelah budget attempt habis. Coordinator saat ini memproses satu batch per loop dan mensyaratkan timeout call lebih pendek dari lease; lease renewal batch panjang, jitter retry, stage lanjutan, answering, dan benchmark end-to-end masih mengikuti paket berikutnya. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
 
 ## Rekomendasi implementasi anak
 
@@ -41,5 +41,5 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | [answer.go](answer.go) | Pin one snapshot, resolve temporal intent, coordinate retrieval/context/generation and validate terminal evidence; propagate cancellation. | Test unavailable dependencies, evidence conflicts and snapshot rollover mid-request; trace queue and stage durations. |
 | [collect.go](collect.go) | Retain resumable acquisition; integrate receipts into S01 jobs without changing PDF byte-cap accounting. | Test cancellation and budget stop with concurrent workers; reconcile completed/failed/deferred counts and no dangling producer. |
 | [discover.go](discover.go) | Retain durable queue checkpoints; add source-specific discovery only after inspecting real portal layouts. | Test cycles, duplicate seeds, resumed pagination and bounded new-page counts; report coverage gaps explicitly. |
-| [ingest.go](ingest.go) dan [parse.go](parse.go) | Pertahankan dispatch PARSE; tambahkan durable retry schedule/max-attempt, lease heartbeat untuk batch panjang, stage I01/K01/X01 berikutnya, dan publication coordinator. | Injeksi crash di register/checkpoint/completion, uji cancellation dan bounded-capacity dispatch dengan PostgreSQL nyata, lalu ukur queue/call p95/p99. |
+| [ingest.go](ingest.go) dan [parse.go](parse.go) | Pertahankan dispatch serta retry durable PARSE; tambahkan lease heartbeat untuk batch panjang, jitter bila contention terukur, stage I01/K01/X01 berikutnya, dan publication coordinator. | Injeksi crash di register/checkpoint/completion, uji cancellation dan bounded-capacity dispatch dengan PostgreSQL nyata, lalu ukur queue/call p95/p99. |
 | [update.go](update.go) | Bangun dependency closure termasuk empty lookup revision; stage replacement dan pertahankan versi/bukti bersama. | Uji source withdrawal, late reference, canonical merge/split dan interrupted reindex; bandingkan dengan clean rebuild. |

@@ -14,7 +14,9 @@ Anak tidak boleh mengubah kontrak input/output secara tersembunyi. Perubahan ben
 
 ## Isi saat ini
 
-[0001_storage_foundation.up.sql](0001_storage_foundation.up.sql) membentuk schema S01 untuk corpus state, artefak immutable, job/lease/fence/checkpoint, canonical identity dan resolution decision, dependency/lookup revision, publication generation/receipt/operation ledger, snapshot pointer, outbox, serta read lease. Runner Go mencatat checksum file dan menolak version drift.
+[0001_storage_foundation.up.sql](0001_storage_foundation.up.sql) membentuk schema S01 untuk corpus state, artefak immutable, job/lease/fence/checkpoint, canonical identity dan resolution decision, dependency/lookup revision, publication generation/receipt/operation ledger, snapshot pointer, outbox, serta read lease. [0002_job_retry_schedule.up.sql](0002_job_retry_schedule.up.sql) menambah waktu eligibility retry, batas delapan attempt default, dan indeks claim stage/state. Runner Go mencatat checksum setiap file dan menolak version drift.
+
+Migration 0002 kompatibel dengan row lama melalui default `-infinity` dan delapan attempt, sehingga job yang sebelumnya dapat diambil langsung tidak memerlukan backfill terpisah. `CREATE INDEX` berjalan transaksional dan dapat menahan write pada tabel besar; migration ini aman untuk schema praproduksi saat ini, tetapi rollout corpus produksi perlu varian online/concurrent yang didukung runner sebelum traffic. Kegagalan statement membatalkan seluruh migration; recovery adalah memperbaiki penyebab lalu replay file ber-checksum sama, bukan mengedit revision yang sudah tercatat.
 
 ## Benchmark dan perhatian kualitas
 
