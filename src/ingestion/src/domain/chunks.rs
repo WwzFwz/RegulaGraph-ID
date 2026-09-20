@@ -101,6 +101,9 @@ impl ChunkView {
         if !is_sha256(&self.chunker_config_sha256) {
             return Err(ChunkValidationError::InvalidHash("chunker_config_sha256"));
         }
+        if self.token_counts.is_empty() {
+            return Err(ChunkValidationError::InvalidTokenCount);
+        }
         let mut tokenizer_ids = HashSet::with_capacity(self.token_counts.len());
         for count in &self.token_counts {
             if !valid_ascii_id(&count.tokenizer_id)
@@ -302,6 +305,13 @@ mod tests {
         tokens.token_counts[0].tokens = 0;
         assert_eq!(
             tokens.validate(&normalized, &known_structure_ids()),
+            Err(ChunkValidationError::InvalidTokenCount)
+        );
+
+        let (_, mut missing_tokens) = fixture();
+        missing_tokens.token_counts.clear();
+        assert_eq!(
+            missing_tokens.validate(&normalized, &known_structure_ids()),
             Err(ChunkValidationError::InvalidTokenCount)
         );
     }
