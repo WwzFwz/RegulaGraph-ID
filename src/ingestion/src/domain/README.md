@@ -24,7 +24,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. Pipeline parsing/graph/retrieval, mutasi backend, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan target kualitas atau latency.
+`chunks.rs` kini menyediakan record lokal dan validator provenance/source mapping/token count untuk hasil chunking I01. Wire validator C01 juga aktif; tipe domain lain tetap scaffold sampai document versioning, graph/index pipeline, dan worker batch diimplementasikan. Fixture unit tidak membuktikan target kualitas atau latency produksi.
 
 ## Rekomendasi implementasi anak
 
@@ -32,7 +32,7 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
-| [chunks.rs](chunks.rs) | Construct chunk and parent views retaining provision version, source spans and tokenizer identity. | Test missing parents, split Unicode and overlong units without source loss; avoid redundant conversion/allocation across batches. |
+| [chunks.rs](chunks.rs) | Tambahkan konversi satu arah ke `regulagraph.v1.Chunk` di boundary worker tanpa menduplikasi schema. | Uji golden wire parity, missing refs, overflow, dan alokasi batch besar. |
 | [documents.rs](documents.rs) | Construct validated document/source/provision views over generated types; keep observation time separate from legal dates. | Test stable IDs, raw/normalized mappings and historical version ambiguity; avoid redundant conversion/allocation across batches. |
 | [entities.rs](entities.rs) | Expose scoped canonical identity/revision and resolution decision helpers without autonomous registry writes. | Test alias ambiguity, merge/split lineage and deterministic identity comparison; avoid redundant conversion/allocation across batches. |
 | [evidence.rs](evidence.rs) | Expose snapshot-bound evidence/path operations while retaining primary provenance. | Test corpus/version/snapshot mismatches and missing support hydration; avoid redundant conversion/allocation across batches. |

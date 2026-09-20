@@ -14,7 +14,7 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
-Berkas: [mod.rs](mod.rs), [parents.rs](parents.rs), [structural.rs](structural.rs).
+Berkas: [builder.rs](builder.rs), [mod.rs](mod.rs), [parents.rs](parents.rs), [structural.rs](structural.rs).
 
 ## Benchmark dan perhatian performa
 
@@ -24,13 +24,14 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. Pipeline parsing/graph/retrieval, mutasi backend, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan target kualitas atau latency.
+Parser struktur hukum, builder chunk source-mapped, validator record, serta parent index acyclic aktif sebagai library Rust. Builder mempertahankan preamble, memecah unit panjang pada batas UTF-8/kata/kalimat, memakai tokenizer yang disuntikkan, dan menyimpan ancestry sebagai ID tanpa menduplikasi teks induk. Table reconstruction, exception linking lintas chunk/dokumen, tokenizer produksi, konversi wire, worker isolation, gold structure set, dan acceptance benchmark belum aktif. Unit test membuktikan invariant deterministik kecil, bukan target kualitas atau latency corpus.
 
 ## Rekomendasi implementasi anak
 
-Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan status aktif/scaffold; tabel bukan klaim fitur sudah tersedia. Integrasikan keluaran anak melalui kontrak induk dan jalankan [protokol verifikasi](../../../../../doc/verification.md) sebelum menyatakan paket selesai. Target angka tetap bersumber dari configs/benchmark-targets.yaml.
+Pekerjaan berikut melanjutkan cakupan folder ini. Integrasikan keluaran anak melalui kontrak induk dan jalankan [protokol verifikasi](../../../../../doc/verification.md) sebelum menyatakan paket selesai. Target angka tetap bersumber dari configs/benchmark-targets.yaml.
 
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
-| [parents.rs](parents.rs) | Build acyclic parent links and materialize context references without duplicating entire ancestors into every stored chunk. | Test missing/cyclic parents and retrieval hydration order; measure context duplication and exception retention. |
-| [structural.rs](structural.rs) | Build hierarchy-aware chunks from provision/version structures; split oversized units with stable parent and span references. | Test nested clauses, exceptions and tables; measure source/parent coverage, token budget and retrieval impact together. |
+| [builder.rs](builder.rs) | Integrasikan tokenizer produksi dan konversi `ChunkView` ke batch wire; tambahkan linking exception yang dibuktikan gold. | Uji parity token, tabel, exception lintas chunk, 100 MiB transform, RSS, dan dampak retrieval. |
+| [parents.rs](parents.rs) | Integrasikan batch hydration dengan context builder Go memakai snapshot yang dipin. | Uji retrieval hydration order, missing backend record, context duplication, serta `CONTEXT.BUILD_P95`. |
+| [structural.rs](structural.rs) | Tambahkan struktur tabel/sel dan pola heading baru hanya berdasarkan gold corpus. | Ukur F1 batas pasal/ayat/huruf per strata dan simpan false-positive/false-negative. |
