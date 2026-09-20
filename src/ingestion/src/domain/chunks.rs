@@ -210,3 +210,121 @@ fn is_sha256(value: &str) -> bool {
 fn sha256(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::document::normalization::text::{normalize_text, TextNormalizerConfig};
+
+    fn fixture() -> (NormalizedText, ChunkView) {
+        let normalized = normalize_text(
+            "Pasal 1\r\n(1) Ketentuan berlaku.\r\n",
+            &TextNormalizerConfig::default(),
+        )
+        .expect("fixture normalizes");
+        let span = 9..normalized.text.len();
+        let raw = normalized
+            .raw_cover(span.clone())
+            .expect("raw cover exists");
+        let chunk = ChunkView {
+            schema_version: CHUNK_SCHEMA_VERSION,
+            id: "chunk:fixture".to_owned(),
+            source_blob_id: "source:fixture".to_owned(),
+            text_artifact_id: "text:fixture".to_owned(),
+            provision_version_refs: vec!["version:fixture".to_owned()],
+            structure_node_refs: vec!["structure:clause".to_owned()],
+            parent_refs: vec!["structure:article".to_owned()],
+            exception_refs: Vec::new(),
+            text_span: SourceMappedSpan {
+                normalized: span.clone(),
+                raw,
+            },
+            text_sha256: text_sha256(&normalized.text[span]),
+            chunker_config_sha256: "a".repeat(64),
+            token_counts: vec![TokenCount {
+                tokenizer_id: "tokenizer:test".to_owned(),
+                tokens: 4,
+            }],
+        };
+        (normalized, chunk)
+    }
+
+    fn known_structure_ids() -> HashSet<&'static str> {
+        HashSet::from(["structure:clause", "structure:article"])
+    }
+
+    #[test]
+    fn accepts_complete_source_mapped_chunk() {
+        let (normalized, chunk) = fixture();
+        chunk
+            .validate(&normalized, &known_structure_ids())
+            .expect("complete chunk validates");
+    }
+
+    #[test]
+    fn rejects_duplicate_and_unknown_references() {
+        let (normalized, mut duplicate) = fixture();
+        duplicate
+            .provision_version_refs
+            .push("version:fixture".to_owned());
+        assert_eq!(
+            duplicate.validate(&normalized, &known_structure_ids()),
+            Err(ChunkValidationError::DuplicateReference(
+                "provision_version_refs"
+            ))
+        );
+
+        let (_, mut unknown) = fixture();
+        unknown.parent_refs = vec!["structure:missing".to_owned()];
+        assert_eq!(
+            unknown.validate(&normalized, &known_structure_ids()),
+            Err(ChunkValidationError::UnknownStructureReference)
+        );
+    }
+
+    #[test]
+    fn rejects_tampered_source_span_text_hash_and_token_count() {
+        let (normalized, mut raw_span) = fixture();
+        raw_span.text_span.raw.start += 1;
+        assert_eq!(
+            raw_span.validate(&normalized, &known_structure_ids()),
+            Err(ChunkValidationError::SourceSpanMismatch)
+        );
+
+        let (_, mut text_hash) = fixture();
+        text_hash.text_sha256 = "0".repeat(64);
+        assert_eq!(
+            text_hash.validate(&normalized, &known_structure_ids()),
+            Err(ChunkValidationError::TextHashMismatch)
+        );
+
+        let (_, mut tokens) = fixture();
+        tokens.token_counts[0].tokens = 0;
+        assert_eq!(
+            tokens.validate(&normalized, &known_structure_ids()),
+            Err(ChunkValidationError::InvalidTokenCount)
+        );
+    }
+
+    #[test]
+    fn rejects_non_utf8_and_empty_required_spans() {
+        let (normalized, mut chunk) = fixture();
+        let unicode = normalize_text("§ ayat", &TextNormalizerConfig::default())
+            .expect("unicode fixture normalizes");
+        chunk.text_span.normalized = 1..unicode.text.len();
+        chunk.text_span.raw = 0..unicode.text.len();
+        assert_eq!(
+            chunk.validate(&unicode, &known_structure_ids()),
+            Err(ChunkValidationError::InvalidSpan)
+        );
+
+        let (_, mut missing) = fixture();
+        missing.structure_node_refs.clear();
+        assert_eq!(
+            missing.validate(&normalized, &known_structure_ids()),
+            Err(ChunkValidationError::MissingReference(
+                "structure_node_refs"
+            ))
+        );
+    }
+}
