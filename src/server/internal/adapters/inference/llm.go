@@ -76,7 +76,12 @@ func NewOpenAICompatibleProvider(config OpenAICompatibleConfig) (*OpenAICompatib
 	return &OpenAICompatibleProvider{
 		endpoint: endpoint.String(),
 		apiKey:   config.APIKey,
-		client:   &http.Client{Timeout: config.Timeout},
+		client: &http.Client{
+			Timeout: config.Timeout,
+			CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		},
 		maxBytes: config.MaximumResponseBytes,
 	}, nil
 }
@@ -105,15 +110,17 @@ type jsonSchema struct {
 }
 
 type chatResponse struct {
+	Model   string `json:"model"`
 	Choices []struct {
 		Message struct {
 			Content string `json:"content"`
 			Refusal string `json:"refusal"`
 		} `json:"message"`
+		FinishReason string `json:"finish_reason"`
 	} `json:"choices"`
-	Usage struct {
-		PromptTokens     uint64 `json:"prompt_tokens"`
-		CompletionTokens uint64 `json:"completion_tokens"`
+	Usage *struct {
+		PromptTokens     *uint64 `json:"prompt_tokens"`
+		CompletionTokens *uint64 `json:"completion_tokens"`
 	} `json:"usage"`
 	Error *struct {
 		Message string `json:"message"`
@@ -158,6 +165,10 @@ func (p *OpenAICompatibleProvider) Generate(ctx context.Context, request Structu
 		return StructuredResponse{}, providerTransportError(ctx, err)
 	}
 	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		retryable := response.StatusCode == http.StatusTooManyRequests || response.StatusCode >= 500
+		return StructuredResponse{}, &ProviderError{Code: fmt.Sprintf("http_%d", response.StatusCode), Safe: "provider rejected the structured request", Retryable: retryable}
+	}
 	payload, err := readBounded(response.Body, p.maxBytes)
 	if err != nil {
 		return StructuredResponse{}, err
@@ -166,18 +177,26 @@ func (p *OpenAICompatibleProvider) Generate(ctx context.Context, request Structu
 	if err = json.Unmarshal(payload, &decoded); err != nil {
 		return StructuredResponse{}, &ProviderError{Code: "malformed_response", Safe: "provider returned malformed JSON", cause: err}
 	}
-	if response.StatusCode < 200 || response.StatusCode >= 300 || decoded.Error != nil {
-		retryable := response.StatusCode == http.StatusTooManyRequests || response.StatusCode >= 500
-		return StructuredResponse{}, &ProviderError{Code: fmt.Sprintf("http_%d", response.StatusCode), Safe: "provider rejected the structured request", Retryable: retryable}
+	if decoded.Error != nil {
+		return StructuredResponse{}, &ProviderError{Code: "provider_error", Safe: "provider returned a structured error"}
+	}
+	if decoded.Model != request.ModelID {
+		return StructuredResponse{}, &ProviderError{Code: "model_mismatch", Safe: "provider served a model different from the pinned request"}
 	}
 	if len(decoded.Choices) != 1 || decoded.Choices[0].Message.Refusal != "" || decoded.Choices[0].Message.Content == "" {
 		return StructuredResponse{}, &ProviderError{Code: "no_output", Safe: "provider returned no structured output"}
+	}
+	if decoded.Choices[0].FinishReason != "stop" {
+		return StructuredResponse{}, &ProviderError{Code: "incomplete_output", Safe: "provider did not complete the structured output"}
+	}
+	if decoded.Usage == nil || decoded.Usage.PromptTokens == nil || decoded.Usage.CompletionTokens == nil {
+		return StructuredResponse{}, &ProviderError{Code: "missing_usage", Safe: "provider omitted token usage"}
 	}
 	raw := json.RawMessage(decoded.Choices[0].Message.Content)
 	if !json.Valid(raw) {
 		return StructuredResponse{}, &ProviderError{Code: "malformed_output", Safe: "provider structured output is not valid JSON"}
 	}
-	return StructuredResponse{JSON: raw, InputTokens: decoded.Usage.PromptTokens, OutputTokens: decoded.Usage.CompletionTokens}, nil
+	return StructuredResponse{JSON: raw, InputTokens: *decoded.Usage.PromptTokens, OutputTokens: *decoded.Usage.CompletionTokens}, nil
 }
 
 func readBounded(reader io.Reader, maximum int64) ([]byte, error) {

@@ -6103,6 +6103,17 @@
         },
         "type": 1,
         "type_name": ""
+      },
+      "6": {
+        "label": 1,
+        "name": "mention_id",
+        "oneof": "value",
+        "optional": false,
+        "rules": {
+          "ascii_id": true
+        },
+        "type": 9,
+        "type_name": ""
       }
     },
     "regulagraph.v1.QualityJudgment": {

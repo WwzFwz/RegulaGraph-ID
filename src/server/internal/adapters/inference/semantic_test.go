@@ -54,7 +54,8 @@ func semanticFixture(provider StructuredProvider) (*SemanticService, *pb.Extract
 		Model: model, OntologyVersion: "ontology:v1", OutputSchemaHash: schemaHash,
 		SystemPrompt: prompt, OutputSchema: schema, SchemaName: "extract_v1",
 		Software: "semantic-gateway", Build: "test", ConfigHash: semanticHash("c"), TokenizerID: "tokenizer:fixture",
-		MaximumItems: 16, MaximumInputBytes: 4096, MaximumConcurrent: 2, MaximumCacheEntries: 8,
+		MaximumItems: 16, MaximumInputBytes: 4096, MaximumConcurrent: 2,
+		MaximumCacheEntries: 8, MaximumCacheBytes: 1 << 20,
 	})
 	if err != nil {
 		panic(err)
@@ -88,7 +89,7 @@ func validRawProposal() json.RawMessage {
         {"local_id":"m1","surface_form":"Badan","candidate_type":"organization","span":{"start_byte":0,"end_byte":5,"quote":"Badan"}},
         {"local_id":"m2","surface_form":"izin","candidate_type":"permit","span":{"start_byte":12,"end_byte":16,"quote":"izin"}}
       ],
-      "assertions":[{"local_id":"a1","subject_local_id":"m1","predicate_id":"requires","object_local_id":"m2","origin":"explicit","qualifiers":[],"exception_local_ids":[]}],
+      "assertions":[{"local_id":"a1","subject_local_id":"m1","predicate_id":"requires","object_local_id":"m2","origin":"explicit","qualifiers":[{"predicate_id":"scope","value_kind":"mention","value":"m2"}],"exception_local_ids":[]}],
       "supports":[{"assertion_local_id":"a1","spans":[{"start_byte":0,"end_byte":16,"quote":"Badan wajib izin"}]}],
       "warnings":[]
     }`)
@@ -104,7 +105,8 @@ func TestSemanticExtractProjectsAbsoluteEvidenceAndCachesOperation(t *testing.T)
 	proposal := response.Results[0].GetProposal()
 	if proposal == nil || proposal.Mentions[0].TextSpan.StartByte != 100 || proposal.Mentions[0].TextSpan.EndByte != 105 ||
 		proposal.Supports[0].EvidenceSpans[0].EndByte != 116 || proposal.Assertions[0].SubjectId != proposal.Mentions[0].Meta.RecordId ||
-		proposal.Supports[0].AssertionId != proposal.Assertions[0].Meta.RecordId {
+		proposal.Supports[0].AssertionId != proposal.Assertions[0].Meta.RecordId ||
+		proposal.Assertions[0].Qualifiers[0].GetMentionId() != proposal.Mentions[1].Meta.RecordId {
 		t.Fatalf("projection lost absolute evidence or local-ID binding: %+v", proposal)
 	}
 	if response.Usage.InputTokens != 20 || response.Usage.OutputTokens != 7 || response.ProducerManifest == nil {
@@ -149,5 +151,148 @@ func TestSemanticExtractDoesNotCacheTransientProviderFailure(t *testing.T) {
 	}
 	if provider.callCount() != 2 {
 		t.Fatalf("transient provider error was cached: calls=%d", provider.callCount())
+	}
+}
+
+func TestSemanticExtractRejectsExpiredBodyDeadlineBeforeProvider(t *testing.T) {
+	provider := &providerDouble{raw: validRawProposal()}
+	service, request := semanticFixture(provider)
+	request.Batch.Context.Deadline = timestamppb.New(time.Now().Add(-time.Second))
+	if _, err := service.ExtractBatch(context.Background(), request); status.Code(err) != codes.DeadlineExceeded || provider.callCount() != 0 {
+		t.Fatalf("expired body deadline reached provider: err=%v calls=%d", err, provider.callCount())
+	}
+}
+
+func TestSemanticExtractRejectsMissingOrNullRequiredArrays(t *testing.T) {
+	for name, raw := range map[string]json.RawMessage{
+		"null":         json.RawMessage(`null`),
+		"empty object": json.RawMessage(`{}`),
+		"null arrays":  json.RawMessage(`{"mentions":null,"assertions":null,"supports":null}`),
+	} {
+		t.Run(name, func(t *testing.T) {
+			service, request := semanticFixture(&providerDouble{raw: raw})
+			response, err := service.ExtractBatch(context.Background(), request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if response.Results[0].GetError() == nil || response.Results[0].GetProposal() != nil {
+				t.Fatalf("malformed required arrays were accepted: %+v", response.Results[0])
+			}
+		})
+	}
+}
+
+func TestSemanticExtractReturnsPerItemErrorForNestedSchemaViolation(t *testing.T) {
+	tests := map[string]json.RawMessage{
+		"missing span start": json.RawMessage(`{
+          "mentions":[{"local_id":"m1","surface_form":"Badan","candidate_type":"organization","span":{"end_byte":5,"quote":"Badan"}}],
+          "assertions":[],"supports":[]
+        }`),
+		"invalid calendar date": json.RawMessage(`{
+          "mentions":[
+            {"local_id":"m1","surface_form":"Badan","candidate_type":"organization","span":{"start_byte":0,"end_byte":5,"quote":"Badan"}},
+            {"local_id":"m2","surface_form":"izin","candidate_type":"permit","span":{"start_byte":12,"end_byte":16,"quote":"izin"}}
+          ],
+          "assertions":[{"local_id":"a1","subject_local_id":"m1","predicate_id":"requires","object_local_id":"m2","origin":"explicit","qualifiers":[{"predicate_id":"effective_on","value_kind":"date","value":{"year":2026,"month":2,"day":30}}],"exception_local_ids":[]}],
+          "supports":[{"assertion_local_id":"a1","spans":[{"start_byte":0,"end_byte":16,"quote":"Badan wajib izin"}]}]
+        }`),
+	}
+	for name, raw := range tests {
+		t.Run(name, func(t *testing.T) {
+			service, request := semanticFixture(&providerDouble{raw: raw})
+			response, err := service.ExtractBatch(context.Background(), request)
+			if err != nil {
+				t.Fatalf("one malformed item failed the whole RPC: %v", err)
+			}
+			if response.Results[0].GetError() == nil || response.Results[0].GetError().Retryable {
+				t.Fatalf("nested schema violation was accepted or marked retryable: %+v", response.Results[0])
+			}
+		})
+	}
+}
+
+type partialRetryProvider struct {
+	mu    sync.Mutex
+	calls map[string]int
+}
+
+func (p *partialRetryProvider) Generate(_ context.Context, request StructuredRequest) (StructuredResponse, error) {
+	p.mu.Lock()
+	p.calls[request.ItemID]++
+	call := p.calls[request.ItemID]
+	p.mu.Unlock()
+	if request.ItemID == "chunk:2" && call == 1 {
+		return StructuredResponse{}, &ProviderError{Code: "unavailable", Safe: "provider unavailable", Retryable: true}
+	}
+	return StructuredResponse{JSON: validRawProposal(), InputTokens: 20, OutputTokens: 7}, nil
+}
+
+func (p *partialRetryProvider) count(itemID string) int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.calls[itemID]
+}
+
+func TestSemanticExtractPartialRetryReusesTerminalItems(t *testing.T) {
+	provider := &partialRetryProvider{calls: map[string]int{}}
+	service, request := semanticFixture(provider)
+	second := proto.Clone(request.Items[0]).(*pb.TextItem)
+	second.ItemId = "chunk:2"
+	second.Provenance.Spans[0].StartByte = 200
+	second.Provenance.Spans[0].EndByte = 217
+	request.Items = append(request.Items, second)
+	first, err := service.ExtractBatch(context.Background(), request)
+	if err != nil || first.Results[1].GetError() == nil || !first.Results[1].GetError().Retryable {
+		t.Fatalf("fixture did not produce a partial retry: response=%v err=%v", first, err)
+	}
+	retry := proto.Clone(request).(*pb.ExtractBatchRequest)
+	retry.Batch.Context.RequestId = "request:retry"
+	retry.Batch.Context.TraceId = "trace:retry"
+	retry.Batch.Context.Deadline = timestamppb.New(time.Now().Add(time.Minute))
+	secondResponse, err := service.ExtractBatch(context.Background(), retry)
+	if err != nil || secondResponse.Results[0].GetProposal() == nil || secondResponse.Results[1].GetProposal() == nil {
+		t.Fatalf("partial retry did not complete: response=%v err=%v", secondResponse, err)
+	}
+	if provider.count("chunk:1") != 1 || provider.count("chunk:2") != 2 {
+		t.Fatalf("terminal item was resampled: first=%d retryable=%d", provider.count("chunk:1"), provider.count("chunk:2"))
+	}
+}
+
+type blockingProvider struct {
+	entered chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (p *blockingProvider) Generate(ctx context.Context, _ StructuredRequest) (StructuredResponse, error) {
+	p.once.Do(func() { close(p.entered) })
+	select {
+	case <-p.release:
+		return StructuredResponse{JSON: validRawProposal(), InputTokens: 20, OutputTokens: 7}, nil
+	case <-ctx.Done():
+		return StructuredResponse{}, ctx.Err()
+	}
+}
+
+func TestSemanticExtractRejectsOperationsBeyondAdmissionCapacity(t *testing.T) {
+	provider := &blockingProvider{entered: make(chan struct{}), release: make(chan struct{})}
+	service, firstRequest := semanticFixture(provider)
+	service.operations = make(chan struct{}, 1)
+	firstDone := make(chan error, 1)
+	go func() {
+		_, err := service.ExtractBatch(context.Background(), firstRequest)
+		firstDone <- err
+	}()
+	<-provider.entered
+	secondRequest := proto.Clone(firstRequest).(*pb.ExtractBatchRequest)
+	secondRequest.Batch.OperationKey = "operation:extract:2"
+	secondRequest.Batch.Context.RequestId = "request:2"
+	secondRequest.Batch.Context.TraceId = "trace:2"
+	if _, err := service.ExtractBatch(context.Background(), secondRequest); status.Code(err) != codes.ResourceExhausted {
+		t.Fatalf("operation beyond admission capacity was queued: %v", err)
+	}
+	close(provider.release)
+	if err := <-firstDone; err != nil {
+		t.Fatalf("admitted operation failed: %v", err)
 	}
 }

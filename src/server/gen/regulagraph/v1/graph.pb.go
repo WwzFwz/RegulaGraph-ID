@@ -688,6 +688,7 @@ type Qualifier struct {
 	//	*Qualifier_Literal
 	//	*Qualifier_Date
 	//	*Qualifier_Number
+	//	*Qualifier_MentionId
 	Value         isQualifier_Value `protobuf_oneof:"value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -773,6 +774,15 @@ func (x *Qualifier) GetNumber() float64 {
 	return 0
 }
 
+func (x *Qualifier) GetMentionId() string {
+	if x != nil {
+		if x, ok := x.Value.(*Qualifier_MentionId); ok {
+			return x.MentionId
+		}
+	}
+	return ""
+}
+
 type isQualifier_Value interface {
 	isQualifier_Value()
 }
@@ -793,6 +803,10 @@ type Qualifier_Number struct {
 	Number float64 `protobuf:"fixed64,5,opt,name=number,proto3,oneof"`
 }
 
+type Qualifier_MentionId struct {
+	MentionId string `protobuf:"bytes,6,opt,name=mention_id,json=mentionId,proto3,oneof"`
+}
+
 func (*Qualifier_CanonicalId) isQualifier_Value() {}
 
 func (*Qualifier_Literal) isQualifier_Value() {}
@@ -800,6 +814,8 @@ func (*Qualifier_Literal) isQualifier_Value() {}
 func (*Qualifier_Date) isQualifier_Value() {}
 
 func (*Qualifier_Number) isQualifier_Value() {}
+
+func (*Qualifier_MentionId) isQualifier_Value() {}
 
 type RelationAssertion struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
@@ -2049,13 +2065,15 @@ const file_regulagraph_v1_graph_proto_rawDesc = "" +
 	"supersedes\x18\a \x01(\tB\x06\x8a\xb5\x18\x02\x10\x01H\x00R\n" +
 	"supersedes\x88\x01\x01\x123\n" +
 	"\x11registry_revision\x18\b \x01(\x04B\x06\x8a\xb5\x18\x02 \x01R\x10registryRevisionB\r\n" +
-	"\v_supersedes\"\xe0\x01\n" +
+	"\v_supersedes\"\x89\x02\n" +
 	"\tQualifier\x12+\n" +
 	"\fpredicate_id\x18\x01 \x01(\tB\b\x8a\xb5\x18\x04\b\x01\x10\x01R\vpredicateId\x12+\n" +
 	"\fcanonical_id\x18\x02 \x01(\tB\x06\x8a\xb5\x18\x02\x10\x01H\x00R\vcanonicalId\x12\x1a\n" +
 	"\aliteral\x18\x03 \x01(\tH\x00R\aliteral\x122\n" +
 	"\x04date\x18\x04 \x01(\v2\x1c.regulagraph.v1.CalendarDateH\x00R\x04date\x12 \n" +
-	"\x06number\x18\x05 \x01(\x01B\x06\x8a\xb5\x18\x02(\x01H\x00R\x06numberB\a\n" +
+	"\x06number\x18\x05 \x01(\x01B\x06\x8a\xb5\x18\x02(\x01H\x00R\x06number\x12'\n" +
+	"\n" +
+	"mention_id\x18\x06 \x01(\tB\x06\x8a\xb5\x18\x02\x10\x01H\x00R\tmentionIdB\a\n" +
 	"\x05value\"\xf4\x03\n" +
 	"\x11RelationAssertion\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\x1a.regulagraph.v1.RecordMetaB\x06\x8a\xb5\x18\x02\b\x01R\x04meta\x12'\n" +
@@ -2352,6 +2370,7 @@ func file_regulagraph_v1_graph_proto_init() {
 		(*Qualifier_Literal)(nil),
 		(*Qualifier_Date)(nil),
 		(*Qualifier_Number)(nil),
+		(*Qualifier_MentionId)(nil),
 	}
 	file_regulagraph_v1_graph_proto_msgTypes[17].OneofWrappers = []any{
 		(*RegistryAssignment_Decision)(nil),

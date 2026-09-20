@@ -42,15 +42,17 @@ type SemanticConfig struct {
 	MaximumInputBytes   int
 	MaximumConcurrent   int
 	MaximumCacheEntries int
+	MaximumCacheBytes   int64
 }
 
 type SemanticService struct {
 	pb.UnimplementedSemanticServer
-	provider  StructuredProvider
-	config    SemanticConfig
-	producer  *pb.ProducerManifest
-	semaphore chan struct{}
-	cache     *semanticCache
+	provider   StructuredProvider
+	config     SemanticConfig
+	producer   *pb.ProducerManifest
+	semaphore  chan struct{}
+	operations chan struct{}
+	cache      *semanticCache
 }
 
 func NewSemanticService(provider StructuredProvider, config SemanticConfig) (*SemanticService, error) {
@@ -60,7 +62,8 @@ func NewSemanticService(provider StructuredProvider, config SemanticConfig) (*Se
 	if config.Model == nil || config.OutputSchemaHash == nil || config.ConfigHash == nil ||
 		config.OntologyVersion == "" || config.SystemPrompt == "" || config.SchemaName == "" ||
 		config.Software == "" || config.Build == "" || config.TokenizerID == "" ||
-		config.MaximumItems <= 0 || config.MaximumInputBytes <= 0 || config.MaximumConcurrent <= 0 || config.MaximumCacheEntries <= 0 {
+		config.MaximumItems <= 0 || config.MaximumInputBytes <= 0 || config.MaximumConcurrent <= 0 ||
+		config.MaximumCacheEntries <= 0 || config.MaximumCacheBytes <= 0 {
 		return nil, errors.New("semantic configuration is incomplete")
 	}
 	if err := domain.ValidateWire(config.Model, domain.DefaultWireLimits); err != nil {
@@ -86,11 +89,12 @@ func NewSemanticService(provider StructuredProvider, config SemanticConfig) (*Se
 		return nil, fmt.Errorf("validate semantic producer: %w", err)
 	}
 	return &SemanticService{
-		provider:  provider,
-		config:    config,
-		producer:  producer,
-		semaphore: make(chan struct{}, config.MaximumConcurrent),
-		cache:     newSemanticCache(config.MaximumCacheEntries),
+		provider:   provider,
+		config:     config,
+		producer:   producer,
+		semaphore:  make(chan struct{}, config.MaximumConcurrent),
+		operations: make(chan struct{}, config.MaximumConcurrent),
+		cache:      newSemanticCache(config.MaximumCacheEntries, config.MaximumCacheBytes),
 	}, nil
 }
 
@@ -98,12 +102,23 @@ func (s *SemanticService) ExtractBatch(ctx context.Context, request *pb.ExtractB
 	if err := s.validateExtractRequest(request); err != nil {
 		return nil, err
 	}
+	executionContext, cancel := context.WithDeadline(ctx, request.Batch.Context.Deadline.AsTime())
+	defer cancel()
+	if err := executionContext.Err(); err != nil {
+		return nil, status.FromContextError(err).Err()
+	}
+	select {
+	case s.operations <- struct{}{}:
+		defer func() { <-s.operations }()
+	default:
+		return nil, status.Error(codes.ResourceExhausted, "semantic operation capacity is full")
+	}
 	fingerprint, err := semanticRequestFingerprint(request)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "fingerprint semantic request: %v", err)
 	}
-	response, err := s.cache.execute(ctx, request.Batch.OperationKey, fingerprint, func() (*pb.ExtractBatchResponse, error) {
-		return s.executeExtract(ctx, request)
+	response, err := s.cache.execute(executionContext, request.Batch.OperationKey, fingerprint, func() (*pb.ExtractBatchResponse, error) {
+		return s.executeExtract(executionContext, request, fingerprint)
 	})
 	if err != nil {
 		return nil, err
@@ -118,6 +133,9 @@ func (s *SemanticService) validateExtractRequest(request *pb.ExtractBatchRequest
 	}
 	if request.Batch == nil || request.Batch.Context == nil || request.Batch.Model == nil || request.Batch.OutputSchema == nil {
 		return status.Error(codes.InvalidArgument, "semantic batch context is incomplete")
+	}
+	if err := request.Batch.Context.Deadline.CheckValid(); err != nil {
+		return status.Error(codes.InvalidArgument, "semantic request deadline is invalid")
 	}
 	if !proto.Equal(request.Batch.Model, s.config.Model) || request.Batch.OntologyVersion != s.config.OntologyVersion {
 		return status.Error(codes.FailedPrecondition, "semantic model or ontology differs from the pinned runtime")
@@ -160,12 +178,16 @@ type itemOutcome struct {
 	outputTokens uint64
 }
 
-func (s *SemanticService) executeExtract(ctx context.Context, request *pb.ExtractBatchRequest) (*pb.ExtractBatchResponse, error) {
+func (s *SemanticService) executeExtract(ctx context.Context, request *pb.ExtractBatchRequest, fingerprint [32]byte) (*pb.ExtractBatchResponse, error) {
 	started := time.Now()
 	outcomes := make([]itemOutcome, len(request.Items))
 	var wait sync.WaitGroup
 	for index, item := range request.Items {
 		index, item := index, item
+		if cached, ok := s.cache.loadItem(request.Batch.OperationKey, item.ItemId, fingerprint); ok {
+			outcomes[index] = cached
+			continue
+		}
 		wait.Add(1)
 		go func() {
 			defer wait.Done()
@@ -184,6 +206,7 @@ func (s *SemanticService) executeExtract(ctx context.Context, request *pb.Extrac
 			outcomes[index].outputTokens = generated.OutputTokens
 			if generateErr != nil {
 				outcomes[index].result = itemError(item.ItemId, operationError(generateErr, item.ItemId))
+				s.cache.storeItem(request.Batch.OperationKey, item.ItemId, fingerprint, outcomes[index])
 				return
 			}
 			proposal, proposalErr := projectExtractionProposal(request, item, generated.JSON, s.producer, s.config.OntologyVersion)
@@ -193,9 +216,20 @@ func (s *SemanticService) executeExtract(ctx context.Context, request *pb.Extrac
 					Stage: "semantic.extract", Retryable: false, ItemId: proto.String(item.ItemId),
 					Details: []*pb.ErrorDetail{{FieldPath: "structured_output", Reason: proposalErr.Error()}},
 				})
+				s.cache.storeItem(request.Batch.OperationKey, item.ItemId, fingerprint, outcomes[index])
+				return
+			}
+			if proposalErr = domain.ValidateWire(proposal, domain.WireLimits{MaxBytes: s.config.MaximumInputBytes * 4, MaxDepth: 64, MaxItems: s.config.MaximumItems * 64}); proposalErr != nil {
+				outcomes[index].result = itemError(item.ItemId, &pb.OperationError{
+					Code: pb.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, SafeMessage: "provider proposal violated the graph contract",
+					Stage: "semantic.extract", Retryable: false, ItemId: proto.String(item.ItemId),
+					Details: []*pb.ErrorDetail{{FieldPath: "structured_output", Reason: proposalErr.Error()}},
+				})
+				s.cache.storeItem(request.Batch.OperationKey, item.ItemId, fingerprint, outcomes[index])
 				return
 			}
 			outcomes[index].result = &pb.ExtractItemResult{ItemId: item.ItemId, Result: &pb.ExtractItemResult_Proposal{Proposal: proposal}}
+			s.cache.storeItem(request.Batch.OperationKey, item.ItemId, fingerprint, outcomes[index])
 		}()
 	}
 	wait.Wait()
@@ -251,23 +285,23 @@ func operationError(err error, itemID string) *pb.OperationError {
 }
 
 type rawProposal struct {
-	Mentions   []rawMention   `json:"mentions"`
-	Assertions []rawAssertion `json:"assertions"`
-	Supports   []rawSupport   `json:"supports"`
-	Warnings   []string       `json:"warnings"`
+	Mentions   *[]rawMention   `json:"mentions"`
+	Assertions *[]rawAssertion `json:"assertions"`
+	Supports   *[]rawSupport   `json:"supports"`
+	Warnings   json.RawMessage `json:"warnings"`
 }
 
 type rawSpan struct {
-	Start uint64 `json:"start_byte"`
-	End   uint64 `json:"end_byte"`
-	Quote string `json:"quote"`
+	Start *uint64 `json:"start_byte"`
+	End   *uint64 `json:"end_byte"`
+	Quote string  `json:"quote"`
 }
 
 type rawMention struct {
-	LocalID       string  `json:"local_id"`
-	SurfaceForm   string  `json:"surface_form"`
-	CandidateType string  `json:"candidate_type"`
-	Span          rawSpan `json:"span"`
+	LocalID       string   `json:"local_id"`
+	SurfaceForm   string   `json:"surface_form"`
+	CandidateType string   `json:"candidate_type"`
+	Span          *rawSpan `json:"span"`
 }
 
 type rawQualifier struct {
@@ -277,18 +311,18 @@ type rawQualifier struct {
 }
 
 type rawAssertion struct {
-	LocalID           string         `json:"local_id"`
-	SubjectLocalID    string         `json:"subject_local_id"`
-	PredicateID       string         `json:"predicate_id"`
-	ObjectLocalID     string         `json:"object_local_id"`
-	Origin            string         `json:"origin"`
-	Qualifiers        []rawQualifier `json:"qualifiers"`
-	ExceptionLocalIDs []string       `json:"exception_local_ids"`
+	LocalID           string          `json:"local_id"`
+	SubjectLocalID    string          `json:"subject_local_id"`
+	PredicateID       string          `json:"predicate_id"`
+	ObjectLocalID     string          `json:"object_local_id"`
+	Origin            string          `json:"origin"`
+	Qualifiers        *[]rawQualifier `json:"qualifiers"`
+	ExceptionLocalIDs *[]string       `json:"exception_local_ids"`
 }
 
 type rawSupport struct {
-	AssertionLocalID string    `json:"assertion_local_id"`
-	Spans            []rawSpan `json:"spans"`
+	AssertionLocalID string     `json:"assertion_local_id"`
+	Spans            *[]rawSpan `json:"spans"`
 }
 
 func projectExtractionProposal(request *pb.ExtractBatchRequest, item *pb.TextItem, raw json.RawMessage, producer *pb.ProducerManifest, ontologyVersion string) (*pb.ExtractionProposal, error) {
@@ -301,17 +335,23 @@ func projectExtractionProposal(request *pb.ExtractBatchRequest, item *pb.TextIte
 	if err := rejectTrailingJSON(decoder); err != nil {
 		return nil, err
 	}
+	if value.Mentions == nil || value.Assertions == nil || value.Supports == nil {
+		return nil, errors.New("mentions, assertions, and supports must be JSON arrays")
+	}
 	base := item.Provenance.Spans[0]
-	mentionIDs := make(map[string]string, len(value.Mentions))
+	mentionIDs := make(map[string]string, len(*value.Mentions))
 	proposal := &pb.ExtractionProposal{}
-	for index, mention := range value.Mentions {
+	for index, mention := range *value.Mentions {
 		if mention.LocalID == "" || mention.SurfaceForm == "" || mention.CandidateType == "" {
 			return nil, errors.New("mention identity, surface, and type are required")
 		}
 		if _, duplicate := mentionIDs[mention.LocalID]; duplicate {
 			return nil, errors.New("duplicate local mention ID")
 		}
-		span, err := absoluteSpan(item.Text, base, mention.Span)
+		if mention.Span == nil {
+			return nil, errors.New("mention span is required")
+		}
+		span, err := absoluteSpan(item.Text, base, *mention.Span)
 		if err != nil || mention.SurfaceForm != mention.Span.Quote {
 			return nil, errors.New("mention surface does not match its exact UTF-8 byte span")
 		}
@@ -323,8 +363,8 @@ func projectExtractionProposal(request *pb.ExtractBatchRequest, item *pb.TextIte
 			CandidateType: mention.CandidateType, ExtractionManifest: proto.Clone(producer).(*pb.ProducerManifest),
 		})
 	}
-	assertionIDs := make(map[string]string, len(value.Assertions))
-	for index, assertion := range value.Assertions {
+	assertionIDs := make(map[string]string, len(*value.Assertions))
+	for index, assertion := range *value.Assertions {
 		if assertion.LocalID == "" {
 			return nil, errors.New("assertion local ID is required")
 		}
@@ -333,7 +373,7 @@ func projectExtractionProposal(request *pb.ExtractBatchRequest, item *pb.TextIte
 		}
 		assertionIDs[assertion.LocalID] = deterministicID("assertion", request.Batch.OperationKey, item.ItemId, assertion.LocalID, strconv.Itoa(index))
 	}
-	for _, assertion := range value.Assertions {
+	for _, assertion := range *value.Assertions {
 		subject, subjectOK := mentionIDs[assertion.SubjectLocalID]
 		object, objectOK := mentionIDs[assertion.ObjectLocalID]
 		if !subjectOK || !objectOK || assertion.PredicateID == "" {
@@ -345,17 +385,20 @@ func projectExtractionProposal(request *pb.ExtractBatchRequest, item *pb.TextIte
 		} else if assertion.Origin != "explicit" {
 			return nil, errors.New("assertion origin must be explicit or inferred")
 		}
-		qualifiers := make([]*pb.Qualifier, 0, len(assertion.Qualifiers))
-		for _, qualifier := range assertion.Qualifiers {
+		if assertion.Qualifiers == nil || assertion.ExceptionLocalIDs == nil {
+			return nil, errors.New("assertion qualifiers and exception_local_ids must be JSON arrays")
+		}
+		qualifiers := make([]*pb.Qualifier, 0, len(*assertion.Qualifiers))
+		for _, qualifier := range *assertion.Qualifiers {
 			mapped, err := projectQualifier(qualifier, mentionIDs)
 			if err != nil {
 				return nil, err
 			}
 			qualifiers = append(qualifiers, mapped)
 		}
-		exceptions := make([]string, 0, len(assertion.ExceptionLocalIDs))
+		exceptions := make([]string, 0, len(*assertion.ExceptionLocalIDs))
 		seenExceptions := map[string]struct{}{}
-		for _, local := range assertion.ExceptionLocalIDs {
+		for _, local := range *assertion.ExceptionLocalIDs {
 			mapped, ok := assertionIDs[local]
 			if !ok || mapped == assertionIDs[assertion.LocalID] {
 				return nil, errors.New("assertion exception reference is unknown or self-referential")
@@ -375,13 +418,13 @@ func projectExtractionProposal(request *pb.ExtractBatchRequest, item *pb.TextIte
 		})
 	}
 	supportCounts := make(map[string]int, len(assertionIDs))
-	for index, support := range value.Supports {
+	for index, support := range *value.Supports {
 		assertionID, ok := assertionIDs[support.AssertionLocalID]
-		if !ok || len(support.Spans) == 0 {
+		if !ok || support.Spans == nil || len(*support.Spans) == 0 {
 			return nil, errors.New("support references an unknown assertion or has no span")
 		}
-		spans := make([]*pb.TextSpan, 0, len(support.Spans))
-		for _, rawSpan := range support.Spans {
+		spans := make([]*pb.TextSpan, 0, len(*support.Spans))
+		for _, rawSpan := range *support.Spans {
 			span, err := absoluteSpan(item.Text, base, rawSpan)
 			if err != nil {
 				return nil, fmt.Errorf("invalid support span: %w", err)
@@ -401,7 +444,13 @@ func projectExtractionProposal(request *pb.ExtractBatchRequest, item *pb.TextIte
 			return nil, errors.New("every assertion requires exact source support")
 		}
 	}
-	for _, warning := range value.Warnings {
+	warnings := []string{}
+	if len(value.Warnings) > 0 {
+		if err := decodeStrict(value.Warnings, &warnings); err != nil || warnings == nil {
+			return nil, errors.New("warnings must be a JSON array when present")
+		}
+	}
+	for _, warning := range warnings {
 		if warning == "" {
 			return nil, errors.New("empty model warning")
 		}
@@ -414,15 +463,19 @@ func projectExtractionProposal(request *pb.ExtractBatchRequest, item *pb.TextIte
 }
 
 func absoluteSpan(text string, base *pb.TextSpan, relative rawSpan) (*pb.TextSpan, error) {
-	if relative.Start >= relative.End || relative.End > uint64(len(text)) || relative.End-relative.Start != uint64(len(relative.Quote)) ||
-		!utf8.ValidString(relative.Quote) || !utf8.RuneStart(text[relative.Start]) || (relative.End < uint64(len(text)) && !utf8.RuneStart(text[relative.End])) ||
-		text[relative.Start:relative.End] != relative.Quote {
+	if relative.Start == nil || relative.End == nil {
+		return nil, errors.New("span start_byte and end_byte are required")
+	}
+	startRelative, endRelative := *relative.Start, *relative.End
+	if startRelative >= endRelative || endRelative > uint64(len(text)) || endRelative-startRelative != uint64(len(relative.Quote)) ||
+		!utf8.ValidString(relative.Quote) || !utf8.RuneStart(text[startRelative]) || (endRelative < uint64(len(text)) && !utf8.RuneStart(text[endRelative])) ||
+		text[startRelative:endRelative] != relative.Quote {
 		return nil, errors.New("span is not an exact UTF-8 byte slice")
 	}
-	if math.MaxUint64-base.StartByte < relative.Start || math.MaxUint64-base.StartByte < relative.End {
+	if math.MaxUint64-base.StartByte < startRelative || math.MaxUint64-base.StartByte < endRelative {
 		return nil, errors.New("absolute span overflows")
 	}
-	start, end := base.StartByte+relative.Start, base.StartByte+relative.End
+	start, end := base.StartByte+startRelative, base.StartByte+endRelative
 	if end > base.EndByte || start < base.StartByte {
 		return nil, errors.New("span escapes source item")
 	}
@@ -432,6 +485,9 @@ func absoluteSpan(text string, base *pb.TextSpan, relative rawSpan) (*pb.TextSpa
 func projectQualifier(raw rawQualifier, mentions map[string]string) (*pb.Qualifier, error) {
 	if raw.PredicateID == "" {
 		return nil, errors.New("qualifier predicate is required")
+	}
+	if len(raw.Value) == 0 || bytes.Equal(bytes.TrimSpace(raw.Value), []byte("null")) {
+		return nil, errors.New("qualifier value is required")
 	}
 	qualifier := &pb.Qualifier{PredicateId: raw.PredicateID}
 	switch raw.ValueKind {
@@ -444,7 +500,7 @@ func projectQualifier(raw rawQualifier, mentions map[string]string) (*pb.Qualifi
 		if !ok {
 			return nil, errors.New("qualifier references unknown mention")
 		}
-		qualifier.Value = &pb.Qualifier_CanonicalId{CanonicalId: mapped}
+		qualifier.Value = &pb.Qualifier_MentionId{MentionId: mapped}
 	case "literal":
 		var literal string
 		if err := decodeStrict(raw.Value, &literal); err != nil || literal == "" {
@@ -541,6 +597,8 @@ func semanticRequestFingerprint(request *pb.ExtractBatchRequest) ([32]byte, erro
 type cachedSemantic struct {
 	fingerprint [32]byte
 	response    *pb.ExtractBatchResponse
+	items       map[string]itemOutcome
+	sizeBytes   int64
 }
 type inflightSemantic struct {
 	fingerprint [32]byte
@@ -549,26 +607,38 @@ type inflightSemantic struct {
 	err         error
 }
 type semanticCache struct {
-	mu       sync.Mutex
-	maximum  int
-	entries  map[string]cachedSemantic
-	order    []string
-	inflight map[string]*inflightSemantic
+	mu           sync.Mutex
+	maximum      int
+	maximumBytes int64
+	currentBytes int64
+	entries      map[string]*cachedSemantic
+	order        []string
+	inflight     map[string]*inflightSemantic
 }
 
-func newSemanticCache(maximum int) *semanticCache {
-	return &semanticCache{maximum: maximum, entries: map[string]cachedSemantic{}, inflight: map[string]*inflightSemantic{}}
+func newSemanticCache(maximum int, maximumBytes int64) *semanticCache {
+	return &semanticCache{
+		maximum: maximum, maximumBytes: maximumBytes,
+		entries: map[string]*cachedSemantic{}, inflight: map[string]*inflightSemantic{},
+	}
 }
 
 func (c *semanticCache) execute(ctx context.Context, key string, fingerprint [32]byte, run func() (*pb.ExtractBatchResponse, error)) (*pb.ExtractBatchResponse, error) {
 	for {
 		c.mu.Lock()
 		if entry, ok := c.entries[key]; ok {
-			c.mu.Unlock()
 			if entry.fingerprint != fingerprint {
+				c.mu.Unlock()
 				return nil, status.Error(codes.FailedPrecondition, "operation key was reused for different semantic input")
 			}
-			return proto.Clone(entry.response).(*pb.ExtractBatchResponse), nil
+			if entry.response != nil {
+				response := proto.Clone(entry.response).(*pb.ExtractBatchResponse)
+				c.mu.Unlock()
+				return response, nil
+			}
+		} else {
+			c.entries[key] = &cachedSemantic{fingerprint: fingerprint, items: map[string]itemOutcome{}}
+			c.order = append(c.order, key)
 		}
 		if active, ok := c.inflight[key]; ok {
 			if active.fingerprint != fingerprint {
@@ -592,20 +662,90 @@ func (c *semanticCache) execute(ctx context.Context, key string, fingerprint [32
 		c.mu.Unlock()
 		response, err := run()
 		c.mu.Lock()
-		active.response, active.err = response, err
+		active.err = err
+		if response != nil {
+			active.response = proto.Clone(response).(*pb.ExtractBatchResponse)
+		}
 		if err == nil && semanticResponseCacheable(response) {
-			c.entries[key] = cachedSemantic{fingerprint: fingerprint, response: proto.Clone(response).(*pb.ExtractBatchResponse)}
-			c.order = append(c.order, key)
-			if len(c.order) > c.maximum {
-				oldest := c.order[0]
-				c.order = c.order[1:]
-				delete(c.entries, oldest)
-			}
+			entry := c.entries[key]
+			c.currentBytes -= entry.sizeBytes
+			entry.response = proto.Clone(response).(*pb.ExtractBatchResponse)
+			entry.items = nil
+			entry.sizeBytes = int64(proto.Size(entry.response))
+			c.currentBytes += entry.sizeBytes
 		}
 		delete(c.inflight, key)
 		close(active.done)
+		c.evictLocked()
 		c.mu.Unlock()
-		return response, err
+		if response == nil {
+			return nil, err
+		}
+		return proto.Clone(response).(*pb.ExtractBatchResponse), err
+	}
+}
+
+func (c *semanticCache) loadItem(operationKey, itemID string, fingerprint [32]byte) (itemOutcome, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	entry, ok := c.entries[operationKey]
+	if !ok || entry.fingerprint != fingerprint || entry.items == nil {
+		return itemOutcome{}, false
+	}
+	outcome, ok := entry.items[itemID]
+	if !ok {
+		return itemOutcome{}, false
+	}
+	return cloneItemOutcome(outcome), true
+}
+
+func (c *semanticCache) storeItem(operationKey, itemID string, fingerprint [32]byte, outcome itemOutcome) {
+	if outcome.result == nil {
+		return
+	}
+	if operation := outcome.result.GetError(); operation != nil && operation.Retryable {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	entry, ok := c.entries[operationKey]
+	if !ok || entry.fingerprint != fingerprint || entry.response != nil {
+		return
+	}
+	if _, exists := entry.items[itemID]; exists {
+		return
+	}
+	cloned := cloneItemOutcome(outcome)
+	entry.items[itemID] = cloned
+	size := int64(proto.Size(cloned.result)) + 16
+	entry.sizeBytes += size
+	c.currentBytes += size
+}
+
+func cloneItemOutcome(outcome itemOutcome) itemOutcome {
+	cloned := outcome
+	if outcome.result != nil {
+		cloned.result = proto.Clone(outcome.result).(*pb.ExtractItemResult)
+	}
+	return cloned
+}
+
+func (c *semanticCache) evictLocked() {
+	remaining := len(c.order)
+	for (len(c.entries) > c.maximum || c.currentBytes > c.maximumBytes) && remaining > 0 && len(c.order) > 0 {
+		key := c.order[0]
+		c.order = c.order[1:]
+		if _, active := c.inflight[key]; active {
+			c.order = append(c.order, key)
+			remaining--
+			continue
+		}
+		entry, ok := c.entries[key]
+		if ok {
+			c.currentBytes -= entry.sizeBytes
+			delete(c.entries, key)
+		}
+		remaining = len(c.order)
 	}
 }
 

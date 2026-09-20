@@ -62,7 +62,7 @@ Tanggal berlaku/legal status adalah assertion bersumber dan berversi, bukan nila
 | Alias | alias_id, canonical_id, surface, normalized_lookup, language, scope, valid_interval?, support_refs | Surface identik dapat menunjuk banyak entitas; lookup menghasilkan kandidat |
 | ResolutionProposal | proposal_id, mention_ids, candidate_ids, action, evidence, method, confidence?, expected_registry_revision | Rust; optimistic check saat commit, konflik revision dihitung ulang |
 | ResolutionDecision | decision_id, proposal_id, assigned_canonical_ids, action, reason, actor, supersedes?, visibility | Go mencatat keputusan otomatis/reviewer dengan riwayat merge/split |
-| RelationAssertion | assertion_id, subject_id, predicate_id, object_id, qualifiers, exception_refs, temporal_scope, explicit_or_inferred, ontology_version | Qualifiers dan arah bagian identitas semantik; inferred tidak diubah menjadi explicit |
+| RelationAssertion | assertion_id, subject_id, predicate_id, object_id, qualifiers, exception_refs, temporal_scope, explicit_or_inferred, ontology_version | Qualifiers dan arah bagian identitas semantik; inferred tidak diubah menjadi explicit; referensi entity qualifier memakai mention_id provisional saat EXTRACT dan canonical_id hanya sesudah RESOLVE |
 | SupportRecord | support_id, assertion_id, evidence_spans, source/provision_version refs, extraction_manifest, independent_source_group, review_state | Satu assertion banyak support; mirror tidak dihitung sebagai sumber independen |
 | ExtractionBatch | source_document_batch, mentions, assertions, supports, issues, dependencies, completeness/counts, ontology/model/prompt identity, token usage/durations | Artefak immutable keluaran EXTRACT; endpoint masih boleh memakai mention ID dan belum merupakan registry assignment atau delta terpublikasi |
 | ResolutionBatch | source_extraction_batch, proposals, decisions, issues, dependencies, completeness/counts, ontology/model identity, registry_revision, token usage/durations | Artefak immutable keluaran RESOLVE; ASSEMBLE hanya memakai keputusan yang revision-nya masih valid |
@@ -71,6 +71,8 @@ Tanggal berlaku/legal status adalah assertion bersumber dan berversi, bukan nila
 | GraphPath | path_id, ordered_node_ids, ordered_assertion_ids, selected_support_ids, coverage, frontier_exhausted | Setiap edge yang dipakai menjawab memiliki support terlihat pada snapshot |
 
 ResolutionProposal memakai client-local correlation ID untuk objek baru; ResolveBatch registry mengembalikan canonical ID sehingga semua referensi downstream dapat diikat ulang sebelum publikasi. Assignment idempotent berdasarkan proposal key dan registry revision. Alias adalah lookup; daftar sinonim tanpa konteks bukan canonical registry.
+
+Proposal EXTRACT tidak boleh menulis mention ID ke field `canonical_id`. Endpoint assertion dan qualifier entity tetap menunjuk `mention_id` deterministik sampai keputusan resolution yang revision-bound tersedia. ASSEMBLE menolak graph delta yang masih membawa referensi provisional atau canonical assignment stale.
 
 ## 5. Evidence, indeks, dan retrieval
 

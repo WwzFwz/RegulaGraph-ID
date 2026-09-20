@@ -80,6 +80,7 @@ message Qualifier {
     string literal=3;
     CalendarDate date=4;
     double number=5 [(rules).finite=true];
+    string mention_id=6 [(rules).ascii_id=true];
   }
 }
 message RelationAssertion {
