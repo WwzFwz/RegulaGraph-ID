@@ -11,6 +11,7 @@
 //!
 //! Status: scaffold; belum ada pipeline atau layanan yang aktif.
 
+pub mod document_batches;
 pub mod inference;
 pub mod pdf_engine;
 pub mod storage;
