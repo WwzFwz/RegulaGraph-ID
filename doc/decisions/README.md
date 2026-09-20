@@ -14,7 +14,7 @@ Anak tidak boleh mengubah kontrak input/output secara tersembunyi. Perubahan ben
 
 ## Isi saat ini
 
-Berkas langsung: [0001-scaffold-boundaries.md](0001-scaffold-boundaries.md), [0002-polyglot-runtime.md](0002-polyglot-runtime.md), [0003-required-benchmark-targets.md](0003-required-benchmark-targets.md), [0004-product-source-layout.md](0004-product-source-layout.md), [0005-complete-system-design.md](0005-complete-system-design.md).
+Berkas langsung: [0001-scaffold-boundaries.md](0001-scaffold-boundaries.md), [0002-polyglot-runtime.md](0002-polyglot-runtime.md), [0003-required-benchmark-targets.md](0003-required-benchmark-targets.md), [0004-product-source-layout.md](0004-product-source-layout.md), [0005-complete-system-design.md](0005-complete-system-design.md), [0006-pdfium-parser-candidate.md](0006-pdfium-parser-candidate.md).
 
 ## Benchmark dan perhatian kualitas
 
@@ -24,4 +24,6 @@ Lihat [kebijakan benchmark](../benchmark-policy.md) untuk protokol pengukuran da
 
 ## Status implementasi
 
-Struktur ini merupakan scaffold dokumentasi. Modul lintas bahasa masih berupa scaffold, konfigurasi belum dikonsumsi aplikasi, dan belum ada layanan atau pipeline yang aktif. Referensi pihak ketiga dan dokumen pengguna yang sudah ada dipertahankan; status scaffold tidak mengubah isi sumber tersebut.
+Keputusan 0001--0005 menetapkan desain dan batas repositori. Keputusan 0006 memilih PDFium untuk prototype I01
+berdasarkan profil M01, tetapi belum merupakan penerimaan parser produksi. Pipeline retrieval/answering dan
+benchmark acceptance tetap belum aktif; status tiap implementasi mengikuti laporan verifikasinya.
