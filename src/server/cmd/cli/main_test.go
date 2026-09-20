@@ -15,6 +15,7 @@ func TestCLIValidation(t *testing.T) {
 	}{
 		{nil, 2}, {[]string{"collect", "-help"}, 0}, {[]string{"collect"}, 2},
 		{[]string{"discover", "-help"}, 0}, {[]string{"discover"}, 2},
+		{[]string{"audit", "-help"}, 0},
 		{[]string{"collect", "-workers", "0"}, 2}, {[]string{"collect", "-max-pdf-mib", "0"}, 2},
 		{[]string{"collect", "unexpected"}, 2}, {[]string{"collect", "-interval", "-1s"}, 2},
 	}

@@ -1,10 +1,12 @@
-// CLI operasional: discover menyiapkan antrean; collect mengunduh PDF dan metadata melalui workflow.
-// Integrasi: URL eksplisit/file/listing dibatasi; hasil lokal D01, belum ingestion/graph/query produksi.
-// Performa: worker, per-host interval, timeout dan batas bytes dikonfigurasi; failures menghasilkan exit 1.
-// Benchmark: hasil unduh bukan bukti target retrieval/model; angka required tidak berubah.
-// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
-// Keep commands as workflow adapters; expose job/status/update/query only as implementations become available.
-// Bukti verifikasi: Test exit codes, machine-readable output and cancellation; budget deferrals must not masquerade as completed acquisition.
+// CLI operasional: discover menyiapkan antrean, collect mengunduh sumber, dan audit memverifikasi inventory.
+// Peran: merakit dependency serta argumen untuk workflow/adapter tanpa menggandakan parsing atau aturan domain.
+// Kontrak: URL/file/listing dibatasi, output machine-readable, cancellation diteruskan, dan exit code membedakan
+// invalid invocation (2), kegagalan/integrity error (1), serta keberhasilan terverifikasi (0).
+// Benchmark: worker, per-host interval, timeout, batas bytes, dan concurrency audit dikonfigurasi; hasil akuisisi
+// bukan bukti target retrieval/model dan angka required tidak berubah.
+// Target numerik required: configs/benchmark-targets.yaml; status REQUIRED_UNMEASURED.
+// Status: discover/collect/audit D01 aktif; job status/update/query ditambahkan saat workflow pemiliknya aktif.
+// Bukti verifikasi: test exit code, output JSON, cancellation, dan budget deferral; ikuti doc/verification.md.
 // Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
 
 package main
@@ -32,9 +34,12 @@ func (v *urlFlags) String() string     { return strings.Join(*v, ",") }
 func (v *urlFlags) Set(s string) error { *v = append(*v, s); return nil }
 
 func run(ctx context.Context, args []string, out, errOut io.Writer) int {
-	if len(args) == 0 || (args[0] != "collect" && args[0] != "discover") {
-		fmt.Fprintln(errOut, "Usage: regulagraph {collect|discover} -input <URL file> [-out data/acquisition]; use command -help for options.")
+	if len(args) == 0 || (args[0] != "collect" && args[0] != "discover" && args[0] != "audit") {
+		fmt.Fprintln(errOut, "Usage: regulagraph {collect|discover|audit}; use command -help for options.")
 		return 2
+	}
+	if args[0] == "audit" {
+		return runAudit(ctx, args[1:], out, errOut)
 	}
 	fs := flag.NewFlagSet(args[0], flag.ContinueOnError)
 	fs.SetOutput(errOut)
