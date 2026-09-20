@@ -1,8 +1,18 @@
-# Spesifikasi konfigurasi ingestion yang belum dikonsumsi runtime Go/Rust/native.
+# Inventaris default ingestion aktif; file ini belum dibaca langsung oleh runtime Go/Rust.
 # Peran: parameter parsing, chunking struktural, graph engineering, dan update.
-# Integrasi: key aktual akan divalidasi loader Go; versi/fingerprint ikut manifest.
+# Integrasi: nilai harus tetap sinkron dengan default Rust sampai loader tervalidasi tersedia; runtime memfingerprint nilai aktual.
 # Benchmark: PARSING, CHUNKING, EXTRACTION, RESOLUTION, UPDATE; angka wajib di configs/benchmark-targets.yaml.
 schema_version: 1
-status: scaffold_only
-parameters: {}
-# Tidak ada ukuran chunk, overlap, model, atau concurrency default yang dipaksakan.
+status: mirrors_active_runtime_defaults
+parameters:
+  chunker:
+    implementation: chunker-v2
+    maximum_chunk_bytes: 4096
+    maximum_chunk_tokens: 512
+    minimum_split_bytes: 1024
+    overlap_bytes: 256
+    maximum_chunks: 2000000
+    maximum_parent_depth: 64
+    tokenizer_source: REGULAGRAPH_WORKER_TOKENIZER_JSON
+    tokenizer_sha256_source: REGULAGRAPH_WORKER_TOKENIZER_SHA256
+# Nilai ini bukan input runtime atau hasil benchmark. Perubahan runtime wajib memicu fingerprint dan reindex.
