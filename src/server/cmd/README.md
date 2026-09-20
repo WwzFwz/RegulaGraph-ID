@@ -8,7 +8,7 @@ Logika di luar cakupan ini ditempatkan pada komponen pemiliknya. Jika fungsi bar
 
 ## Peran dan integrasi anak
 
-API dan CLI memanggil internal/workflows; entry point scaffold keluar dengan kode 2 agar tidak dianggap layanan aktif.
+CLI collect memanggil internal/workflows untuk acquisition PDF/metadata; API tetap entry point scaffold yang keluar dengan kode 2. CLI tidak menggandakan algoritma unduhan di entry point. Perintah produksi lain belum diimplementasikan.
 
 Pertahankan source/canonical/provision-version/snapshot ID dan schema version lintas anak. Boundary runtime mengikuti [src/contracts](../../contracts/README.md), dengan pekerjaan batch atau inference yang jelas. Perubahan bentuk data, error/status, serta offset sumber harus didokumentasikan bersama konsumennya; jangan menggandakan kebijakan publikasi di beberapa runtime.
 
@@ -16,7 +16,7 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 Subfolder: [api/](api/README.md), [cli/](cli/README.md).
 
-Folder ini baru mendefinisikan batas komponen; belum ada implementasi runtime.
+Akuisisi sumber D01 sudah aktif melalui CLI collect, workflow batch, dan adapter sources. Pipeline ingestion/query produksi lainnya masih scaffold.
 
 ## Benchmark dan perhatian performa
 
@@ -26,4 +26,4 @@ Ikuti [kebijakan benchmark](../../../doc/benchmark-policy.md). Angka wajib mengi
 
 ## Status
 
-Ini adalah scaffold struktur, dokumentasi, dan build lintas bahasa. Belum ada pipeline, database adapter, transport worker, atau model yang aktif. Go entry point hanya memberi status scaffold; Rust dan C++ menyediakan target library; protobuf belum memiliki message/service; tooling Python belum menjalankan model. Keberhasilan build tidak menyatakan target latency atau akurasi tercapai.
+Ini adalah scaffold struktur, dokumentasi, dan build lintas bahasa. Belum ada pipeline, database adapter, transport worker, atau model yang aktif. API Go tetap scaffold; CLI collect sudah mengunduh PDF/metadata sumber; Rust dan C++ menyediakan target library; protobuf belum memiliki message/service; tooling Python belum menjalankan model. Keberhasilan build tidak menyatakan target latency atau akurasi tercapai.

@@ -14,7 +14,11 @@ Anak tidak boleh mengubah kontrak input/output secara tersembunyi. Perubahan ben
 
 ## Isi saat ini
 
-Berkas langsung: [benchmark-targets.yaml](benchmark-targets.yaml), [evaluation.yaml](evaluation.yaml), [ingestion.yaml](ingestion.yaml), [retrieval.yaml](retrieval.yaml).
+Berkas langsung: [benchmark-targets.yaml](benchmark-targets.yaml), [evaluation.yaml](evaluation.yaml), [ingestion.yaml](ingestion.yaml), [retrieval.yaml](retrieval.yaml), [sources.txt](sources.txt), [listings.txt](listings.txt).
+
+sources.txt adalah input collector PDF yang sudah dapat dijalankan; konfigurasi YAML pipeline/evaluator tetap scaffold. Format seed berupa satu URL per baris dengan komentar #. [Panduan akuisisi](../doc/acquisition.md) menjelaskan download, resume, refresh, dan batas discovery.
+
+listings.txt berisi seed halaman katalog untuk perintah discover, sedangkan sources.txt berisi URL detail untuk collect. Perintah discover menghasilkan daftar panjang di data/acquisition/queue.txt; hasil crawl tidak dimasukkan ke konfigurasi Git.
 
 ## Benchmark dan perhatian kualitas
 

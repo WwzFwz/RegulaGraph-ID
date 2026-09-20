@@ -4,6 +4,8 @@ Dokumen ini merancang akuisisi, provenance, kurasi, dan evaluasi data dari sumbe
 
 ## 1. Sumber pilihan dan perannya
 
+Implementasi pendukung D01 sekarang tersedia sebagai [CLI collector PDF](acquisition.md). Dua contoh BPK/Kemkomdigi telah diunduh untuk smoke verification; ini belum inventory lengkap, crawling massal, validasi keberlakuan, atau gold dataset. Discovery katalog JDIHN belum diverifikasi.
+
 | Source ID desain | Portal | Peran dalam corpus |
 | --- | --- | --- |
 | bpk | [Database Peraturan BPK](https://peraturan.bpk.go.id/) | Discovery lintas jenis/tahun/instansi, metadata dan dokumen rujukan |

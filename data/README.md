@@ -16,7 +16,11 @@ Anak tidak boleh mengubah kontrak input/output secara tersembunyi. Perubahan ben
 
 ## Isi saat ini
 
-Folder ini baru menyediakan kontrak dokumentasi. File implementasi ditambahkan ketika pekerjaannya dimulai; tidak ada perilaku runtime yang dijanjikan oleh keberadaan folder.
+Collector D01 menghasilkan direktori acquisition untuk PDF content-addressed, HTML sumber, metadata terbaru, serta riwayat observation. Ini data kerja turunan yang diabaikan Git, bukan subkomponen source yang memerlukan README per hash. [Panduan akuisisi](../doc/acquisition.md) menjelaskan format, resume, dan lokasi file. Gold dataset tetap terpisah pada evaluation/datasets.
+
+Artefak aktual dihasilkan collector Go. acquisition/handoff.json merangkum antrean, error, bytes PDF yang tersedia, target 3 GB, dan status unduhan ditunda atas permintaan pengguna; file ini merupakan catatan kelanjutan, bukan scheduler atau konfigurasi batas bytes yang sudah ditegakkan.
+
+Discovery menghasilkan acquisition/discovery.json (checkpoint, asal halaman, judul tautan, error), acquisition/queue.txt (URL detail unik), serta acquisition/listings/ (HTML katalog berhash). PDF yang sudah tersedia tetap di acquisition/blobs. Antrean belum menyatakan setiap URL berhasil diunduh atau peraturan unik secara semantik.
 
 ## Benchmark dan perhatian kualitas
 
@@ -26,4 +30,4 @@ Lihat [kebijakan benchmark](../doc/benchmark-policy.md) untuk protokol pengukura
 
 ## Status implementasi
 
-Struktur ini merupakan scaffold dokumentasi. Modul Go, Rust, C++, dan Python masih berupa scaffold; konfigurasi belum dikonsumsi pipeline, dan belum ada layanan aplikasi yang aktif. Build scaffold hanya memverifikasi struktur kode. Referensi pihak ketiga dan dokumen pengguna yang sudah ada dipertahankan; status scaffold tidak mengubah isi sumber tersebut.
+Collector dan discovery Go sudah menghasilkan artefak lokal. Pipeline parsing/graph/query produksi serta dataset gold belum tersedia; status akuisisi tidak membuktikan kualitas model atau kelengkapan corpus.

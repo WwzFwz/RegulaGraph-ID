@@ -4,6 +4,8 @@ Dokumen ini memecah desain lengkap RegulaGraph-ID menjadi pekerjaan komponen dan
 
 ## 1. Prinsip pelaksanaan
 
+Status D01 diperbarui: [collector PDF](acquisition.md) sudah dapat mengambil detail/metadata serta PDF nyata dari contoh BPK dan Kemkomdigi, memakai resume dan discovery terbatas. Inventory seluruh corpus, connector katalog JDIHN, gold dataset, serta semua paket produksi lain belum selesai. Record inventory lokal collector bukan pengganti realisasi kontrak C01.
+
 Folder tree menentukan pemilik kode; dependency menentukan urutan pelaksanaan. Satu milestone dapat mengubah contracts, Rust, Go, inference, dan evaluation bersama. Implementasi komponen yang terpisah dapat dikerjakan paralel setelah kontrak terkait stabil, tetapi setiap integrasi mempunyai satu owner hasil dan syarat selesai. Dokumen ini bukan instruksi menambah microservice atau agent kerja otomatis.
 
 Perancangan seluruh kontrak, skenario sukses/gagal, storage, dan evaluasi dilakukan sebelum fitur produksi dikembangkan. Pembuktian model/engine serta bentuk data menggunakan eksperimen terukur. Komponen yang belum tersedia harus menghasilkan status belum diimplementasikan, bukan mock yang dianggap hasil produksi. Runtime/config/codegen yang ditambahkan nanti memperbarui header/README sesuai keadaan sebenarnya.

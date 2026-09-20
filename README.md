@@ -16,8 +16,10 @@ RegulaGraph-ID/
 │   ├── benchmark-targets.yaml
 │   ├── evaluation.yaml
 │   ├── ingestion.yaml
+│   ├── listings.txt
 │   ├── README.md
-│   └── retrieval.yaml
+│   ├── retrieval.yaml
+│   └── sources.txt
 ├── data/
 │   └── README.md
 ├── deployment/
@@ -31,6 +33,7 @@ RegulaGraph-ID/
 │   │   ├── 0004-product-source-layout.md
 │   │   ├── 0005-complete-system-design.md
 │   │   └── README.md
+│   ├── acquisition.md
 │   ├── architecture.md
 │   ├── benchmark-policy.md
 │   ├── benchmark-targets.md
@@ -185,6 +188,7 @@ RegulaGraph-ID/
 │   │   │   │   └── README.md
 │   │   │   ├── cli/
 │   │   │   │   ├── main.go
+│   │   │   │   ├── main_test.go
 │   │   │   │   └── README.md
 │   │   │   └── README.md
 │   │   ├── internal/
@@ -246,6 +250,12 @@ RegulaGraph-ID/
 │   │   │   │   └── README.md
 │   │   │   ├── ingestion/
 │   │   │   │   ├── sources/
+│   │   │   │   │   ├── collector_test.go
+│   │   │   │   │   ├── download.go
+│   │   │   │   │   ├── html.go
+│   │   │   │   │   ├── http.go
+│   │   │   │   │   ├── inventory.go
+│   │   │   │   │   ├── listing.go
 │   │   │   │   │   ├── local.go
 │   │   │   │   │   ├── official.go
 │   │   │   │   │   └── README.md
@@ -268,11 +278,16 @@ RegulaGraph-ID/
 │   │   │   │   └── reranking.go
 │   │   │   ├── workflows/
 │   │   │   │   ├── answer.go
+│   │   │   │   ├── collect.go
+│   │   │   │   ├── collect_test.go
+│   │   │   │   ├── discover.go
+│   │   │   │   ├── discover_test.go
 │   │   │   │   ├── ingest.go
 │   │   │   │   ├── README.md
 │   │   │   │   └── update.go
 │   │   │   └── README.md
 │   │   ├── go.mod
+│   │   ├── go.sum
 │   │   └── README.md
 │   └── README.md
 ├── tests/
@@ -318,9 +333,13 @@ Fusion, filter, context builder, serta citation tetap di proses Go yang sama. Pa
 
 [Deployment](deployment/README.md) menentukan packaging dan wiring runtime. Compose berada di deployment/docker-compose.yml dan masih memiliki services kosong; belum tersedia Dockerfile atau layanan aktif. Workspace manifest tetap di root, sementara evaluation/tooling dijalankan offline.
 
+## Akuisisi PDF dan metadata
+
+Collector D01 sudah aktif untuk input batch URL dan discovery terbatas BPK/Kemkomdigi. Jalankan `go run ./src/server/cmd/cli collect -input configs/sources.txt` untuk mengunduh contoh PDF ke data/acquisition beserta metadata dan checksum. Run ulang memakai resume; `-refresh` memeriksa sumber kembali. Lihat [panduan akuisisi](doc/acquisition.md) untuk opsi dan batas dukungan JDIHN. Pipeline OCR/graph/retrieval serta kontrak produksi masih scaffold.
+
 ## Build scaffold
 
-Dari root repositori, gunakan toolchain Go 1.22+, Rust edition 2021, Python 3.11+, serta CMake 3.20+ dengan compiler C++17. Tidak diperlukan model atau SDK database untuk build scaffold.
+Dari root repositori, gunakan toolchain Go 1.26+ (toolchain workspace 1.26.8), Rust edition 2021, Python 3.11+, serta CMake 3.20+ dengan compiler C++17. Tidak diperlukan model atau SDK database untuk build scaffold.
 
 ```text
 go build ./src/server/...
@@ -329,7 +348,7 @@ cmake -S src/inference -B .cache/inference-src
 cmake --build .cache/inference-src --config Release
 ```
 
-Build Go memvalidasi package dan entry point; entry point API/CLI hanya menampilkan status scaffold lalu keluar dengan kode 2. Rust saat ini berupa library dengan module tree, belum executable worker. C++ menghasilkan static library scaffold tanpa ONNX runtime atau model. Protobuf hanya mendeklarasikan syntax/package; codegen dan bentuk field belum tersedia. Packaging Python dalam pyproject.toml hanya mencakup evaluation dan tooling.
+Build Go memvalidasi package dan entry point; entry point API tetap scaffold, sedangkan CLI collect sudah mengunduh PDF nyata dan metadata sumber. Rust saat ini berupa library dengan module tree, belum executable worker. C++ menghasilkan static library scaffold tanpa ONNX runtime atau model. Protobuf hanya mendeklarasikan syntax/package; codegen dan bentuk field belum tersedia. Packaging Python dalam pyproject.toml hanya mencakup evaluation dan tooling.
 
 ## Performa dan benchmark
 

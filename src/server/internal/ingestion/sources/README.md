@@ -14,7 +14,11 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
-Berkas: [local.go](local.go), [official.go](official.go).
+Berkas: [local.go](local.go), [official.go](official.go), [inventory.go](inventory.go), [http.go](http.go), [html.go](html.go), [download.go](download.go), [collector_test.go](collector_test.go), [listing.go](listing.go).
+
+Collector D01 aktif untuk metadata detail dan PDF sumber: official mengatur satu sumber, http mengatur akses/retry/rate serta discovery terbatas, html membaca metadata/tautan, download menyimpan blob/checksum/receipt, dan inventory mendefinisikan format artefak lokal. Workflow Go memanggil collector ini dengan concurrency terbatas. Adapter local.go dan kontrak produksi C01 tetap belum diimplementasikan. Lihat [panduan penggunaan](../../../../../doc/acquisition.md).
+
+listing.go mengambil HTML katalog saja, menyimpan hash/HTML sumber serta judul tautan untuk workflow discover. Tidak mengikuti tautan PDF. Parser mendukung link detail /doc/ JDIHN; ini belum berarti adapter unduhan/metadata JDIHN lengkap.
 
 ## Benchmark dan perhatian performa
 
@@ -24,4 +28,4 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Ini adalah scaffold struktur, dokumentasi, dan build lintas bahasa. Belum ada pipeline, database adapter, transport worker, atau model yang aktif. Go entry point hanya memberi status scaffold; Rust dan C++ menyediakan target library; protobuf belum memiliki message/service; tooling Python belum menjalankan model. Keberhasilan build tidak menyatakan target latency atau akurasi tercapai.
+Ini adalah scaffold struktur, dokumentasi, dan build lintas bahasa. Belum ada pipeline, database adapter, transport worker, atau model yang aktif. API Go tetap scaffold; CLI collect sudah mengunduh PDF/metadata sumber; Rust dan C++ menyediakan target library; protobuf belum memiliki message/service; tooling Python belum menjalankan model. Keberhasilan build tidak menyatakan target latency atau akurasi tercapai.

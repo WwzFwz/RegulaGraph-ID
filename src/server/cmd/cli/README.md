@@ -8,13 +8,15 @@ Logika di luar cakupan ini ditempatkan pada komponen pemiliknya. Jika fungsi bar
 
 ## Peran dan integrasi anak
 
-Tidak menggandakan algoritma; command belum tersedia dan exit code scaffold adalah 2.
+Perintah collect sudah tersedia dan memanggil internal/workflows.CollectSources; CLI hanya memuat argumen/seed, merakit dependency, dan melaporkan output. Ia mengunduh PDF nyata serta metadata ke data/acquisition. Exit code 0 berarti seluruh input sukses/reused, 1 ada kegagalan, dan 2 kesalahan argumen. Perintah ingestion/update/query produksi belum tersedia. Lihat [panduan collector](../../../../doc/acquisition.md).
 
 Pertahankan source/canonical/provision-version/snapshot ID dan schema version lintas anak. Boundary runtime mengikuti [src/contracts](../../../contracts/README.md), dengan pekerjaan batch atau inference yang jelas. Perubahan bentuk data, error/status, serta offset sumber harus didokumentasikan bersama konsumennya; jangan menggandakan kebijakan publikasi di beberapa runtime.
 
 ## Isi saat ini
 
-Berkas: [main.go](main.go).
+Berkas: [main.go](main.go), [main_test.go](main_test.go).
+
+Perintah discover menerima seed katalog dan memanggil workflows.DiscoverSources untuk menghasilkan antrean persisten tanpa unduhan PDF. Input collect tetap URL detail/PDF; jangan menukar kedua jenis file. Lihat configs/listings.txt untuk seed katalog.
 
 ## Benchmark dan perhatian performa
 
@@ -24,4 +26,4 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-Ini adalah scaffold struktur, dokumentasi, dan build lintas bahasa. Belum ada pipeline, database adapter, transport worker, atau model yang aktif. Go entry point hanya memberi status scaffold; Rust dan C++ menyediakan target library; protobuf belum memiliki message/service; tooling Python belum menjalankan model. Keberhasilan build tidak menyatakan target latency atau akurasi tercapai.
+Ini adalah scaffold struktur, dokumentasi, dan build lintas bahasa. Belum ada pipeline, database adapter, transport worker, atau model yang aktif. API Go tetap scaffold; CLI collect sudah mengunduh PDF/metadata sumber; Rust dan C++ menyediakan target library; protobuf belum memiliki message/service; tooling Python belum menjalankan model. Keberhasilan build tidak menyatakan target latency atau akurasi tercapai.
