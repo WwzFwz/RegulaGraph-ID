@@ -98,19 +98,15 @@ func (e *ParseExecutor) executeClaimed(ctx context.Context, job domain.JobRecord
 	if err != nil {
 		return nil, e.finishAfterError(attemptCtx, job, fmt.Errorf("load ingestion request: %w", err))
 	}
-	var response *pb.ProcessBatchResponse
-	if job.Stage == pb.JobStage_JOB_STAGE_STRUCTURE {
-		var recovered bool
-		response, recovered, err = e.recoverStructureOutput(attemptCtx, job)
-		if err != nil {
-			if recovered {
-				return response, err
-			}
-			return nil, e.finishAfterError(attemptCtx, job, err)
-		}
+	response, recovered, recoveryErr := e.recoverDocumentOutput(attemptCtx, job)
+	if recoveryErr != nil {
 		if recovered {
-			return response, nil
+			return response, recoveryErr
 		}
+		return nil, e.finishAfterError(attemptCtx, job, recoveryErr)
+	}
+	if recovered {
+		return response, nil
 	}
 	batch, err := e.processRequest(attemptCtx, job, request)
 	if err != nil {
@@ -169,36 +165,39 @@ func (e *ParseExecutor) executeClaimed(ctx context.Context, job domain.JobRecord
 
 var errJobCancellationRequested = errors.New("durable job cancellation requested")
 
-// recoverStructureOutput closes the crash window between SaveCheckpoint and CompleteWorkerAttempt.
-// A reclaimed lease never reruns Rust when the prior STRUCTURE artifact is durably bound; it writes a
+// recoverDocumentOutput closes the crash window between SaveCheckpoint and CompleteWorkerAttempt.
+// A reclaimed lease never reruns Rust when a checkpoint durably binds both output and terminal outcome; it writes a
 // checkpoint carrying the new fence and completes the attempt through the normal cancellation gate.
-func (e *ParseExecutor) recoverStructureOutput(ctx context.Context, job domain.JobRecord) (*pb.ProcessBatchResponse, bool, error) {
+func (e *ParseExecutor) recoverDocumentOutput(ctx context.Context, job domain.JobRecord) (*pb.ProcessBatchResponse, bool, error) {
 	checkpoint, err := e.store.LoadLatestCheckpoint(ctx, job.JobID)
 	if errors.Is(err, domain.ErrNotFound) {
 		return nil, false, nil
 	}
 	if err != nil {
-		return nil, false, fmt.Errorf("load STRUCTURE recovery checkpoint: %w", err)
+		return nil, false, fmt.Errorf("load document recovery checkpoint: %w", err)
 	}
-	if checkpoint.Stage != pb.JobStage_JOB_STAGE_STRUCTURE {
+	if checkpoint.Stage != job.Stage {
+		return nil, false, nil
+	}
+	if checkpoint.TerminalStatus == pb.CompletionStatus_COMPLETION_STATUS_UNSPECIFIED {
 		return nil, false, nil
 	}
 	if checkpoint.GetMeta().GetCorpusId() != job.CorpusID || checkpoint.JobId != job.JobID || checkpoint.Fence == 0 ||
 		checkpoint.Fence >= job.LeaseFence || len(checkpoint.CompletedBatchKeys) != 1 || len(checkpoint.ArtifactHashes) != 1 {
-		return nil, false, status.Error(codes.FailedPrecondition, "reclaimed STRUCTURE checkpoint is inconsistent")
+		return nil, false, status.Error(codes.FailedPrecondition, "reclaimed document checkpoint is inconsistent")
 	}
 	artifact, err := e.store.LoadArtifact(ctx, job.CorpusID, checkpoint.CompletedBatchKeys[0])
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) || errors.Is(err, domain.ErrPersistentIntegrity) {
-			return nil, false, status.Error(codes.FailedPrecondition, fmt.Sprintf("load recovered STRUCTURE artifact: %v", err))
+			return nil, false, status.Error(codes.FailedPrecondition, fmt.Sprintf("load recovered document artifact: %v", err))
 		}
-		return nil, false, fmt.Errorf("load recovered STRUCTURE artifact: %w", err)
+		return nil, false, fmt.Errorf("load recovered document artifact: %w", err)
 	}
 	if artifact.GetContentHash() == nil || !proto.Equal(artifact.ContentHash, checkpoint.ArtifactHashes[0]) {
-		return nil, false, status.Error(codes.FailedPrecondition, "recovered STRUCTURE artifact differs from checkpoint")
+		return nil, false, status.Error(codes.FailedPrecondition, "recovered document artifact differs from checkpoint")
 	}
 	if requested, pollErr := e.store.CancellationRequested(ctx, job.JobID, job.LeaseOwner, job.LeaseFence); pollErr != nil {
-		return nil, false, fmt.Errorf("confirm STRUCTURE recovery cancellation: %w", pollErr)
+		return nil, false, fmt.Errorf("confirm document recovery cancellation: %w", pollErr)
 	} else if requested {
 		return nil, false, errJobCancellationRequested
 	}
@@ -211,19 +210,23 @@ func (e *ParseExecutor) recoverStructureOutput(ctx context.Context, job domain.J
 	response := &pb.ProcessBatchResponse{
 		RequestId: requestID, JobId: job.JobID, Attempt: job.Attempt, Fence: job.LeaseFence,
 		Checkpoint: recoveredCheckpoint, DocumentBatch: proto.Clone(artifact).(*pb.ArtifactRef),
-		Status: pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED,
+		Status: checkpoint.TerminalStatus,
 	}
 	if err = domain.ValidateWire(response, domain.DefaultWireLimits); err != nil {
-		return nil, false, status.Error(codes.FailedPrecondition, fmt.Sprintf("recovered STRUCTURE response is invalid: %v", err))
+		return nil, false, status.Error(codes.FailedPrecondition, fmt.Sprintf("recovered document response is invalid: %v", err))
 	}
 	if err = e.store.SaveCheckpoint(ctx, recoveredCheckpoint, job.LeaseOwner); err != nil {
-		return nil, false, fmt.Errorf("save recovered STRUCTURE checkpoint: %w", err)
+		return nil, false, fmt.Errorf("save recovered document checkpoint: %w", err)
 	}
-	actual, err := e.store.CompleteWorkerAttempt(ctx, job.JobID, job.LeaseOwner, job.LeaseFence, pb.JobState_JOB_STATE_STAGED, 0)
+	next, err := terminalState(checkpoint.TerminalStatus)
 	if err != nil {
-		return nil, true, fmt.Errorf("complete recovered STRUCTURE attempt: %w", err)
+		return nil, false, status.Error(codes.FailedPrecondition, err.Error())
 	}
-	if actual == pb.JobState_JOB_STATE_CANCELLED {
+	actual, err := e.store.CompleteWorkerAttempt(ctx, job.JobID, job.LeaseOwner, job.LeaseFence, next, 0)
+	if err != nil {
+		return nil, true, fmt.Errorf("complete recovered document attempt: %w", err)
+	}
+	if actual == pb.JobState_JOB_STATE_CANCELLED && next != pb.JobState_JOB_STATE_CANCELLED {
 		return response, true, errJobCancellationRequested
 	}
 	return response, true, nil

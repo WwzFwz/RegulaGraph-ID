@@ -121,7 +121,7 @@ func (w *parseWorkerFake) ProcessBatch(ctx context.Context, request *pb.ProcessB
 		Meta:  &pb.RecordMeta{SchemaVersion: 1, CorpusId: request.Context.CorpusId, RecordId: "checkpoint:fixture"},
 		JobId: request.JobId, Stage: request.Stages[0],
 		CompletedBatchKeys: []string{artifact.ArtifactId}, ArtifactHashes: []*pb.ContentHash{proto.Clone(artifact.ContentHash).(*pb.ContentHash)},
-		Manifest: parseManifest(), Fence: request.Lease.Fence,
+		Manifest: parseManifest(), Fence: request.Lease.Fence, TerminalStatus: w.completion,
 	}
 	response := &pb.ProcessBatchResponse{
 		RequestId: request.Context.RequestId, JobId: request.JobId, Attempt: request.Attempt,
@@ -150,7 +150,7 @@ func TestStructureExecutorUsesCheckpointBoundDocumentBatch(t *testing.T) {
 		JobId: store.job.JobID, Stage: pb.JobStage_JOB_STAGE_PARSE,
 		CompletedBatchKeys: []string{store.priorArtifact.ArtifactId},
 		ArtifactHashes:     []*pb.ContentHash{proto.Clone(store.priorArtifact.ContentHash).(*pb.ContentHash)},
-		Manifest:           parseManifest(), Fence: 1,
+		Manifest:           parseManifest(), Fence: 1, TerminalStatus: pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED,
 	}
 	worker := &parseWorkerFake{completion: pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED}
 	executor, _ := NewParseExecutor(store, worker, parseExecutorConfig())
@@ -180,7 +180,7 @@ func TestStructureExecutorRecoversCheckpointWithoutRerunningWorker(t *testing.T)
 		JobId: store.job.JobID, Stage: pb.JobStage_JOB_STAGE_STRUCTURE, Fence: 2,
 		CompletedBatchKeys: []string{store.priorArtifact.ArtifactId},
 		ArtifactHashes:     []*pb.ContentHash{proto.Clone(store.priorArtifact.ContentHash).(*pb.ContentHash)},
-		Manifest:           parseManifest(),
+		Manifest:           parseManifest(), TerminalStatus: pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED,
 	}
 	worker := &parseWorkerFake{completion: pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED}
 	executor, _ := NewParseExecutor(store, worker, parseExecutorConfig())
@@ -199,6 +199,58 @@ func TestStructureExecutorRecoversCheckpointWithoutRerunningWorker(t *testing.T)
 	}
 }
 
+func TestParseExecutorRecoversFailedOutcomeWithoutRerunningWorker(t *testing.T) {
+	store := parseFixtureStore(false)
+	store.job.Attempt = 2
+	store.job.StageAttempt = 1
+	store.job.LeaseFence = 2
+	store.priorArtifact = parseArtifact("document-batch:partial", "objects/partial.pb", "d")
+	store.priorArtifact.MediaType = "application/vnd.regulagraph.document-batch+protobuf"
+	store.priorCheckpoint = &pb.Checkpoint{
+		Meta:  &pb.RecordMeta{SchemaVersion: 1, CorpusId: store.job.CorpusID, RecordId: "checkpoint:parse:partial"},
+		JobId: store.job.JobID, Stage: pb.JobStage_JOB_STAGE_PARSE, Fence: 1,
+		CompletedBatchKeys: []string{store.priorArtifact.ArtifactId},
+		ArtifactHashes:     []*pb.ContentHash{proto.Clone(store.priorArtifact.ContentHash).(*pb.ContentHash)},
+		Manifest:           parseManifest(), TerminalStatus: pb.CompletionStatus_COMPLETION_STATUS_FAILED,
+	}
+	worker := &parseWorkerFake{}
+	executor, _ := NewParseExecutor(store, worker, parseExecutorConfig())
+	_, response, err := executor.RunOnce(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if worker.calls != 0 || response.Status != pb.CompletionStatus_COMPLETION_STATUS_FAILED {
+		t.Fatalf("PARSE recovery reran worker or changed outcome: calls=%d response=%v", worker.calls, response)
+	}
+	if got := store.transitions; len(got) != 1 || got[0] != pb.JobState_JOB_STATE_WAITING_REVIEW {
+		t.Fatalf("partial PARSE recovery was not routed to review: %v", got)
+	}
+}
+
+func TestParseExecutorRerunsLegacyCheckpointWithoutTerminalOutcome(t *testing.T) {
+	store := parseFixtureStore(false)
+	store.job.Attempt = 2
+	store.job.StageAttempt = 2
+	store.job.LeaseFence = 2
+	store.priorCheckpoint = &pb.Checkpoint{
+		Meta:  &pb.RecordMeta{SchemaVersion: 1, CorpusId: store.job.CorpusID, RecordId: "checkpoint:parse:legacy"},
+		JobId: store.job.JobID, Stage: pb.JobStage_JOB_STAGE_PARSE, Fence: 1,
+		Manifest: parseManifest(),
+	}
+	worker := &parseWorkerFake{completion: pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED}
+	executor, _ := NewParseExecutor(store, worker, parseExecutorConfig())
+	_, response, err := executor.RunOnce(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if worker.calls != 1 || response.Status != pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED {
+		t.Fatalf("legacy checkpoint was inferred as terminal: calls=%d response=%v", worker.calls, response)
+	}
+	if got := store.transitions; len(got) != 1 || got[0] != pb.JobState_JOB_STATE_STAGED {
+		t.Fatalf("legacy checkpoint rerun did not use the worker outcome: %v", got)
+	}
+}
+
 func TestStructureExecutorRejectsMismatchedRecoveryArtifact(t *testing.T) {
 	store := parseFixtureStore(false)
 	store.claimParseErr = domain.ErrLeaseUnavailable
@@ -211,7 +263,7 @@ func TestStructureExecutorRejectsMismatchedRecoveryArtifact(t *testing.T) {
 		Meta:  &pb.RecordMeta{SchemaVersion: 1, CorpusId: store.job.CorpusID, RecordId: "checkpoint:structure:prior"},
 		JobId: store.job.JobID, Stage: pb.JobStage_JOB_STAGE_STRUCTURE, Fence: 2,
 		CompletedBatchKeys: []string{store.priorArtifact.ArtifactId}, ArtifactHashes: []*pb.ContentHash{parseHash("f")},
-		Manifest: parseManifest(),
+		Manifest: parseManifest(), TerminalStatus: pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED,
 	}
 	worker := &parseWorkerFake{}
 	executor, _ := NewParseExecutor(store, worker, parseExecutorConfig())

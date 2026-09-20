@@ -28,7 +28,9 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 Fondasi S01 untuk schema migration, artifact metadata/dependency, durable jobs, retry availability dan budget per stage, handoff PARSE→STRUCTURE, publication ledger, active-snapshot pointer, dan read lease telah aktif. Ini adalah control-plane visibility/pinning; filter visibility per record pada Neo4j/Qdrant masih milik X01/Q01. Integration suite membuktikan jalur utama terhadap PostgreSQL aktual; hasil serta keterbatasannya dicatat dalam laporan verifikasi S01/I01. Canonical resolution tingkat lanjut, dependency closure U01, backend mutation, retention/GC, dan benchmark performa masih mengikuti paket pemiliknya.
 
-Checkpoint STRUCTURE yang telah mengikat output dapat direkonsiliasi setelah lease kedaluwarsa tanpa menambah budget stage, termasuk pada attempt maksimum. PARSE belum memiliki terminal outcome durable yang membedakan batch lengkap dari batch parsial; checkpoint PARSE karena itu tidak mendapat jalur sukses recovery yang sama.
+Checkpoint PARSE dan STRUCTURE kini menyimpan terminal outcome di payload dan kolom terpisah. Setelah lease kedaluwarsa, coordinator dapat merekonsiliasi output sukses, parsial, atau dibatalkan tanpa menambah budget stage, termasuk pada attempt maksimum. Ketidaksesuaian payload/kolom ditolak sebagai integrity error; checkpoint lama dengan outcome `NULL` tidak recovery-eligible dan tidak dianggap sukses.
+
+Rollout harus menjaga migration 0004, worker Rust, dan coordinator Go dalam satu compatibility window: migration diterapkan sebelum producer baru menulis outcome, coordinator baru menerima row legacy `NULL` secara fail-safe, dan worker lama tidak boleh dipasangkan dengan guard response baru sebagai jalur produksi. Rollback aplikasi tetap mempertahankan kolom nullable; migration yang sudah tercatat tidak diedit atau diturunkan secara in-place.
 
 ## Rekomendasi implementasi anak
 

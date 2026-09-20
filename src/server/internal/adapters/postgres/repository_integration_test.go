@@ -507,13 +507,102 @@ func TestStorageFoundationAgainstPostgres(t *testing.T) {
 	if err != nil || recoveryClaim.Attempt != 3 || recoveryClaim.StageAttempt != 1 || recoveryClaim.LeaseFence <= structureClaim.LeaseFence {
 		t.Fatalf("claim final-attempt STRUCTURE recovery=%+v err=%v", recoveryClaim, err)
 	}
+
+	partialCorpus, partialJob := "partial-corpus-"+suffix, "partial-job-"+suffix
+	partialRequest := ingestionRequestFixture(partialCorpus, "partial-request-"+suffix, "https://example.test/partial.pdf")
+	partialPayload, marshalErr := proto.MarshalOptions{Deterministic: true}.Marshal(partialRequest)
+	if marshalErr != nil {
+		t.Fatal(marshalErr)
+	}
+	partialDigest := sha256.Sum256(partialPayload)
+	if _, _, err = repo.SubmitJob(ctx, JobIntent{
+		JobID: partialJob, CorpusID: partialCorpus, Operation: pb.JobOperation_JOB_OPERATION_INGEST,
+		InitialStage: pb.JobStage_JOB_STAGE_PARSE, InputFingerprint: ingestionFingerprint(t, partialRequest),
+		IdempotencyKey: partialRequest.IdempotencyKey, RequestHash: hex.EncodeToString(partialDigest[:]), RequestPayload: partialPayload,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = repo.pool.Exec(ctx, `UPDATE jobs SET max_attempts=1 WHERE job_id=$1`, partialJob); err != nil {
+		t.Fatal(err)
+	}
+	partialClaim, err := repo.ClaimParseJob(ctx, "worker-partial", time.Minute)
+	if err != nil || partialClaim.JobID != partialJob || partialClaim.StageAttempt != 1 {
+		t.Fatalf("claim partial PARSE job=%+v err=%v", partialClaim, err)
+	}
+	partialOutput := &pb.ArtifactRef{ArtifactId: "document-batch-partial-" + suffix,
+		ContentHash: &pb.ContentHash{Sha256: strings.Repeat("8", 64)}, StorageKey: "objects/document-batch-partial-" + suffix,
+		MediaType: "application/vnd.regulagraph.document-batch+protobuf", ByteSize: 12, SchemaVersion: 1}
+	if err = repo.RegisterArtifact(ctx, partialCorpus, partialOutput); err != nil {
+		t.Fatal(err)
+	}
+	partialCheckpoint := checkpointFixture(partialCorpus, partialJob, partialClaim.LeaseFence)
+	partialCheckpoint.Meta.RecordId = "checkpoint-partial-" + suffix
+	partialCheckpoint.TerminalStatus = pb.CompletionStatus_COMPLETION_STATUS_FAILED
+	partialCheckpoint.CompletedBatchKeys = []string{partialOutput.ArtifactId}
+	partialCheckpoint.ArtifactHashes = []*pb.ContentHash{proto.Clone(partialOutput.ContentHash).(*pb.ContentHash)}
+	if err = repo.SaveCheckpoint(ctx, partialCheckpoint, partialClaim.LeaseOwner); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = repo.pool.Exec(ctx, `UPDATE jobs SET lease_expires_at=clock_timestamp()-interval '1 second' WHERE job_id=$1`, partialJob); err != nil {
+		t.Fatal(err)
+	}
+	partialRecovery, err := repo.ClaimParseJob(ctx, "worker-partial-recovery", time.Minute)
+	if err != nil || partialRecovery.JobID != partialJob || partialRecovery.Attempt != 2 || partialRecovery.StageAttempt != 1 || partialRecovery.LeaseFence <= partialClaim.LeaseFence {
+		t.Fatalf("claim final-attempt partial PARSE recovery=%+v err=%v", partialRecovery, err)
+	}
+	if actual, err = repo.CompleteWorkerAttempt(ctx, partialJob, partialRecovery.LeaseOwner, partialRecovery.LeaseFence,
+		pb.JobState_JOB_STATE_WAITING_REVIEW, 0); err != nil || actual != pb.JobState_JOB_STATE_WAITING_REVIEW {
+		t.Fatalf("complete partial PARSE recovery state=%s err=%v", actual, err)
+	}
+
+	legacyCorpus, legacyJob := "legacy-corpus-"+suffix, "legacy-job-"+suffix
+	legacyRequest := ingestionRequestFixture(legacyCorpus, "legacy-request-"+suffix, "https://example.test/legacy.pdf")
+	legacyPayload, marshalErr := proto.MarshalOptions{Deterministic: true}.Marshal(legacyRequest)
+	if marshalErr != nil {
+		t.Fatal(marshalErr)
+	}
+	legacyDigest := sha256.Sum256(legacyPayload)
+	if _, _, err = repo.SubmitJob(ctx, JobIntent{
+		JobID: legacyJob, CorpusID: legacyCorpus, Operation: pb.JobOperation_JOB_OPERATION_INGEST,
+		InitialStage: pb.JobStage_JOB_STAGE_PARSE, InputFingerprint: ingestionFingerprint(t, legacyRequest),
+		IdempotencyKey: legacyRequest.IdempotencyKey, RequestHash: hex.EncodeToString(legacyDigest[:]), RequestPayload: legacyPayload,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = repo.pool.Exec(ctx, `UPDATE jobs SET max_attempts=1 WHERE job_id=$1`, legacyJob); err != nil {
+		t.Fatal(err)
+	}
+	legacyClaim, err := repo.ClaimParseJob(ctx, "worker-legacy", time.Minute)
+	if err != nil || legacyClaim.JobID != legacyJob {
+		t.Fatalf("claim legacy PARSE job=%+v err=%v", legacyClaim, err)
+	}
+	legacyCheckpoint := checkpointFixture(legacyCorpus, legacyJob, legacyClaim.LeaseFence)
+	legacyCheckpoint.Meta.RecordId = "checkpoint-legacy-" + suffix
+	legacyCheckpoint.TerminalStatus = pb.CompletionStatus_COMPLETION_STATUS_UNSPECIFIED
+	if err = repo.SaveCheckpoint(ctx, legacyCheckpoint, legacyClaim.LeaseOwner); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = repo.pool.Exec(ctx, `UPDATE jobs SET lease_expires_at=clock_timestamp()-interval '1 second' WHERE job_id=$1`, legacyJob); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = repo.ClaimParseJob(ctx, "worker-legacy-recovery", time.Minute); !errors.Is(err, ErrLeaseUnavailable) {
+		t.Fatalf("legacy checkpoint without terminal outcome was recovery-eligible: %v", err)
+	}
+	var legacyState int16
+	if err = repo.pool.QueryRow(ctx, `SELECT state FROM jobs WHERE job_id=$1`, legacyJob).Scan(&legacyState); err != nil {
+		t.Fatal(err)
+	}
+	if pb.JobState(legacyState) != pb.JobState_JOB_STATE_FAILED {
+		t.Fatalf("legacy checkpoint at exhausted budget was not failed: %s", pb.JobState(legacyState))
+	}
 }
 
 func checkpointFixture(corpusID, jobID string, fence uint64) *pb.Checkpoint {
 	hash := &pb.ContentHash{Sha256: strings.Repeat("c", 64)}
 	return &pb.Checkpoint{Meta: &pb.RecordMeta{SchemaVersion: 1, CorpusId: corpusID, RecordId: "checkpoint-current-" + jobID},
 		JobId: jobID, Stage: pb.JobStage_JOB_STAGE_PARSE, Fence: fence,
-		Manifest: &pb.ProducerManifest{Software: "s01-test", Build: "test", SchemaVersion: 1, ConfigHash: hash}}
+		TerminalStatus: pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED,
+		Manifest:       &pb.ProducerManifest{Software: "s01-test", Build: "test", SchemaVersion: 1, ConfigHash: hash}}
 }
 
 func publicationFixture(corpusID, publicationID, snapshotID string, sequence, fence uint64, parent *pb.SnapshotRef) *pb.PublicationManifest {

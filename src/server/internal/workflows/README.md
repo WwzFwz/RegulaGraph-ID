@@ -32,7 +32,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 Collector D01, kontrak/validator C01, scheduler durable S01, serta dispatch PARSE→STRUCTURE ke worker Rust sudah aktif. Retry transient memakai exponential backoff durable dengan budget terpisah per stage; attempt global dan fence tetap monotonik. Coordinator memproses satu batch per loop dan mensyaratkan timeout call lebih pendek dari lease. Lease renewal batch panjang, jitter retry, registry provision/version, CHUNK dan stage berikutnya, answering, serta benchmark end-to-end masih mengikuti paket berikutnya.
 
-Recovery checkpoint otomatis saat ini hanya berlaku untuk STRUCTURE, karena output stage tersebut selalu berasal dari input PARSE lengkap dan sukses. Checkpoint PARSE dapat mewakili hasil parsial/FAILED; sampai terminal outcome disimpan secara durable, coordinator tidak boleh menebak checkpoint PARSE sebagai sukses. Crash PARSE sesudah checkpoint pada attempt terakhir dapat berakhir FAILED dan harus ditutup pada pekerjaan recovery berikutnya.
+Recovery checkpoint otomatis berlaku untuk PARSE dan STRUCTURE karena checkpoint mengikat artefak, hash, fence, serta terminal outcome worker. Lease yang diambil ulang menyalin checkpoint ke fence baru lalu meneruskan `SUCCEEDED`, `FAILED`, atau `CANCELLED` ke state yang sesuai tanpa menjalankan worker kembali. Checkpoint lama tanpa terminal outcome tidak ditebak dan hanya dapat diulang bila budget attempt masih tersedia.
 
 ## Rekomendasi implementasi anak
 

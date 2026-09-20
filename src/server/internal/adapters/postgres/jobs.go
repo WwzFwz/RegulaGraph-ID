@@ -148,7 +148,8 @@ func (r *Repository) ClaimStructureJob(ctx context.Context, ownerID string, leas
 	if _, err := r.pool.Exec(ctx, `WITH exhausted AS (
 		SELECT job_id FROM jobs WHERE stage=$2 AND stage_attempt>=max_attempts AND
 		(state=$3 OR (state=$4 AND lease_expires_at < clock_timestamp())) AND NOT EXISTS (
-		  SELECT 1 FROM job_checkpoints c WHERE c.checkpoint_id=jobs.latest_checkpoint_id AND c.stage=$2)
+		  SELECT 1 FROM job_checkpoints c WHERE c.checkpoint_id=jobs.latest_checkpoint_id AND c.stage=$2
+		    AND c.terminal_status IS NOT NULL)
 		ORDER BY updated_at,job_id FOR UPDATE SKIP LOCKED LIMIT 64)
 		UPDATE jobs j SET state=CASE WHEN j.cancellation_requested THEN $5::smallint ELSE $1::smallint END,
 		lease_owner=NULL,lease_expires_at=NULL,updated_at=clock_timestamp()
@@ -161,14 +162,17 @@ func (r *Repository) ClaimStructureJob(ctx context.Context, ownerID string, leas
 	row := r.pool.QueryRow(ctx, `WITH candidate AS (
 		SELECT job_id,stage,state,EXISTS (
 		  SELECT 1 FROM job_checkpoints c WHERE c.checkpoint_id=jobs.latest_checkpoint_id AND c.stage=$7
+		    AND c.terminal_status IS NOT NULL
 		) AS recovery_ready FROM jobs
 		WHERE cancellation_requested=false AND (
 		  (stage=$5 AND state=$6) OR
 		  (stage=$7 AND ((state=$1 AND (stage_attempt < max_attempts OR EXISTS (
-		      SELECT 1 FROM job_checkpoints c WHERE c.checkpoint_id=jobs.latest_checkpoint_id AND c.stage=$7))
+		      SELECT 1 FROM job_checkpoints c WHERE c.checkpoint_id=jobs.latest_checkpoint_id AND c.stage=$7
+		        AND c.terminal_status IS NOT NULL))
 		      AND next_attempt_at <= clock_timestamp()) OR
 		    (state=$2 AND lease_expires_at < clock_timestamp() AND (stage_attempt < max_attempts OR EXISTS (
-		      SELECT 1 FROM job_checkpoints c WHERE c.checkpoint_id=jobs.latest_checkpoint_id AND c.stage=$7))))))
+		      SELECT 1 FROM job_checkpoints c WHERE c.checkpoint_id=jobs.latest_checkpoint_id AND c.stage=$7
+		        AND c.terminal_status IS NOT NULL))))))
 		ORDER BY created_at,job_id FOR UPDATE SKIP LOCKED LIMIT 1)
 		UPDATE jobs j SET state=$2,stage=$7,
 		attempt=j.attempt+1,stage_attempt=CASE WHEN c.stage=$5 AND c.state=$6 THEN 1
@@ -203,7 +207,9 @@ func (r *Repository) ClaimParseJob(ctx context.Context, ownerID string, leaseDur
 	}
 	if _, err := r.pool.Exec(ctx, `WITH exhausted AS (
 		SELECT job_id FROM jobs WHERE stage=$2 AND stage_attempt>=max_attempts AND
-		(state=$3 OR (state=$4 AND lease_expires_at < clock_timestamp()))
+		(state=$3 OR (state=$4 AND lease_expires_at < clock_timestamp())) AND NOT EXISTS (
+		  SELECT 1 FROM job_checkpoints c WHERE c.checkpoint_id=jobs.latest_checkpoint_id AND c.stage=$2
+		    AND c.terminal_status IS NOT NULL)
 		ORDER BY updated_at,job_id FOR UPDATE SKIP LOCKED LIMIT 64)
 		UPDATE jobs j SET state=CASE WHEN j.cancellation_requested THEN $5::smallint ELSE $1::smallint END,
 		lease_owner=NULL,lease_expires_at=NULL,updated_at=clock_timestamp()
@@ -214,15 +220,23 @@ func (r *Repository) ClaimParseJob(ctx context.Context, ownerID string, leaseDur
 		return JobRecord{}, fmt.Errorf("finalize exhausted PARSE jobs: %w", err)
 	}
 	row := r.pool.QueryRow(ctx, `WITH candidate AS (
-		SELECT job_id FROM jobs
+		SELECT job_id,EXISTS (
+		  SELECT 1 FROM job_checkpoints c WHERE c.checkpoint_id=jobs.latest_checkpoint_id AND c.stage=$6
+		    AND c.terminal_status IS NOT NULL
+		) AS recovery_ready FROM jobs
         WHERE cancellation_requested=false
           AND stage=$6
-		  AND (state IN ($1,$2) OR (state=$3 AND lease_expires_at < clock_timestamp()))
-		  AND stage_attempt < max_attempts
-		  AND (state<>$2 OR next_attempt_at <= clock_timestamp())
+		  AND (state=$1 OR
+		    (state=$2 AND next_attempt_at <= clock_timestamp() AND (stage_attempt < max_attempts OR EXISTS (
+		      SELECT 1 FROM job_checkpoints c WHERE c.checkpoint_id=jobs.latest_checkpoint_id AND c.stage=$6
+		        AND c.terminal_status IS NOT NULL))) OR
+		    (state=$3 AND lease_expires_at < clock_timestamp() AND (stage_attempt < max_attempts OR EXISTS (
+		      SELECT 1 FROM job_checkpoints c WHERE c.checkpoint_id=jobs.latest_checkpoint_id AND c.stage=$6
+		        AND c.terminal_status IS NOT NULL))))
         ORDER BY created_at, job_id
         FOR UPDATE SKIP LOCKED LIMIT 1)
-		UPDATE jobs j SET state=$3,attempt=j.attempt+1,stage_attempt=j.stage_attempt+1,lease_owner=$4,
+		UPDATE jobs j SET state=$3,attempt=j.attempt+1,
+		stage_attempt=CASE WHEN c.recovery_ready THEN j.stage_attempt ELSE j.stage_attempt+1 END,lease_owner=$4,
         lease_fence=j.lease_fence+1,lease_expires_at=clock_timestamp()+$5::interval,
         updated_at=clock_timestamp()
       FROM candidate c WHERE j.job_id=c.job_id
@@ -318,13 +332,15 @@ func (r *Repository) CompleteWorkerAttempt(ctx context.Context, jobID, ownerID s
 	var actual int16
 	err := r.pool.QueryRow(ctx, `UPDATE jobs SET
 		state=CASE WHEN cancellation_requested THEN $6::smallint
-			WHEN $5::smallint=$7::smallint AND stage_attempt>=max_attempts AND NOT (jobs.stage=$10::smallint AND EXISTS (
-			  SELECT 1 FROM job_checkpoints c WHERE c.checkpoint_id=jobs.latest_checkpoint_id AND c.stage=jobs.stage))
+			WHEN $5::smallint=$7::smallint AND stage_attempt>=max_attempts AND NOT EXISTS (
+			  SELECT 1 FROM job_checkpoints c WHERE c.checkpoint_id=jobs.latest_checkpoint_id
+			    AND c.stage=jobs.stage AND c.terminal_status IS NOT NULL)
 			THEN $8::smallint ELSE $5::smallint END,
 		updated_at=clock_timestamp(),
 		next_attempt_at=CASE WHEN NOT cancellation_requested AND $5::smallint=$7::smallint
-			AND (stage_attempt<max_attempts OR (jobs.stage=$10::smallint AND EXISTS (
-			  SELECT 1 FROM job_checkpoints c WHERE c.checkpoint_id=jobs.latest_checkpoint_id AND c.stage=jobs.stage)))
+			AND (stage_attempt<max_attempts OR EXISTS (
+			  SELECT 1 FROM job_checkpoints c WHERE c.checkpoint_id=jobs.latest_checkpoint_id
+			    AND c.stage=jobs.stage AND c.terminal_status IS NOT NULL))
 			THEN clock_timestamp()+$9::bigint*interval '1 microsecond' ELSE '-infinity'::timestamptz END,
 		lease_owner=CASE WHEN cancellation_requested OR $5::smallint IN (3,7,8,9,10) THEN NULL ELSE lease_owner END,
 		lease_expires_at=CASE WHEN cancellation_requested OR $5::smallint IN (3,7,8,9,10) THEN NULL ELSE lease_expires_at END
@@ -332,8 +348,7 @@ func (r *Repository) CompleteWorkerAttempt(ctx context.Context, jobID, ownerID s
 		AND lease_expires_at >= clock_timestamp()
 		RETURNING state`, jobID, ownerID, int64(fence), int16(pb.JobState_JOB_STATE_RUNNING),
 		int16(desired), int16(pb.JobState_JOB_STATE_CANCELLED), int16(pb.JobState_JOB_STATE_RETRY_WAIT),
-		int16(pb.JobState_JOB_STATE_FAILED), retryMicroseconds,
-		int16(pb.JobStage_JOB_STAGE_STRUCTURE)).Scan(&actual)
+		int16(pb.JobState_JOB_STATE_FAILED), retryMicroseconds).Scan(&actual)
 	if err == pgx.ErrNoRows {
 		return pb.JobState_JOB_STATE_UNSPECIFIED, ErrStaleFence
 	}
@@ -346,6 +361,14 @@ func (r *Repository) CompleteWorkerAttempt(ctx context.Context, jobID, ownerID s
 func (r *Repository) SaveCheckpoint(ctx context.Context, checkpoint *pb.Checkpoint, ownerID string) error {
 	if checkpoint == nil || checkpoint.GetMeta() == nil || checkpoint.GetJobId() == "" || checkpoint.GetFence() == 0 {
 		return errors.New("complete checkpoint required")
+	}
+	switch checkpoint.TerminalStatus {
+	case pb.CompletionStatus_COMPLETION_STATUS_UNSPECIFIED,
+		pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED,
+		pb.CompletionStatus_COMPLETION_STATUS_FAILED,
+		pb.CompletionStatus_COMPLETION_STATUS_CANCELLED:
+	default:
+		return errors.New("valid checkpoint terminal status required")
 	}
 	payload, err := proto.MarshalOptions{Deterministic: true}.Marshal(checkpoint)
 	if err != nil {
@@ -373,9 +396,9 @@ func (r *Repository) SaveCheckpoint(ctx context.Context, checkpoint *pb.Checkpoi
 	if int16(checkpoint.Stage) < currentStage {
 		return fmt.Errorf("checkpoint stage regressed: %w", ErrConflict)
 	}
-	tag, err := tx.Exec(ctx, `INSERT INTO job_checkpoints(checkpoint_id,job_id,stage,fence,payload,payload_hash)
-      VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (checkpoint_id) DO NOTHING`, checkpoint.Meta.RecordId,
-		checkpoint.JobId, int16(checkpoint.Stage), int64(checkpoint.Fence), payload, digest)
+	tag, err := tx.Exec(ctx, `INSERT INTO job_checkpoints(checkpoint_id,job_id,stage,fence,payload,payload_hash,terminal_status)
+      VALUES ($1,$2,$3,$4,$5,$6,NULLIF($7::smallint,0)) ON CONFLICT (checkpoint_id) DO NOTHING`, checkpoint.Meta.RecordId,
+		checkpoint.JobId, int16(checkpoint.Stage), int64(checkpoint.Fence), payload, digest, int16(checkpoint.TerminalStatus))
 	if err != nil {
 		return fmt.Errorf("insert checkpoint: %w", err)
 	}
@@ -472,8 +495,9 @@ func (r *Repository) LoadIngestionRequest(ctx context.Context, jobID string) (*p
 func (r *Repository) LoadLatestCheckpoint(ctx context.Context, jobID string) (*pb.Checkpoint, error) {
 	var payload []byte
 	var expectedHash string
-	err := r.pool.QueryRow(ctx, `SELECT c.payload,c.payload_hash FROM jobs j
-		JOIN job_checkpoints c ON c.checkpoint_id=j.latest_checkpoint_id WHERE j.job_id=$1`, jobID).Scan(&payload, &expectedHash)
+	var storedTerminal sql.NullInt16
+	err := r.pool.QueryRow(ctx, `SELECT c.payload,c.payload_hash,c.terminal_status FROM jobs j
+		JOIN job_checkpoints c ON c.checkpoint_id=j.latest_checkpoint_id WHERE j.job_id=$1`, jobID).Scan(&payload, &expectedHash, &storedTerminal)
 	if err == pgx.ErrNoRows {
 		return nil, ErrNotFound
 	}
@@ -490,6 +514,10 @@ func (r *Repository) LoadLatestCheckpoint(ctx context.Context, jobID string) (*p
 	}
 	if err = domain.ValidateWire(checkpoint, domain.DefaultWireLimits); err != nil {
 		return nil, fmt.Errorf("validate persisted checkpoint: %w", errors.Join(err, domain.ErrPersistentIntegrity))
+	}
+	if storedTerminal.Valid != (checkpoint.TerminalStatus != pb.CompletionStatus_COMPLETION_STATUS_UNSPECIFIED) ||
+		storedTerminal.Valid && int16(checkpoint.TerminalStatus) != storedTerminal.Int16 {
+		return nil, fmt.Errorf("persisted checkpoint terminal status mismatch: %w", domain.ErrPersistentIntegrity)
 	}
 	return checkpoint, nil
 }
