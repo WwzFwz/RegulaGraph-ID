@@ -6,7 +6,7 @@
 // Benchmark: ukur queue time, claim throughput, p50/p95/p99 query, pool saturation, retry,
 // dan contention pada concurrency profil referensi.
 // Target numerik required: configs/benchmark-targets.yaml; status REQUIRED_UNMEASURED.
-// Status: primitive job S01, claim/cancellation PARSE/STRUCTURE/BIND/CHUNK, retry availability,
+// Status: primitive job S01, claim/cancellation PARSE/STRUCTURE/BIND/CHUNK/EXTRACT, retry availability,
 // dan budget attempt per-stage aktif; attempt/fence worker tetap monotonik lintas handoff.
 package postgres
 
@@ -107,7 +107,7 @@ func (r *Repository) ClaimJob(ctx context.Context, ownerID string, leaseDuration
 	}
 	row := r.pool.QueryRow(ctx, `WITH candidate AS (
         SELECT job_id FROM jobs
-		WHERE cancellation_requested=false AND stage NOT IN ($9,$10,$11,$12) AND (
+		WHERE cancellation_requested=false AND stage NOT IN ($9,$10,$11,$12,$13) AND (
 		  state=$1 OR (state=$2 AND next_attempt_at <= clock_timestamp() AND stage_attempt < max_attempts)
 		  OR (state IN ($3,$6,$7,$8) AND lease_expires_at < clock_timestamp()))
         ORDER BY created_at, job_id
@@ -125,7 +125,7 @@ func (r *Repository) ClaimJob(ctx context.Context, ownerID string, leaseDuration
 		int16(pb.JobState_JOB_STATE_STAGED), int16(pb.JobState_JOB_STATE_VALIDATING),
 		int16(pb.JobState_JOB_STATE_PUBLISHING), int16(pb.JobStage_JOB_STAGE_PARSE),
 		int16(pb.JobStage_JOB_STAGE_STRUCTURE), int16(pb.JobStage_JOB_STAGE_BIND),
-		int16(pb.JobStage_JOB_STAGE_CHUNK))
+		int16(pb.JobStage_JOB_STAGE_CHUNK), int16(pb.JobStage_JOB_STAGE_EXTRACT))
 	record, err := scanJob(row)
 	if err == pgx.ErrNoRows {
 		return JobRecord{}, ErrLeaseUnavailable
@@ -150,6 +150,11 @@ func (r *Repository) ClaimBindJob(ctx context.Context, ownerID string, leaseDura
 // ClaimChunkJob transfers a registry-bound DocumentBatch to the Rust-owned CHUNK stage.
 func (r *Repository) ClaimChunkJob(ctx context.Context, ownerID string, leaseDuration time.Duration) (JobRecord, error) {
 	return r.claimHandoffJob(ctx, ownerID, leaseDuration, pb.JobStage_JOB_STAGE_BIND, pb.JobStage_JOB_STAGE_CHUNK)
+}
+
+// ClaimExtractJob transfers a verified chunk DocumentBatch to the Rust-owned EXTRACT stage.
+func (r *Repository) ClaimExtractJob(ctx context.Context, ownerID string, leaseDuration time.Duration) (JobRecord, error) {
+	return r.claimHandoffJob(ctx, ownerID, leaseDuration, pb.JobStage_JOB_STAGE_CHUNK, pb.JobStage_JOB_STAGE_EXTRACT)
 }
 
 func (r *Repository) claimHandoffJob(

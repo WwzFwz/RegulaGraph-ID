@@ -1,4 +1,4 @@
-// Tests the durable PARSE dispatch handoff, including state classification and checkpoint persistence.
+// Tests durable PARSE, STRUCTURE, CHUNK, and EXTRACT dispatch, state classification, and checkpoint persistence.
 // Fakes inject protocol, cancellation and lifecycle races without claiming database or worker performance;
 // actual cross-process/storage checks and required targets remain separate verification gates.
 package workflows
@@ -31,13 +31,18 @@ type parseStoreFake struct {
 	claimParseErr      error
 	claimStructureErr  error
 	claimChunkErr      error
+	claimExtractErr    error
 	claimOrder         []string
 	priorCheckpoint    *pb.Checkpoint
 	priorArtifact      *pb.ArtifactRef
 	dependencies       *pb.DependencyManifest
 	outputCompleteness pb.Completeness
 	readErr            error
+	textReadErr        error
+	normalizedText     []byte
 	mutateBatch        func(*pb.DocumentBatch)
+	mutateExtraction   func(*pb.ExtractionBatch)
+	extractionSource   *pb.ArtifactRef
 }
 
 func (s *parseStoreFake) SubmitJob(context.Context, domain.JobIntent) (domain.JobRecord, bool, error) {
@@ -64,6 +69,13 @@ func (s *parseStoreFake) ClaimChunkJob(context.Context, string, time.Duration) (
 	s.claimOrder = append(s.claimOrder, "chunk")
 	if s.claimChunkErr != nil {
 		return domain.JobRecord{}, s.claimChunkErr
+	}
+	return s.job, nil
+}
+func (s *parseStoreFake) ClaimExtractJob(context.Context, string, time.Duration) (domain.JobRecord, error) {
+	s.claimOrder = append(s.claimOrder, "extract")
+	if s.claimExtractErr != nil {
+		return domain.JobRecord{}, s.claimExtractErr
 	}
 	return s.job, nil
 }
@@ -107,15 +119,39 @@ func (s *parseStoreFake) ReplaceArtifactDependencyManifest(_ context.Context, _,
 	s.dependencies = proto.Clone(manifest).(*pb.DependencyManifest)
 	return nil
 }
-func (s *parseStoreFake) ReadVerified(context.Context, *pb.ArtifactRef, uint64) ([]byte, error) {
+func (s *parseStoreFake) ReadVerified(_ context.Context, ref *pb.ArtifactRef, _ uint64) ([]byte, error) {
 	if s.readErr != nil {
 		return nil, s.readErr
+	}
+	if isUTF8TextMediaType(ref.MediaType) {
+		if s.textReadErr != nil {
+			return nil, s.textReadErr
+		}
+		if s.normalizedText != nil {
+			return append([]byte(nil), s.normalizedText...), nil
+		}
+		return []byte("fixt"), nil
+	}
+	if ref.MediaType == extractionBatchMediaType {
+		source := s.priorArtifact
+		if s.extractionSource != nil {
+			source = s.extractionSource
+		}
+		batch := extractionBatchFixture(s.job.CorpusID, source)
+		if s.mutateExtraction != nil {
+			s.mutateExtraction(batch)
+		}
+		return proto.Marshal(batch)
 	}
 	completeness := s.outputCompleteness
 	if completeness == pb.Completeness_COMPLETENESS_UNSPECIFIED {
 		completeness = pb.Completeness_COMPLETENESS_COMPLETE
 	}
-	batch := documentBatchFixture(s.job.Stage, s.job.CorpusID, completeness)
+	stage := s.job.Stage
+	if stage == pb.JobStage_JOB_STAGE_EXTRACT {
+		stage = pb.JobStage_JOB_STAGE_CHUNK
+	}
+	batch := documentBatchFixture(stage, s.job.CorpusID, completeness)
 	if s.mutateBatch != nil {
 		s.mutateBatch(batch)
 	}
@@ -162,6 +198,172 @@ func TestParseExecutorAlternatesParseAndStructurePreference(t *testing.T) {
 	}
 }
 
+func TestExtractExecutorPersistsVerifiedExtractionBatch(t *testing.T) {
+	store := extractFixtureStore()
+	worker := &parseWorkerFake{completion: pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED}
+	executor, err := NewParseExecutor(store, worker, parseExecutorConfig())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, response, err := executor.RunOnce(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.GetExtractionBatch() == nil || response.GetDocumentBatch() != nil || store.registered.GetMediaType() != extractionBatchMediaType ||
+		store.checkpoint.GetStage() != pb.JobStage_JOB_STAGE_EXTRACT || store.dependencies == nil ||
+		len(store.transitions) != 1 || store.transitions[0] != pb.JobState_JOB_STATE_STAGED ||
+		len(worker.lastRequest.Sources) != 1 || !proto.Equal(worker.lastRequest.Sources[0], store.priorArtifact) {
+		t.Fatalf("EXTRACT durable handoff incomplete: response=%+v registered=%+v transitions=%v", response, store.registered, store.transitions)
+	}
+}
+
+func TestExtractExecutorRejectsUntrustedExtractionBoundaries(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(*parseStoreFake, *parseWorkerFake)
+	}{
+		{name: "partial source", setup: func(store *parseStoreFake, _ *parseWorkerFake) {
+			store.outputCompleteness = pb.Completeness_COMPLETENESS_PARTIAL
+		}},
+		{name: "wrong source media type", setup: func(store *parseStoreFake, _ *parseWorkerFake) {
+			store.priorArtifact.MediaType = "application/pdf"
+		}},
+		{name: "unpinned model and prompt", setup: func(store *parseStoreFake, worker *parseWorkerFake) {
+			unapproved := unapprovedExtractionManifest()
+			store.mutateExtraction = func(batch *pb.ExtractionBatch) {
+				batch.ModelManifest = proto.Clone(unapproved.Models[0]).(*pb.ModelManifest)
+				batch.PromptHash = proto.Clone(unapproved.PromptHashes[0]).(*pb.ContentHash)
+				batch.Dependencies.ProducerManifest = proto.Clone(unapproved).(*pb.ProducerManifest)
+			}
+			worker.mutateResponse = func(response *pb.ProcessBatchResponse) {
+				response.Checkpoint.Manifest = proto.Clone(unapproved).(*pb.ProducerManifest)
+			}
+		}},
+		{name: "surface form differs from normalized text", setup: func(store *parseStoreFake, _ *parseWorkerFake) {
+			store.mutateExtraction = func(batch *pb.ExtractionBatch) {
+				batch.Mentions = []*pb.Mention{{
+					Meta:        &pb.RecordMeta{SchemaVersion: 1, CorpusId: store.job.CorpusID, RecordId: "mention:forged"},
+					TextSpan:    &pb.TextSpan{TextArtifactId: "text:fixture", StartByte: 0, EndByte: 1},
+					SourceRefs:  []*pb.SourceVersionRef{{SourceBlobId: "source:fixture", ProvisionVersionId: "version:fixture", RegulationId: "regulation:fixture"}},
+					SurfaceForm: "invented phrase", CandidateType: "LEGAL_CONCEPT", ExtractionManifest: extractionManifest(),
+				}}
+			}
+		}},
+		{name: "support splits UTF-8 code point", setup: func(store *parseStoreFake, _ *parseWorkerFake) {
+			store.normalizedText = []byte("éab")
+			store.mutateExtraction = func(batch *pb.ExtractionBatch) {
+				reference := &pb.SourceVersionRef{SourceBlobId: "source:fixture", ProvisionVersionId: "version:fixture", RegulationId: "regulation:fixture"}
+				batch.Mentions = []*pb.Mention{{
+					Meta:       &pb.RecordMeta{SchemaVersion: 1, CorpusId: store.job.CorpusID, RecordId: "mention:utf8"},
+					TextSpan:   &pb.TextSpan{TextArtifactId: "text:fixture", StartByte: 2, EndByte: 3},
+					SourceRefs: []*pb.SourceVersionRef{reference}, SurfaceForm: "a", CandidateType: "LEGAL_CONCEPT", ExtractionManifest: extractionManifest(),
+				}}
+				batch.Assertions = []*pb.RelationAssertion{{
+					Meta:      &pb.RecordMeta{SchemaVersion: 1, CorpusId: store.job.CorpusID, RecordId: "assertion:utf8"},
+					SubjectId: "mention:utf8", PredicateId: "references", ObjectId: "mention:utf8",
+					TemporalScope: &pb.TemporalScope{Mode: pb.TemporalMode_TEMPORAL_MODE_CURRENT, UnresolvedPolicy: pb.UnresolvedPolicy_UNRESOLVED_POLICY_REPORT},
+					Origin:        pb.AssertionOrigin_ASSERTION_ORIGIN_EXPLICIT, OntologyVersion: batch.OntologyVersion,
+				}}
+				batch.Supports = []*pb.SupportRecord{{
+					Meta: &pb.RecordMeta{SchemaVersion: 1, CorpusId: store.job.CorpusID, RecordId: "support:utf8"}, AssertionId: "assertion:utf8",
+					EvidenceSpans: []*pb.TextSpan{{TextArtifactId: "text:fixture", StartByte: 1, EndByte: 2}},
+					SourceRefs:    []*pb.SourceVersionRef{proto.Clone(reference).(*pb.SourceVersionRef)}, ExtractionManifest: extractionManifest(),
+					IndependentSourceGroup: "source:fixture", ReviewState: pb.ReviewState_REVIEW_STATE_UNREVIEWED,
+				}}
+			}
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			store := extractFixtureStore()
+			worker := &parseWorkerFake{completion: pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED}
+			test.setup(store, worker)
+			executor, err := NewParseExecutor(store, worker, parseExecutorConfig())
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, _, err = executor.RunOnce(context.Background())
+			if status.Code(err) != codes.FailedPrecondition || store.registered != nil || store.checkpoint != nil {
+				t.Fatalf("untrusted EXTRACT output reached persistence: err=%v registered=%v", err, store.registered)
+			}
+			if got := store.transitions; len(got) != 1 || got[0] != pb.JobState_JOB_STATE_FAILED {
+				t.Fatalf("untrusted EXTRACT output was not terminal: %v", got)
+			}
+		})
+	}
+}
+
+func TestExtractExecutorRetriesTransientNormalizedTextRead(t *testing.T) {
+	store := extractFixtureStore()
+	store.textReadErr = context.DeadlineExceeded
+	store.mutateExtraction = func(batch *pb.ExtractionBatch) {
+		batch.Mentions = []*pb.Mention{{
+			Meta:        &pb.RecordMeta{SchemaVersion: 1, CorpusId: store.job.CorpusID, RecordId: "mention:valid"},
+			TextSpan:    &pb.TextSpan{TextArtifactId: "text:fixture", StartByte: 0, EndByte: 1},
+			SourceRefs:  []*pb.SourceVersionRef{{SourceBlobId: "source:fixture", ProvisionVersionId: "version:fixture", RegulationId: "regulation:fixture"}},
+			SurfaceForm: "f", CandidateType: "LEGAL_CONCEPT", ExtractionManifest: extractionManifest(),
+		}}
+	}
+	executor, _ := NewParseExecutor(store, &parseWorkerFake{completion: pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED}, parseExecutorConfig())
+	_, _, err := executor.RunOnce(context.Background())
+	if !errors.Is(err, context.DeadlineExceeded) || store.registered != nil {
+		t.Fatalf("transient normalized read was not preserved: err=%v registered=%v", err, store.registered)
+	}
+	if got := store.transitions; len(got) != 1 || got[0] != pb.JobState_JOB_STATE_RETRY_WAIT {
+		t.Fatalf("transient normalized read became terminal: %v", got)
+	}
+}
+
+func TestExtractExecutorRecoversCheckpointWithoutRerunningWorker(t *testing.T) {
+	store := extractFixtureStore()
+	source := proto.Clone(store.priorArtifact).(*pb.ArtifactRef)
+	output := parseArtifact("extraction-batch:recovered", "batches/recovered-extraction.pb", "e")
+	output.MediaType = extractionBatchMediaType
+	store.extractionSource = source
+	store.priorArtifact = output
+	store.job.StageAttempt = 2
+	store.job.LeaseFence = 6
+	store.priorCheckpoint = &pb.Checkpoint{
+		Meta:  &pb.RecordMeta{SchemaVersion: 1, CorpusId: store.job.CorpusID, RecordId: "checkpoint:extract-old"},
+		JobId: store.job.JobID, Stage: pb.JobStage_JOB_STAGE_EXTRACT,
+		CompletedBatchKeys: []string{output.ArtifactId}, ArtifactHashes: []*pb.ContentHash{proto.Clone(output.ContentHash).(*pb.ContentHash)},
+		Manifest: extractionManifest(), Fence: 5, TerminalStatus: pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED,
+	}
+	worker := &parseWorkerFake{completion: pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED}
+	executor, _ := NewParseExecutor(store, worker, parseExecutorConfig())
+	_, response, err := executor.RunOnce(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if worker.calls != 0 || response.GetExtractionBatch().GetArtifactId() != output.ArtifactId || store.checkpoint.GetFence() != store.job.LeaseFence {
+		t.Fatalf("EXTRACT recovery reran worker or lost fencing: calls=%d response=%v checkpoint=%v", worker.calls, response, store.checkpoint)
+	}
+	if got := store.transitions; len(got) != 1 || got[0] != pb.JobState_JOB_STATE_STAGED {
+		t.Fatalf("unexpected EXTRACT recovery transition: %v", got)
+	}
+}
+
+func extractFixtureStore() *parseStoreFake {
+	store := parseFixtureStore(false)
+	store.claimParseErr = domain.ErrLeaseUnavailable
+	store.claimStructureErr = domain.ErrLeaseUnavailable
+	store.claimChunkErr = domain.ErrLeaseUnavailable
+	store.job.Stage = pb.JobStage_JOB_STAGE_EXTRACT
+	store.job.Attempt = 5
+	store.job.StageAttempt = 1
+	store.job.LeaseFence = 5
+	store.priorArtifact = parseArtifact("document-batch:chunk", "objects/chunk.pb", "d")
+	store.priorArtifact.MediaType = documentBatchMediaType
+	store.priorCheckpoint = &pb.Checkpoint{
+		Meta:  &pb.RecordMeta{SchemaVersion: 1, CorpusId: store.job.CorpusID, RecordId: "checkpoint:chunk"},
+		JobId: store.job.JobID, Stage: pb.JobStage_JOB_STAGE_CHUNK,
+		CompletedBatchKeys: []string{store.priorArtifact.ArtifactId},
+		ArtifactHashes:     []*pb.ContentHash{proto.Clone(store.priorArtifact.ContentHash).(*pb.ContentHash)},
+		Manifest:           parseManifest(), Fence: 4, TerminalStatus: pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED,
+	}
+	return store
+}
+
 func (w *parseWorkerFake) ProcessBatch(ctx context.Context, request *pb.ProcessBatchRequest) (*pb.ProcessBatchResponse, error) {
 	w.calls++
 	w.lastRequest = proto.Clone(request).(*pb.ProcessBatchRequest)
@@ -176,15 +378,25 @@ func (w *parseWorkerFake) ProcessBatch(ctx context.Context, request *pb.ProcessB
 	}
 	artifact := parseArtifact("document-batch:fixture", "batches/fixture.pb", "b")
 	artifact.MediaType = documentBatchMediaType
+	manifest := parseManifest()
+	if request.Stages[0] == pb.JobStage_JOB_STAGE_EXTRACT {
+		artifact = parseArtifact("extraction-batch:fixture", "batches/extraction.pb", "e")
+		artifact.MediaType = extractionBatchMediaType
+		manifest = extractionManifest()
+	}
 	checkpoint := &pb.Checkpoint{
 		Meta:  &pb.RecordMeta{SchemaVersion: 1, CorpusId: request.Context.CorpusId, RecordId: "checkpoint:fixture"},
 		JobId: request.JobId, Stage: request.Stages[0],
 		CompletedBatchKeys: []string{artifact.ArtifactId}, ArtifactHashes: []*pb.ContentHash{proto.Clone(artifact.ContentHash).(*pb.ContentHash)},
-		Manifest: parseManifest(), Fence: request.Lease.Fence, TerminalStatus: w.completion,
+		Manifest: manifest, Fence: request.Lease.Fence, TerminalStatus: w.completion,
 	}
 	response := &pb.ProcessBatchResponse{
 		RequestId: request.Context.RequestId, JobId: request.JobId, Attempt: request.Attempt,
 		Fence: request.Lease.Fence, Checkpoint: checkpoint, DocumentBatch: artifact, Status: w.completion,
+	}
+	if request.Stages[0] == pb.JobStage_JOB_STAGE_EXTRACT {
+		response.ExtractionBatch = artifact
+		response.DocumentBatch = nil
 	}
 	if w.completion == pb.CompletionStatus_COMPLETION_STATUS_FAILED {
 		response.Errors = []*pb.OperationError{{Code: pb.ErrorCode_ERROR_CODE_NOT_IMPLEMENTED, SafeMessage: "requires OCR", Stage: "parse"}}
@@ -709,7 +921,7 @@ func documentBatchFixture(stage pb.JobStage, corpusID string, completeness pb.Co
 	sourceRef := parseArtifact("source:fixture", "sources/fixture.pdf", "a")
 	sourceRef.ByteSize = 4
 	normalizedRef := parseArtifact("normalized:fixture", "text/normalized.txt", "d")
-	normalizedRef.MediaType = "text/plain"
+	normalizedRef.MediaType = "text/plain;charset=utf-8"
 	normalizedRef.ByteSize = 4
 	batch.Sources = []*pb.SourceBlob{{
 		Meta:      &pb.RecordMeta{SchemaVersion: 1, CorpusId: corpusID, RecordId: "source:fixture"},
@@ -761,8 +973,64 @@ func documentBatchFixture(stage pb.JobStage, corpusID string, completeness pb.Co
 	return batch
 }
 
+func extractionBatchFixture(corpusID string, source *pb.ArtifactRef) *pb.ExtractionBatch {
+	prompt := parseHash("9")
+	model := &pb.ModelManifest{
+		ModelId: "model:extract", Version: "v1", WeightsHash: parseHash("7"), TokenizerHash: parseHash("8"),
+		Task: pb.ModelTask_MODEL_TASK_EXTRACT, MaxTokens: 4096, Precision: "provider", Backend: "fixture", PromptHash: prompt,
+	}
+	producer := extractionManifest()
+	return &pb.ExtractionBatch{
+		Meta: &pb.RecordMeta{SchemaVersion: 1, CorpusId: corpusID, RecordId: "extraction-batch:fixture"},
+		Context: &pb.RequestContext{
+			SchemaVersion: 1, RequestId: "extract:fixture", TraceId: "extract:fixture", CorpusId: corpusID,
+			Deadline: timestamppb.New(time.Now().Add(time.Hour)), ConfigFingerprint: parseHash("c"), AuthScopeRef: "scope:ingestion",
+		},
+		SourceDocumentBatch: proto.Clone(source).(*pb.ArtifactRef),
+		Dependencies: &pb.DependencyManifest{
+			ArtifactId: "dependency-manifest:extract", ProducerManifest: producer,
+			Dependencies: []*pb.Dependency{{DependencyId: source.ArtifactId, Fingerprint: proto.Clone(source.ContentHash).(*pb.ContentHash)}},
+		},
+		Completeness: pb.Completeness_COMPLETENESS_COMPLETE, OntologyVersion: "ontology:fixture-v1",
+		ModelManifest: model, PromptHash: prompt, ItemCounts: &pb.Counts{Expected: 1, Accepted: 1},
+		TokenUsage: &pb.TokenUsage{InputTokens: 5, OutputTokens: 2, TokenizerId: "tokenizer:fixture"},
+	}
+}
+
+func extractionManifest() *pb.ProducerManifest {
+	prompt := parseHash("9")
+	model := &pb.ModelManifest{
+		ModelId: "model:extract", Version: "v1", WeightsHash: parseHash("7"), TokenizerHash: parseHash("8"),
+		Task: pb.ModelTask_MODEL_TASK_EXTRACT, MaxTokens: 4096, Precision: "provider", Backend: "fixture", PromptHash: prompt,
+	}
+	return &pb.ProducerManifest{
+		Software: "regulagraph-ingestion", Build: "test", SchemaVersion: 1, ConfigHash: parseHash("c"),
+		Models: []*pb.ModelManifest{model}, PromptHashes: []*pb.ContentHash{prompt},
+	}
+}
+
+func unapprovedExtractionManifest() *pb.ProducerManifest {
+	prompt := parseHash("0")
+	model := &pb.ModelManifest{
+		ModelId: "model:unapproved", Version: "v2", WeightsHash: parseHash("1"), TokenizerHash: parseHash("2"),
+		Task: pb.ModelTask_MODEL_TASK_EXTRACT, MaxTokens: 8192, Precision: "provider", Backend: "fixture", PromptHash: prompt,
+	}
+	return &pb.ProducerManifest{
+		Software: "unapproved-worker", Build: "test", SchemaVersion: 1, ConfigHash: parseHash("3"),
+		Models: []*pb.ModelManifest{model}, PromptHashes: []*pb.ContentHash{prompt},
+	}
+}
+
 func parseManifest() *pb.ProducerManifest {
-	return &pb.ProducerManifest{Software: "regulagraph-server", Build: "test", SchemaVersion: 1, ConfigHash: parseHash("c")}
+	prompt := parseHash("9")
+	model := &pb.ModelManifest{
+		ModelId: "model:extract", Version: "v1", WeightsHash: parseHash("7"), TokenizerHash: parseHash("8"),
+		Task: pb.ModelTask_MODEL_TASK_EXTRACT, MaxTokens: 4096, Precision: "provider", Backend: "fixture", PromptHash: prompt,
+	}
+	return &pb.ProducerManifest{
+		Software: "regulagraph-server", Build: "test", SchemaVersion: 1, ConfigHash: parseHash("c"),
+		Models: []*pb.ModelManifest{model}, PromptHashes: []*pb.ContentHash{prompt},
+	}
 }
 
 func parseArtifact(id, key, hash string) *pb.ArtifactRef {

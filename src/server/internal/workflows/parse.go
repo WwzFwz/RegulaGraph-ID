@@ -1,4 +1,4 @@
-// Dispatches durable PARSE, STRUCTURE, and CHUNK leases to the Rust worker and persists each fenced handoff.
+// Dispatches durable PARSE, STRUCTURE, CHUNK, and EXTRACT leases to the Rust worker and persists each fenced handoff.
 //
 // The executor rebuilds ProcessBatchRequest only from the claimed PostgreSQL job and its immutable
 // IngestionRequest, binds corpus/attempt/fence/deadline, registers the returned artifact, saves the
@@ -13,8 +13,11 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"mime"
+	"strings"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -29,6 +32,7 @@ type ParseMetadataStore interface {
 	ClaimParseJob(context.Context, string, time.Duration) (domain.JobRecord, error)
 	ClaimStructureJob(context.Context, string, time.Duration) (domain.JobRecord, error)
 	ClaimChunkJob(context.Context, string, time.Duration) (domain.JobRecord, error)
+	ClaimExtractJob(context.Context, string, time.Duration) (domain.JobRecord, error)
 	LoadIngestionRequest(context.Context, string) (*pb.IngestionRequest, error)
 	LoadLatestCheckpoint(context.Context, string) (*pb.Checkpoint, error)
 	LoadArtifact(context.Context, string, string) (*pb.ArtifactRef, error)
@@ -115,7 +119,7 @@ func NewParseExecutor(store ParseExecutionStore, worker ParseWorker, config Pars
 	return &ParseExecutor{store: store, worker: worker, config: config}, nil
 }
 
-// RunOnce rotates first preference across PARSE, STRUCTURE, and CHUNK so no ready stage can be
+// RunOnce rotates first preference across PARSE, STRUCTURE, CHUNK, and EXTRACT so no ready stage can be
 // starved by a sustained backlog in another stage.
 func (e *ParseExecutor) RunOnce(ctx context.Context) (domain.JobRecord, *pb.ProcessBatchResponse, error) {
 	claimParse := func() (domain.JobRecord, error) {
@@ -127,7 +131,10 @@ func (e *ParseExecutor) RunOnce(ctx context.Context) (domain.JobRecord, *pb.Proc
 	claimChunk := func() (domain.JobRecord, error) {
 		return e.store.ClaimChunkJob(ctx, e.config.OwnerID, e.config.Lease)
 	}
-	claims := [3]func() (domain.JobRecord, error){claimParse, claimStructure, claimChunk}
+	claimExtract := func() (domain.JobRecord, error) {
+		return e.store.ClaimExtractJob(ctx, e.config.OwnerID, e.config.Lease)
+	}
+	claims := [4]func() (domain.JobRecord, error){claimParse, claimStructure, claimChunk, claimExtract}
 	start := int((e.claimSequence.Add(1) - 1) % uint64(len(claims)))
 	var job domain.JobRecord
 	var err error
@@ -151,7 +158,7 @@ func (e *ParseExecutor) executeClaimed(ctx context.Context, job domain.JobRecord
 	if err != nil {
 		return nil, e.finishAfterError(attemptCtx, job, fmt.Errorf("load ingestion request: %w", err))
 	}
-	response, recovered, recoveryErr := e.recoverDocumentOutput(attemptCtx, job)
+	response, recovered, recoveryErr := e.recoverWorkerOutput(attemptCtx, job, request.ConfigManifest)
 	if recoveryErr != nil {
 		if recovered {
 			return response, recoveryErr
@@ -182,34 +189,57 @@ func (e *ParseExecutor) executeClaimed(ctx context.Context, job domain.JobRecord
 		return nil, e.finishAfterError(attemptCtx, job, err)
 	}
 	if err = domain.VerifyWorkerResponse(batch, response); err != nil {
-		cause := status.Error(codes.FailedPrecondition, fmt.Sprintf("verify PARSE response: %v", err))
+		cause := status.Error(codes.FailedPrecondition, fmt.Sprintf("verify worker response: %v", err))
 		return nil, e.finishAfterError(attemptCtx, job, cause)
 	}
-	if response.GetCheckpoint() == nil || response.GetDocumentBatch() == nil || response.GetGraphDelta() != nil || response.GetIndexBatch() != nil || response.GetExtractionBatch() != nil || response.GetResolutionBatch() != nil {
-		cause := status.Error(codes.FailedPrecondition, "document worker response requires only checkpoint and document batch outputs")
+	if response.GetCheckpoint() == nil || response.GetGraphDelta() != nil || response.GetIndexBatch() != nil || response.GetResolutionBatch() != nil {
+		cause := status.Error(codes.FailedPrecondition, "worker response contains an unsupported output combination")
 		return nil, e.finishAfterError(attemptCtx, job, cause)
 	}
-	outputBatch, err := e.verifyDocumentOutput(attemptCtx, job.Stage, job.CorpusID, response.DocumentBatch, response.Checkpoint.Manifest, response.Status)
-	if err != nil {
-		cause := fmt.Errorf("verify document output artifact: %w", err)
-		if errors.Is(err, errInvalidDocumentOutput) {
-			cause = status.Error(codes.FailedPrecondition, cause.Error())
+	var outputRef *pb.ArtifactRef
+	var dependencies *pb.DependencyManifest
+	if job.Stage == pb.JobStage_JOB_STAGE_EXTRACT {
+		if response.GetExtractionBatch() == nil || response.GetDocumentBatch() != nil || len(batch.Sources) != 1 {
+			cause := status.Error(codes.FailedPrecondition, "EXTRACT response requires only checkpoint and extraction batch outputs")
+			return nil, e.finishAfterError(attemptCtx, job, cause)
 		}
-		return nil, e.finishAfterError(attemptCtx, job, cause)
+		output, verifyErr := e.verifyExtractionOutput(attemptCtx, job.CorpusID, response.ExtractionBatch, batch.Sources[0], response.Checkpoint.Manifest, request.ConfigManifest, response.Status)
+		if verifyErr != nil {
+			cause := fmt.Errorf("verify extraction output artifact: %w", verifyErr)
+			if errors.Is(verifyErr, errInvalidExtractionOutput) {
+				cause = status.Error(codes.FailedPrecondition, cause.Error())
+			}
+			return nil, e.finishAfterError(attemptCtx, job, cause)
+		}
+		outputRef, dependencies = response.ExtractionBatch, output.Dependencies
+	} else {
+		if response.GetDocumentBatch() == nil || response.GetExtractionBatch() != nil {
+			cause := status.Error(codes.FailedPrecondition, "document response requires only checkpoint and document batch outputs")
+			return nil, e.finishAfterError(attemptCtx, job, cause)
+		}
+		output, verifyErr := e.verifyDocumentOutput(attemptCtx, job.Stage, job.CorpusID, response.DocumentBatch, response.Checkpoint.Manifest, response.Status)
+		if verifyErr != nil {
+			cause := fmt.Errorf("verify document output artifact: %w", verifyErr)
+			if errors.Is(verifyErr, errInvalidDocumentOutput) {
+				cause = status.Error(codes.FailedPrecondition, cause.Error())
+			}
+			return nil, e.finishAfterError(attemptCtx, job, cause)
+		}
+		outputRef, dependencies = response.DocumentBatch, output.DependencyManifest
 	}
 	if requested, pollErr := e.store.CancellationRequested(attemptCtx, job.JobID, job.LeaseOwner, job.LeaseFence); pollErr != nil {
 		return nil, e.finishAfterError(attemptCtx, job, fmt.Errorf("confirm job cancellation: %w", pollErr))
 	} else if requested {
 		return nil, e.finishAfterError(attemptCtx, job, errJobCancellationRequested)
 	}
-	if err = e.store.RegisterArtifact(attemptCtx, job.CorpusID, response.DocumentBatch); err != nil {
-		return nil, e.finishAfterError(attemptCtx, job, fmt.Errorf("register document batch: %w", err))
+	if err = e.store.RegisterArtifact(attemptCtx, job.CorpusID, outputRef); err != nil {
+		return nil, e.finishAfterError(attemptCtx, job, fmt.Errorf("register worker artifact: %w", err))
 	}
-	if err = e.store.ReplaceArtifactDependencyManifest(attemptCtx, job.CorpusID, response.DocumentBatch.ArtifactId, outputBatch.DependencyManifest); err != nil {
-		return nil, e.finishAfterError(attemptCtx, job, fmt.Errorf("register document batch dependencies: %w", err))
+	if err = e.store.ReplaceArtifactDependencyManifest(attemptCtx, job.CorpusID, outputRef.ArtifactId, dependencies); err != nil {
+		return nil, e.finishAfterError(attemptCtx, job, fmt.Errorf("register worker artifact dependencies: %w", err))
 	}
 	if err = e.store.SaveCheckpoint(attemptCtx, response.Checkpoint, job.LeaseOwner); err != nil {
-		return nil, e.finishAfterError(attemptCtx, job, fmt.Errorf("save document checkpoint: %w", err))
+		return nil, e.finishAfterError(attemptCtx, job, fmt.Errorf("save worker checkpoint: %w", err))
 	}
 
 	next, err := terminalState(response.Status)
@@ -229,16 +259,16 @@ func (e *ParseExecutor) executeClaimed(ctx context.Context, job domain.JobRecord
 
 var errJobCancellationRequested = errors.New("durable job cancellation requested")
 
-// recoverDocumentOutput closes the crash window between SaveCheckpoint and CompleteWorkerAttempt.
+// recoverWorkerOutput closes the crash window between SaveCheckpoint and CompleteWorkerAttempt.
 // A reclaimed lease never reruns Rust when a checkpoint durably binds both output and terminal outcome; it writes a
 // checkpoint carrying the new fence and completes the attempt through the normal cancellation gate.
-func (e *ParseExecutor) recoverDocumentOutput(ctx context.Context, job domain.JobRecord) (*pb.ProcessBatchResponse, bool, error) {
+func (e *ParseExecutor) recoverWorkerOutput(ctx context.Context, job domain.JobRecord, expectedConfig *pb.ProducerManifest) (*pb.ProcessBatchResponse, bool, error) {
 	checkpoint, err := e.store.LoadLatestCheckpoint(ctx, job.JobID)
 	if errors.Is(err, domain.ErrNotFound) {
 		return nil, false, nil
 	}
 	if err != nil {
-		return nil, false, fmt.Errorf("load document recovery checkpoint: %w", err)
+		return nil, false, fmt.Errorf("load worker recovery checkpoint: %w", err)
 	}
 	if checkpoint.Stage != job.Stage {
 		return nil, false, nil
@@ -248,24 +278,37 @@ func (e *ParseExecutor) recoverDocumentOutput(ctx context.Context, job domain.Jo
 	}
 	if checkpoint.GetMeta().GetCorpusId() != job.CorpusID || checkpoint.JobId != job.JobID || checkpoint.Fence == 0 ||
 		checkpoint.Fence >= job.LeaseFence || len(checkpoint.CompletedBatchKeys) != 1 || len(checkpoint.ArtifactHashes) != 1 {
-		return nil, false, status.Error(codes.FailedPrecondition, "reclaimed document checkpoint is inconsistent")
+		return nil, false, status.Error(codes.FailedPrecondition, "reclaimed worker checkpoint is inconsistent")
 	}
 	artifact, err := e.store.LoadArtifact(ctx, job.CorpusID, checkpoint.CompletedBatchKeys[0])
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) || errors.Is(err, domain.ErrPersistentIntegrity) {
-			return nil, false, status.Error(codes.FailedPrecondition, fmt.Sprintf("load recovered document artifact: %v", err))
+			return nil, false, status.Error(codes.FailedPrecondition, fmt.Sprintf("load recovered worker artifact: %v", err))
 		}
-		return nil, false, fmt.Errorf("load recovered document artifact: %w", err)
+		return nil, false, fmt.Errorf("load recovered worker artifact: %w", err)
 	}
 	if artifact.GetContentHash() == nil || !proto.Equal(artifact.ContentHash, checkpoint.ArtifactHashes[0]) {
-		return nil, false, status.Error(codes.FailedPrecondition, "recovered document artifact differs from checkpoint")
+		return nil, false, status.Error(codes.FailedPrecondition, "recovered worker artifact differs from checkpoint")
 	}
-	recoveredBatch, verifyErr := e.verifyDocumentOutput(ctx, job.Stage, job.CorpusID, artifact, checkpoint.Manifest, checkpoint.TerminalStatus)
-	if verifyErr != nil {
-		if errors.Is(verifyErr, errInvalidDocumentOutput) {
-			return nil, false, status.Error(codes.FailedPrecondition, fmt.Sprintf("verify recovered document artifact: %v", verifyErr))
+	var dependencies *pb.DependencyManifest
+	if job.Stage == pb.JobStage_JOB_STAGE_EXTRACT {
+		recoveredBatch, verifyErr := e.verifyExtractionOutput(ctx, job.CorpusID, artifact, nil, checkpoint.Manifest, expectedConfig, checkpoint.TerminalStatus)
+		if verifyErr != nil {
+			if errors.Is(verifyErr, errInvalidExtractionOutput) {
+				return nil, false, status.Error(codes.FailedPrecondition, fmt.Sprintf("verify recovered extraction artifact: %v", verifyErr))
+			}
+			return nil, false, fmt.Errorf("verify recovered extraction artifact: %w", verifyErr)
 		}
-		return nil, false, fmt.Errorf("verify recovered document artifact: %w", verifyErr)
+		dependencies = recoveredBatch.Dependencies
+	} else {
+		recoveredBatch, verifyErr := e.verifyDocumentOutput(ctx, job.Stage, job.CorpusID, artifact, checkpoint.Manifest, checkpoint.TerminalStatus)
+		if verifyErr != nil {
+			if errors.Is(verifyErr, errInvalidDocumentOutput) {
+				return nil, false, status.Error(codes.FailedPrecondition, fmt.Sprintf("verify recovered document artifact: %v", verifyErr))
+			}
+			return nil, false, fmt.Errorf("verify recovered document artifact: %w", verifyErr)
+		}
+		dependencies = recoveredBatch.DependencyManifest
 	}
 	if requested, pollErr := e.store.CancellationRequested(ctx, job.JobID, job.LeaseOwner, job.LeaseFence); pollErr != nil {
 		return nil, false, fmt.Errorf("confirm document recovery cancellation: %w", pollErr)
@@ -280,17 +323,21 @@ func (e *ParseExecutor) recoverDocumentOutput(ctx context.Context, job domain.Jo
 	requestID := documentRequestID(job)
 	response := &pb.ProcessBatchResponse{
 		RequestId: requestID, JobId: job.JobID, Attempt: job.Attempt, Fence: job.LeaseFence,
-		Checkpoint: recoveredCheckpoint, DocumentBatch: proto.Clone(artifact).(*pb.ArtifactRef),
-		Status: checkpoint.TerminalStatus,
+		Checkpoint: recoveredCheckpoint, Status: checkpoint.TerminalStatus,
+	}
+	if job.Stage == pb.JobStage_JOB_STAGE_EXTRACT {
+		response.ExtractionBatch = proto.Clone(artifact).(*pb.ArtifactRef)
+	} else {
+		response.DocumentBatch = proto.Clone(artifact).(*pb.ArtifactRef)
 	}
 	if err = domain.ValidateWire(response, domain.DefaultWireLimits); err != nil {
-		return nil, false, status.Error(codes.FailedPrecondition, fmt.Sprintf("recovered document response is invalid: %v", err))
+		return nil, false, status.Error(codes.FailedPrecondition, fmt.Sprintf("recovered worker response is invalid: %v", err))
 	}
-	if err = e.store.ReplaceArtifactDependencyManifest(ctx, job.CorpusID, artifact.ArtifactId, recoveredBatch.DependencyManifest); err != nil {
-		return nil, false, fmt.Errorf("restore recovered document dependencies: %w", err)
+	if err = e.store.ReplaceArtifactDependencyManifest(ctx, job.CorpusID, artifact.ArtifactId, dependencies); err != nil {
+		return nil, false, fmt.Errorf("restore recovered worker dependencies: %w", err)
 	}
 	if err = e.store.SaveCheckpoint(ctx, recoveredCheckpoint, job.LeaseOwner); err != nil {
-		return nil, false, fmt.Errorf("save recovered document checkpoint: %w", err)
+		return nil, false, fmt.Errorf("save recovered worker checkpoint: %w", err)
 	}
 	next, err := terminalState(checkpoint.TerminalStatus)
 	if err != nil {
@@ -298,7 +345,7 @@ func (e *ParseExecutor) recoverDocumentOutput(ctx context.Context, job domain.Jo
 	}
 	actual, err := e.store.CompleteWorkerAttempt(ctx, job.JobID, job.LeaseOwner, job.LeaseFence, next, 0)
 	if err != nil {
-		return nil, true, fmt.Errorf("complete recovered document attempt: %w", err)
+		return nil, true, fmt.Errorf("complete recovered worker attempt: %w", err)
 	}
 	if actual == pb.JobState_JOB_STATE_CANCELLED && next != pb.JobState_JOB_STATE_CANCELLED {
 		return response, true, errJobCancellationRequested
@@ -361,10 +408,208 @@ func (e *ParseExecutor) verifyDocumentOutput(
 	return batch, nil
 }
 
+const extractionBatchMediaType = "application/vnd.regulagraph.extraction-batch+protobuf"
+
+func (e *ParseExecutor) verifyExtractionOutput(
+	ctx context.Context,
+	corpusID string,
+	ref *pb.ArtifactRef,
+	sourceRef *pb.ArtifactRef,
+	manifest *pb.ProducerManifest,
+	expectedConfig *pb.ProducerManifest,
+	terminal pb.CompletionStatus,
+) (*pb.ExtractionBatch, error) {
+	if ref == nil || ref.GetContentHash() == nil || ref.MediaType != extractionBatchMediaType || ref.SchemaVersion != 1 ||
+		manifest == nil || expectedConfig == nil || expectedConfig.GetConfigHash() == nil {
+		return nil, invalidExtractionOutput("complete ExtractionBatch, source, producer, and expected config manifests are required")
+	}
+	raw, err := e.store.ReadVerified(ctx, ref, e.config.MaximumBatchBytes)
+	if err != nil {
+		return nil, err
+	}
+	batch := &pb.ExtractionBatch{}
+	if err = proto.Unmarshal(raw, batch); err != nil {
+		return nil, invalidExtractionOutput(fmt.Sprintf("decode ExtractionBatch: %v", err))
+	}
+	if err = domain.ValidateWire(batch, e.config.WireLimits); err != nil {
+		return nil, invalidExtractionOutput(fmt.Sprintf("validate ExtractionBatch: %v", err))
+	}
+	if sourceRef == nil {
+		sourceRef = batch.SourceDocumentBatch
+	}
+	if batch.GetMeta().GetCorpusId() != corpusID || batch.GetContext().GetCorpusId() != corpusID ||
+		sourceRef == nil || sourceRef.GetContentHash() == nil || sourceRef.MediaType != documentBatchMediaType || sourceRef.SchemaVersion != 1 ||
+		!proto.Equal(batch.SourceDocumentBatch, sourceRef) || batch.GetDependencies().GetProducerManifest() == nil ||
+		!proto.Equal(batch.Dependencies.ProducerManifest, manifest) {
+		return nil, invalidExtractionOutput("ExtractionBatch corpus, source, or producer differs from its request/checkpoint")
+	}
+	if !proto.Equal(batch.Context.ConfigFingerprint, expectedConfig.ConfigHash) ||
+		!containsExpectedModel(expectedConfig.Models, batch.ModelManifest) ||
+		!containsExpectedHash(expectedConfig.PromptHashes, batch.PromptHash) {
+		return nil, invalidExtractionOutput("ExtractionBatch model, prompt, or config differs from the persisted ingestion request")
+	}
+	sourceRaw, err := e.store.ReadVerified(ctx, sourceRef, e.config.MaximumBatchBytes)
+	if err != nil {
+		return nil, err
+	}
+	source := &pb.DocumentBatch{}
+	if err = proto.Unmarshal(sourceRaw, source); err != nil {
+		return nil, invalidExtractionOutput(fmt.Sprintf("decode source DocumentBatch: %v", err))
+	}
+	if err = domain.ValidateWire(source, e.config.WireLimits); err != nil {
+		return nil, invalidExtractionOutput(fmt.Sprintf("validate source DocumentBatch: %v", err))
+	}
+	if err = domain.ValidateDocumentBatchClosure(source, e.config.WireLimits.MaxItems); err != nil {
+		return nil, invalidExtractionOutput(fmt.Sprintf("validate source DocumentBatch closure: %v", err))
+	}
+	if source.Completeness != pb.Completeness_COMPLETENESS_COMPLETE || len(source.Chunks) == 0 ||
+		!proto.Equal(source.GetContext().GetConfigFingerprint(), expectedConfig.ConfigHash) {
+		return nil, invalidExtractionOutput("EXTRACT requires a complete non-empty CHUNK DocumentBatch")
+	}
+	if err = domain.ValidateExtractionBatchClosure(batch, source, e.config.WireLimits.MaxItems); err != nil {
+		return nil, invalidExtractionOutput(fmt.Sprintf("validate ExtractionBatch closure: %v", err))
+	}
+	if err = e.verifyExtractionSourceText(ctx, batch, source); err != nil {
+		if errors.Is(err, errInvalidMentionSurface) {
+			return nil, invalidExtractionOutput(fmt.Sprintf("verify mention source text: %v", err))
+		}
+		return nil, err
+	}
+	if terminal == pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED && batch.Completeness != pb.Completeness_COMPLETENESS_COMPLETE {
+		return nil, invalidExtractionOutput("successful extraction output is not complete")
+	}
+	if terminal == pb.CompletionStatus_COMPLETION_STATUS_FAILED && batch.Completeness == pb.Completeness_COMPLETENESS_COMPLETE {
+		return nil, invalidExtractionOutput("failed extraction output is marked complete")
+	}
+	return batch, nil
+}
+
+// verifyExtractionSourceText hydrates only normalized text artifacts used by extracted evidence.
+// It proves UTF-8 boundaries for all evidence and exact source bytes for mention surface forms.
+// The aggregate byte budget prevents a valid-looking batch from amplifying coordinator memory/IO.
+func (e *ParseExecutor) verifyExtractionSourceText(ctx context.Context, batch *pb.ExtractionBatch, source *pb.DocumentBatch) error {
+	textRefs := make(map[string]*pb.ArtifactRef, len(source.TextArtifacts))
+	for _, artifact := range source.TextArtifacts {
+		if artifact.GetMeta() != nil && artifact.GetNormalizedTextRef() != nil {
+			textRefs[artifact.Meta.RecordId] = artifact.NormalizedTextRef
+		}
+	}
+	required := make(map[string]*pb.ArtifactRef)
+	var total uint64
+	addRequired := func(span *pb.TextSpan, ownerID string) error {
+		ref := textRefs[span.GetTextArtifactId()]
+		if ref == nil || ref.GetContentHash() == nil || !isUTF8TextMediaType(ref.MediaType) || ref.SchemaVersion != 1 {
+			return invalidMentionSurface(fmt.Sprintf("extraction record %q has no verified normalized text artifact", ownerID))
+		}
+		if existing, exists := required[ref.ArtifactId]; exists && !proto.Equal(existing, ref) {
+			return invalidMentionSurface(fmt.Sprintf("normalized artifact %q has conflicting descriptors", ref.ArtifactId))
+		} else if !exists {
+			if ref.ByteSize == 0 || ref.ByteSize > e.config.MaximumBatchBytes || total > e.config.MaximumBatchBytes-ref.ByteSize {
+				return invalidMentionSurface("normalized evidence text exceeds extraction verification byte budget")
+			}
+			total += ref.ByteSize
+			required[ref.ArtifactId] = ref
+		}
+		return nil
+	}
+	for _, mention := range batch.Mentions {
+		if err := addRequired(mention.GetTextSpan(), mention.GetMeta().GetRecordId()); err != nil {
+			return err
+		}
+	}
+	for _, support := range batch.Supports {
+		for _, span := range support.EvidenceSpans {
+			if err := addRequired(span, support.GetMeta().GetRecordId()); err != nil {
+				return err
+			}
+		}
+	}
+	loaded := make(map[string][]byte, len(required))
+	for artifactID, ref := range required {
+		raw, err := e.store.ReadVerified(ctx, ref, e.config.MaximumBatchBytes)
+		if err != nil {
+			return fmt.Errorf("read normalized artifact %q: %w", artifactID, err)
+		}
+		if uint64(len(raw)) != ref.ByteSize {
+			return invalidMentionSurface(fmt.Sprintf("normalized artifact %q byte size differs from its descriptor", artifactID))
+		}
+		if !utf8.Valid(raw) {
+			return invalidMentionSurface(fmt.Sprintf("normalized artifact %q is not valid UTF-8", artifactID))
+		}
+		loaded[artifactID] = raw
+	}
+	validateBoundary := func(span *pb.TextSpan, ownerID string) ([]byte, error) {
+		ref := textRefs[span.TextArtifactId]
+		raw := loaded[ref.ArtifactId]
+		if span.StartByte > uint64(len(raw)) || span.EndByte > uint64(len(raw)) ||
+			span.StartByte == uint64(len(raw)) || !utf8.RuneStart(raw[span.StartByte]) ||
+			(span.EndByte < uint64(len(raw)) && !utf8.RuneStart(raw[span.EndByte])) {
+			return nil, invalidMentionSurface(fmt.Sprintf("extraction record %q uses a non-UTF-8 source boundary", ownerID))
+		}
+		return raw, nil
+	}
+	for _, mention := range batch.Mentions {
+		span := mention.TextSpan
+		raw, err := validateBoundary(span, mention.Meta.RecordId)
+		if err != nil {
+			return err
+		}
+		if mention.SurfaceForm != string(raw[span.StartByte:span.EndByte]) {
+			return invalidMentionSurface(fmt.Sprintf("mention %q surface form differs from its exact UTF-8 source bytes", mention.Meta.RecordId))
+		}
+	}
+	for _, support := range batch.Supports {
+		for _, span := range support.EvidenceSpans {
+			if _, err := validateBoundary(span, support.Meta.RecordId); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func isUTF8TextMediaType(value string) bool {
+	mediaType, parameters, err := mime.ParseMediaType(value)
+	if err != nil || mediaType != "text/plain" {
+		return false
+	}
+	charset := parameters["charset"]
+	return charset == "" || strings.EqualFold(charset, "utf-8")
+}
+
+var errInvalidMentionSurface = errors.New("invalid mention source text")
+
+func invalidMentionSurface(message string) error {
+	return errors.Join(errors.New(message), errInvalidMentionSurface)
+}
+
+func containsExpectedModel(values []*pb.ModelManifest, expected *pb.ModelManifest) bool {
+	for _, value := range values {
+		if proto.Equal(value, expected) {
+			return true
+		}
+	}
+	return false
+}
+
+func containsExpectedHash(values []*pb.ContentHash, expected *pb.ContentHash) bool {
+	for _, value := range values {
+		if proto.Equal(value, expected) {
+			return true
+		}
+	}
+	return false
+}
+
 var errInvalidDocumentOutput = errors.New("invalid immutable document output")
+var errInvalidExtractionOutput = errors.New("invalid immutable extraction output")
 
 func invalidDocumentOutput(message string) error {
 	return errors.Join(errors.New(message), errInvalidDocumentOutput)
+}
+
+func invalidExtractionOutput(message string) error {
+	return errors.Join(errors.New(message), errInvalidExtractionOutput)
 }
 
 func (e *ParseExecutor) monitorCancellation(ctx context.Context, cancel context.CancelFunc, job domain.JobRecord, result chan<- error) {
@@ -403,7 +648,7 @@ func (e *ParseExecutor) processRequest(ctx context.Context, job domain.JobRecord
 		return nil, status.Error(codes.FailedPrecondition, fmt.Sprintf("invalid persisted ingestion request: %v", err))
 	}
 	if request.ConfigManifest == nil || request.ConfigManifest.ConfigHash == nil || job.State != pb.JobState_JOB_STATE_RUNNING ||
-		(job.Stage != pb.JobStage_JOB_STAGE_PARSE && job.Stage != pb.JobStage_JOB_STAGE_STRUCTURE && job.Stage != pb.JobStage_JOB_STAGE_CHUNK) ||
+		(job.Stage != pb.JobStage_JOB_STAGE_PARSE && job.Stage != pb.JobStage_JOB_STAGE_STRUCTURE && job.Stage != pb.JobStage_JOB_STAGE_CHUNK && job.Stage != pb.JobStage_JOB_STAGE_EXTRACT) ||
 		job.Attempt == 0 || job.LeaseFence == 0 || job.LeaseOwner != e.config.OwnerID || job.CorpusID != request.GetCorpusId() {
 		return nil, status.Error(codes.FailedPrecondition, "claimed job and ingestion request are inconsistent")
 	}
@@ -438,6 +683,10 @@ func (e *ParseExecutor) processRequest(ctx context.Context, job domain.JobRecord
 			expectedInputStage = pb.JobStage_JOB_STAGE_BIND
 			inputLabel = "BIND"
 			outputLabel = "CHUNK"
+		} else if job.Stage == pb.JobStage_JOB_STAGE_EXTRACT {
+			expectedInputStage = pb.JobStage_JOB_STAGE_CHUNK
+			inputLabel = "CHUNK"
+			outputLabel = "EXTRACT"
 		}
 		checkpoint, checkpointErr := e.store.LoadLatestCheckpoint(ctx, job.JobID)
 		if checkpointErr != nil {
@@ -486,7 +735,7 @@ func (e *ParseExecutor) processRequest(ctx context.Context, job domain.JobRecord
 		Observations: observations,
 	}
 	if err := domain.ValidateWire(batch, domain.DefaultWireLimits); err != nil {
-		return nil, status.Error(codes.FailedPrecondition, fmt.Sprintf("constructed document request is invalid: %v", err))
+		return nil, status.Error(codes.FailedPrecondition, fmt.Sprintf("constructed worker request is invalid: %v", err))
 	}
 	return batch, nil
 }
@@ -557,6 +806,9 @@ func (e *ParseExecutor) finishAfterError(ctx context.Context, job domain.JobReco
 		next = pb.JobState_JOB_STATE_FAILED
 	}
 	if errors.Is(cause, errInvalidDocumentOutput) {
+		next = pb.JobState_JOB_STATE_FAILED
+	}
+	if errors.Is(cause, errInvalidExtractionOutput) {
 		next = pb.JobState_JOB_STATE_FAILED
 	}
 	transitionCtx := ctx
