@@ -235,7 +235,8 @@ fn split_span(text: &str, span: Range<usize>, config: &ChunkerConfig) -> Vec<Ran
     let mut start = span.start;
     while span.end - start > config.maximum_chunk_bytes {
         let hard_end = previous_char_boundary(text, start + config.maximum_chunk_bytes);
-        let minimum_end = next_char_boundary(text, start + config.minimum_split_bytes);
+        let minimum_end =
+            next_char_boundary(text, start + config.minimum_split_bytes).min(hard_end);
         let end = preferred_break(text, minimum_end, hard_end).unwrap_or(hard_end);
         output.push(start..end);
         let overlap_target = end.saturating_sub(config.overlap_bytes).max(start + 1);
@@ -251,7 +252,7 @@ fn split_span(text: &str, span: Range<usize>, config: &ChunkerConfig) -> Vec<Ran
 fn preferred_break(text: &str, minimum: usize, maximum: usize) -> Option<usize> {
     let slice = &text[minimum..maximum];
     for (offset, character) in slice.char_indices().rev() {
-        if matches!(character, '\n' | '.' | ';' | '?' | '!') {
+        if matches!(character, '\n' | '\u{000C}' | '.' | ';' | '?' | '!') {
             return Some(minimum + offset + character.len_utf8());
         }
     }
@@ -594,6 +595,47 @@ mod tests {
         assert_eq!(
             build_chunks(&multi_normalized, &multi_tree, &limited, &Words),
             Err(ChunkBuildError::ChunkLimit { maximum: 1 })
+        );
+    }
+
+    #[test]
+    fn handles_equal_split_limit_inside_multibyte_character() {
+        let text = format!("{}§{}", "a".repeat(63), "b".repeat(80));
+        let config = ChunkerConfig {
+            maximum_chunk_bytes: 64,
+            minimum_split_bytes: 64,
+            overlap_bytes: 8,
+            maximum_chunks: 10,
+            maximum_parent_depth: 4,
+        };
+
+        let spans = split_span(&text, 0..text.len(), &config);
+
+        assert!(spans.len() >= 2);
+        assert!(spans.iter().all(|span| {
+            text.is_char_boundary(span.start)
+                && text.is_char_boundary(span.end)
+                && span.end - span.start <= config.maximum_chunk_bytes
+        }));
+    }
+
+    #[test]
+    fn prefers_page_separator_as_split_boundary() {
+        let text = format!("{}\u{000C}{}", "a".repeat(50), "b".repeat(80));
+        let config = ChunkerConfig {
+            maximum_chunk_bytes: 64,
+            minimum_split_bytes: 32,
+            overlap_bytes: 0,
+            maximum_chunks: 10,
+            maximum_parent_depth: 4,
+        };
+
+        let spans = split_span(&text, 0..text.len(), &config);
+
+        assert_eq!(spans[0].end, 51);
+        assert_eq!(
+            &text[spans[0].clone()],
+            format!("{}\u{000C}", "a".repeat(50))
         );
     }
 }
