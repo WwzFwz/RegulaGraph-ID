@@ -12,7 +12,7 @@ Anak harus mempertahankan batas tanggung jawab tersebut. Routing dan kebijakan j
 
 [go.work](../go.work) dan [Cargo.toml](../Cargo.toml) di root menghubungkan workspace komponen. CMake milik inference berada di komponennya sendiri. Folder src di dalam ingestion dan inference memisahkan implementasi komponen dari manifest build dan header. Nama module Go, crate Rust, namespace C++, dan package Protobuf tetap sama setelah pemindahan lokasi.
 
-[deployment](../deployment/README.md) mengatur packaging dan wiring deployment. Lokasi dalam src tidak berarti semua source harus disalin ke image runtime: build menghasilkan binary, library, serta binding yang relevan. Rust kini memiliki parser PDFium dan normalizer teks aktif di library ingestion, sedangkan bagian lainnya dan C++ masih bertahap; executable worker dan layanan inference belum aktif.
+[deployment](../deployment/README.md) mengatur packaging dan wiring deployment. Lokasi dalam src tidak berarti semua source harus disalin ke image runtime: build menghasilkan binary, library, serta binding yang relevan. Rust kini memiliki executable worker PARSE berbasis Tonic/PDFium; stage lanjutan, wiring scheduler, dan layanan inference C++ masih bertahap.
 
 ## Benchmark dan batas cakupan
 

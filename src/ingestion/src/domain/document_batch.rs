@@ -16,8 +16,8 @@
 //! dan `INVARIANT.WIRE_PARITY`. Target `configs/benchmark-targets.yaml` tetap REQUIRED_UNMEASURED;
 //! unit test tidak membuktikan throughput corpus atau publication lintas backend.
 //!
-//! Status: builder SourceBlob dan assembler DocumentBatch C01 aktif; version reconstruction, graph/index
-//! output, worker transport, dan publication tetap belum aktif.
+//! Status: builder SourceBlob dan assembler DocumentBatch C01 dipakai worker PARSE; version
+//! reconstruction, graph/index output, dan publication tetap belum aktif.
 
 use crate::domain::wire::{self, Limits};
 use crate::wire::{common, documents};

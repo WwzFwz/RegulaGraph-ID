@@ -15,7 +15,8 @@
 //! pada workload configs/benchmark-targets.yaml. Hasil profiler Python memilih kandidat, tetapi gate produksi
 //! tetap REQUIRED_UNMEASURED sampai normalisasi, chunking, source mapping, OCR, dan workload referensi aktif.
 //!
-//! Status: parser PDFium I01 aktif sebagai library; worker isolation, OCR, gold quality, dan publication belum aktif.
+//! Status: parser PDFium I01 aktif pada executable worker PARSE; process-level crash isolation multi-worker,
+//! OCR, gold quality, dan publication belum aktif.
 
 use pdfium_render::prelude::{
     PdfPage, PdfPageObject, PdfPageObjectsCommon, PdfPageRenderRotation, PdfRect, Pdfium,

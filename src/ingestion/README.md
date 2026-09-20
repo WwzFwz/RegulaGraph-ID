@@ -8,13 +8,13 @@ Logika di luar cakupan ini ditempatkan pada komponen pemiliknya. Jika fungsi bar
 
 ## Peran dan integrasi anak
 
-Rust menyiapkan data dan artefak immutable, Go mengoordinasikan job serta commit/publikasi, dan C/C++ menyediakan engine parsing/inference. Belum ada transport job aktif.
+Rust menyiapkan data dan artefak immutable, Go mengoordinasikan job serta commit/publikasi, dan C/C++ menyediakan engine parsing/inference. Transport gRPC batch aktif untuk tahap PARSE; scheduler Go belum otomatis menyerahkan job kepadanya.
 
 Pertahankan source/canonical/provision-version/snapshot ID dan schema version lintas anak. Boundary runtime mengikuti [src/contracts](../contracts/README.md), dengan pekerjaan batch atau inference yang jelas. Perubahan bentuk data, error/status, serta offset sumber harus didokumentasikan bersama konsumennya; jangan menggandakan kebijakan publikasi di beberapa runtime.
 
 ## Isi saat ini
 
-Subfolder: [src/](src/README.md).
+Subfolder: [src/](src/README.md), termasuk [worker](src/worker/README.md) dan executable [bin](src/bin/README.md).
 
 Berkas: [Cargo.toml](Cargo.toml).
 
@@ -26,7 +26,7 @@ Ikuti [kebijakan benchmark](../../doc/benchmark-policy.md). Angka wajib mengikut
 
 ## Status
 
-Boundary parser PDFium, normalizer teks konservatif, parser struktur hukum, structural chunk builder, parent index, proyeksi C01 untuk text/structure/chunk, assembler `DocumentBatch`, penyimpanan artefak lokal immutable, incremental change planner, serta validator/selector timeline ketentuan sudah aktif sebagai library. Transformasi menjaga mapping byte raw-normalized, page failure, provision/source/version identity, legal interval uncertainty, token count, reference closure, completeness, dependency/lookup revision, dan hash artefak. Executable worker, extraction change-event, canonical registry, tabel, graph/index batch, OCR, gold dataset temporal, object storage, full-rebuild equivalence, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan kebenaran hukum, target kualitas, durability, atau latency produksi.
+Boundary parser PDFium, normalizer, structural chunking, proyeksi/persistence C01, incremental planner, dan selector timeline aktif sebagai library. Executable worker Tonic kini menjalankan batch PARSE dari referensi artefak terverifikasi sampai `DocumentBatch` immutable, dengan deadline, attempt/fence, status, cancellation, cache retry, message limit, dan concurrency limit. Stage STRUCTURE sampai INDEX belum diaktifkan pada RPC karena kontrak request belum membawa identitas hukum yang diperlukan; extraction change-event, canonical registry, tabel, graph/index batch, OCR, gold temporal, object storage, full-rebuild equivalence, dan acceptance produksi juga belum aktif.
 
 ## Penambahan C01 dan panduan verifikasi
 

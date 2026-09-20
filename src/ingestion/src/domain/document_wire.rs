@@ -17,8 +17,8 @@
 //! fixture lintas Go/Rust/Python. Target configs/benchmark-targets.yaml tetap REQUIRED_UNMEASURED;
 //! unit roundtrip tidak membuktikan throughput atau parity seluruh `DocumentBatch`.
 //!
-//! Status: proyeksi StructureNode/Chunk aktif; TextArtifact, DocumentBatch, dan persistence tersedia
-//! pada modul sibling, sedangkan worker transport belum aktif.
+//! Status: proyeksi StructureNode/Chunk aktif; TextArtifact/DocumentBatch dipakai worker PARSE,
+//! sedangkan stage STRUCTURE/CHUNK pada worker belum tersambung.
 
 use crate::document::chunking::builder::ChunkBatch;
 use crate::document::chunking::structural::{StructureKind, StructureTree};

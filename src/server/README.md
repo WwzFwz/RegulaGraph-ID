@@ -18,7 +18,7 @@ Subfolder: [cmd/](cmd/README.md), [internal/](internal/README.md).
 
 Berkas: [go.mod](go.mod), [go.sum](go.sum).
 
-CLI discover/collect/audit sudah menjalankan acquisition D01: metadata halaman detail, unduhan PDF nyata, checksum, resume, discovery terbatas, serta inventory provenance terverifikasi. Runtime memakai golang.org/x/net/html yang dipin dengan Go 1.26.8. Scheduler/job serta publication control-plane S01 juga aktif; API query, retrieval/answering, worker Rust, dan backend model masih belum tersambung. Lihat [panduan akuisisi](../../doc/acquisition.md).
+CLI discover/collect/audit sudah menjalankan acquisition D01: metadata halaman detail, unduhan PDF nyata, checksum, resume, discovery terbatas, serta inventory provenance terverifikasi. Scheduler/job dan publication control-plane S01 aktif. Client Worker gRPC Go tersedia, tetapi executor scheduler belum menyerahkan job ke worker Rust; API query, retrieval/answering, dan backend model juga belum tersambung. Lihat [panduan akuisisi](../../doc/acquisition.md).
 
 ## Benchmark dan perhatian performa
 

@@ -8,13 +8,13 @@ Logika di luar cakupan ini ditempatkan pada komponen pemiliknya. Jika fungsi bar
 
 ## Peran dan integrasi anak
 
-Kirim locator/hash/snapshot dan batch descriptor; hindari RPC per karakter/chunk kecil. Bentuk wire mengikuti src/contracts dan coordinator memegang status job.
+Kirim locator/hash/snapshot dan batch descriptor; hindari RPC per karakter/chunk kecil. Client memakai generated gRPC C01, menerapkan deadline yang lebih awal, lalu memvalidasi response attempt/fence sebelum coordinator menerima output.
 
 Pertahankan source/canonical/provision-version/snapshot ID dan schema version lintas anak. Boundary runtime mengikuti [src/contracts](../../../../contracts/README.md), dengan pekerjaan batch atau inference yang jelas. Perubahan bentuk data, error/status, serta offset sumber harus didokumentasikan bersama konsumennya; jangan menggandakan kebijakan publikasi di beberapa runtime.
 
 ## Isi saat ini
 
-Berkas: [client.go](client.go).
+Berkas: [client.go](client.go) dan [client_test.go](client_test.go).
 
 ## Benchmark dan perhatian performa
 
@@ -24,7 +24,7 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. Pipeline parsing/graph/retrieval, mutasi backend, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan target kualitas atau latency.
+Client `ProcessBatch`, `GetStatus`, dan `Cancel` aktif dengan validasi wire, deadline, transport credentials eksplisit, message bound, serta pemeriksaan response stale. Worker Rust melayani tahap PARSE, tetapi scheduler/workflow Go belum otomatis membentuk dan menyerahkan batch. Graph/index, layanan model, gold dataset, dan acceptance produksi belum aktif.
 
 ## Rekomendasi implementasi anak
 
@@ -32,4 +32,4 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
-| [client.go](client.go) | Implement typed ProcessBatch/status/cancel transport with bounded messages, deadlines and VerifyWorkerResponse before acceptance. | Test stale fence/attempt, partial output, disconnect/retry and corrupted artifact refs; avoid RPC per chunk. |
+| [client.go](client.go) | Wire client ke executor scheduler setelah artifact source dan lease durable tersedia; tambahkan observability RPC/queue. | Uji disconnect/retry lintas proses, corrupted artifact refs, lease renewal/cancellation, dan message limit nyata; hindari RPC per chunk. |

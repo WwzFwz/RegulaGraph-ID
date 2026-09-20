@@ -16,7 +16,7 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 Subfolder: [inference/](inference/README.md), [neo4j/](neo4j/README.md), [postgres/](postgres/README.md), [qdrant/](qdrant/README.md), [storage/](storage/README.md), [worker/](worker/README.md).
 
-Folder ini baru mendefinisikan batas komponen; belum ada implementasi runtime.
+Adapter PostgreSQL, file storage, dan client Worker gRPC sudah memiliki implementasi runtime; adapter Neo4j, Qdrant, dan inference masih bertahap.
 
 ## Benchmark dan perhatian performa
 
@@ -26,4 +26,4 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. Pipeline parsing/graph/retrieval, mutasi backend, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan target kualitas atau latency.
+Collector/audit D01, kontrak/validator C01, evaluator E01, storage/publication S01, serta client Worker gRPC tersedia. Worker Rust menjalankan PARSE, sedangkan wiring scheduler, pipeline graph/retrieval, mutasi search backend, layanan model, gold dataset, dan acceptance produksi belum aktif.

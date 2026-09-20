@@ -32,7 +32,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-Parser PDFium I01 aktif di [parsing/pdf.rs](parsing/pdf.rs) dan menghasilkan teks, locator ternormalisasi terhadap intersection CropBox/MediaBox serta rotasi halaman, status halaman, dan manifest yang terikat hash. Normalizer menghasilkan mapping byte canonical; chunking membentuk hierarki, source-mapped chunk, token count, dan parent refs. Hasil tersebut sudah dapat diproyeksikan serta disimpan sebagai `TextArtifact` dan `DocumentBatch` C01 melalui domain/adapter. Planner incremental membentuk reverse dependency closure ke `UpdatePlan`; validator versioning memisahkan identitas ketentuan dari edisi teks dan memilih versi as-of secara konservatif. Extraction change-event, registry canonical, tabel, OCR, executable worker, gold dataset temporal, full-rebuild equivalence, dan acceptance produksi belum aktif. Fixture membuktikan boundary serta invariant dasar, bukan kualitas corpus atau target latency.
+Parser PDFium I01 menghasilkan teks, locator, status halaman, dan manifest terikat hash. Normalizer menghasilkan mapping byte canonical; chunking library membentuk hierarki dan source-mapped chunk. Worker Tonic sudah menjalankan PARSE sampai `TextArtifact` dan `DocumentBatch` immutable, tetapi belum menjalankan structure/chunk karena request belum membawa identitas ketentuan. Planner incremental dan selector timeline aktif sebagai library. Extraction change-event, registry canonical, tabel, OCR, gold temporal, full-rebuild equivalence, dan acceptance produksi belum aktif.
 
 ## Rekomendasi implementasi anak
 

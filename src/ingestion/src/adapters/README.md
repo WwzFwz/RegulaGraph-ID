@@ -24,7 +24,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. `storage.rs` menulis dan membaca object lokal immutable dengan key SHA-256 serta confinement jalur; `text_artifacts.rs` menyimpan raw/normalized/mapping; `document_batches.rs` menyimpan dan memuat batch protobuf setelah replay validasi wire, reference closure bertipe, batas span, page issue, dan completeness. Object storage jarak jauh, lifecycle orphan, worker RPC, pipeline graph/retrieval, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan durability atau target latency produksi.
+`storage.rs` menulis object lokal immutable dan memverifikasi input coordinator yang confined; `text_artifacts.rs` menyimpan raw/normalized/mapping; `document_batches.rs` menyimpan serta memuat ulang batch tervalidasi. Ketiganya dipakai worker RPC tahap PARSE. Object storage jarak jauh, lifecycle orphan, stage graph/index, layanan model, gold dataset, dan acceptance produksi belum aktif.
 
 ## Rekomendasi implementasi anak
 

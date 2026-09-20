@@ -8,13 +8,13 @@ Logika di luar cakupan ini ditempatkan pada komponen pemiliknya. Jika fungsi bar
 
 ## Peran dan integrasi anak
 
-lib.rs mengekspos module tree, proyeksi wire C01, dan adapter artefak lokal; executable worker belum tersedia sampai kontrak transport diimplementasikan.
+lib.rs mengekspos module tree, proyeksi wire C01, adapter artefak lokal, dan service worker Tonic. Worker menerima batch PARSE; Go tetap memegang job durable dan publication.
 
 Pertahankan source/canonical/provision-version/snapshot ID dan schema version lintas anak. Boundary runtime mengikuti [src/contracts](../../contracts/README.md), dengan pekerjaan batch atau inference yang jelas. Perubahan bentuk data, error/status, serta offset sumber harus didokumentasikan bersama konsumennya; jangan menggandakan kebijakan publikasi di beberapa runtime.
 
 ## Isi saat ini
 
-Subfolder: [adapters/](adapters/README.md), [document/](document/README.md), [domain/](domain/README.md), [indexing/](indexing/README.md), [knowledge_graph/](knowledge_graph/README.md).
+Subfolder: [adapters/](adapters/README.md), [bin/](bin/README.md), [document/](document/README.md), [domain/](domain/README.md), [indexing/](indexing/README.md), [knowledge_graph/](knowledge_graph/README.md), dan [worker/](worker/README.md).
 
 Berkas: [lib.rs](lib.rs).
 
@@ -26,4 +26,4 @@ Ikuti [kebijakan benchmark](../../../doc/benchmark-policy.md). Angka wajib mengi
 
 ## Status
 
-Modul parsing, normalisasi, structural chunking, validator chunk, proyeksi `TextArtifact`/structure/chunk, assembler `DocumentBatch`, persistence artefak lokal, incremental change planner, serta validator/selector timeline ketentuan telah aktif. Modul Rust lain masih scaffold sampai extraction change-event, canonical registry, table/OCR handling, knowledge graph, indexing, object storage, dan executable worker diimplementasikan. Build serta fixture unit tidak membuktikan full-rebuild equivalence, kebenaran hukum, target kualitas corpus, durability storage, atau latency produksi.
+Modul parsing, normalisasi, structural chunking, validator chunk, proyeksi/persistence `TextArtifact` dan `DocumentBatch`, incremental planner, serta selector timeline telah aktif. Worker gRPC menjalankan tahap PARSE dan menolak stage lanjutan yang belum memiliki input identitas hukum. Extraction change-event, registry canonical, table/OCR, graph, indexing, object storage, dan wiring scheduler Go masih belum aktif. Build serta fixture tidak membuktikan acceptance kualitas, durability, atau latency produksi.

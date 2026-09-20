@@ -24,7 +24,7 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-[text.rs](text.rs) menyediakan normalisasi line ending, whitespace horizontal, ligature Unicode, dan soft hyphen dengan mapping byte raw-normalized yang lengkap, hash/fingerprint, limit input/mapping, canonical replay, proyeksi span normalized ke raw, serta proyeksi rentang halaman raw ke offset normalized. Mapping sudah dapat diproyeksikan dan disimpan sebagai artefak C01 melalui domain/adapter. Dehyphenation lintas baris, penghapusan header/footer, executable worker, benchmark 100 MiB, dan acceptance produksi belum aktif karena transformasi tambahan memerlukan gold agar tidak mengubah istilah atau struktur hukum.
+[text.rs](text.rs) menyediakan normalisasi line ending, whitespace horizontal, ligature Unicode, dan soft hyphen dengan mapping byte raw-normalized lengkap, hash/fingerprint, limit, serta proyeksi offset. Jalur ini aktif pada worker PARSE. Dehyphenation lintas baris, penghapusan header/footer, benchmark 100 MiB, dan acceptance produksi belum aktif karena transformasi tambahan memerlukan gold agar tidak mengubah istilah atau struktur hukum.
 
 ## Rekomendasi implementasi anak
 

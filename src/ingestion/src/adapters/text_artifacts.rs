@@ -15,8 +15,8 @@
 //! Target `configs/benchmark-targets.yaml` tetap REQUIRED_UNMEASURED; test filesystem sementara tidak
 //! membuktikan durability atau throughput storage produksi.
 //!
-//! Status: persistence TextArtifact lokal aktif; object storage, lifecycle orphan, worker transport,
-//! dan publication belum aktif.
+//! Status: persistence TextArtifact lokal aktif dan dipakai worker PARSE; object storage, lifecycle
+//! orphan, serta publication belum aktif.
 
 use crate::adapters::storage::{ArtifactDescriptor, ArtifactStore, ArtifactStoreError};
 use crate::document::normalization::text::{NormalizedText, TextNormalizerConfig};
