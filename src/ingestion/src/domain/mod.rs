@@ -17,4 +17,5 @@ pub mod documents;
 pub mod entities;
 pub mod evidence;
 pub mod relations;
+pub mod text_artifact_wire;
 pub mod wire;
