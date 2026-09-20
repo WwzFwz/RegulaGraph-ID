@@ -24,7 +24,7 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. Pipeline parsing/graph/retrieval, mutasi backend, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan target kualitas atau latency.
+Validator timeline dan selector `as-of` C01 aktif sebagai library. Implementasi mempertahankan interval half-open, unknown/conflicting date, status review, evidence change-event, dan overlap eksplisit tanpa memakai observation time sebagai effective date. Rekonstruksi event dari teks, canonical registry, batch grouping worker, persistence, gold temporal dataset, graph/retrieval, dan acceptance produksi belum aktif. Unit test membuktikan invariant deterministik kecil, bukan kebenaran hukum corpus atau target latency.
 
 ## Rekomendasi implementasi anak
 
@@ -32,4 +32,4 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
-| [provisions.rs](provisions.rs) | Separate logical provision IDs from text editions and evidence-backed legal intervals/change operations. | Test amendment, replacement, repeal, renumbering and uncertain dates; preserve historical source/version provenance. |
+| [provisions.rs](provisions.rs) | Hubungkan timeline aktif ke registry canonical, grouping batch satu lintasan, persistence, dan extraction change-event tanpa menebak effective date. | Uji amendment/repeal/renumbering pada gold temporal corpus, incremental/full equivalence, wrong-version leakage, p95/p99, dan peak RSS. |
