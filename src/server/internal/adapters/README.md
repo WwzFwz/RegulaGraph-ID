@@ -26,4 +26,4 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-Collector/audit D01, kontrak/validator C01, evaluator E01, storage/publication S01, serta client Worker gRPC tersedia. Worker Rust menjalankan PARSE, sedangkan wiring scheduler, pipeline graph/retrieval, mutasi search backend, layanan model, gold dataset, dan acceptance produksi belum aktif.
+Collector/audit D01, kontrak/validator C01, evaluator E01, storage/publication S01, serta client Worker gRPC tersedia. Worker Rust dan coordinator Go menjalankan handoff PARSE durable; pipeline graph/retrieval, mutasi search backend, layanan model, gold dataset, dan acceptance produksi belum aktif.

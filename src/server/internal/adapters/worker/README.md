@@ -24,7 +24,7 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Client `ProcessBatch`, `GetStatus`, dan `Cancel` aktif dengan validasi wire, deadline caller/body yang paling awal, transport credentials eksplisit, message bound, serta pemeriksaan response stale. Integration test environment-gated menjalankan client Go terhadap executable Rust melalui HTTP/2 loopback dan shared artifact root. Worker Rust melayani tahap PARSE, tetapi scheduler/workflow Go belum otomatis membentuk dan menyerahkan batch. Graph/index, layanan model, gold dataset, dan acceptance produksi belum aktif.
+Client `ProcessBatch`, `GetStatus`, dan `Cancel` aktif dengan validasi wire, deadline caller/body yang paling awal, transport credentials eksplisit, message bound, pemeriksaan response stale, serta binding checkpoint ke stage dan artifact output. Integration test environment-gated menjalankan client Go terhadap executable Rust melalui HTTP/2 loopback dan shared artifact root. Executor Go kini membentuk dan menyerahkan batch PARSE dari job durable. Graph/index, layanan model, gold dataset, dan acceptance produksi belum aktif.
 
 ## Rekomendasi implementasi anak
 
@@ -32,4 +32,4 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
-| [client.go](client.go) | Wire client ke executor scheduler setelah artifact source dan lease durable tersedia; tambahkan observability RPC/queue. | Uji disconnect/retry lintas proses, corrupted artifact refs, lease renewal/cancellation, dan message limit nyata; hindari RPC per chunk. |
+| [client.go](client.go) | Pertahankan wiring executor PARSE dan tambahkan observability RPC/queue serta TLS deployment. | Uji disconnect/retry lintas proses, corrupted artifact refs, lease renewal/cancellation, dan message limit nyata; hindari RPC per chunk. |

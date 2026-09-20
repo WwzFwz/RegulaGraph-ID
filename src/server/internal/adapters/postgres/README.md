@@ -14,7 +14,7 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
-[repository.go](repository.go) mengelola lifecycle pool dan error boundary. [migrate.go](migrate.go) menerapkan migration terurut dengan advisory lock serta checksum. [jobs.go](jobs.go) mengelola idempotency, claim, lease/fence, checkpoint, dan transisi. [artifacts.go](artifacts.go) mengikat metadata immutable serta dependency lookup revision. [publication.go](publication.go) merealisasikan reservation, backend receipt, snapshot CAS, outbox, abort, dan read lease. [types.go](types.go) membawa record internal yang dipakai workflow. [repository_integration_test.go](repository_integration_test.go) adalah suite PostgreSQL aktual dan akan skip jika DSN test tidak tersedia.
+[repository.go](repository.go) mengelola lifecycle pool dan error boundary. [migrate.go](migrate.go) menerapkan migration terurut dengan advisory lock serta checksum. [jobs.go](jobs.go) mengelola idempotency, claim generik, claim khusus PARSE, lease/fence, polling cancellation, checkpoint, dan completion atomik yang memberi prioritas pada cancellation. [artifacts.go](artifacts.go) mengikat metadata immutable serta dependency lookup revision. [publication.go](publication.go) merealisasikan reservation, backend receipt, snapshot CAS, outbox, abort, dan read lease. [types.go](types.go) membawa record internal yang dipakai workflow. [repository_integration_test.go](repository_integration_test.go) adalah suite PostgreSQL aktual dan akan skip jika DSN test tidak tersedia.
 
 ## Benchmark dan perhatian performa
 
@@ -35,6 +35,6 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
 | [repository.go](repository.go) dan [migrate.go](migrate.go) | Pertahankan pool eksplisit dan migration checksum; tambahkan rollout migration hanya melalui file bernomor baru. | Uji schema kosong, replay, checksum drift, timeout, serta upgrade snapshot produksi. |
-| [jobs.go](jobs.go) | Sambungkan worker Rust dan cancellation tanpa melemahkan fence. | Failure injection pada expiry/renewal/checkpoint serta ukur queue time dan contention. |
+| [jobs.go](jobs.go) | Pertahankan claim PARSE dan cancellation fenced; tambahkan durable retry availability/max-attempt serta claim stage berikutnya. | Failure injection pada expiry/renewal/checkpoint, verifikasi stage ownership, serta ukur queue time dan contention. |
 | [artifacts.go](artifacts.go) | Gunakan dependency rows untuk closure U01 dan batch registration. | Bandingkan closure incremental dengan rebuild dan ukur reverse lookup pada corpus referensi. |
 | [publication.go](publication.go) | Sambungkan backend operations, compensation, retention, dan recovery U01/O01. | Injeksi crash di setiap langkah, verifikasi historical visibility, read lease, dan pool saturation. |

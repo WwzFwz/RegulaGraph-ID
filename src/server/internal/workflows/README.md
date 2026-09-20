@@ -14,9 +14,9 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
-Berkas: [answer.go](answer.go), [ingest.go](ingest.go), [update.go](update.go), [collect.go](collect.go), [collect_test.go](collect_test.go), [discover.go](discover.go), [discover_test.go](discover_test.go).
+Berkas: [answer.go](answer.go), [ingest.go](ingest.go), [ingest_test.go](ingest_test.go), [update.go](update.go), [parse.go](parse.go), [parse_test.go](parse_test.go), [collect.go](collect.go), [collect_test.go](collect_test.go), [discover.go](discover.go), [discover_test.go](discover_test.go).
 
-collect menjalankan batch acquisition D01 melalui adapter sources dengan deduplikasi URL, jumlah worker terbatas, cancellation, progress, serta hitungan sukses/reuse/gagal. Scheduler pada ingest.go sekarang membuat job persisten S01 dengan idempotency, claim, lease/fence, checkpoint, dan transisi state; update.go membatasi submit pada operasi update. Collector belum otomatis mengubah hasil download menjadi job, dan pipeline Rust/model sampai publication belum tersambung. [Panduan collector](../../../../doc/acquisition.md) menjelaskan cara menjalankannya.
+collect menjalankan batch acquisition D01 melalui adapter sources dengan deduplikasi URL, jumlah worker terbatas, cancellation, progress, serta hitungan sukses/reuse/gagal. Scheduler pada ingest.go membuat job persisten S01 dan memilih `PARSE` hanya bila semua source sudah berupa blob; URL tetap dimiliki `ACQUIRE`. `parse.go` mengambil claim khusus PARSE, membatasi seluruh handoff pada deadline lease, meneruskan cancellation durable, memvalidasi output/checkpoint, lalu mendaftarkan artifact dan memindahkan hasil lengkap ke `STAGED` atau hasil parsial ke `WAITING_REVIEW`. Collector belum otomatis mengubah hasil download menjadi job dan stage sesudah PARSE belum tersambung. [Panduan collector](../../../../doc/acquisition.md) menjelaskan acquisition.
 
 discover.go menyimpan checkpoint discovery.json dan antrean queue.txt setelah setiap halaman baru; satu proses penulis per direktori. Seed diikuti breadth-first dengan batas halaman per run, URL dideduplikasi, error dipertahankan dan dicoba ulang pada run berikutnya. Checkpoint adalah inventaris D01 lokal, bukan durable job produksi. Hasil discover tidak membuktikan ketersediaan PDF atau canonical identity.
 
@@ -30,7 +30,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-Collector D01, kontrak/validator C01, dan scheduler durable S01 sudah aktif. Parsing/graph/index runtime, worker dispatch, answering, dan evaluator benchmark end-to-end masih mengikuti paket berikutnya. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
+Collector D01, kontrak/validator C01, scheduler durable S01, serta dispatch PARSE ke worker Rust sudah aktif. Coordinator saat ini memproses satu batch per loop dan mensyaratkan timeout call lebih pendek dari lease; durable exponential backoff/max-attempt, lease renewal batch panjang, stage lanjutan, answering, dan benchmark end-to-end masih mengikuti paket berikutnya. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
 
 ## Rekomendasi implementasi anak
 
@@ -41,5 +41,5 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | [answer.go](answer.go) | Pin one snapshot, resolve temporal intent, coordinate retrieval/context/generation and validate terminal evidence; propagate cancellation. | Test unavailable dependencies, evidence conflicts and snapshot rollover mid-request; trace queue and stage durations. |
 | [collect.go](collect.go) | Retain resumable acquisition; integrate receipts into S01 jobs without changing PDF byte-cap accounting. | Test cancellation and budget stop with concurrent workers; reconcile completed/failed/deferred counts and no dangling producer. |
 | [discover.go](discover.go) | Retain durable queue checkpoints; add source-specific discovery only after inspecting real portal layouts. | Test cycles, duplicate seeds, resumed pagination and bounded new-page counts; report coverage gaps explicitly. |
-| [ingest.go](ingest.go) | Sambungkan scheduler S01 yang aktif ke worker stage I01/K01/X01 dan publication coordinator. | Pertahankan retry/duplicate/stale-fence tests; tambahkan cancellation dan bounded-capacity dispatch dengan storage nyata. |
+| [ingest.go](ingest.go) dan [parse.go](parse.go) | Pertahankan dispatch PARSE; tambahkan durable retry schedule/max-attempt, lease heartbeat untuk batch panjang, stage I01/K01/X01 berikutnya, dan publication coordinator. | Injeksi crash di register/checkpoint/completion, uji cancellation dan bounded-capacity dispatch dengan PostgreSQL nyata, lalu ukur queue/call p95/p99. |
 | [update.go](update.go) | Bangun dependency closure termasuk empty lookup revision; stage replacement dan pertahankan versi/bukti bersama. | Uji source withdrawal, late reference, canonical merge/split dan interrupted reindex; bandingkan dengan clean rebuild. |

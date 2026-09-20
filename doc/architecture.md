@@ -36,7 +36,7 @@ Perubahan isi maupun dependency fingerprint dapat menginvalidasi chunk, relasi, 
 
 PostgreSQL direncanakan untuk metadata/versi/manifest, Qdrant untuk indeks pencarian, Neo4j untuk graph dengan provenance, dan storage berkas untuk dokumen asli serta artefak batch. Tidak ada asumsi transaksi atomik lintas backend; staging/checkpoint/idempotensi dan publication marker menjaga pembacaan snapshot.
 
-Go-Rust dan Go/Rust-inference memakai gRPC berukuran job/batch, bukan RPC per edge atau token. Worker Go-Rust sudah memiliki generated binding dan implementasi PARSE berbasis referensi artefak; semantic/inference C++ masih berupa target static library. Transport Worker hanya loopback sampai termination TLS deployment tersedia, dan scheduler Go belum otomatis menyerahkan job.
+Go-Rust dan Go/Rust-inference memakai gRPC berukuran job/batch, bukan RPC per edge atau token. Worker Go-Rust memiliki generated binding, implementasi PARSE berbasis referensi artefak, dan coordinator Go yang menyerahkan job durable serta menyimpan checkpoint. Semantic/inference C++ masih berupa target static library. Transport Worker hanya loopback sampai termination TLS deployment tersedia.
 
 Offset wire menggunakan rencana byte UTF-8 start-inclusive/end-exclusive dengan identitas teks terkait. Parser mempertahankan mapping ke teks asli bila normalisasi mengubah posisi. Source/canonical/provision-version/snapshot ID diteruskan tanpa perubahan identitas berdasarkan nama tampilan.
 

@@ -18,7 +18,7 @@ Subfolder: [cmd/](cmd/README.md), [internal/](internal/README.md).
 
 Berkas: [go.mod](go.mod), [go.sum](go.sum).
 
-CLI discover/collect/audit sudah menjalankan acquisition D01: metadata halaman detail, unduhan PDF nyata, checksum, resume, discovery terbatas, serta inventory provenance terverifikasi. Scheduler/job dan publication control-plane S01 aktif. Client Worker gRPC Go tersedia, tetapi executor scheduler belum menyerahkan job ke worker Rust; API query, retrieval/answering, dan backend model juga belum tersambung. Lihat [panduan akuisisi](../../doc/acquisition.md).
+CLI discover/collect/audit sudah menjalankan acquisition D01: metadata halaman detail, unduhan PDF nyata, checksum, resume, discovery terbatas, serta inventory provenance terverifikasi. Scheduler/job dan publication control-plane S01 aktif. Coordinator PARSE membentuk request dari job durable, memanggil worker Rust, memvalidasi artifact/checkpoint, dan menyimpan handoff ke state `STAGED`. API query, retrieval/answering, stage setelah PARSE, serta backend model belum tersambung. Lihat [panduan akuisisi](../../doc/acquisition.md).
 
 ## Benchmark dan perhatian performa
 
@@ -28,4 +28,4 @@ Ikuti [kebijakan benchmark](../../doc/benchmark-policy.md). Angka wajib mengikut
 
 ## Status
 
-Collector/audit D01, kontrak/validator C01, evaluator E01, serta adapter control-plane storage/publication S01 sudah tersedia. Pipeline parsing/graph/retrieval, mutasi backend, dan layanan model masih belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity dan test correctness tidak membuktikan target kualitas atau latency.
+Collector/audit D01, kontrak/validator C01, evaluator E01, adapter control-plane S01, dan jalur dispatch PARSE Go–Rust sudah tersedia. Structure/graph/index/retrieval, mutasi backend, dan layanan model masih belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity dan test correctness tidak membuktikan target kualitas atau latency.
