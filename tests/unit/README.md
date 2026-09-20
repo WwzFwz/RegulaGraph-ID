@@ -29,5 +29,6 @@ E01 memiliki pengujian aktif pada [test_evaluation_config.py](test_evaluation_co
 [test_evaluation_dataset_loader.py](test_evaluation_dataset_loader.py),
 [test_evaluation_metrics.py](test_evaluation_metrics.py), [test_evaluation_gates.py](test_evaluation_gates.py),
 dan [test_evaluation_telemetry.py](test_evaluation_telemetry.py). Kontrak C01 tetap diperiksa oleh
-[test_evaluation_contracts.py](test_evaluation_contracts.py). Gunakan generated bindings pada PYTHONPATH.
+[test_evaluation_contracts.py](test_evaluation_contracts.py). Profiler corpus M01 diperiksa oleh
+[test_corpus_profile.py](test_corpus_profile.py). Gunakan generated bindings pada PYTHONPATH.
 PASS test tersebut membuktikan perilaku deterministik evaluator, bukan target benchmark.
