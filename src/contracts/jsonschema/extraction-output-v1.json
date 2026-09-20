@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://regulagraph.local/schema/extraction-output-v1.json",
+  "title": "RegulaGraph extraction proposal v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["mentions", "assertions", "supports"],
+  "properties": {
+    "mentions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/mention" }
+    },
+    "assertions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/assertion" }
+    },
+    "supports": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/support" }
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "$defs": {
+    "localId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "byteSpan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start_byte", "end_byte", "quote"],
+      "properties": {
+        "start_byte": { "type": "integer", "minimum": 0 },
+        "end_byte": { "type": "integer", "minimum": 1 },
+        "quote": { "type": "string", "minLength": 1 }
+      }
+    },
+    "mention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["local_id", "surface_form", "candidate_type", "span"],
+      "properties": {
+        "local_id": { "$ref": "#/$defs/localId" },
+        "surface_form": { "type": "string", "minLength": 1 },
+        "candidate_type": { "type": "string", "minLength": 1 },
+        "span": { "$ref": "#/$defs/byteSpan" }
+      }
+    },
+    "qualifier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["predicate_id", "value_kind", "value"],
+      "properties": {
+        "predicate_id": { "type": "string", "minLength": 1 },
+        "value_kind": {
+          "enum": ["mention", "literal", "date", "number"]
+        },
+        "value": {}
+      }
+    },
+    "assertion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "local_id",
+        "subject_local_id",
+        "predicate_id",
+        "object_local_id",
+        "origin",
+        "qualifiers",
+        "exception_local_ids"
+      ],
+      "properties": {
+        "local_id": { "$ref": "#/$defs/localId" },
+        "subject_local_id": { "$ref": "#/$defs/localId" },
+        "predicate_id": { "type": "string", "minLength": 1 },
+        "object_local_id": { "$ref": "#/$defs/localId" },
+        "origin": { "enum": ["explicit", "inferred"] },
+        "qualifiers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/qualifier" }
+        },
+        "exception_local_ids": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/localId" },
+          "uniqueItems": true
+        }
+      }
+    },
+    "support": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["assertion_local_id", "spans"],
+      "properties": {
+        "assertion_local_id": { "$ref": "#/$defs/localId" },
+        "spans": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/byteSpan" }
+        }
+      }
+    }
+  }
+}

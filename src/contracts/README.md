@@ -16,7 +16,7 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
-Subfolder: [proto/](proto/README.md).
+Subfolder: [jsonschema/](jsonschema/README.md), [proto/](proto/README.md).
 
 Folder ini menyediakan artefak kontrak/verifikasi C01 sebagaimana daftar di bawah; tidak menyediakan layanan produksi.
 
