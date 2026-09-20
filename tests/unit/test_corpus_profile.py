@@ -13,8 +13,9 @@ import unittest
 import uuid
 
 from pypdf import PdfWriter
+from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject, NumberObject
 
-from tooling.corpus.profile_pdfs import Candidate, _safe_pdf_path, analyze_pdf, load_candidates, select_candidates
+from tooling.corpus.profile_pdfs import Candidate, _claim_output_directory, _safe_pdf_path, analyze_pdf, load_candidates, main, profile, select_candidates
 
 
 class CorpusProfileTests(unittest.TestCase):
@@ -44,15 +45,38 @@ class CorpusProfileTests(unittest.TestCase):
                             "portal_fields": {"year": ["2020"]}, "pdfs": [{"kind": "document", "sha256": "a" * 64,
                             "path": f"blobs/{'a' * 64}.pdf", "bytes": 10}]}, separators=(",", ":")) + "\n").encode()
         (root / "inventory.records.jsonl").write_bytes(rows)
-        manifest = {"schema_version": 1, "integrity_valid": True, "inventory_id": "inventory-1",
-                    "records_path": "inventory.records.jsonl", "records_sha256": hashlib.sha256(rows).hexdigest()}
+        records_hash = hashlib.sha256(rows).hexdigest()
+        component_hashes = {"records_sha256": records_hash, "observations_sha256": "b" * 64,
+                            "queue_sha256": "c" * 64, "blob_set_sha256": "d" * 64}
+        identity_seed = (f"schema=1\nrecords={records_hash}\nobservations={'b' * 64}\n"
+                         f"queue={'c' * 64}\nblobs={'d' * 64}\n").encode()
+        manifest = {"schema_version": 1, "integrity_valid": True,
+                    "inventory_id": hashlib.sha256(identity_seed).hexdigest(), "records_path": "inventory.records.jsonl"} | component_hashes
         path = root / "inventory.json"
         path.write_text(json.dumps(manifest), encoding="utf-8")
         _, candidates = load_candidates(path)
         self.assertEqual(len(candidates), 1)
-        manifest["records_sha256"] = "0" * 64
-        path.write_text(json.dumps(manifest), encoding="utf-8")
+        (root / "inventory.records.jsonl").write_bytes(rows + b"\n")
         with self.assertRaisesRegex(ValueError, "hash mismatch"):
+            load_candidates(path)
+
+    def test_inventory_identity_must_bind_component_hashes(self):
+        root = self.workspace_directory()
+        rows = b"{}\n"
+        (root / "inventory.records.jsonl").write_bytes(rows)
+        manifest = {"schema_version": 1, "integrity_valid": True, "inventory_id": "0" * 64,
+                    "records_path": "inventory.records.jsonl", "records_sha256": hashlib.sha256(rows).hexdigest(),
+                    "observations_sha256": "b" * 64, "queue_sha256": "c" * 64, "blob_set_sha256": "d" * 64}
+        path = root / "inventory.json"
+        path.write_text(json.dumps(manifest), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "identity"):
+            load_candidates(path)
+
+    def test_integrity_flag_must_be_json_boolean_true(self):
+        root = self.workspace_directory()
+        path = root / "inventory.json"
+        path.write_text(json.dumps({"schema_version": 1, "integrity_valid": "false"}), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "pass integrity"):
             load_candidates(path)
 
     def test_blank_pdf_is_reported_as_sparse_without_false_text(self):
@@ -67,6 +91,24 @@ class CorpusProfileTests(unittest.TestCase):
         self.assertEqual(result["document_class"], "sparse_or_blank")
         self.assertEqual(result["text_chars"], 0)
 
+    def test_image_xobject_is_detected_through_indirect_resources(self):
+        root = self.workspace_directory()
+        source = root / "image.pdf"
+        writer = PdfWriter()
+        page = writer.add_blank_page(width=64, height=64)
+        image = DecodedStreamObject()
+        image.set_data(b"\x00")
+        image.update({NameObject("/Type"): NameObject("/XObject"), NameObject("/Subtype"): NameObject("/Image"),
+                      NameObject("/Width"): NumberObject(1), NameObject("/Height"): NumberObject(1),
+                      NameObject("/ColorSpace"): NameObject("/DeviceGray"), NameObject("/BitsPerComponent"): NumberObject(8)})
+        xobjects = DictionaryObject({NameObject("/Im0"): writer._add_object(image)})
+        resources = DictionaryObject({NameObject("/XObject"): writer._add_object(xobjects)})
+        page[NameObject("/Resources")] = writer._add_object(resources)
+        with source.open("wb") as handle:
+            writer.write(handle)
+        result = analyze_pdf(source)
+        self.assertGreater(result["pages"][0]["image_xobjects"], 0)
+
     def test_storage_key_cannot_escape_inventory_root(self):
         root = self.workspace_directory()
         outside_pdf = self.workspace_directory() / "outside.pdf"
@@ -75,6 +117,25 @@ class CorpusProfileTests(unittest.TestCase):
                               "a.example", "https://a.example/1", "2020")
         with self.assertRaises((ValueError, OSError)):
             _safe_pdf_path(root, candidate)
+
+    def test_non_finite_timeout_is_rejected_by_cli(self):
+        with self.assertRaises(SystemExit) as raised:
+            main(["--timeout", "nan"])
+        self.assertEqual(raised.exception.code, 2)
+
+    def test_existing_profile_outputs_are_immutable(self):
+        output = self.workspace_directory()
+        (output / "pdf-profile.manifest.json").write_text("old", encoding="utf-8")
+        with self.assertRaisesRegex(FileExistsError, "refusing to overwrite"):
+            profile(output / "missing-inventory.json", output, 1, "seed", 1, 1.0)
+
+    def test_output_directory_has_exclusive_claim(self):
+        output = self.workspace_directory()
+        claim = _claim_output_directory(output)
+        self.assertTrue(claim.exists())
+        with self.assertRaisesRegex(FileExistsError, "another profile run"):
+            _claim_output_directory(output)
+        claim.unlink()
 
 
 if __name__ == "__main__":
