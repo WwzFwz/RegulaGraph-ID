@@ -218,20 +218,9 @@ pub fn plan_incremental_update(
         });
     }
 
+    preflight_edge_count(previous, current, config.maximum_dependency_edges)?;
     let previous = index_states(previous, config.maximum_dependency_edges)?;
     let current = index_states(current, config.maximum_dependency_edges)?;
-    let edge_count = previous.edge_count.checked_add(current.edge_count).ok_or(
-        IncrementalPlanError::EdgeLimit {
-            actual: usize::MAX,
-            maximum: config.maximum_dependency_edges,
-        },
-    )?;
-    if edge_count > config.maximum_dependency_edges {
-        return Err(IncrementalPlanError::EdgeLimit {
-            actual: edge_count,
-            maximum: config.maximum_dependency_edges,
-        });
-    }
 
     let mut direct = HashMap::new();
     let all_ids: HashSet<&str> = previous
@@ -349,7 +338,27 @@ pub fn plan_incremental_update(
 struct StateIndex<'a> {
     items: HashMap<&'a str, &'a WorkItemState>,
     lookup_revisions: HashMap<&'a str, (u64, bool)>,
-    edge_count: usize,
+}
+
+fn preflight_edge_count(
+    previous: &[WorkItemState],
+    current: &[WorkItemState],
+    maximum: usize,
+) -> Result<(), IncrementalPlanError> {
+    let mut actual = 0usize;
+    for state in previous.iter().chain(current) {
+        actual = actual
+            .checked_add(state.dependencies.len())
+            .and_then(|count| count.checked_add(state.lookup_revisions.len()))
+            .ok_or(IncrementalPlanError::EdgeLimit {
+                actual: usize::MAX,
+                maximum,
+            })?;
+        if actual > maximum {
+            return Err(IncrementalPlanError::EdgeLimit { actual, maximum });
+        }
+    }
+    Ok(())
 }
 
 fn index_states<'a>(
@@ -419,7 +428,6 @@ fn index_states<'a>(
     Ok(StateIndex {
         items,
         lookup_revisions,
-        edge_count,
     })
 }
 
