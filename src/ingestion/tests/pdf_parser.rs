@@ -25,8 +25,10 @@ fn pdfium_boundary_parses_and_binds_real_inputs() {
         return;
     };
     let library_sha256 = sha256_file(&library_path);
-    let mut config = PdfParserConfig::default();
-    config.minimum_text_characters = 5;
+    let config = PdfParserConfig {
+        minimum_text_characters: 5,
+        ..PdfParserConfig::default()
+    };
     let parser = PdfParser::bind(&library_path, &library_sha256, &core_version, config)
         .expect("pinned PDFium library must bind");
     let second_bind = PdfParser::bind(

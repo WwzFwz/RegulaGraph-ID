@@ -68,7 +68,7 @@ fn walk(
         require(
             !rule.required
                 || if repeated {
-                    f.get_repeated(m).len() > 0
+                    !f.get_repeated(m).is_empty()
                 } else {
                     f.has_field(m)
                 },
@@ -257,7 +257,7 @@ fn semantic(m: &dyn MessageDyn) -> Result<(), String> {
         )?;
     }
     if let Some(p) = m.downcast_ref::<common::Visibility>() {
-        require(p.to_seq.map_or(true, |v| v > p.from_seq), "Visibility")?;
+        require(p.to_seq.is_none_or(|v| v > p.from_seq), "Visibility")?;
     }
     if let Some(p) = m.downcast_ref::<common::TextSpan>() {
         require(p.end_byte >= p.start_byte, "TextSpan")?;
