@@ -119,6 +119,7 @@ message ExtractBatchResponse {
   ModelManifest model=3 [(rules).required=true];
   TokenUsage usage=4 [(rules).required=true];
   repeated StageDuration durations=5;
+  ProducerManifest producer_manifest=6 [(rules).required=true];
 }
 message AmbiguousMention {
   string item_id=1 [(rules)={required:true ascii_id:true}];
@@ -144,6 +145,7 @@ message SemanticResolveResponse {
   ModelManifest model=3 [(rules).required=true];
   TokenUsage usage=4 [(rules).required=true];
   repeated StageDuration durations=5;
+  ProducerManifest producer_manifest=6 [(rules).required=true];
 }
 message EntityFacts {
   string item_id=1 [(rules)={required:true ascii_id:true}];
@@ -168,6 +170,7 @@ message SummarizeBatchResponse {
   ModelManifest model=3 [(rules).required=true];
   TokenUsage usage=4 [(rules).required=true];
   repeated StageDuration durations=5;
+  ProducerManifest producer_manifest=6 [(rules).required=true];
 }
 service Inference {
   rpc EmbedBatch(EmbedBatchRequest) returns (EmbedBatchResponse);

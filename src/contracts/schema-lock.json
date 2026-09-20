@@ -2862,6 +2862,17 @@
         "rules": {},
         "type": 11,
         "type_name": ".regulagraph.v1.StageDuration"
+      },
+      "6": {
+        "label": 1,
+        "name": "producer_manifest",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 11,
+        "type_name": ".regulagraph.v1.ProducerManifest"
       }
     },
     "regulagraph.v1.ExtractItemResult": {
@@ -7909,6 +7920,17 @@
         "rules": {},
         "type": 11,
         "type_name": ".regulagraph.v1.StageDuration"
+      },
+      "6": {
+        "label": 1,
+        "name": "producer_manifest",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 11,
+        "type_name": ".regulagraph.v1.ProducerManifest"
       }
     },
     "regulagraph.v1.Snapshot": {
@@ -8614,6 +8636,17 @@
         "rules": {},
         "type": 11,
         "type_name": ".regulagraph.v1.StageDuration"
+      },
+      "6": {
+        "label": 1,
+        "name": "producer_manifest",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 11,
+        "type_name": ".regulagraph.v1.ProducerManifest"
       }
     },
     "regulagraph.v1.SummarizeItemResult": {
