@@ -11,8 +11,8 @@
 //! Ukur p50/p95/p99, throughput, waktu antre, serta RSS/VRAM sesuai workload. Ambang wajib ada di configs/benchmark-targets.yaml (REQUIRED_UNMEASURED); ukur cold/warm terpisah dan pertahankan kualitas sumber/versi.
 //!
 //! Status: pipeline struktur/chunk I01, proyeksi TextArtifact/structure/chunk, assembler serta
-//! persistence DocumentBatch C01, dan artifact store lokal aktif sebagai library; executable worker,
-//! versioning, graph, serta indexing belum aktif.
+//! persistence DocumentBatch C01, artifact store lokal, dan incremental change planner aktif sebagai
+//! library; executable worker, versioning, graph, serta indexing belum aktif.
 
 pub mod adapters;
 pub mod document;

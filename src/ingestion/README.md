@@ -26,7 +26,7 @@ Ikuti [kebijakan benchmark](../../doc/benchmark-policy.md). Angka wajib mengikut
 
 ## Status
 
-Boundary parser PDFium, normalizer teks konservatif, parser struktur hukum, structural chunk builder, parent index, proyeksi C01 untuk text/structure/chunk, assembler `DocumentBatch`, dan penyimpanan artefak lokal immutable sudah aktif sebagai library. Parser memverifikasi hash input/library; transformasi berikutnya menjaga mapping byte raw-normalized, page failure, provision/source identity, token count, parent refs, reference closure, completeness, dan hash artefak. Executable worker, reconstruction versioning, tabel, graph/index batch, OCR, gold dataset, object storage, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas, durability, atau latency produksi.
+Boundary parser PDFium, normalizer teks konservatif, parser struktur hukum, structural chunk builder, parent index, proyeksi C01 untuk text/structure/chunk, assembler `DocumentBatch`, penyimpanan artefak lokal immutable, dan incremental change planner sudah aktif sebagai library. Parser memverifikasi hash input/library; transformasi berikutnya menjaga mapping byte raw-normalized, page failure, provision/source identity, token count, parent refs, reference closure, completeness, dependency/lookup revision, dan hash artefak. Executable worker, reconstruction versioning, tabel, graph/index batch, OCR, gold dataset, object storage, full-rebuild equivalence, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas, durability, atau latency produksi.
 
 ## Penambahan C01 dan panduan verifikasi
 

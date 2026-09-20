@@ -16,7 +16,7 @@ Anak tidak boleh mengubah kontrak input/output secara tersembunyi. Perubahan ben
 
 Subfolder yang dikelola: [decisions/](decisions/README.md).
 
-Berkas langsung: [acquisition.md](acquisition.md), [system-design.md](system-design.md), [system-contracts.md](system-contracts.md), [storage-consistency.md](storage-consistency.md), [corpus-plan.md](corpus-plan.md), [development-plan.md](development-plan.md), [benchmark-targets.md](benchmark-targets.md), [evaluation-runner.md](evaluation-runner.md), [Graph-Engineering-Athropic-Playbook.pdf](Graph-Engineering-Athropic-Playbook.pdf), [architecture.md](architecture.md), [benchmark-policy.md](benchmark-policy.md), [data-model.md](data-model.md), [reference.md](reference.md), [runtime-language-review.md](runtime-language-review.md), [verification-report-d01-inventory.md](verification-report-d01-inventory.md), [verification-report-e01.md](verification-report-e01.md), [verification-report-i01-document-artifacts.md](verification-report-i01-document-artifacts.md), [verification-report-i01-pdf-parser.md](verification-report-i01-pdf-parser.md), [verification-report-i01-text-normalization.md](verification-report-i01-text-normalization.md), [verification-report-i01-structural-chunking.md](verification-report-i01-structural-chunking.md), [verification-report-m01-pdf-profile.md](verification-report-m01-pdf-profile.md), dan [verification-report-s01.md](verification-report-s01.md).
+Berkas langsung: [acquisition.md](acquisition.md), [system-design.md](system-design.md), [system-contracts.md](system-contracts.md), [storage-consistency.md](storage-consistency.md), [corpus-plan.md](corpus-plan.md), [development-plan.md](development-plan.md), [benchmark-targets.md](benchmark-targets.md), [evaluation-runner.md](evaluation-runner.md), [Graph-Engineering-Athropic-Playbook.pdf](Graph-Engineering-Athropic-Playbook.pdf), [architecture.md](architecture.md), [benchmark-policy.md](benchmark-policy.md), [data-model.md](data-model.md), [reference.md](reference.md), [runtime-language-review.md](runtime-language-review.md), [verification-report-d01-inventory.md](verification-report-d01-inventory.md), [verification-report-e01.md](verification-report-e01.md), [verification-report-i01-document-artifacts.md](verification-report-i01-document-artifacts.md), [verification-report-i01-incremental-planning.md](verification-report-i01-incremental-planning.md), [verification-report-i01-pdf-parser.md](verification-report-i01-pdf-parser.md), [verification-report-i01-text-normalization.md](verification-report-i01-text-normalization.md), [verification-report-i01-structural-chunking.md](verification-report-i01-structural-chunking.md), [verification-report-m01-pdf-profile.md](verification-report-m01-pdf-profile.md), dan [verification-report-s01.md](verification-report-s01.md).
 
 Mulai dari system-design untuk membaca keseluruhan rancangan, lalu system-contracts dan storage-consistency untuk semantik integrasi. Corpus-plan mengikat sumber pilihan pengguna dan prosedur gold dataset. Development-plan mengurutkan seluruh implementasi menurut dependency beserta bukti kelulusannya. Dokumen desain tidak berarti pipeline atau benchmark sudah aktif; status kontrak C01 dijelaskan terpisah.
 
@@ -29,7 +29,7 @@ Lihat [kebijakan benchmark](benchmark-policy.md) untuk protokol pengukuran dan p
 ## Status implementasi
 
 Collector dan audit inventory D01, kontrak/validator C01, evaluator offline E01, fondasi control-plane
-storage/publication S01, serta parser PDFium, normalizer teks, parser struktur hukum, parent-aware chunk builder, dan boundary artefak dokumen I01 sudah aktif. Profiler M01 telah membandingkan tiga
+storage/publication S01, serta parser PDFium, normalizer teks, parser struktur hukum, parent-aware chunk builder, boundary artefak dokumen, dan incremental change planner I01 sudah aktif. Profiler M01 telah membandingkan tiga
 engine PDF. Executable worker/RPC I01 berikutnya, graph/retrieval, mutasi backend Qdrant/Neo4j,
 layanan model, gold dataset, serta acceptance run produksi belum aktif. Status anak dijelaskan pada header
 masing-masing; profil parser, audit integrity, test correctness S01, dan evaluator sintetis tidak membuktikan
@@ -43,6 +43,7 @@ Ringkasan milestone: [verification-report-c01.md](verification-report-c01.md),
 [verification-report-d01-inventory.md](verification-report-d01-inventory.md),
 [verification-report-e01.md](verification-report-e01.md),
 [verification-report-i01-document-artifacts.md](verification-report-i01-document-artifacts.md),
+[verification-report-i01-incremental-planning.md](verification-report-i01-incremental-planning.md),
 [verification-report-i01-pdf-parser.md](verification-report-i01-pdf-parser.md),
 [verification-report-i01-text-normalization.md](verification-report-i01-text-normalization.md),
 [verification-report-i01-structural-chunking.md](verification-report-i01-structural-chunking.md),

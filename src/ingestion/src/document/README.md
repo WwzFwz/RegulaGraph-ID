@@ -32,7 +32,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-Parser PDFium I01 aktif di [parsing/pdf.rs](parsing/pdf.rs) dan menghasilkan teks, locator ternormalisasi terhadap intersection CropBox/MediaBox serta rotasi halaman, status halaman, dan manifest yang terikat hash. Normalizer menghasilkan mapping byte canonical; chunking membentuk hierarki, source-mapped chunk, token count, dan parent refs. Hasil tersebut sudah dapat diproyeksikan serta disimpan sebagai `TextArtifact` dan `DocumentBatch` C01 melalui domain/adapter. Reconstruction versioning, tabel, OCR, executable worker, gold dataset, dan acceptance produksi belum aktif. Fixture membuktikan boundary serta invariant dasar, bukan kualitas corpus atau target latency.
+Parser PDFium I01 aktif di [parsing/pdf.rs](parsing/pdf.rs) dan menghasilkan teks, locator ternormalisasi terhadap intersection CropBox/MediaBox serta rotasi halaman, status halaman, dan manifest yang terikat hash. Normalizer menghasilkan mapping byte canonical; chunking membentuk hierarki, source-mapped chunk, token count, dan parent refs. Hasil tersebut sudah dapat diproyeksikan serta disimpan sebagai `TextArtifact` dan `DocumentBatch` C01 melalui domain/adapter. Planner incremental membandingkan content/producer/dependency fingerprint, mempertahankan negative lookup revision, dan menghitung reverse dependency closure ke `UpdatePlan` C01. Reconstruction versioning, tabel, OCR, executable worker, gold dataset, full-rebuild equivalence, dan acceptance produksi belum aktif. Fixture membuktikan boundary serta invariant dasar, bukan kualitas corpus atau target latency.
 
 ## Rekomendasi implementasi anak
 
@@ -40,4 +40,4 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
-| [change_detection.rs](change_detection.rs) | Compare content and producer/dependency fingerprints, including negative lookup revisions, to emit incremental work plans. | Compare incremental vs clean rebuild on late references/model changes; measure reused work while preserving old/shared evidence. |
+| [change_detection.rs](change_detection.rs) | Hubungkan planner aktif ke inventory/checkpoint worker dan manifest publication Go tanpa mengubah source removal menjadi pencabutan hukum otomatis. | Bandingkan incremental vs clean rebuild pada late reference/perubahan model; ukur reuse, invalidation precision/recall, p95/p99, dan RSS sambil mempertahankan bukti bersama. |

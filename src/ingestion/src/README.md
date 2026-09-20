@@ -26,4 +26,4 @@ Ikuti [kebijakan benchmark](../../../doc/benchmark-policy.md). Angka wajib mengi
 
 ## Status
 
-Modul parsing, normalisasi, structural chunking, validator chunk, proyeksi `TextArtifact`/structure/chunk, assembler `DocumentBatch`, serta persistence artefak lokal telah aktif. Modul Rust lain masih scaffold sampai reconstruction versioning, table/OCR handling, knowledge graph, indexing, object storage, dan executable worker diimplementasikan. Build serta fixture unit tidak membuktikan target kualitas corpus, durability storage, atau latency produksi.
+Modul parsing, normalisasi, structural chunking, validator chunk, proyeksi `TextArtifact`/structure/chunk, assembler `DocumentBatch`, persistence artefak lokal, serta incremental change planner telah aktif. Modul Rust lain masih scaffold sampai reconstruction versioning, table/OCR handling, knowledge graph, indexing, object storage, dan executable worker diimplementasikan. Build serta fixture unit tidak membuktikan full-rebuild equivalence, target kualitas corpus, durability storage, atau latency produksi.
