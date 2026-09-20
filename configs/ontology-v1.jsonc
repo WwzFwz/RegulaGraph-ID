@@ -1,0 +1,122 @@
+// Versioned RegulaGraph-ID ontology. Runtime loaders hash these exact bytes and reject unknown fields.
+{
+  "schema_version": 1,
+  "ontology_version": "id-regulation-ontology-v1",
+  "entity_types": [
+    "regulation",
+    "provision",
+    "organization",
+    "role",
+    "person",
+    "activity",
+    "obligation",
+    "requirement",
+    "exception",
+    "defined_term",
+    "permit",
+    "prohibition",
+    "procedure",
+    "document",
+    "sanction",
+    "date",
+    "place",
+    "legal_concept"
+  ],
+  "qualifiers": [
+    {"id": "scope", "value_kinds": ["entity", "literal"]},
+    {"id": "effective_on", "value_kinds": ["date"]},
+    {"id": "valid_until", "value_kinds": ["date"]},
+    {"id": "condition", "value_kinds": ["entity", "literal"]},
+    {"id": "threshold", "value_kinds": ["number", "literal"]},
+    {"id": "amount", "value_kinds": ["number", "literal"]},
+    {"id": "unit", "value_kinds": ["literal"]},
+    {"id": "legal_basis", "value_kinds": ["entity"]},
+    {"id": "actor", "value_kinds": ["entity"]},
+    {"id": "location", "value_kinds": ["entity"]},
+    {"id": "modality", "value_kinds": ["literal"]},
+    {"id": "frequency", "value_kinds": ["literal"]},
+    {"id": "deadline", "value_kinds": ["date", "literal"]}
+  ],
+  "predicates": [
+    {
+      "id": "references",
+      "subject_types": ["regulation", "provision", "organization", "role", "person", "activity", "obligation", "requirement", "exception", "defined_term", "permit", "prohibition", "procedure", "document", "sanction", "date", "place", "legal_concept"],
+      "object_types": ["regulation", "provision", "organization", "role", "person", "activity", "obligation", "requirement", "exception", "defined_term", "permit", "prohibition", "procedure", "document", "sanction", "date", "place", "legal_concept"],
+      "qualifier_ids": ["scope", "effective_on", "condition", "legal_basis"],
+      "origins": ["explicit", "inferred"],
+      "allow_self": false
+    },
+    {
+      "id": "amends",
+      "subject_types": ["regulation", "provision", "document"],
+      "object_types": ["regulation", "provision", "document"],
+      "qualifier_ids": ["effective_on", "condition", "legal_basis"],
+      "origins": ["explicit", "inferred"],
+      "allow_self": false
+    },
+    {
+      "id": "repeals",
+      "subject_types": ["regulation", "provision", "document"],
+      "object_types": ["regulation", "provision", "document"],
+      "qualifier_ids": ["effective_on", "condition", "legal_basis"],
+      "origins": ["explicit", "inferred"],
+      "allow_self": false
+    },
+    {
+      "id": "implements",
+      "subject_types": ["regulation", "provision", "document"],
+      "object_types": ["regulation", "provision", "document"],
+      "qualifier_ids": ["effective_on", "scope", "legal_basis"],
+      "origins": ["explicit", "inferred"],
+      "allow_self": false
+    },
+    {
+      "id": "defines",
+      "subject_types": ["regulation", "provision", "document"],
+      "object_types": ["defined_term", "legal_concept"],
+      "qualifier_ids": ["scope", "effective_on", "condition"],
+      "origins": ["explicit"],
+      "allow_self": false
+    },
+    {
+      "id": "requires",
+      "subject_types": ["regulation", "provision", "organization", "role", "person", "obligation", "legal_concept"],
+      "object_types": ["activity", "obligation", "requirement", "procedure", "legal_concept"],
+      "qualifier_ids": ["scope", "effective_on", "valid_until", "condition", "threshold", "amount", "unit", "actor", "location", "modality", "frequency", "deadline", "legal_basis"],
+      "origins": ["explicit", "inferred"],
+      "allow_self": false
+    },
+    {
+      "id": "permits",
+      "subject_types": ["regulation", "provision", "organization", "role", "person", "legal_concept"],
+      "object_types": ["activity", "permit", "procedure", "legal_concept"],
+      "qualifier_ids": ["scope", "effective_on", "valid_until", "condition", "actor", "location", "deadline", "legal_basis"],
+      "origins": ["explicit", "inferred"],
+      "allow_self": false
+    },
+    {
+      "id": "prohibits",
+      "subject_types": ["regulation", "provision", "organization", "role", "person", "legal_concept"],
+      "object_types": ["activity", "prohibition", "procedure", "legal_concept"],
+      "qualifier_ids": ["scope", "effective_on", "valid_until", "condition", "actor", "location", "legal_basis"],
+      "origins": ["explicit", "inferred"],
+      "allow_self": false
+    },
+    {
+      "id": "applies_to",
+      "subject_types": ["regulation", "provision", "obligation", "requirement", "permit", "prohibition", "procedure", "document", "sanction", "legal_concept"],
+      "object_types": ["organization", "role", "person", "activity", "place", "legal_concept"],
+      "qualifier_ids": ["scope", "effective_on", "valid_until", "condition", "location", "legal_basis"],
+      "origins": ["explicit", "inferred"],
+      "allow_self": false
+    },
+    {
+      "id": "exception_to",
+      "subject_types": ["regulation", "provision", "exception", "legal_concept"],
+      "object_types": ["regulation", "provision", "obligation", "requirement", "permit", "prohibition", "legal_concept"],
+      "qualifier_ids": ["scope", "effective_on", "valid_until", "condition", "legal_basis"],
+      "origins": ["explicit", "inferred"],
+      "allow_self": false
+    }
+  ]
+}
