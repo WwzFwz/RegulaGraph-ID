@@ -1,6 +1,6 @@
 # Target benchmark wajib RegulaGraph-ID, ditetapkan atas arahan pengguna.
 # Peran: satu sumber angka untuk evaluasi Go/Rust/C++/Python; bukan hasil pengukuran.
-# Integrasi: runner kelak membaca file ini; saat ini enforcement masih berupa kontrak scaffold.
+# Integrasi: runner E01 membaca dan memvalidasi seluruh gate; angka tetap belum merupakan hasil pengukuran.
 # Perubahan angka, workload, atau floor kualitas memerlukan persetujuan pengguna.
 schema_version: 1
 suite_id: regulagraph-performance-v1
@@ -13,7 +13,7 @@ automatic_relaxation: false
 on_gate_failure: continue_fixing_and_retesting_implementation
 implementation_fixes_require_approval: false
 benchmark_changes_require_user_approval: true
-runner_implemented: false
+runner_implemented: true
 
 reference:
   application_node:

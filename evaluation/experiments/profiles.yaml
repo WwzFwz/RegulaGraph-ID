@@ -1,18 +1,34 @@
-# Definisi awal empat profil eksperimen, bukan konfigurasi runtime yang aktif.
+# Definisi empat profil eksperimen yang divalidasi E01; runtime/model spesifik dipin pada RunManifest.
 # Peran: membedakan kontribusi retrieval tanpa menyalin implementasi pipeline.
-# Integrasi: generator, corpus, prompt, dan context budget harus sebanding.
+# Integrasi: generator, corpus, prompt, reranker dan context budget dipin pada input run.
 # Benchmark: EVAL dan RETRIEVAL; reranking menjadi faktor ablation yang dinyatakan.
 schema_version: 1
-status: scaffold_only
+status: active
 profiles:
   vector_rag:
     retrievers: [dense]
+    graph_traversal: false
+    lexical: false
+    dense: true
+    release_required: false
   hybrid_rag:
     retrievers: [lexical, dense]
+    graph_traversal: false
+    lexical: true
+    dense: true
+    release_required: false
   graph_rag:
     retrievers: [graph]
+    graph_traversal: true
+    lexical: false
+    dense: false
+    release_required: false
   hybrid_graphrag:
     retrievers: [lexical, dense, graph]
+    graph_traversal: true
+    lexical: true
+    dense: true
+    release_required: true
 # Seed linking pada graph_rag harus dilaporkan, termasuk bila memakai embedding.
 # Strategi fusion, routing, dan anggaran tiap retriever masih perlu ditentukan.
 
