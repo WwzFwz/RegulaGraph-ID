@@ -14,7 +14,8 @@ Anak tidak boleh mengubah kontrak input/output secara tersembunyi. Perubahan ben
 
 ## Isi saat ini
 
-Folder ini baru menyediakan kontrak dokumentasi. File implementasi ditambahkan ketika pekerjaannya dimulai; tidak ada perilaku runtime yang dijanjikan oleh keberadaan folder.
+File Python aktif mencakup validasi kontrak C01, loader konfigurasi E01, primitive metrik, status gate, dan
+derivasi telemetry. Semua fixture bersifat sintetis dan tidak membuktikan kualitas/latency produksi.
 
 ## Benchmark dan perhatian kualitas
 
@@ -24,6 +25,8 @@ Lihat [kebijakan benchmark](../../doc/benchmark-policy.md) untuk protokol penguk
 
 ## Status implementasi
 
-Status lintas repositori: collector PDF dan kontrak/validator C01 sudah tersedia; lihat [cakupan implementasi C01](../../doc/contracts-implementation.md). Pipeline parsing/graph/retrieval, adapter storage, layanan model dan evaluator benchmark masih belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
-
-Pengujian Python aktif: [test_evaluation_contracts.py](test_evaluation_contracts.py) memeriksa split leakage, bukti wajib untuk status PASS dan konsistensi timing; gunakan generated bindings pada PYTHONPATH. Ini bukan evaluator gate E01.
+E01 memiliki pengujian aktif pada [test_evaluation_config.py](test_evaluation_config.py),
+[test_evaluation_metrics.py](test_evaluation_metrics.py), [test_evaluation_gates.py](test_evaluation_gates.py),
+dan [test_evaluation_telemetry.py](test_evaluation_telemetry.py). Kontrak C01 tetap diperiksa oleh
+[test_evaluation_contracts.py](test_evaluation_contracts.py). Gunakan generated bindings pada PYTHONPATH.
+PASS test tersebut membuktikan perilaku deterministik evaluator, bukan target benchmark.

@@ -14,7 +14,9 @@ Anak tidak boleh mengubah kontrak input/output secara tersembunyi. Perubahan ben
 
 ## Isi saat ini
 
-File C01 di bawah sudah dapat dijalankan dengan prasyarat toolchain pada dokumentasi. Pipeline produksi dan benchmark model belum aktif.
+File C01 di bawah dan [test_evaluation_runner.py](test_evaluation_runner.py) dapat dijalankan dengan
+prasyarat toolchain pada dokumentasi. Test runner memakai filesystem dan protobuf nyata, tetapi tetap
+fixture sintetis tanpa pipeline/model produksi.
 
 ## Benchmark dan perhatian kualitas
 
@@ -26,7 +28,9 @@ Lihat [kebijakan benchmark](../../doc/benchmark-policy.md) untuk protokol penguk
 
 ## Status implementasi
 
-Status lintas repositori: collector PDF dan kontrak/validator C01 sudah tersedia; lihat [cakupan implementasi C01](../../doc/contracts-implementation.md). Pipeline parsing/graph/retrieval, adapter storage, layanan model dan evaluator benchmark masih belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
+E01 runner offline serta C01 contract round-trip aktif dan diuji. Pipeline parsing/graph/retrieval, adapter
+storage, layanan model, gold dataset, dan acceptance run produksi belum aktif; target numerik tetap
+**REQUIRED_UNMEASURED**.
 
 ## Penambahan C01 dan panduan verifikasi
 

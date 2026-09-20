@@ -64,6 +64,8 @@ def _compare_fact(actual: Any, expected: Any, key: str) -> bool:
         return isinstance(actual, (int, float)) and not isinstance(actual, bool) and actual >= expected
     if key.endswith("_max"):
         return isinstance(actual, (int, float)) and not isinstance(actual, bool) and actual <= expected
+    if isinstance(expected, tuple) and isinstance(actual, (list, tuple)):
+        return len(actual) == len(expected) and all(_compare_fact(left, right, "") for left, right in zip(actual, expected))
     return actual == expected
 
 
@@ -86,7 +88,8 @@ def protocol_errors(target: Mapping[str, Any], actual: Mapping[str, Any]) -> lis
     expected = {key: value for key, value in target.items() if key not in {"pass_rule", "eligibility", "quality_floor", "confidence_reporting"}}
     if set(actual) != set(expected):
         return [f"protocol keys expected={sorted(expected)} actual={sorted(actual)}"]
-    return [f"protocol {key} expected {value!r}, got {actual[key]!r}" for key, value in expected.items() if actual[key] != value]
+    return [f"protocol {key} expected {value!r}, got {actual[key]!r}" for key, value in expected.items()
+            if not _compare_fact(actual[key], value, key)]
 
 
 def manifest_errors(manifest: pb.RunManifest, suite: TargetSuite, dataset_manifest: pb.DatasetManifest | None) -> list[str]:

@@ -16,7 +16,9 @@ Anak tidak boleh mengubah kontrak input/output secara tersembunyi. Perubahan ben
 
 Berkas langsung: [benchmark-targets.yaml](benchmark-targets.yaml), [evaluation.yaml](evaluation.yaml), [ingestion.yaml](ingestion.yaml), [retrieval.yaml](retrieval.yaml), [sources.txt](sources.txt), [listings.txt](listings.txt).
 
-sources.txt adalah input collector PDF yang sudah dapat dijalankan; konfigurasi YAML pipeline/evaluator tetap scaffold. Format seed berupa satu URL per baris dengan komentar #. [Panduan akuisisi](../doc/acquisition.md) menjelaskan download, resume, refresh, dan batas discovery.
+sources.txt adalah input collector PDF yang sudah dapat dijalankan. `evaluation.yaml` dan
+`benchmark-targets.yaml` sudah dikonsumsi loader E01; konfigurasi ingestion/retrieval tetap desain untuk
+runtime mendatang. Format seed berupa satu URL per baris dengan komentar #. [Panduan akuisisi](../doc/acquisition.md) menjelaskan download, resume, refresh, dan batas discovery.
 
 listings.txt berisi seed halaman katalog untuk perintah discover, sedangkan sources.txt berisi URL detail untuk collect. Perintah discover menghasilkan daftar panjang di data/acquisition/queue.txt; hasil crawl tidak dimasukkan ke konfigurasi Git.
 
@@ -28,8 +30,11 @@ Lihat [kebijakan benchmark](../doc/benchmark-policy.md) untuk protokol pengukura
 
 ## Status implementasi
 
-Status lintas repositori: collector PDF dan kontrak/validator C01 sudah tersedia; lihat [cakupan implementasi C01](../doc/contracts-implementation.md). Pipeline parsing/graph/retrieval, adapter storage, layanan model dan evaluator benchmark masih belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
+Collector PDF, kontrak/validator C01, serta loader/evaluator E01 sudah aktif. Pipeline parsing/graph/retrieval,
+adapter storage, model, dan acceptance run produksi belum aktif; target tetap **REQUIRED_UNMEASURED**.
 
 ## Pekerjaan berikutnya dan integrasi
 
-E01/config loader perlu menolak unknown keys, memvalidasi unit/workload/model dan menghasilkan fingerprint. ingestion/retrieval/evaluation.yaml masih rancangan; daftar seed collector sudah dikonsumsi CLI. benchmark-targets.yaml tetap sumber tunggal angka dan tidak diubah untuk meluluskan tes.
+Loader E01 menolak unknown key pada konfigurasi/profile, memvalidasi unit/workload saat evaluasi, dan
+menghasilkan fingerprint. Berikutnya loader Go untuk ingestion/retrieval harus menerapkan validation dan
+fingerprint yang setara. `benchmark-targets.yaml` tetap sumber tunggal angka dan tidak diubah untuk meluluskan tes.

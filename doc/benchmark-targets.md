@@ -2,7 +2,7 @@
 
 Dokumen ini menjelaskan target ambisius yang ditetapkan atas arahan pengguna pada 2026-09-19. Perannya memberi angka penerimaan yang jelas sebelum implementasi diukur. Sumber angka yang otoritatif adalah [configs/benchmark-targets.yaml](../configs/benchmark-targets.yaml), suite regulagraph-performance-v1.
 
-Status target: **REQUIRED_UNMEASURED**. Angka merupakan sasaran desain yang wajib dikejar pada profil referensi, bukan klaim benchmark, hasil penelitian, atau jaminan hardware pengguna. Pipeline dan runner masih scaffold; belum ada pemeriksaan otomatis gate saat request berjalan.
+Status target: **REQUIRED_UNMEASURED**. Angka merupakan sasaran desain yang wajib dikejar pada profil referensi, bukan klaim benchmark, hasil penelitian, atau jaminan hardware pengguna. Runner E01 offline sudah dapat memeriksa bundle dan seluruh gate; pipeline produksi belum menghasilkan acceptance bundle dan tidak ada pemeriksaan gate pada request pengguna.
 
 ## Asumsi referensi
 
@@ -74,4 +74,4 @@ Persetujuan perubahan dicatat dengan suite version baru dan keputusan arsitektur
 
 ## Integrasi
 
-[configs/evaluation.yaml](../configs/evaluation.yaml) menunjuk suite ini. Docstring komponen merujuk file YAML yang sama agar angka tidak bercabang. Runner dan evaluator gate belum diimplementasikan; langkah saat ini menetapkan kontrak required yang akan diterapkan pada runner. Biaya moneter, cold start, scan sulit, dan stress skala lebih besar tetap dilaporkan sebagai metrik informasional tanpa menyamarkannya sebagai gate yang sudah dipenuhi.
+[configs/evaluation.yaml](../configs/evaluation.yaml) menunjuk suite ini. Docstring komponen merujuk file YAML yang sama agar angka tidak bercabang. Runner dan evaluator gate E01 telah diimplementasikan sebagai evaluator offline; format dan cara menjalankannya ada di [panduan runner E01](evaluation-runner.md). Biaya moneter, cold start, scan sulit, dan stress skala lebih besar tetap dilaporkan sebagai metrik informasional tanpa menyamarkannya sebagai gate yang sudah dipenuhi.

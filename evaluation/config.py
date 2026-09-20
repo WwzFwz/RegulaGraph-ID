@@ -49,6 +49,15 @@ def _finite_number(value: Any, path: str) -> float:
     return float(value)
 
 
+def _freeze(value: Any) -> Any:
+    """Recursively prevent loaded benchmark semantics from being mutated in memory."""
+    if isinstance(value, dict):
+        return MappingProxyType({key: _freeze(item) for key, item in value.items()})
+    if isinstance(value, list):
+        return tuple(_freeze(item) for item in value)
+    return value
+
+
 @dataclass(frozen=True)
 class GateDefinition:
     gate_id: str
@@ -109,10 +118,15 @@ def load_target_suite(path: str | Path) -> TargetSuite:
     _keys(doc, required_root, required_root, "target suite")
     if doc["schema_version"] != 1 or doc["target_status"] != "REQUIRED_UNMEASURED":
         raise ConfigError("target suite schema/status is unsupported")
+    if doc["runner_implemented"] is not True:
+        raise ConfigError("target suite does not declare the active E01 runner")
     if doc["target_change_authority"] != "user" or doc["automatic_relaxation"] is not False:
         raise ConfigError("target suite permits unauthorized relaxation")
     if doc["benchmark_changes_require_user_approval"] is not True:
         raise ConfigError("target change approval policy is not enforced")
+    workloads_raw = _mapping(doc["workloads"], "workloads")
+    if not workloads_raw:
+        raise ConfigError("target suite has no workloads")
     gates_raw = _mapping(doc["gates"], "gates")
     if not gates_raw:
         raise ConfigError("target suite has no gates")
@@ -121,10 +135,15 @@ def load_target_suite(path: str | Path) -> TargetSuite:
     for gate_id, raw_gate in gates_raw.items():
         gate = _mapping(raw_gate, f"gates.{gate_id}")
         _keys(gate, fields, fields, f"gates.{gate_id}")
+        if not isinstance(gate["required"], bool):
+            raise ConfigError(f"gates.{gate_id}.required must be boolean")
         if gate["operator"] not in {"lte", "gte"}:
             raise ConfigError(f"gates.{gate_id}: unsupported operator")
-        if gate["workload"] not in doc["workloads"]:
+        if gate["workload"] not in workloads_raw:
             raise ConfigError(f"gates.{gate_id}: unknown workload")
+        for field in ("workload", "statistic", "unit", "definition"):
+            if not isinstance(gate[field], str) or not gate[field]:
+                raise ConfigError(f"gates.{gate_id}.{field} must be a non-empty string")
         if not gate_id or any(ord(c) < 33 or ord(c) > 126 for c in gate_id):
             raise ConfigError(f"invalid gate ID {gate_id!r}")
         gates[gate_id] = GateDefinition(
@@ -134,9 +153,9 @@ def load_target_suite(path: str | Path) -> TargetSuite:
     return TargetSuite(
         target_path, hashlib.sha256(raw).hexdigest(), str(doc["suite_id"]),
         str(doc["required_for_release"]), str(doc["target_status"]),
-        MappingProxyType(_mapping(doc["protocol"], "protocol")),
-        MappingProxyType(_mapping(doc["reference"], "reference")),
-        MappingProxyType(_mapping(doc["workloads"], "workloads")), MappingProxyType(gates),
+        _freeze(_mapping(doc["protocol"], "protocol")),
+        _freeze(_mapping(doc["reference"], "reference")),
+        _freeze(workloads_raw), MappingProxyType(gates),
     )
 
 
@@ -163,6 +182,8 @@ def load_evaluation_config(path: str | Path, repo_root: str | Path | None = None
         raise ConfigError("evaluation config must be schema 1 and active")
     if doc["automatic_target_relaxation"] is not False or doc["target_status"] != "REQUIRED_UNMEASURED":
         raise ConfigError("evaluation config attempts to relax or misstate targets")
+    if doc["strict_unknown_fields"] is not True:
+        raise ConfigError("evaluation config must reject unknown fields")
     for optional in ("dataset", "corpus_snapshot"):
         if doc[optional] is not None and not isinstance(doc[optional], str):
             raise ConfigError(f"{optional} must be null or a path")
@@ -207,6 +228,8 @@ def load_profiles(path: str | Path) -> Mapping[str, Mapping[str, Any]]:
             raise ConfigError(f"profiles.{name}.release_required disagrees with acceptance policy")
         checked[name] = MappingProxyType(profile)
     acceptance = _mapping(doc["acceptance"], "profiles.acceptance")
+    _keys(acceptance, {"target_file", "required_profile", "baseline_policy"},
+          {"target_file", "required_profile", "baseline_policy"}, "profiles.acceptance")
     if acceptance.get("required_profile") != "hybrid_graphrag" or acceptance.get("baseline_policy") != "report_only":
         raise ConfigError("experiment acceptance policy changed")
     return MappingProxyType(checked)

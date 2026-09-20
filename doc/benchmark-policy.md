@@ -8,7 +8,9 @@ Sumber angka: [configs/benchmark-targets.yaml](../configs/benchmark-targets.yaml
 
 Hybrid GraphRAG adalah profil release; seluruh required gate applicable harus terpenuhi. Baseline Vector/Hybrid/GraphRAG tetap dilaporkan sebagai pembanding. Setiap run wajib memuat manifest hardware, model/tokenizer/prompt/precision, corpus/split hash, konfigurasi, serta workload. Kondisi tidak lengkap atau berbeda dari profil tidak diam-diam dinilai comparable.
 
-Status hasil adalah NOT_MEASURED, BLOCKED, FAIL, atau PASS. Sampel kosong, nilai hilang, runner yang belum tersedia, atau model belum dipilih tidak boleh menghasilkan PASS. Runtime masih scaffold; enforcement gate pada runner belum diimplementasikan.
+Status hasil adalah NOT_MEASURED, BLOCKED, FAIL, atau PASS. Sampel kosong, nilai hilang, artefak yang tidak
+terverifikasi, atau model belum dipilih tidak boleh menghasilkan PASS. Evaluator offline E01 sudah aktif;
+runtime produksi dan acceptance data belum lengkap, sehingga keberadaan runner bukan klaim target tercapai.
 
 Jalankan tiga run performa valid; semua gate applicable harus lulus pada setiap run, bukan hanya rata-rata. Threshold menggunakan point estimate dan laporan interval ketidakpastian 95%; jangan menganggap point estimate sebagai jaminan populasi. Invariant deterministik berlaku atas seluruh record terbit dan fixtures yang relevan.
 

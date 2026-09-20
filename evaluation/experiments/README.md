@@ -24,8 +24,11 @@ Lihat [kebijakan benchmark](../../doc/benchmark-policy.md) untuk protokol penguk
 
 ## Status implementasi
 
-Status lintas repositori: collector PDF dan kontrak/validator C01 sudah tersedia; lihat [cakupan implementasi C01](../../doc/contracts-implementation.md). Pipeline parsing/graph/retrieval, adapter storage, layanan model dan evaluator benchmark masih belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
+Empat profile dan acceptance mode sudah divalidasi loader E01. Runtime retrieval/model serta run pembanding
+produksi belum tersedia, sehingga profile aktif sebagai kontrak eksperimen dan belum memiliki hasil.
 
 ## Pekerjaan berikutnya dan integrasi
 
-E01 perlu menerjemahkan profiles.yaml ke RunManifest lengkap dengan corpus/split/model/prompt/budget yang dibekukan. Buktikan perbedaan empat baseline eksplisit, label test tidak dipakai tuning dan missing prerequisites tidak menjadi PASS.
+Adapter workload berikutnya perlu menghasilkan `RunManifest` lengkap dengan corpus/split/model/prompt/budget
+yang dibekukan untuk tiap profile. Buktikan perbedaan empat baseline eksplisit, label test tidak dipakai
+tuning, dan missing prerequisites tetap BLOCKED/NOT_MEASURED.

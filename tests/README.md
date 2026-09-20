@@ -16,7 +16,8 @@ Anak tidak boleh mengubah kontrak input/output secara tersembunyi. Perubahan ben
 
 Subfolder yang dikelola: [unit/](unit/README.md), [integration/](integration/README.md), [end_to_end/](end_to_end/README.md), [fixtures/](fixtures/README.md).
 
-Folder ini baru menyediakan kontrak dokumentasi. File implementasi ditambahkan ketika pekerjaannya dimulai; tidak ada perilaku runtime yang dijanjikan oleh keberadaan folder.
+Folder unit dan integration sudah memuat pemeriksaan aktif untuk C01, collector, serta E01 evaluator.
+Folder end-to-end tetap menunggu runtime produksi yang menjadi dependensinya.
 
 ## Benchmark dan perhatian kualitas
 
@@ -26,4 +27,6 @@ Lihat [kebijakan benchmark](../doc/benchmark-policy.md) untuk protokol pengukura
 
 ## Status implementasi
 
-Status lintas repositori: collector PDF dan kontrak/validator C01 sudah tersedia; lihat [cakupan implementasi C01](../doc/contracts-implementation.md). Pipeline parsing/graph/retrieval, adapter storage, layanan model dan evaluator benchmark masih belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
+Collector PDF, kontrak/validator C01, dan evaluator offline E01 sudah memiliki test perilaku. Pipeline
+parsing/graph/retrieval, storage, model, gold dataset, dan benchmark produksi belum aktif. Test fixture
+E01 tidak membuktikan pencapaian kualitas atau latency.

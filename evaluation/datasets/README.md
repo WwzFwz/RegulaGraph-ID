@@ -26,7 +26,9 @@ Lihat [kebijakan benchmark](../../doc/benchmark-policy.md) untuk protokol penguk
 
 ## Status implementasi
 
-Status lintas repositori: collector PDF dan kontrak/validator C01 sudah tersedia; lihat [cakupan implementasi C01](../../doc/contracts-implementation.md). Pipeline parsing/graph/retrieval, adapter storage, layanan model dan evaluator benchmark masih belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
+Kontrak/validator manifest C01 dan konsumsi manifest oleh runner E01 sudah aktif. Gold dataset manusia,
+versioned loader pertanyaan, serta hasil acceptance produksi belum tersedia; fixture sintetis tidak
+membuktikan kualitas model.
 
 ## Rekomendasi implementasi anak
 

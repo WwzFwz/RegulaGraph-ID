@@ -16,7 +16,9 @@ Anak tidak boleh mengubah kontrak input/output secara tersembunyi. Perubahan ben
 
 Subfolder yang dikelola: [datasets/](datasets/README.md), [experiments/](experiments/README.md), [metrics/](metrics/README.md).
 
-Berkas langsung: [__init__.py](__init__.py), [runner.py](runner.py).
+Berkas langsung: [__init__.py](__init__.py), [config.py](config.py), [gates.py](gates.py),
+[telemetry.py](telemetry.py), dan [runner.py](runner.py). Format bundle, perintah, artefak hasil, serta batas
+klaim dijelaskan dalam [panduan runner E01](../doc/evaluation-runner.md).
 
 ## Benchmark dan perhatian kualitas
 
@@ -26,7 +28,10 @@ Lihat [kebijakan benchmark](../doc/benchmark-policy.md) untuk protokol pengukura
 
 ## Status implementasi
 
-Status lintas repositori: collector PDF dan kontrak/validator C01 sudah tersedia; lihat [cakupan implementasi C01](../doc/contracts-implementation.md). Pipeline parsing/graph/retrieval, adapter storage, layanan model dan evaluator benchmark masih belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
+Loader konfigurasi/profile, primitive metrik, telemetry observation, evaluator 59 gate, dan runner artefak
+E01 sudah aktif. Runner memvalidasi bundle hasil komponen produksi; ia belum menjalankan workload Go/Rust/C++
+atau menghasilkan gold label. Karena pipeline, model, corpus terstruktur, dan gold acceptance belum lengkap,
+target tetap **REQUIRED_UNMEASURED**. Unit/integration fixture hanya membuktikan evaluator menolak false PASS.
 
 ## Rekomendasi implementasi anak
 
@@ -34,4 +39,6 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
-| [runner.py](runner.py) | Load frozen dataset/run/profile manifests, invoke production endpoints/artifacts, collect observations and evaluate every applicable YAML gate with raw evidence. | Test missing prerequisites, invalid/empty runs and failed requests; output BLOCKED/NOT_MEASURED/FAIL rather than false PASS and include queue time. |
+| [runner.py](runner.py) | Hubungkan adapter workload produksi agar menghasilkan bundle frozen; pertahankan evaluator offline dan format immutable. | Jalankan retrieval/answer load generator nyata, cocokkan jumlah arrival, serta audit hash dan output pada tiga run. |
+| [telemetry.py](telemetry.py) | Tambahkan timestamp token client untuk gate inter-token ketika kontrak C01 diperluas secara terkoordinasi. | Uji buffering, token kosong/heartbeat, stream putus, timeout, dan clock monotonic. |
+| [gates.py](gates.py) | Tambahkan interval bootstrap terkelompok dari gold scorer tanpa mengubah threshold atau denominator. | Uji base-question grouping, slice overlap, sample minimum, dan reproducibility seed. |

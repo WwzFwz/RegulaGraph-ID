@@ -16,7 +16,7 @@ Anak tidak boleh mengubah kontrak input/output secara tersembunyi. Perubahan ben
 
 Subfolder yang dikelola: [decisions/](decisions/README.md).
 
-Berkas langsung: [acquisition.md](acquisition.md), [system-design.md](system-design.md), [system-contracts.md](system-contracts.md), [storage-consistency.md](storage-consistency.md), [corpus-plan.md](corpus-plan.md), [development-plan.md](development-plan.md), [benchmark-targets.md](benchmark-targets.md), [Graph-Engineering-Athropic-Playbook.pdf](Graph-Engineering-Athropic-Playbook.pdf), [architecture.md](architecture.md), [benchmark-policy.md](benchmark-policy.md), [data-model.md](data-model.md), [reference.md](reference.md), [runtime-language-review.md](runtime-language-review.md).
+Berkas langsung: [acquisition.md](acquisition.md), [system-design.md](system-design.md), [system-contracts.md](system-contracts.md), [storage-consistency.md](storage-consistency.md), [corpus-plan.md](corpus-plan.md), [development-plan.md](development-plan.md), [benchmark-targets.md](benchmark-targets.md), [evaluation-runner.md](evaluation-runner.md), [Graph-Engineering-Athropic-Playbook.pdf](Graph-Engineering-Athropic-Playbook.pdf), [architecture.md](architecture.md), [benchmark-policy.md](benchmark-policy.md), [data-model.md](data-model.md), [reference.md](reference.md), [runtime-language-review.md](runtime-language-review.md).
 
 Mulai dari system-design untuk membaca keseluruhan rancangan, lalu system-contracts dan storage-consistency untuk semantik integrasi. Corpus-plan mengikat sumber pilihan pengguna dan prosedur gold dataset. Development-plan mengurutkan seluruh implementasi menurut dependency beserta bukti kelulusannya. Dokumen desain tidak berarti pipeline atau benchmark sudah aktif; status kontrak C01 dijelaskan terpisah.
 
@@ -28,7 +28,9 @@ Lihat [kebijakan benchmark](benchmark-policy.md) untuk protokol pengukuran dan p
 
 ## Status implementasi
 
-Status lintas repositori: collector PDF dan kontrak/validator C01 sudah tersedia; lihat [cakupan implementasi C01](contracts-implementation.md). Pipeline parsing/graph/retrieval, adapter storage, layanan model dan evaluator benchmark masih belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
+Collector PDF, kontrak/validator C01, dan evaluator offline E01 sudah aktif. Pipeline parsing/graph/retrieval,
+adapter storage, layanan model, gold dataset, serta acceptance run produksi belum aktif. Status anak dijelaskan
+pada header masing-masing; test evaluator sintetis tidak membuktikan target kualitas atau latency.
 
 ## Penambahan C01 dan panduan verifikasi
 
