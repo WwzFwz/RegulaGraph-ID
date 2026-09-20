@@ -1,0 +1,12 @@
+# Listing seeds for the discover command only; no PDFs are downloaded by discovery.
+# Verified public catalogue routes. BPK filters diversify years and regulation types.
+# Run: regulagraph discover -input configs/listings.txt -max-pages 200 -out data/acquisition
+https://jdih.komdigi.go.id/produk_hukum/kategori
+https://peraturan.bpk.go.id/Search?jenis=8
+https://peraturan.bpk.go.id/Search?jenis=10
+https://peraturan.bpk.go.id/Search?jenis=11
+https://peraturan.bpk.go.id/Search?jenis=15
+https://peraturan.bpk.go.id/Search?jenis=42
+https://peraturan.bpk.go.id/Search?tahun=2020
+https://peraturan.bpk.go.id/Search?tahun=2025
+https://jdihn.go.id/
