@@ -10,7 +10,7 @@
 //! Ukur p50/p95/p99, throughput, waktu antre, serta RSS/VRAM sesuai workload. Ambang wajib ada di configs/benchmark-targets.yaml (REQUIRED_UNMEASURED); ukur cold/warm terpisah dan pertahankan kualitas sumber/versi.
 //!
 //! Status: parser struktur, structural chunk builder, dan parent index aktif sebagai library;
-//! integrasi worker/wire, benchmark corpus, dan publikasi belum aktif.
+//! proyeksi wire aktif; executable worker, benchmark corpus, dan publikasi belum aktif.
 
 pub mod builder;
 pub mod parents;

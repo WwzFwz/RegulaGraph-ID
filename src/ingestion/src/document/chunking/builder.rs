@@ -16,7 +16,8 @@
 //! pengecualian, dan dampak Recall@20 pada configs/benchmark-targets.yaml. Default config adalah
 //! baseline implementasi, bukan hasil tuning. Semua target tetap REQUIRED_UNMEASURED.
 //!
-//! Status: structural chunk builder aktif; tokenizer model, wire batch, dan acceptance corpus belum aktif.
+//! Status: structural chunk builder dan proyeksi wire batch aktif; tokenizer model serta acceptance
+//! corpus belum aktif.
 
 use crate::document::chunking::parents::{ParentError, ParentIndex, ParentIndexConfig};
 use crate::document::chunking::structural::{StructureError, StructureNode, StructureTree};

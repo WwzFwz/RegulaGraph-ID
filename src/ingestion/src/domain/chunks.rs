@@ -15,7 +15,7 @@
 //! configs/benchmark-targets.yaml. Hindari menyalin teks ketika hanya metadata yang diperlukan.
 //! Target tetap REQUIRED_UNMEASURED hingga workload dan gold set resmi dijalankan.
 //!
-//! Status: representasi chunk lokal dan validator aktif; konversi wire/publikasi belum aktif.
+//! Status: representasi chunk lokal, validator, dan proyeksi wire aktif; publication belum aktif.
 
 use crate::document::normalization::text::{NormalizeError, NormalizedText};
 use sha2::{Digest, Sha256};

@@ -9,7 +9,8 @@
 //! Benchmark dan gate penerimaan:
 //! Ukur p50/p95/p99, throughput, waktu antre, serta RSS/VRAM sesuai workload. Ambang wajib ada di configs/benchmark-targets.yaml (REQUIRED_UNMEASURED); ukur cold/warm terpisah dan pertahankan kualitas sumber/versi.
 //!
-//! Status: validator record chunk lokal aktif; domain lain dan integrasi worker masih scaffold.
+//! Status: validator chunk, proyeksi text/structure/chunk, dan assembler DocumentBatch aktif;
+//! versioning, graph/index domain, serta integrasi worker masih scaffold.
 
 pub mod chunks;
 pub mod document_batch;

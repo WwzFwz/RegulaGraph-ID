@@ -16,7 +16,8 @@
 //! `INVARIANT.SOURCE_MAPPING` menurut configs/benchmark-targets.yaml. Status target tetap
 //! REQUIRED_UNMEASURED sampai gold set dan workload resmi dijalankan.
 //!
-//! Status: parser hierarki deterministik aktif; integrasi worker/wire dan acceptance corpus belum aktif.
+//! Status: parser hierarki deterministik dan proyeksi wire aktif; executable worker serta acceptance
+//! corpus belum aktif.
 
 use crate::document::normalization::text::{NormalizeError, NormalizedText};
 use sha2::{Digest, Sha256};

@@ -15,7 +15,8 @@
 //! configs/benchmark-targets.yaml, plus peak RSS dan fidelity critical token. Target tetap
 //! REQUIRED_UNMEASURED sampai workload 100 MiB dan gold parsing dijalankan.
 //!
-//! Status: normalizer teks konservatif dan validator mapping aktif; integrasi worker/artefak wire belum aktif.
+//! Status: normalizer dan validator mapping aktif; proyeksi/persistence artefak wire tersedia pada
+//! domain/adapter, sedangkan executable worker belum aktif.
 
 use sha2::{Digest, Sha256};
 use std::error::Error;

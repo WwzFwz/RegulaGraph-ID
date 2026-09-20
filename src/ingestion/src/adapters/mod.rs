@@ -9,7 +9,8 @@
 //! Benchmark dan gate penerimaan:
 //! Ukur p50/p95/p99, throughput, waktu antre, serta RSS/VRAM sesuai workload. Ambang wajib ada di configs/benchmark-targets.yaml (REQUIRED_UNMEASURED); ukur cold/warm terpisah dan pertahankan kualitas sumber/versi.
 //!
-//! Status: scaffold; belum ada pipeline atau layanan yang aktif.
+//! Status: artifact store, persistence TextArtifact, dan persistence DocumentBatch aktif; inference,
+//! worker transport, object storage, dan publication integration belum aktif.
 
 pub mod document_batches;
 pub mod inference;

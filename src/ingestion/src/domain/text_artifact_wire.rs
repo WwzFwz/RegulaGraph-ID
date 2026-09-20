@@ -15,8 +15,8 @@
 //! `text_transform`. Target `configs/benchmark-targets.yaml` tetap REQUIRED_UNMEASURED; test unit
 //! tidak membuktikan throughput corpus, kualitas OCR, atau parity lintas bahasa.
 //!
-//! Status: proyeksi TextMapping/TextArtifact C01 aktif; OCR, persistence orchestration, dan
-//! publication DocumentBatch belum aktif.
+//! Status: proyeksi TextMapping/TextArtifact C01 aktif dan persistence tersedia pada adapter;
+//! OCR serta publication coordinator belum aktif.
 
 use crate::document::normalization::text::{NormalizedText, TextNormalizerConfig};
 use crate::document::parsing::pdf::{
