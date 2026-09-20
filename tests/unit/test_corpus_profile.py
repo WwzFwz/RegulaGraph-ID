@@ -95,6 +95,11 @@ class CorpusProfileTests(unittest.TestCase):
         self.assertEqual(mupdf_result["page_count"], 1)
         self.assertEqual(mupdf_result["document_class"], "sparse_or_blank")
         self.assertEqual(mupdf_result["text_chars"], 0)
+        pdfium_result = analyze_pdf(path, "pdfium")
+        self.assertEqual(pdfium_result["status"], "ok")
+        self.assertEqual(pdfium_result["page_count"], 1)
+        self.assertEqual(pdfium_result["document_class"], "sparse_or_blank")
+        self.assertEqual(pdfium_result["text_chars"], 0)
 
     def test_unknown_engine_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "unsupported PDF engine"):
