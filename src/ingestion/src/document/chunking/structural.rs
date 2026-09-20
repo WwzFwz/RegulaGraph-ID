@@ -135,6 +135,26 @@ impl StructureTree {
                 return Err(StructureError::InvalidTree("duplicate node ID"));
             }
         }
+        let mut child_owners = HashMap::with_capacity(self.nodes.len().saturating_sub(1));
+        for node in &self.nodes {
+            let mut previous_end = None;
+            for child_id in &node.ordered_children {
+                let child_index = node_indices
+                    .get(child_id.as_str())
+                    .copied()
+                    .ok_or(StructureError::InvalidTree("unknown child"))?;
+                let child = &self.nodes[child_index];
+                if child.parent_id.as_deref() != Some(node.id.as_str())
+                    || previous_end.is_some_and(|end| end > child.normalized_span.start)
+                    || child_owners
+                        .insert(child.id.as_str(), node.id.as_str())
+                        .is_some()
+                {
+                    return Err(StructureError::InvalidTree("child order"));
+                }
+                previous_end = Some(child.normalized_span.end);
+            }
+        }
         for (index, node) in self.nodes.iter().enumerate() {
             if node.schema_version != STRUCTURE_SCHEMA_VERSION
                 || !valid_ascii_id(&node.id)
@@ -161,27 +181,10 @@ impl StructureTree {
                 let parent = &self.nodes[parent_index];
                 if node.normalized_span.start < parent.normalized_span.start
                     || node.normalized_span.end > parent.normalized_span.end
-                    || !parent
-                        .ordered_children
-                        .iter()
-                        .any(|child| child == &node.id)
+                    || child_owners.get(node.id.as_str()).copied() != Some(parent_id)
                 {
                     return Err(StructureError::InvalidTree("parent containment"));
                 }
-            }
-            let mut previous_end = None;
-            for child_id in &node.ordered_children {
-                let child_index = node_indices
-                    .get(child_id.as_str())
-                    .copied()
-                    .ok_or(StructureError::InvalidTree("unknown child"))?;
-                let child = &self.nodes[child_index];
-                if child.parent_id.as_deref() != Some(node.id.as_str())
-                    || previous_end.is_some_and(|end| end > child.normalized_span.start)
-                {
-                    return Err(StructureError::InvalidTree("child order"));
-                }
-                previous_end = Some(child.normalized_span.end);
             }
             let expected_raw = normalized
                 .raw_cover(node.normalized_span.clone())
