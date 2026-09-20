@@ -1,6 +1,7 @@
 // Menjalankan bukti integrasi S01 terhadap PostgreSQL aktual.
 // Peran: memverifikasi migration replay, idempotency conflict, exclusive claim, stale fence,
-// receipt readiness, snapshot CAS, read lease historis, recovery replay, dan abort.
+// receipt readiness, exact registry replay/corruption/revision, snapshot CAS, read lease historis,
+// recovery replay, dan abort.
 // Kontrak: REGULAGRAPH_TEST_POSTGRES_DSN wajib menunjuk database disposable; tanpa DSN test
 // dinyatakan skipped dan tidak boleh dilaporkan sebagai PASS database. Mock tidak memenuhi gate.
 // Benchmark: test ini menguji correctness, bukan target latency/throughput; raw timing benchmark
@@ -24,7 +25,89 @@ import (
 
 	"google.golang.org/protobuf/proto"
 	pb "regulagraph.local/server/gen/regulagraph/v1"
+	"regulagraph.local/server/internal/domain"
 )
+
+func TestCanonicalRegistryAgainstPostgres(t *testing.T) {
+	dsn := os.Getenv("REGULAGRAPH_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("REGULAGRAPH_TEST_POSTGRES_DSN is not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	repo, err := Open(ctx, Config{DSN: dsn, MaxConnections: 4, HealthTimeout: 3 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer repo.Close()
+	migrations, _ := filepath.Abs(filepath.Join("..", "..", "..", "..", "..", "migrations"))
+	if err = repo.ApplyMigrations(ctx, os.DirFS(migrations)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = repo.pool.Exec(ctx, `TRUNCATE TABLE corpus_state CASCADE`); err != nil {
+		t.Fatal(err)
+	}
+
+	corpusID := "corpus-registry-test"
+	claim := domain.CanonicalIdentityClaim{
+		ProposalKey: "proposal:a", EntityType: domain.CanonicalEntityTypeRegulation,
+		IdentityScope: domain.RegulationIdentityKeyNamespace,
+		IdentityKey:   strings.Repeat("a", 64), PayloadHash: strings.Repeat("b", 64),
+	}
+	created, revision, err := repo.ResolveCanonicalIdentities(ctx, corpusID, "operation:create", 1, []domain.CanonicalIdentityClaim{claim})
+	if err != nil || revision != 2 || len(created) != 1 || !created[0].Created {
+		t.Fatalf("create assignment=%+v revision=%d err=%v", created, revision, err)
+	}
+	replayed, replayRevision, err := repo.ResolveCanonicalIdentities(ctx, corpusID, "operation:create", 1, []domain.CanonicalIdentityClaim{claim})
+	if err != nil || replayRevision != revision || len(replayed) != 1 || replayed[0] != created[0] {
+		t.Fatalf("replay assignment=%+v revision=%d err=%v", replayed, replayRevision, err)
+	}
+	changed := claim
+	changed.PayloadHash = strings.Repeat("c", 64)
+	if _, _, err = repo.ResolveCanonicalIdentities(ctx, corpusID, "operation:create", revision, []domain.CanonicalIdentityClaim{changed}); !errors.Is(err, ErrConflict) {
+		t.Fatalf("operation payload drift was accepted: %v", err)
+	}
+	changedKey := claim
+	changedKey.IdentityKey = strings.Repeat("c", 64)
+	if _, _, err = repo.ResolveCanonicalIdentities(ctx, corpusID, "operation:create", revision, []domain.CanonicalIdentityClaim{changedKey}); !errors.Is(err, ErrConflict) {
+		t.Fatalf("operation identity drift was accepted: %v", err)
+	}
+	if _, err = repo.pool.Exec(ctx, `UPDATE canonical_identities SET identity_key=$3 WHERE corpus_id=$1 AND canonical_id=$2`,
+		corpusID, created[0].CanonicalID, strings.Repeat("9", 64)); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err = repo.ResolveCanonicalIdentities(ctx, corpusID, "operation:create", revision, []domain.CanonicalIdentityClaim{claim}); !errors.Is(err, domain.ErrPersistentIntegrity) {
+		t.Fatalf("canonical identity corruption was not detected: %v", err)
+	}
+	if _, err = repo.pool.Exec(ctx, `UPDATE canonical_identities SET identity_key=$3 WHERE corpus_id=$1 AND canonical_id=$2`,
+		corpusID, created[0].CanonicalID, claim.IdentityKey); err != nil {
+		t.Fatal(err)
+	}
+
+	linkedClaim := claim
+	linkedClaim.ProposalKey = "proposal:b"
+	linkedClaim.PayloadHash = strings.Repeat("d", 64)
+	linked, linkedRevision, err := repo.ResolveCanonicalIdentities(ctx, corpusID, "operation:link", revision, []domain.CanonicalIdentityClaim{linkedClaim})
+	if err != nil || linkedRevision != revision || linked[0].Created || linked[0].CanonicalID != created[0].CanonicalID {
+		t.Fatalf("exact key did not link: assignment=%+v revision=%d err=%v", linked, linkedRevision, err)
+	}
+
+	newClaim := claim
+	newClaim.ProposalKey = "proposal:c"
+	newClaim.IdentityKey = strings.Repeat("e", 64)
+	newClaim.PayloadHash = strings.Repeat("f", 64)
+	_, advanced, err := repo.ResolveCanonicalIdentities(ctx, corpusID, "operation:second", revision, []domain.CanonicalIdentityClaim{newClaim})
+	if err != nil || advanced != revision+1 {
+		t.Fatalf("second identity did not advance revision: revision=%d err=%v", advanced, err)
+	}
+	stale := newClaim
+	stale.ProposalKey = "proposal:d"
+	stale.IdentityKey = strings.Repeat("1", 64)
+	stale.PayloadHash = strings.Repeat("2", 64)
+	if _, _, err = repo.ResolveCanonicalIdentities(ctx, corpusID, "operation:stale", revision, []domain.CanonicalIdentityClaim{stale}); !errors.Is(err, ErrConflict) {
+		t.Fatalf("stale expected revision was accepted: %v", err)
+	}
+}
 
 func TestStorageFoundationAgainstPostgres(t *testing.T) {
 	dsn := os.Getenv("REGULAGRAPH_TEST_POSTGRES_DSN")
