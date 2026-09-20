@@ -24,6 +24,7 @@ import concurrent.futures
 import dataclasses
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import subprocess
@@ -62,6 +63,10 @@ def _sha256(raw: bytes) -> str:
     return hashlib.sha256(raw).hexdigest()
 
 
+def _is_sha256(value: Any) -> bool:
+    return isinstance(value, str) and len(value) == 64 and all(character in "0123456789abcdef" for character in value)
+
+
 def _canonical_json(value: Any) -> bytes:
     return (json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
 
@@ -84,8 +89,20 @@ def _sha256_file(path: Path) -> str:
 
 def load_candidates(inventory_path: Path) -> tuple[dict[str, Any], list[Candidate]]:
     manifest = json.loads(inventory_path.read_text(encoding="utf-8"))
-    if manifest.get("schema_version") != SCHEMA_VERSION or not manifest.get("integrity_valid"):
+    if type(manifest.get("schema_version")) is not int or manifest["schema_version"] != SCHEMA_VERSION or manifest.get("integrity_valid") is not True:
         raise ValueError("inventory must use schema 1 and pass integrity")
+    component_hash_keys = ("records_sha256", "observations_sha256", "queue_sha256", "blob_set_sha256")
+    if not all(_is_sha256(manifest.get(key)) for key in component_hash_keys):
+        raise ValueError("inventory component hashes must be lowercase SHA-256 values")
+    identity_seed = (
+        f"schema={SCHEMA_VERSION}\n"
+        f"records={manifest.get('records_sha256', '')}\n"
+        f"observations={manifest.get('observations_sha256', '')}\n"
+        f"queue={manifest.get('queue_sha256', '')}\n"
+        f"blobs={manifest.get('blob_set_sha256', '')}\n"
+    ).encode()
+    if _sha256(identity_seed) != manifest.get("inventory_id"):
+        raise ValueError("inventory identity does not bind declared component hashes")
     records_path = _resolve_under(inventory_path.parent, manifest["records_path"], kind="records")
     raw = records_path.read_bytes()
     if _sha256(raw) != manifest.get("records_sha256"):
@@ -105,7 +122,7 @@ def load_candidates(inventory_path: Path) -> tuple[dict[str, Any], list[Candidat
             sha = receipt.get("sha256", "")
             key = receipt.get("path", "")
             size = receipt.get("bytes", 0)
-            if len(sha) != 64 or key != f"blobs/{sha}.pdf" or not isinstance(size, int) or size <= 0:
+            if not _is_sha256(sha) or key != f"blobs/{sha}.pdf" or type(size) is not int or size <= 0:
                 raise ValueError(f"invalid PDF receipt at line {line_number}")
             candidate = Candidate(sha, key, size, record["portal"], record["source_url"], str(year_values[0]) if year_values else "unknown")
             existing = candidates.get(sha)
@@ -158,6 +175,7 @@ def classify_document(text_pages: int, scan_pages: int, sparse_pages: int) -> st
 def _count_page_images(page: Any) -> int:
     try:
         resources = page.get("/Resources") or {}
+        resources = resources.get_object() if hasattr(resources, "get_object") else resources
         xobjects = resources.get("/XObject") or {}
         xobjects = xobjects.get_object() if hasattr(xobjects, "get_object") else xobjects
         count = 0
@@ -232,7 +250,37 @@ def _safe_pdf_path(root: Path, candidate: Candidate) -> Path:
     return resolved
 
 
+def _claim_output_directory(output_dir: Path) -> Path:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    managed_outputs = (output_dir / "pdf-profile.results.jsonl", output_dir / "pdf-profile.manifest.json")
+    if any(path.exists() for path in managed_outputs):
+        raise FileExistsError(f"refusing to overwrite an existing profile run in {output_dir}")
+    claim = output_dir / ".pdf-profile.lock"
+    try:
+        descriptor = os.open(claim, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError as exc:
+        raise FileExistsError(f"another profile run owns {output_dir}") from exc
+    try:
+        os.write(descriptor, f"pid={os.getpid()}\n".encode())
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+    if any(path.exists() for path in managed_outputs):
+        claim.unlink(missing_ok=True)
+        raise FileExistsError(f"refusing to overwrite an existing profile run in {output_dir}")
+    return claim
+
+
 def profile(inventory_path: Path, output_dir: Path, limit: int, seed: str, workers: int, timeout_seconds: float) -> dict[str, Any]:
+    claim = _claim_output_directory(output_dir)
+    try:
+        return _profile_claimed(inventory_path, output_dir, limit, seed, workers, timeout_seconds)
+    finally:
+        claim.unlink(missing_ok=True)
+
+
+def _profile_claimed(inventory_path: Path, output_dir: Path, limit: int, seed: str, workers: int,
+                     timeout_seconds: float) -> dict[str, Any]:
     inventory, candidates = load_candidates(inventory_path)
     selected = select_candidates(candidates, limit, seed)
     config = {"schema_version": SCHEMA_VERSION, "inventory_id": inventory["inventory_id"], "engine": "pypdf",
@@ -257,7 +305,6 @@ def profile(inventory_path: Path, output_dir: Path, limit: int, seed: str, worke
             results.append(future.result())
     results.sort(key=lambda item: item["sha256"])
     rows = b"".join(_canonical_json(result) for result in results)
-    output_dir.mkdir(parents=True, exist_ok=True)
     _atomic_write(output_dir / "pdf-profile.results.jsonl", rows)
     statuses: dict[str, int] = {}
     classes: dict[str, int] = {}
@@ -308,8 +355,8 @@ def main(argv: list[str] | None = None) -> int:
         except Exception as exc:
             print(f"{type(exc).__name__}: {exc}", file=sys.stderr)
             return 1
-    if args.limit < 0 or not 1 <= args.workers <= 32 or args.timeout <= 0:
-        parser.error("limit must be >=0, workers 1..32, and timeout >0")
+    if args.limit < 0 or not 1 <= args.workers <= 32 or not math.isfinite(args.timeout) or args.timeout <= 0:
+        parser.error("limit must be >=0, workers 1..32, and timeout must be finite and >0")
     try:
         manifest = profile(args.inventory, args.output, args.limit, args.seed, args.workers, args.timeout)
     except Exception as exc:

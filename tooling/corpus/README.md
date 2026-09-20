@@ -16,6 +16,9 @@ dan workload lengkap. Parser produksi tetap berada di src/ingestion.
 Setiap run mengikat inventory ID, record/blob hash, versi engine, konfigurasi, seed, timeout, dan hasil mentah.
 Sampling harus deterministik serta mempertahankan portal dan ukuran file; kasus gagal tetap menjadi denominator.
 Output dipakai untuk memilih kandidat M01 dan membentuk strata anotasi G01, bukan sebagai DocumentBatch produksi.
+Direktori output bersifat immutable: profiler menolak menimpa manifest atau JSONL run yang sudah ada agar
+consumer tidak pernah mencampur hasil baru dengan manifest lama. Atomic claim file mencegah dua proses
+menerbitkan run secara bersamaan; lock yang tersisa setelah proses mati menandakan run tidak selesai.
 
 ## Isi saat ini
 
