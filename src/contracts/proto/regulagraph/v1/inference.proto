@@ -1,15 +1,175 @@
-// Operasi embedding/reranking/generation beserta model identity, deadline, dan ukuran batch.
-//
-// Peran dalam komponen:
-// Sumber kontrak wire bagi runtime produksi dan evaluator.
-//
-// Integrasi dan perhatian performa:
-// Belum mendefinisikan message atau service; field belum dibekukan. Hindari transfer per-record berulang dan ukur bytes/request serta serialization latency.
-//
-// Benchmark dan gate penerimaan:
-// Ukur p50/p95/p99, throughput, waktu antre, serta RSS/VRAM sesuai workload. Ambang wajib ada di configs/benchmark-targets.yaml (REQUIRED_UNMEASURED); ukur cold/warm terpisah dan pertahankan kualitas sumber/versi.
-//
-// Status: scaffold; belum ada pipeline atau layanan yang aktif.
+// C01 native/semantic model batch operations with typed one-to-one item results.
+// Producer model manifests and truncation are explicit; registry assignment remains a separate service.
+// Requests carry bounded batches, deadlines and operation keys. No runtime loads a model at import.
 syntax = "proto3";
-
 package regulagraph.v1;
+option go_package = "regulagraph.local/server/gen/regulagraph/v1;regulagraphv1";
+import "regulagraph/v1/common.proto";
+import "regulagraph/v1/graph.proto";
+enum EmbeddingPurpose {
+  EMBEDDING_PURPOSE_UNSPECIFIED=0;
+  EMBEDDING_PURPOSE_QUERY=1;
+  EMBEDDING_PURPOSE_DOCUMENT=2;
+}
+message BatchLimits {
+  uint32 max_items=1 [(rules).positive=true];
+  uint64 max_bytes=2 [(rules).positive=true];
+  uint32 max_tokens=3 [(rules).positive=true];
+}
+message TextItem {
+  string item_id=1 [(rules)={required:true ascii_id:true}];
+  string text=2 [(rules).required=true];
+  Provenance provenance=3;
+}
+message Embedding {
+  repeated float values=1 [(rules)={finite:true min_items:1}];
+  uint32 input_tokens=2;
+  TruncationInfo truncation=3 [(rules).required=true];
+}
+message EmbeddingResult {
+  string item_id=1 [(rules)={required:true ascii_id:true}];
+  oneof result {
+    Embedding embedding=2;
+    OperationError error=3;
+  }
+}
+message EmbedBatchRequest {
+  RequestContext context=1 [(rules).required=true];
+  ModelManifest model=2 [(rules).required=true];
+  repeated TextItem items=3 [(rules).min_items=1];
+  EmbeddingPurpose purpose=4 [(rules).required=true];
+  string operation_key=5 [(rules)={required:true ascii_id:true}];
+}
+message EmbedBatchResponse {
+  string request_id=1 [(rules)={required:true ascii_id:true}];
+  ModelManifest model=2 [(rules).required=true];
+  repeated EmbeddingResult results=3;
+  repeated StageDuration durations=4;
+}
+message RerankPair {
+  string pair_id=1 [(rules)={required:true ascii_id:true}];
+  string query=2 [(rules).required=true];
+  string text=3 [(rules).required=true];
+  Provenance provenance=4;
+}
+message RerankScore {
+  double score=1 [(rules).finite=true];
+  uint32 input_tokens=2;
+  TruncationInfo truncation=3 [(rules).required=true];
+}
+message RerankItemResult {
+  string pair_id=1 [(rules)={required:true ascii_id:true}];
+  oneof result {
+    RerankScore score=2;
+    OperationError error=3;
+  }
+}
+message RerankBatchRequest {
+  RequestContext context=1 [(rules).required=true];
+  ModelManifest model=2 [(rules).required=true];
+  repeated RerankPair pairs=3 [(rules).min_items=1];
+  string operation_key=4 [(rules)={required:true ascii_id:true}];
+}
+message RerankBatchResponse {
+  string request_id=1 [(rules)={required:true ascii_id:true}];
+  ModelManifest model=2 [(rules).required=true];
+  repeated RerankItemResult results=3;
+  repeated StageDuration durations=4;
+}
+message CapabilitiesRequest {
+  RequestContext context=1 [(rules).required=true];
+}
+message ModelCapability {
+  ModelManifest model=1 [(rules).required=true];
+  BatchLimits limits=2 [(rules).required=true];
+  bool ready=3;
+}
+message CapabilitiesResponse {
+  repeated ModelCapability models=1;
+  repeated ModelTask supported_tasks=2;
+  bool ready=3;
+}
+message SemanticBatchContext {
+  RequestContext context=1 [(rules).required=true];
+  ModelManifest model=2 [(rules).required=true];
+  string operation_key=3 [(rules)={required:true ascii_id:true}];
+  string ontology_version=4 [(rules).required=true];
+  ArtifactRef output_schema=5 [(rules).required=true];
+}
+message ExtractionProposal {
+  repeated Mention mentions=1;
+  repeated RelationAssertion assertions=2;
+  repeated SupportRecord supports=3;
+  repeated ValidationIssue issues=4;
+}
+message ExtractItemResult {
+  string item_id=1 [(rules)={required:true ascii_id:true}];
+  oneof result {
+    ExtractionProposal proposal=2;
+    OperationError error=3;
+  }
+}
+message ExtractBatchRequest {
+  SemanticBatchContext batch=1 [(rules).required=true];
+  repeated TextItem items=2 [(rules).min_items=1];
+}
+message ExtractBatchResponse {
+  string request_id=1 [(rules)={required:true ascii_id:true}];
+  repeated ExtractItemResult results=2;
+  ModelManifest model=3 [(rules).required=true];
+}
+message AmbiguousMention {
+  string item_id=1 [(rules)={required:true ascii_id:true}];
+  Mention mention=2 [(rules).required=true];
+  repeated CanonicalEntity candidates=3;
+  Provenance evidence=4 [(rules).required=true];
+  uint64 expected_registry_revision=5;
+}
+message ResolveItemResult {
+  string item_id=1 [(rules)={required:true ascii_id:true}];
+  oneof result {
+    ResolutionProposal proposal=2;
+    OperationError error=3;
+  }
+}
+message SemanticResolveRequest {
+  SemanticBatchContext batch=1 [(rules).required=true];
+  repeated AmbiguousMention items=2 [(rules).min_items=1];
+}
+message SemanticResolveResponse {
+  string request_id=1 [(rules)={required:true ascii_id:true}];
+  repeated ResolveItemResult results=2;
+  ModelManifest model=3 [(rules).required=true];
+}
+message EntityFacts {
+  string item_id=1 [(rules)={required:true ascii_id:true}];
+  CanonicalEntity entity=2 [(rules).required=true];
+  repeated RelationAssertion facts=3;
+  repeated SupportRecord supports=4 [(rules).min_items=1];
+}
+message SummarizeItemResult {
+  string item_id=1 [(rules)={required:true ascii_id:true}];
+  oneof result {
+    EntityProfile profile_draft=2;
+    OperationError error=3;
+  }
+}
+message SummarizeBatchRequest {
+  SemanticBatchContext batch=1 [(rules).required=true];
+  repeated EntityFacts items=2 [(rules).min_items=1];
+}
+message SummarizeBatchResponse {
+  string request_id=1 [(rules)={required:true ascii_id:true}];
+  repeated SummarizeItemResult results=2;
+  ModelManifest model=3 [(rules).required=true];
+}
+service Inference {
+  rpc EmbedBatch(EmbedBatchRequest) returns (EmbedBatchResponse);
+  rpc RerankBatch(RerankBatchRequest) returns (RerankBatchResponse);
+  rpc GetCapabilities(CapabilitiesRequest) returns (CapabilitiesResponse);
+}
+service Semantic {
+  rpc ExtractBatch(ExtractBatchRequest) returns (ExtractBatchResponse);
+  rpc ResolveBatch(SemanticResolveRequest) returns (SemanticResolveResponse);
+  rpc SummarizeBatch(SummarizeBatchRequest) returns (SummarizeBatchResponse);
+}

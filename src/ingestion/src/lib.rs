@@ -16,3 +16,8 @@ pub mod document;
 pub mod domain;
 pub mod indexing;
 pub mod knowledge_graph;
+
+// Generated, unknown-field-preserving wire types. Authoritative schemas live in src/contracts.
+pub mod wire {
+    include!(concat!(env!("OUT_DIR"), "/wire/mod.rs"));
+}

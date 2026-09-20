@@ -1,15 +1,92 @@
-// Request pertanyaan, jawaban, klaim/citation, dan streaming status.
-//
-// Peran dalam komponen:
-// Sumber kontrak wire bagi runtime produksi dan evaluator.
-//
-// Integrasi dan perhatian performa:
-// Belum mendefinisikan message atau service; field belum dibekukan. Hindari transfer per-record berulang dan ukur bytes/request serta serialization latency.
-//
-// Benchmark dan gate penerimaan:
-// Ukur p50/p95/p99, throughput, waktu antre, serta RSS/VRAM sesuai workload. Ambang wajib ada di configs/benchmark-targets.yaml (REQUIRED_UNMEASURED); ukur cold/warm terpisah dan pertahankan kualitas sumber/versi.
-//
-// Status: scaffold; belum ada pipeline atau layanan yang aktif.
+// C01 question/answer/stream records bind claims to versioned evidence and pinned snapshots.
+// Stream text is provisional until exactly one successful FINAL; ERROR is terminal.
+// Validators cover structure, not semantic faithfulness. Quality/latency require the benchmark suite.
 syntax = "proto3";
-
 package regulagraph.v1;
+option go_package = "regulagraph.local/server/gen/regulagraph/v1;regulagraphv1";
+import "regulagraph/v1/common.proto";
+import "regulagraph/v1/graph.proto";
+import "regulagraph/v1/evidence.proto";
+enum ResponseMode {
+  RESPONSE_MODE_UNSPECIFIED=0;
+  RESPONSE_MODE_COMPLETE=1;
+  RESPONSE_MODE_STREAM=2;
+}
+enum SemanticStatus {
+  SEMANTIC_STATUS_UNSPECIFIED=0;
+  SEMANTIC_STATUS_COMPLETE=1;
+  SEMANTIC_STATUS_PARTIAL=2;
+  SEMANTIC_STATUS_ABSTAIN=3;
+  SEMANTIC_STATUS_CONFLICT=4;
+  SEMANTIC_STATUS_NEEDS_CLARIFICATION=5;
+}
+enum SupportStatus {
+  SUPPORT_STATUS_UNSPECIFIED=0;
+  SUPPORT_STATUS_SUPPORTED=1;
+  SUPPORT_STATUS_UNSUPPORTED=2;
+  SUPPORT_STATUS_CONFLICTED=3;
+  SUPPORT_STATUS_UNREVIEWED=4;
+}
+message QuestionRequest {
+  string question=1 [(rules).required=true];
+  string corpus_id=2 [(rules)={required:true ascii_id:true}];
+  TemporalScope temporal_scope=3;
+  optional string snapshot_id=4 [(rules).ascii_id=true];
+  ResponseMode response_mode=5 [(rules).required=true];
+  RetrievalProfile requested_profile=6;
+}
+message AnswerTextSpan {
+  uint64 start_byte=1;
+  uint64 end_byte=2;
+}
+message Claim {
+  string claim_id=1 [(rules)={required:true ascii_id:true}];
+  AnswerTextSpan answer_text_span=2 [(rules).required=true];
+  repeated string evidence_ids=3 [(rules)={ascii_id:true unique:true}];
+  repeated Qualifier qualifiers=4;
+  SupportStatus support_status=5 [(rules).required=true];
+}
+message Citation {
+  string citation_id=1 [(rules)={required:true ascii_id:true}];
+  repeated string claim_ids=2 [(rules)={ascii_id:true unique:true min_items:1}];
+  string evidence_id=3 [(rules)={required:true ascii_id:true}];
+  string provision_version_id=4 [(rules)={required:true ascii_id:true}];
+  string source_url=5 [(rules).required=true];
+  TextSpan source_span=6;
+  PageLocator page_locator=7;
+}
+message EvidenceConflict {
+  string reason=1 [(rules).required=true];
+  repeated string evidence_ids=2 [(rules)={ascii_id:true min_items:2}];
+}
+message Answer {
+  RecordMeta meta=1 [(rules).required=true];
+  string request_id=2 [(rules)={required:true ascii_id:true}];
+  string text=3;
+  repeated Claim claims=4;
+  repeated Citation citations=5;
+  repeated GraphPath paths=6;
+  SemanticStatus semantic_status=7 [(rules).required=true];
+  CompletionStatus completion_status=8 [(rules).required=true];
+  repeated string missing_evidence=9;
+  repeated EvidenceConflict conflicts=10;
+  SnapshotRef snapshot=11 [(rules).required=true];
+  repeated CalendarDate effective_dates=12 [(rules).min_items=1];
+  ProducerManifest run_manifest=13 [(rules).required=true];
+}
+message StreamMeta {
+  SnapshotRef snapshot=1 [(rules).required=true];
+  repeated CalendarDate effective_dates=2 [(rules).min_items=1];
+}
+message AnswerEvent {
+  uint32 schema_version=1 [(rules).positive=true];
+  string request_id=2 [(rules)={required:true ascii_id:true}];
+  uint64 stream_sequence=3 [(rules).positive=true];
+  oneof payload {
+    StreamMeta meta=4;
+    string text_delta=5;
+    Citation citation=6;
+    Answer final=7;
+    OperationError error=8;
+  }
+}

@@ -1,15 +1,251 @@
-// Descriptor job ingestion/update, batch artefak, status, dan checkpoint.
-//
-// Peran dalam komponen:
-// Sumber kontrak wire bagi runtime produksi dan evaluator.
-//
-// Integrasi dan perhatian performa:
-// Belum mendefinisikan message atau service; field belum dibekukan. Hindari transfer per-record berulang dan ukur bytes/request serta serialization latency.
-//
-// Benchmark dan gate penerimaan:
-// Ukur p50/p95/p99, throughput, waktu antre, serta RSS/VRAM sesuai workload. Ambang wajib ada di configs/benchmark-targets.yaml (REQUIRED_UNMEASURED); ukur cold/warm terpisah dan pertahankan kualitas sumber/versi.
-//
-// Status: scaffold; belum ada pipeline atau layanan yang aktif.
+// C01 job, publication and review records with attempt fencing and idempotency.
+// Go owns durable state; worker responses are proposals, never publication acknowledgements.
+// Schema availability does not implement storage transactions or recovery; measure those in S01/U01.
 syntax = "proto3";
-
 package regulagraph.v1;
+option go_package = "regulagraph.local/server/gen/regulagraph/v1;regulagraphv1";
+import "regulagraph/v1/common.proto";
+import "regulagraph/v1/graph.proto";
+import "google/protobuf/timestamp.proto";
+enum JobOperation {
+  JOB_OPERATION_UNSPECIFIED=0;
+  JOB_OPERATION_INGEST=1;
+  JOB_OPERATION_UPDATE=2;
+  JOB_OPERATION_REBUILD=3;
+}
+enum JobState {
+  JOB_STATE_UNSPECIFIED=0;
+  JOB_STATE_QUEUED=1;
+  JOB_STATE_RUNNING=2;
+  JOB_STATE_WAITING_REVIEW=3;
+  JOB_STATE_STAGED=4;
+  JOB_STATE_VALIDATING=5;
+  JOB_STATE_PUBLISHING=6;
+  JOB_STATE_SUCCEEDED=7;
+  JOB_STATE_RETRY_WAIT=8;
+  JOB_STATE_FAILED=9;
+  JOB_STATE_CANCELLED=10;
+}
+enum JobStage {
+  JOB_STAGE_UNSPECIFIED=0;
+  JOB_STAGE_ACQUIRE=1;
+  JOB_STAGE_PARSE=2;
+  JOB_STAGE_STRUCTURE=3;
+  JOB_STAGE_EXTRACT=4;
+  JOB_STAGE_RESOLVE=5;
+  JOB_STAGE_ASSEMBLE=6;
+  JOB_STAGE_INDEX=7;
+}
+enum SnapshotState {
+  SNAPSHOT_STATE_UNSPECIFIED=0;
+  SNAPSHOT_STATE_STAGING=1;
+  SNAPSHOT_STATE_VALIDATING=2;
+  SNAPSHOT_STATE_READY=3;
+  SNAPSHOT_STATE_PUBLISHED=4;
+  SNAPSHOT_STATE_ABORTING=5;
+  SNAPSHOT_STATE_ABORTED=6;
+  SNAPSHOT_STATE_RETIRED=7;
+}
+enum BackendKind {
+  BACKEND_KIND_UNSPECIFIED=0;
+  BACKEND_KIND_POSTGRES=1;
+  BACKEND_KIND_NEO4J=2;
+  BACKEND_KIND_QDRANT=3;
+  BACKEND_KIND_ARTIFACTS=4;
+}
+message SourceLocator {
+  oneof locator {
+    string url=1;
+    ArtifactRef blob=2;
+  }
+  string portal_id=3 [(rules)={required:true ascii_id:true}];
+}
+message IngestionRequest {
+  string corpus_id=1 [(rules)={required:true ascii_id:true}];
+  repeated SourceLocator sources=2 [(rules).min_items=1];
+  JobOperation operation=3 [(rules).required=true];
+  string idempotency_key=4 [(rules)={required:true ascii_id:true}];
+  ProducerManifest config_manifest=5 [(rules).required=true];
+}
+message Lease {
+  string owner_id=1 [(rules)={required:true ascii_id:true}];
+  uint64 fence=2 [(rules).positive=true];
+  google.protobuf.Timestamp expires_at=3 [(rules).required=true];
+}
+message Job {
+  RecordMeta meta=1 [(rules).required=true];
+  JobOperation type=2 [(rules).required=true];
+  JobState state=3 [(rules).required=true];
+  JobStage stage=4;
+  SnapshotRef base_snapshot=5;
+  ContentHash input_fingerprint=6 [(rules).required=true];
+  uint32 attempt=7;
+  Lease lease=8;
+  ArtifactRef checkpoint_ref=9;
+  repeated OperationError errors=10;
+  string idempotency_key=11 [(rules)={required:true ascii_id:true}];
+}
+message Checkpoint {
+  RecordMeta meta=1 [(rules).required=true];
+  string job_id=2 [(rules)={required:true ascii_id:true}];
+  JobStage stage=3 [(rules).required=true];
+  repeated string completed_batch_keys=4 [(rules)={ascii_id:true unique:true}];
+  repeated ContentHash artifact_hashes=5;
+  ProducerManifest manifest=6 [(rules).required=true];
+  uint64 fence=7 [(rules).positive=true];
+}
+message SourceChange {
+  string source_id=1 [(rules)={required:true ascii_id:true}];
+  ContentHash previous_hash=2;
+  ContentHash new_hash=3;
+  string reason=4 [(rules).required=true];
+}
+message UpdatePlan {
+  RecordMeta meta=1 [(rules).required=true];
+  repeated SourceChange source_changes=2;
+  repeated string affected_closure=3 [(rules)={ascii_id:true unique:true}];
+  repeated string reuse_set=4 [(rules)={ascii_id:true unique:true}];
+  repeated string recompute_set=5 [(rules)={ascii_id:true unique:true}];
+  repeated string review_set=6 [(rules)={ascii_id:true unique:true}];
+  SnapshotRef base_snapshot=7 [(rules).required=true];
+  repeated LookupScopeRevision lookup_revisions=8;
+}
+message BackendGeneration {
+  BackendKind backend=1 [(rules).required=true];
+  string generation=2 [(rules)={required:true ascii_id:true}];
+  Counts expected_counts=3 [(rules).required=true];
+  ContentHash operations_checksum=4 [(rules).required=true];
+}
+message BackendReceipt {
+  string publication_id=1 [(rules)={required:true ascii_id:true}];
+  BackendKind backend=2 [(rules).required=true];
+  string generation=3 [(rules)={required:true ascii_id:true}];
+  ContentHash operations_checksum=4 [(rules).required=true];
+  Counts counts=5 [(rules).required=true];
+  bool durable_ack=6;
+  bool search_ready=7;
+  uint64 fence=8 [(rules).positive=true];
+}
+message PublicationManifest {
+  RecordMeta meta=1 [(rules).required=true];
+  SnapshotRef snapshot_ref=2 [(rules).required=true];
+  SnapshotRef parent_ref=3;
+  repeated BackendGeneration backend_generations=4 [(rules).min_items=1];
+  repeated BackendReceipt acknowledgements=5;
+  ValidationReport validation_report=6 [(rules).required=true];
+  uint64 fence=7 [(rules).positive=true];
+  repeated VisibilityClosure closures=8;
+}
+message Snapshot {
+  RecordMeta meta=1 [(rules).required=true];
+  SnapshotState state=2 [(rules).required=true];
+  PublicationManifest publication=3 [(rules).required=true];
+  google.protobuf.Timestamp created_at=4 [(rules).required=true];
+  google.protobuf.Timestamp published_at=5;
+}
+message PublicationOperation {
+  RecordMeta meta=1 [(rules).required=true];
+  string publication_id=2 [(rules)={required:true ascii_id:true}];
+  BackendKind backend=3 [(rules).required=true];
+  string operation_key=4 [(rules)={required:true ascii_id:true}];
+  ContentHash payload_hash=5 [(rules).required=true];
+  ArtifactRef before_image=6;
+  BackendReceipt receipt=7;
+  uint64 fence=8 [(rules).positive=true];
+}
+message ReviewItem {
+  RecordMeta meta=1 [(rules).required=true];
+  string kind=2 [(rules).required=true];
+  repeated NamedValue proposed_values=3;
+  repeated string evidence_refs=4 [(rules)={ascii_id:true min_items:1}];
+  ReviewState status=5 [(rules).required=true];
+  optional string decision_id=6 [(rules).ascii_id=true];
+  optional string actor=7;
+  optional string reason=8;
+  optional string supersedes=9 [(rules).ascii_id=true];
+  uint64 revision=10 [(rules).positive=true];
+}
+message ReviewDecisionRequest {
+  RequestContext context=1 [(rules).required=true];
+  string item_id=2 [(rules)={required:true ascii_id:true}];
+  uint64 expected_revision=3 [(rules).positive=true];
+  ReviewState decision=4 [(rules).required=true];
+  string actor=5 [(rules).required=true];
+  string reason=6 [(rules).required=true];
+  repeated string evidence_refs=7 [(rules)={ascii_id:true min_items:1}];
+}
+message ListReviewsRequest {
+  RequestContext context=1 [(rules).required=true];
+  Pagination pagination=2 [(rules).required=true];
+  ReviewState status=3;
+}
+message ListReviewsResponse {
+  repeated ReviewItem items=1;
+  optional string next_cursor=2;
+  SnapshotRef snapshot=3 [(rules).required=true];
+}
+message GetJobRequest {
+  RequestContext context=1 [(rules).required=true];
+  string job_id=2 [(rules)={required:true ascii_id:true}];
+}
+message CancelJobResponse {
+  string job_id=1 [(rules)={required:true ascii_id:true}];
+  bool cancellation_requested=2;
+  JobState current_state=3 [(rules).required=true];
+}
+message GetSnapshotRequest {
+  RequestContext context=1 [(rules).required=true];
+  string snapshot_id=2 [(rules)={required:true ascii_id:true}];
+}
+message HealthRequest {
+  repeated string capabilities=1;
+}
+message HealthResponse {
+  bool live=1;
+  bool ready=2;
+  repeated string ready_capabilities=3;
+  repeated OperationError errors=4;
+}
+message ProcessBatchRequest {
+  RequestContext context=1 [(rules).required=true];
+  string job_id=2 [(rules)={required:true ascii_id:true}];
+  uint32 attempt=3 [(rules).positive=true];
+  Lease lease=4 [(rules).required=true];
+  repeated ArtifactRef sources=5 [(rules).min_items=1];
+  ArtifactRef registry=6;
+  ProducerManifest manifest=7 [(rules).required=true];
+  ArtifactRef checkpoint=8;
+  repeated JobStage stages=9 [(rules)={required:true unique:true min_items:1}];
+}
+message ProcessBatchResponse {
+  string request_id=1 [(rules)={required:true ascii_id:true}];
+  string job_id=2 [(rules)={required:true ascii_id:true}];
+  uint32 attempt=3 [(rules).positive=true];
+  uint64 fence=4 [(rules).positive=true];
+  Checkpoint checkpoint=5;
+  ArtifactRef document_batch=6;
+  ArtifactRef graph_delta=7;
+  ArtifactRef index_batch=8;
+  CompletionStatus status=9 [(rules).required=true];
+  repeated OperationError errors=10;
+}
+message WorkerStatusRequest {
+  RequestContext context=1 [(rules).required=true];
+  string job_id=2 [(rules)={required:true ascii_id:true}];
+  uint32 attempt=3 [(rules).positive=true];
+  uint64 fence=4 [(rules).positive=true];
+}
+message WorkerStatusResponse {
+  string job_id=1 [(rules)={required:true ascii_id:true}];
+  uint32 attempt=2 [(rules).positive=true];
+  uint64 fence=3 [(rules).positive=true];
+  JobStage stage=4;
+  uint64 completed_items=5;
+  uint64 total_items=6;
+  bool cancellation_acknowledged=7;
+}
+service Worker {
+  rpc ProcessBatch(ProcessBatchRequest) returns (ProcessBatchResponse);
+  rpc GetStatus(WorkerStatusRequest) returns (WorkerStatusResponse);
+  rpc Cancel(WorkerStatusRequest) returns (WorkerStatusResponse);
+}

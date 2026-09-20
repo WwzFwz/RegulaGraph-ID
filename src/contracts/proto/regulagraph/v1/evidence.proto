@@ -1,15 +1,155 @@
-// Bukti retrieval beserta asal ranking dan rantai graph.
-//
-// Peran dalam komponen:
-// Sumber kontrak wire bagi runtime produksi dan evaluator.
-//
-// Integrasi dan perhatian performa:
-// Belum mendefinisikan message atau service; field belum dibekukan. Hindari transfer per-record berulang dan ukur bytes/request serta serialization latency.
-//
-// Benchmark dan gate penerimaan:
-// Ukur p50/p95/p99, throughput, waktu antre, serta RSS/VRAM sesuai workload. Ambang wajib ada di configs/benchmark-targets.yaml (REQUIRED_UNMEASURED); ukur cold/warm terpisah dan pertahankan kualitas sumber/versi.
-//
-// Status: scaffold; belum ada pipeline atau layanan yang aktif.
+// C01 versioned indexes, retrieval provenance and hydrated context.
+// Candidates retain branch scores; source/version/snapshot consistency is validated separately from relevance.
+// Sparse entries must be sorted, unique and finite; no performance target is claimed by schema availability.
 syntax = "proto3";
-
 package regulagraph.v1;
+option go_package = "regulagraph.local/server/gen/regulagraph/v1;regulagraphv1";
+import "regulagraph/v1/common.proto";
+import "regulagraph/v1/documents.proto";
+import "regulagraph/v1/graph.proto";
+enum RetrievalProfile {
+  RETRIEVAL_PROFILE_UNSPECIFIED=0;
+  RETRIEVAL_PROFILE_VECTOR_RAG=1;
+  RETRIEVAL_PROFILE_HYBRID_RAG=2;
+  RETRIEVAL_PROFILE_GRAPH_RAG=3;
+  RETRIEVAL_PROFILE_HYBRID_GRAPH_RAG=4;
+}
+enum RetrieverKind {
+  RETRIEVER_KIND_UNSPECIFIED=0;
+  RETRIEVER_KIND_DENSE=1;
+  RETRIEVER_KIND_BM25=2;
+  RETRIEVER_KIND_GRAPH=3;
+}
+message IndexGeneration {
+  RecordMeta meta=1 [(rules).required=true];
+  ModelManifest dense_manifest=2 [(rules).required=true];
+  ArtifactRef lexical_analyzer=3 [(rules).required=true];
+  ArtifactRef lexical_dictionary=4 [(rules).required=true];
+  ArtifactRef lexical_statistics=5 [(rules).required=true];
+  string ontology_version=6 [(rules).required=true];
+}
+message DenseVector {
+  repeated float values=1 [(rules)={finite:true min_items:1}];
+  uint32 dimensions=2 [(rules).positive=true];
+  string model_id=3 [(rules)={required:true ascii_id:true}];
+}
+message SparseVector {
+  repeated uint32 indices=1 [(rules).unique=true];
+  repeated float values=2 [(rules).finite=true];
+}
+message FilterMetadata {
+  repeated string regulation_ids=1 [(rules).ascii_id=true];
+  repeated string source_blob_ids=2 [(rules).ascii_id=true];
+  repeated LegalInterval legal_intervals=3;
+  repeated LegalStatus legal_statuses=4;
+  repeated string jurisdictions=5;
+  Visibility visibility=6 [(rules).required=true];
+}
+message IndexRecord {
+  RecordMeta meta=1 [(rules).required=true];
+  string generation_id=2 [(rules)={required:true ascii_id:true}];
+  string chunk_id=3 [(rules)={required:true ascii_id:true}];
+  repeated string provision_version_refs=4 [(rules)={ascii_id:true unique:true min_items:1}];
+  DenseVector dense_vector=5;
+  SparseVector sparse_vector=6;
+  FilterMetadata filter_metadata=7 [(rules).required=true];
+  DependencyManifest dependencies=8 [(rules).required=true];
+}
+message IndexBatch {
+  RecordMeta meta=1 [(rules).required=true];
+  RequestContext context=2 [(rules).required=true];
+  IndexGeneration generation=3 [(rules).required=true];
+  repeated IndexRecord records=4;
+  repeated VisibilityClosure closures=5;
+  Counts counts=6 [(rules).required=true];
+  ContentHash operations_checksum=7 [(rules).required=true];
+  DependencyManifest dependencies=8 [(rules).required=true];
+}
+message StageBudget {
+  string stage=1 [(rules).required=true];
+  uint64 timeout_ms=2 [(rules).positive=true];
+  optional uint32 max_candidates=3 [(rules).positive=true];
+  optional uint32 max_tokens=4 [(rules).positive=true];
+  optional uint32 max_hops=5 [(rules).positive=true];
+}
+message RetrievalPlan {
+  string query_original=1 [(rules).required=true];
+  string query_normalized=2 [(rules).required=true];
+  repeated string intents=3;
+  repeated string linked_entities=4 [(rules).ascii_id=true];
+  TemporalScope temporal_scope=5 [(rules).required=true];
+  RetrievalProfile requested_profile=6 [(rules).required=true];
+  repeated StageBudget stage_budgets=7;
+}
+message FilterDecision {
+  string rule=1 [(rules).required=true];
+  bool accepted=2;
+  string reason=3;
+}
+message Candidate {
+  string evidence_key=1 [(rules)={required:true ascii_id:true}];
+  RetrieverKind retriever=2 [(rules).required=true];
+  double raw_score=3 [(rules).finite=true];
+  uint32 rank=4 [(rules).positive=true];
+  string representation=5 [(rules).required=true];
+  repeated string path_refs=6 [(rules).ascii_id=true];
+  repeated FilterDecision filter_decisions=7;
+}
+message Evidence {
+  RecordMeta meta=1 [(rules).required=true];
+  repeated SourceVersionRef source_refs=2 [(rules).min_items=1];
+  string text=3 [(rules).required=true];
+  repeated string parent_refs=4 [(rules).ascii_id=true];
+  repeated TextSpan source_spans=5 [(rules).min_items=1];
+  repeated PageLocator locators=6;
+  SnapshotRef snapshot_ref=7 [(rules).required=true];
+  repeated Candidate candidate_provenance=8;
+  repeated GraphPath graph_paths=9;
+  LegalStatus legal_status=10 [(rules).required=true];
+}
+message RequiredPathSet {
+  repeated string path_ids=1 [(rules)={ascii_id:true unique:true min_items:1}];
+}
+message EvidenceBundle {
+  RecordMeta meta=1 [(rules).required=true];
+  repeated Evidence items=2;
+  repeated RequiredPathSet required_path_sets=3;
+  repeated string missing_dependencies=4 [(rules).ascii_id=true];
+  Completeness completeness=5 [(rules).required=true];
+  ProducerManifest retrieval_manifest=6 [(rules).required=true];
+  SnapshotRef snapshot=7 [(rules).required=true];
+  CompletionStatus completion_status=8 [(rules).required=true];
+  repeated OperationError errors=9;
+}
+message RerankResult {
+  string pair_id=1 [(rules)={required:true ascii_id:true}];
+  double score=2 [(rules).finite=true];
+  ModelManifest model_manifest=3 [(rules).required=true];
+  uint64 input_tokens=4;
+  TruncationInfo truncation=5 [(rules).required=true];
+}
+message ContextBlock {
+  string evidence_id=1 [(rules)={required:true ascii_id:true}];
+  string rendered_text=2 [(rules).required=true];
+}
+message ContextBundle {
+  RecordMeta meta=1 [(rules).required=true];
+  repeated string ordered_evidence_ids=2 [(rules)={ascii_id:true unique:true}];
+  repeated ContextBlock rendered_blocks=3;
+  uint64 token_count=4;
+  ContentHash tokenizer_hash=5 [(rules).required=true];
+  repeated string omitted_required_refs=6 [(rules).ascii_id=true];
+  Completeness completeness=7 [(rules).required=true];
+  SnapshotRef snapshot=8 [(rules).required=true];
+}
+message EvidenceSearchRequest {
+  RequestContext context=1 [(rules).required=true];
+  string question=2 [(rules).required=true];
+  TemporalScope temporal_scope=3;
+  RetrievalProfile profile=4 [(rules).required=true];
+}
+message EvidenceSearchResponse {
+  EvidenceBundle evidence=1 [(rules).required=true];
+  RetrievalPlan plan=2 [(rules).required=true];
+  repeated StageDuration durations=3;
+}

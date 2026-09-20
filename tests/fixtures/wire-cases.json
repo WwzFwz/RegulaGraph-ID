@@ -1,0 +1,749 @@
+{
+  "description": "Synthetic C01 compatibility fixtures. No legal facts or benchmark quality labels. JSON is decoded using generated production descriptors; unknown field hex tests binary forwarding.",
+  "schema_version": 1,
+  "cases": [
+    {
+      "name": "calendar-valid-leap",
+      "type": "CalendarDate",
+      "valid": true,
+      "value": {
+        "year": 2024,
+        "month": 2,
+        "day": 29
+      }
+    },
+    {
+      "name": "calendar-invalid-leap",
+      "type": "CalendarDate",
+      "valid": false,
+      "value": {
+        "year": 2023,
+        "month": 2,
+        "day": 29
+      }
+    },
+    {
+      "name": "calendar-invalid-month",
+      "type": "CalendarDate",
+      "valid": false,
+      "value": {
+        "year": 2024,
+        "month": 13,
+        "day": 1
+      }
+    },
+    {
+      "name": "date-unknown",
+      "type": "DateAssertion",
+      "valid": true,
+      "value": {
+        "knowledge": "DATE_KNOWLEDGE_UNKNOWN"
+      }
+    },
+    {
+      "name": "date-unknown-with-value",
+      "type": "DateAssertion",
+      "valid": false,
+      "value": {
+        "knowledge": "DATE_KNOWLEDGE_UNKNOWN",
+        "value": {
+          "year": 2024,
+          "month": 1,
+          "day": 1
+        }
+      }
+    },
+    {
+      "name": "required-enum-zero",
+      "type": "DateAssertion",
+      "valid": false,
+      "value": {}
+    },
+    {
+      "name": "required-enum-unknown",
+      "type": "DateAssertion",
+      "valid": false,
+      "value": {
+        "knowledge": 999
+      }
+    },
+    {
+      "name": "date-known-missing-value",
+      "type": "DateAssertion",
+      "valid": false,
+      "value": {
+        "knowledge": "DATE_KNOWLEDGE_KNOWN"
+      }
+    },
+    {
+      "name": "date-conflict-missing-alternatives",
+      "type": "DateAssertion",
+      "valid": false,
+      "value": {
+        "knowledge": "DATE_KNOWLEDGE_CONFLICT"
+      }
+    },
+    {
+      "name": "span-valid",
+      "type": "TextSpan",
+      "valid": true,
+      "value": {
+        "text_artifact_id": "text-1",
+        "start_byte": "0",
+        "end_byte": "8"
+      }
+    },
+    {
+      "name": "span-reversed",
+      "type": "TextSpan",
+      "valid": false,
+      "value": {
+        "text_artifact_id": "text-1",
+        "start_byte": "8",
+        "end_byte": "2"
+      }
+    },
+    {
+      "name": "span-invalid-id",
+      "type": "TextSpan",
+      "valid": false,
+      "value": {
+        "text_artifact_id": "not an id",
+        "end_byte": "1"
+      }
+    },
+    {
+      "name": "visibility-absent-end",
+      "type": "Visibility",
+      "valid": true,
+      "value": {
+        "from_seq": "1"
+      }
+    },
+    {
+      "name": "visibility-present-zero",
+      "type": "Visibility",
+      "valid": false,
+      "value": {
+        "from_seq": "1",
+        "to_seq": "0"
+      }
+    },
+    {
+      "name": "visibility-uint64",
+      "type": "Visibility",
+      "valid": true,
+      "value": {
+        "from_seq": "9007199254740993",
+        "to_seq": "9007199254740994"
+      }
+    },
+    {
+      "name": "visibility-reversed",
+      "type": "Visibility",
+      "valid": false,
+      "value": {
+        "from_seq": "3",
+        "to_seq": "2"
+      }
+    },
+    {
+      "name": "sparse-valid",
+      "type": "SparseVector",
+      "valid": true,
+      "value": {
+        "indices": [
+          1,
+          5,
+          10
+        ],
+        "values": [
+          0.1,
+          0.2,
+          0.3
+        ]
+      }
+    },
+    {
+      "name": "sparse-unsorted",
+      "type": "SparseVector",
+      "valid": false,
+      "value": {
+        "indices": [
+          5,
+          1
+        ],
+        "values": [
+          0.1,
+          0.2
+        ]
+      }
+    },
+    {
+      "name": "sparse-duplicate",
+      "type": "SparseVector",
+      "valid": false,
+      "value": {
+        "indices": [
+          1,
+          1
+        ],
+        "values": [
+          0.1,
+          0.2
+        ]
+      }
+    },
+    {
+      "name": "sparse-length",
+      "type": "SparseVector",
+      "valid": false,
+      "value": {
+        "indices": [
+          1,
+          2
+        ],
+        "values": [
+          0.1
+        ]
+      }
+    },
+    {
+      "name": "sparse-nan",
+      "type": "SparseVector",
+      "valid": false,
+      "value": {
+        "indices": [
+          1
+        ],
+        "values": [
+          "NaN"
+        ]
+      }
+    },
+    {
+      "name": "dense-dimensions",
+      "type": "DenseVector",
+      "valid": false,
+      "value": {
+        "values": [
+          0.1,
+          0.2
+        ],
+        "dimensions": 3,
+        "model_id": "model-test"
+      }
+    },
+    {
+      "name": "counts-balanced",
+      "type": "Counts",
+      "valid": true,
+      "value": {
+        "expected": "3",
+        "accepted": "2",
+        "rejected": "1"
+      }
+    },
+    {
+      "name": "counts-unbalanced",
+      "type": "Counts",
+      "valid": false,
+      "value": {
+        "expected": "3",
+        "accepted": "3",
+        "rejected": "1"
+      }
+    },
+    {
+      "name": "truncation-valid",
+      "type": "TruncationInfo",
+      "valid": true,
+      "value": {
+        "truncated": true,
+        "original_tokens": "10",
+        "retained_tokens": "5"
+      }
+    },
+    {
+      "name": "truncation-hidden",
+      "type": "TruncationInfo",
+      "valid": false,
+      "value": {
+        "original_tokens": "10",
+        "retained_tokens": "5"
+      }
+    },
+    {
+      "name": "unicode-text",
+      "type": "TextItem",
+      "valid": true,
+      "value": {
+        "item_id": "item-1",
+        "text": "Pasal \u00c3\u00a9 \u00e2\u20ac\u201d kewajiban; \u00e4\u00b8\u00ad\u00e6\u2013\u2021"
+      }
+    },
+    {
+      "name": "wire-byte-limit",
+      "type": "TextItem",
+      "valid": false,
+      "max_bytes": 8,
+      "value": {
+        "item_id": "item-1",
+        "text": "This synthetic item exceeds the configured eight-byte boundary."
+      }
+    },
+    {
+      "name": "missing-required-context",
+      "type": "EmbedBatchRequest",
+      "valid": false,
+      "value": {}
+    },
+    {
+      "name": "missing-oneof",
+      "type": "EmbeddingResult",
+      "valid": false,
+      "value": {
+        "item_id": "item-1"
+      }
+    },
+    {
+      "name": "unknown-field-preserved",
+      "type": "CalendarDate",
+      "valid": true,
+      "append_hex": "b83e7b",
+      "value": {
+        "year": 2024,
+        "month": 2,
+        "day": 29
+      }
+    },
+    {
+      "name": "optional-enum-unknown-preserved",
+      "type": "QuestionRequest",
+      "valid": true,
+      "value": {
+        "question": "Synthetic?",
+        "corpus_id": "corpus-test",
+        "response_mode": "RESPONSE_MODE_COMPLETE",
+        "requested_profile": 999
+      }
+    },
+    {
+      "name": "schema-version-unsupported",
+      "type": "RecordMeta",
+      "valid": false,
+      "value": {
+        "schema_version": 2,
+        "corpus_id": "corpus-test",
+        "record_id": "record-test"
+      }
+    },
+    {
+      "name": "sha256-invalid",
+      "type": "ContentHash",
+      "valid": false,
+      "value": {
+        "sha256": "not-a-hash"
+      }
+    },
+    {
+      "name": "artifact-traversal",
+      "type": "ArtifactRef",
+      "value": {
+        "artifact_id": "a-1",
+        "content_hash": {
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "storage_key": "../escape",
+        "media_type": "application/octet-stream",
+        "byte_size": "5",
+        "schema_version": 1
+      },
+      "valid": false
+    },
+    {
+      "name": "artifact-valid",
+      "type": "ArtifactRef",
+      "value": {
+        "artifact_id": "a-1",
+        "content_hash": {
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "storage_key": "blobs/fixture.bin",
+        "media_type": "application/octet-stream",
+        "byte_size": "5",
+        "schema_version": 1
+      },
+      "valid": true
+    },
+    {
+      "name": "as-of-without-date",
+      "type": "TemporalScope",
+      "value": {
+        "mode": "TEMPORAL_MODE_AS_OF",
+        "unresolved_policy": "UNRESOLVED_POLICY_REPORT"
+      },
+      "valid": false
+    },
+    {
+      "name": "graph-path-without-support",
+      "type": "GraphPath",
+      "value": {
+        "path_id": "path-1",
+        "ordered_node_ids": [
+          "a",
+          "b"
+        ],
+        "ordered_assertion_ids": [
+          "edge-1"
+        ],
+        "coverage": "COMPLETENESS_COMPLETE",
+        "snapshot": {
+          "corpus_id": "corpus-1",
+          "snapshot_id": "snap-1",
+          "sequence": "1",
+          "manifest_hash": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "representation_generation": "gen-1"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "source-blob-size-mismatch",
+      "type": "SourceBlob",
+      "value": {
+        "meta": {
+          "schema_version": 1,
+          "corpus_id": "corpus-1",
+          "record_id": "record-1"
+        },
+        "raw_sha256": {
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        "media_type": "application/pdf",
+        "byte_size": "9",
+        "artifact_ref": {
+          "artifact_id": "a-1",
+          "content_hash": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "storage_key": "blobs/fixture.bin",
+          "media_type": "application/octet-stream",
+          "byte_size": "5",
+          "schema_version": 1
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "timestamp-invalid-nanos",
+      "type": "Lease",
+      "value": {
+        "owner_id": "worker-1",
+        "fence": "1",
+        "expires_at": "2030-01-01T00:00:00Z"
+      },
+      "valid": false,
+      "mutate": {
+        "path": "expires_at.nanos",
+        "value": -1
+      }
+    },
+    {
+      "name": "invalid-worker-stages",
+      "type": "ProcessBatchRequest",
+      "value": {
+        "context": {
+          "schema_version": 1,
+          "request_id": "req-1",
+          "trace_id": "trace-1",
+          "corpus_id": "corpus-1",
+          "deadline": "2030-01-01T00:00:00Z",
+          "config_fingerprint": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "auth_scope_ref": "scope-1"
+        },
+        "job_id": "job-1",
+        "attempt": 1,
+        "lease": {
+          "owner_id": "worker-1",
+          "fence": "1",
+          "expires_at": "2030-01-01T00:00:00Z"
+        },
+        "sources": [
+          {
+            "artifact_id": "a-1",
+            "content_hash": {
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "storage_key": "blobs/fixture.bin",
+            "media_type": "application/octet-stream",
+            "byte_size": "5",
+            "schema_version": 1
+          }
+        ],
+        "manifest": {
+          "software": "test",
+          "build": "test",
+          "schema_version": 1,
+          "config_hash": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        },
+        "stages": [
+          0,
+          999,
+          0
+        ]
+      },
+      "valid": false
+    },
+    {
+      "name": "valid-worker-request",
+      "type": "ProcessBatchRequest",
+      "value": {
+        "context": {
+          "schema_version": 1,
+          "request_id": "req-1",
+          "trace_id": "trace-1",
+          "corpus_id": "corpus-1",
+          "deadline": "2030-01-01T00:00:00Z",
+          "config_fingerprint": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "auth_scope_ref": "scope-1"
+        },
+        "job_id": "job-1",
+        "attempt": 1,
+        "lease": {
+          "owner_id": "worker-1",
+          "fence": "1",
+          "expires_at": "2030-01-01T00:00:00Z"
+        },
+        "sources": [
+          {
+            "artifact_id": "a-1",
+            "content_hash": {
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "storage_key": "blobs/fixture.bin",
+            "media_type": "application/octet-stream",
+            "byte_size": "5",
+            "schema_version": 1
+          }
+        ],
+        "manifest": {
+          "software": "test",
+          "build": "test",
+          "schema_version": 1,
+          "config_hash": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        },
+        "stages": [
+          "JOB_STAGE_PARSE",
+          "JOB_STAGE_STRUCTURE"
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "batch-corpus-mismatch",
+      "type": "DocumentBatch",
+      "value": {
+        "meta": {
+          "schema_version": 1,
+          "corpus_id": "corpus-1",
+          "record_id": "record-1"
+        },
+        "context": {
+          "schema_version": 1,
+          "request_id": "req-1",
+          "trace_id": "trace-1",
+          "corpus_id": "other-corpus",
+          "deadline": "2030-01-01T00:00:00Z",
+          "config_fingerprint": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "auth_scope_ref": "scope-1"
+        },
+        "dependency_manifest": {
+          "artifact_id": "batch-1",
+          "producer_manifest": {
+            "software": "test",
+            "build": "test",
+            "schema_version": 1,
+            "config_hash": {
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          }
+        },
+        "completeness": "COMPLETENESS_COMPLETE"
+      },
+      "valid": false
+    },
+    {
+      "name": "semantic-resolve-valid",
+      "type": "SemanticResolveRequest",
+      "value": {
+        "batch": {
+          "context": {
+            "schema_version": 1,
+            "request_id": "req-1",
+            "trace_id": "trace-1",
+            "corpus_id": "corpus-1",
+            "deadline": "2030-01-01T00:00:00Z",
+            "config_fingerprint": {
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "auth_scope_ref": "scope-1"
+          },
+          "model": {
+            "model_id": "m",
+            "version": "v1",
+            "weights_hash": {
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "tokenizer_hash": {
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "task": "MODEL_TASK_RESOLVE",
+            "max_tokens": 128,
+            "precision": "fp32",
+            "backend": "test"
+          },
+          "operation_key": "op",
+          "ontology_version": "v1",
+          "output_schema": {
+            "artifact_id": "a-1",
+            "content_hash": {
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "storage_key": "blobs/fixture.bin",
+            "media_type": "application/octet-stream",
+            "byte_size": "5",
+            "schema_version": 1
+          }
+        },
+        "items": [
+          {
+            "item_id": "i",
+            "mention": {
+              "meta": {
+                "schema_version": 1,
+                "corpus_id": "corpus-1",
+                "record_id": "mention-1"
+              },
+              "text_span": {
+                "text_artifact_id": "text-1",
+                "end_byte": "5"
+              },
+              "source_refs": [
+                {
+                  "source_blob_id": "blob-1",
+                  "provision_version_id": "pv-1",
+                  "regulation_id": "reg-1"
+                }
+              ],
+              "surface_form": "Pasal",
+              "candidate_type": "provision",
+              "extraction_manifest": {
+                "software": "test",
+                "build": "test",
+                "schema_version": 1,
+                "config_hash": {
+                  "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                }
+              }
+            },
+            "evidence": {}
+          }
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "semantic-resolve-corpus-mismatch",
+      "type": "SemanticResolveRequest",
+      "value": {
+        "batch": {
+          "context": {
+            "schema_version": 1,
+            "request_id": "req-1",
+            "trace_id": "trace-1",
+            "corpus_id": "corpus-1",
+            "deadline": "2030-01-01T00:00:00Z",
+            "config_fingerprint": {
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "auth_scope_ref": "scope-1"
+          },
+          "model": {
+            "model_id": "m",
+            "version": "v1",
+            "weights_hash": {
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "tokenizer_hash": {
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "task": "MODEL_TASK_RESOLVE",
+            "max_tokens": 128,
+            "precision": "fp32",
+            "backend": "test"
+          },
+          "operation_key": "op",
+          "ontology_version": "v1",
+          "output_schema": {
+            "artifact_id": "a-1",
+            "content_hash": {
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "storage_key": "blobs/fixture.bin",
+            "media_type": "application/octet-stream",
+            "byte_size": "5",
+            "schema_version": 1
+          }
+        },
+        "items": [
+          {
+            "item_id": "i",
+            "mention": {
+              "meta": {
+                "schema_version": 1,
+                "corpus_id": "other-corpus",
+                "record_id": "mention-1"
+              },
+              "text_span": {
+                "text_artifact_id": "text-1",
+                "end_byte": "5"
+              },
+              "source_refs": [
+                {
+                  "source_blob_id": "blob-1",
+                  "provision_version_id": "pv-1",
+                  "regulation_id": "reg-1"
+                }
+              ],
+              "surface_form": "Pasal",
+              "candidate_type": "provision",
+              "extraction_manifest": {
+                "software": "test",
+                "build": "test",
+                "schema_version": 1,
+                "config_hash": {
+                  "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                }
+              }
+            },
+            "evidence": {}
+          }
+        ]
+      },
+      "valid": false
+    }
+  ]
+}

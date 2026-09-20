@@ -8,3 +8,5 @@ go 1.26.0
 toolchain go1.26.8
 
 require golang.org/x/net v0.59.0
+
+require google.golang.org/protobuf v1.36.12 // indirect

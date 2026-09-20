@@ -1,15 +1,285 @@
-// Identitas sumber/canonical/snapshot, lokasi teks, dan status bersama.
-//
-// Peran dalam komponen:
-// Sumber kontrak wire bagi runtime produksi dan evaluator.
-//
-// Integrasi dan perhatian performa:
-// Belum mendefinisikan message atau service; field belum dibekukan. Hindari transfer per-record berulang dan ukur bytes/request serta serialization latency.
-//
-// Benchmark dan gate penerimaan:
-// Ukur p50/p95/p99, throughput, waktu antre, serta RSS/VRAM sesuai workload. Ambang wajib ada di configs/benchmark-targets.yaml (REQUIRED_UNMEASURED); ukur cold/warm terpisah dan pertahankan kualitas sumber/versi.
-//
-// Status: scaffold; belum ada pipeline atau layanan yang aktif.
+// C01 shared identity, provenance and validation rules; schema version 1, stable tags.
+// Offsets are UTF-8 bytes [start,end); unknown fields survive binary forwarding.
+// Field constraints are shared via descriptors, not independent wire definitions.
+// Measure serialization size/latency against configs/benchmark-targets.yaml; no performance result claimed.
 syntax = "proto3";
-
 package regulagraph.v1;
+option go_package = "regulagraph.local/server/gen/regulagraph/v1;regulagraphv1";
+import "google/protobuf/descriptor.proto";
+import "google/protobuf/timestamp.proto";
+message FieldRules {
+  bool required=1;
+  bool ascii_id=2;
+  bool sha256=3;
+  bool positive=4;
+  bool finite=5;
+  bool probability=6;
+  bool unique=7;
+  uint32 min_items=8;
+}
+extend google.protobuf.FieldOptions {
+  FieldRules rules=50001;
+}
+enum CompletionStatus {
+  COMPLETION_STATUS_UNSPECIFIED=0;
+  COMPLETION_STATUS_SUCCEEDED=1;
+  COMPLETION_STATUS_FAILED=2;
+  COMPLETION_STATUS_CANCELLED=3;
+}
+enum Completeness {
+  COMPLETENESS_UNSPECIFIED=0;
+  COMPLETENESS_COMPLETE=1;
+  COMPLETENESS_PARTIAL=2;
+  COMPLETENESS_NONE=3;
+}
+enum ReviewState {
+  REVIEW_STATE_UNSPECIFIED=0;
+  REVIEW_STATE_UNREVIEWED=1;
+  REVIEW_STATE_APPROVED=2;
+  REVIEW_STATE_REJECTED=3;
+  REVIEW_STATE_QUARANTINED=4;
+}
+enum DateKnowledge {
+  DATE_KNOWLEDGE_UNSPECIFIED=0;
+  DATE_KNOWLEDGE_KNOWN=1;
+  DATE_KNOWLEDGE_UNKNOWN=2;
+  DATE_KNOWLEDGE_CONFLICT=3;
+  DATE_KNOWLEDGE_UNBOUNDED=4;
+}
+enum ErrorCode {
+  ERROR_CODE_UNSPECIFIED=0;
+  ERROR_CODE_INVALID_ARGUMENT=1;
+  ERROR_CODE_UNAUTHENTICATED=2;
+  ERROR_CODE_FORBIDDEN=3;
+  ERROR_CODE_NOT_FOUND=4;
+  ERROR_CODE_CONFLICT=5;
+  ERROR_CODE_TOO_LARGE=6;
+  ERROR_CODE_RESOURCE_EXHAUSTED=7;
+  ERROR_CODE_UNAVAILABLE=8;
+  ERROR_CODE_DEADLINE_EXCEEDED=9;
+  ERROR_CODE_CANCELLED=10;
+  ERROR_CODE_INTERNAL=11;
+  ERROR_CODE_NOT_IMPLEMENTED=12;
+}
+enum Severity {
+  SEVERITY_UNSPECIFIED=0;
+  SEVERITY_INFO=1;
+  SEVERITY_WARNING=2;
+  SEVERITY_ERROR=3;
+}
+enum TemporalMode {
+  TEMPORAL_MODE_UNSPECIFIED=0;
+  TEMPORAL_MODE_CURRENT=1;
+  TEMPORAL_MODE_AS_OF=2;
+  TEMPORAL_MODE_COMPARE=3;
+}
+enum UnresolvedPolicy {
+  UNRESOLVED_POLICY_UNSPECIFIED=0;
+  UNRESOLVED_POLICY_EXCLUDE=1;
+  UNRESOLVED_POLICY_REPORT=2;
+  UNRESOLVED_POLICY_REQUIRE_REVIEW=3;
+}
+enum ModelTask {
+  MODEL_TASK_UNSPECIFIED=0;
+  MODEL_TASK_EMBED=1;
+  MODEL_TASK_RERANK=2;
+  MODEL_TASK_EXTRACT=3;
+  MODEL_TASK_RESOLVE=4;
+  MODEL_TASK_SUMMARIZE=5;
+  MODEL_TASK_GENERATE=6;
+  MODEL_TASK_OCR=7;
+}
+message Visibility {
+  uint64 from_seq=1 [(rules).positive=true];
+  optional uint64 to_seq=2 [(rules).positive=true];
+}
+message RecordMeta {
+  uint32 schema_version=1 [(rules).positive=true];
+  string corpus_id=2 [(rules)={required:true ascii_id:true}];
+  string record_id=3 [(rules)={required:true ascii_id:true}];
+  Visibility visibility=4;
+}
+message ContentHash {
+  string sha256=1 [(rules)={required:true sha256:true}];
+}
+message CalendarDate {
+  int32 year=1 [(rules).positive=true];
+  uint32 month=2 [(rules).positive=true];
+  uint32 day=3 [(rules).positive=true];
+}
+message DateAssertion {
+  DateKnowledge knowledge=1 [(rules).required=true];
+  CalendarDate value=2;
+  repeated CalendarDate alternatives=3;
+  repeated string support_refs=4 [(rules).ascii_id=true];
+}
+message LegalInterval {
+  DateAssertion start=1 [(rules).required=true];
+  DateAssertion end=2 [(rules).required=true];
+}
+message SnapshotRef {
+  string corpus_id=1 [(rules)={required:true ascii_id:true}];
+  string snapshot_id=2 [(rules)={required:true ascii_id:true}];
+  uint64 sequence=3 [(rules).positive=true];
+  ContentHash manifest_hash=4 [(rules).required=true];
+  string representation_generation=5 [(rules)={required:true ascii_id:true}];
+}
+message ArtifactRef {
+  string artifact_id=1 [(rules)={required:true ascii_id:true}];
+  ContentHash content_hash=2 [(rules).required=true];
+  string storage_key=3 [(rules).required=true];
+  string media_type=4 [(rules).required=true];
+  uint64 byte_size=5;
+  uint32 schema_version=6 [(rules).positive=true];
+}
+message RequestContext {
+  uint32 schema_version=1 [(rules).positive=true];
+  string request_id=2 [(rules)={required:true ascii_id:true}];
+  string trace_id=3 [(rules)={required:true ascii_id:true}];
+  string corpus_id=4 [(rules)={required:true ascii_id:true}];
+  SnapshotRef snapshot_ref=5;
+  google.protobuf.Timestamp deadline=6 [(rules).required=true];
+  ContentHash config_fingerprint=7 [(rules).required=true];
+  string auth_scope_ref=8 [(rules)={required:true ascii_id:true}];
+}
+message ModelManifest {
+  string model_id=1 [(rules)={required:true ascii_id:true}];
+  string version=2 [(rules).required=true];
+  ContentHash weights_hash=3 [(rules).required=true];
+  ContentHash tokenizer_hash=4 [(rules).required=true];
+  ModelTask task=5 [(rules).required=true];
+  string pooling=6;
+  string normalization=7;
+  optional uint32 dimensions=8 [(rules).positive=true];
+  uint32 max_tokens=9 [(rules).positive=true];
+  string precision=10 [(rules).required=true];
+  string backend=11 [(rules).required=true];
+  ContentHash prompt_hash=12;
+}
+message ProducerManifest {
+  string software=1 [(rules).required=true];
+  string build=2 [(rules).required=true];
+  uint32 schema_version=3 [(rules).positive=true];
+  optional string parser_version=4;
+  optional string chunker_version=5;
+  repeated ModelManifest models=6;
+  repeated ContentHash prompt_hashes=7;
+  ContentHash config_hash=8 [(rules).required=true];
+  repeated ContentHash input_hashes=9;
+}
+message TemporalScope {
+  CalendarDate effective_at=1;
+  SnapshotRef knowledge_snapshot=2;
+  TemporalMode mode=3 [(rules).required=true];
+  UnresolvedPolicy unresolved_policy=4 [(rules).required=true];
+  repeated CalendarDate compare_dates=5;
+}
+message TextSpan {
+  string text_artifact_id=1 [(rules)={required:true ascii_id:true}];
+  uint64 start_byte=2;
+  uint64 end_byte=3;
+}
+message BoundingBox {
+  double x0=1 [(rules).probability=true];
+  double y0=2 [(rules).probability=true];
+  double x1=3 [(rules).probability=true];
+  double y1=4 [(rules).probability=true];
+}
+message PageLocator {
+  string source_blob_id=1 [(rules)={required:true ascii_id:true}];
+  uint32 page_number=2 [(rules).positive=true];
+  BoundingBox bounding_box=3;
+  repeated uint32 table_cell_path=4;
+}
+message SourceVersionRef {
+  string source_blob_id=1 [(rules)={required:true ascii_id:true}];
+  string provision_version_id=2 [(rules)={required:true ascii_id:true}];
+  string regulation_id=3 [(rules)={required:true ascii_id:true}];
+}
+message Provenance {
+  repeated SourceVersionRef sources=1;
+  repeated TextSpan spans=2;
+  repeated PageLocator locators=3;
+}
+message ValidationIssue {
+  string code=1 [(rules).required=true];
+  Severity severity=2 [(rules).required=true];
+  string record_id=3 [(rules)={required:true ascii_id:true}];
+  string field_path=4 [(rules).required=true];
+  repeated string evidence_refs=5;
+  string disposition=6 [(rules).required=true];
+}
+message ValidationReport {
+  repeated ValidationIssue issues=1;
+  bool valid=2;
+  uint64 checked_records=3;
+}
+message ErrorDetail {
+  string field_path=1;
+  string reason=2;
+}
+message OperationError {
+  ErrorCode code=1 [(rules).required=true];
+  string safe_message=2 [(rules).required=true];
+  string stage=3;
+  bool retryable=4;
+  optional string item_id=5 [(rules).ascii_id=true];
+  repeated ErrorDetail details=6;
+}
+message Confidence {
+  double value=1 [(rules).probability=true];
+  string method=2 [(rules).required=true];
+  string model_id=3;
+  bool calibrated=4;
+}
+message Dependency {
+  string dependency_id=1 [(rules)={required:true ascii_id:true}];
+  ContentHash fingerprint=2 [(rules).required=true];
+}
+message LookupScopeRevision {
+  string scope_id=1 [(rules)={required:true ascii_id:true}];
+  uint64 revision=2;
+  bool empty_result=3;
+}
+// Placed in common to keep documents/graph/jobs imports acyclic; jobs owns dependency execution.
+message DependencyManifest {
+  string artifact_id=1 [(rules)={required:true ascii_id:true}];
+  repeated Dependency dependencies=2;
+  ProducerManifest producer_manifest=3 [(rules).required=true];
+  repeated LookupScopeRevision lookup_scope_revisions=4;
+}
+message Counts {
+  uint64 expected=1;
+  uint64 accepted=2;
+  uint64 rejected=3;
+}
+message Pagination {
+  optional string cursor=1;
+  uint32 page_size=2 [(rules).positive=true];
+  SnapshotRef snapshot=3 [(rules).required=true];
+  ContentHash filter_hash=4 [(rules).required=true];
+}
+message TokenUsage {
+  uint64 input_tokens=1;
+  uint64 output_tokens=2;
+  string tokenizer_id=3 [(rules).required=true];
+}
+message TruncationInfo {
+  bool truncated=1;
+  uint64 original_tokens=2;
+  uint64 retained_tokens=3;
+  repeated TextSpan windows=4;
+}
+message StageDuration {
+  string stage=1 [(rules).required=true];
+  uint64 duration_ns=2;
+  uint64 queue_ns=3;
+}
+message NamedValue {
+  string name=1 [(rules).required=true];
+  oneof value {
+    string text=2;
+    double number=3 [(rules).finite=true];
+    bool boolean=4;
+  }
+}

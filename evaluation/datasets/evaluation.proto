@@ -1,0 +1,123 @@
+// C01 evaluation artifact contracts reference production evidence and snapshots.
+// Human review provenance, split groups, raw observations and threshold references are explicit.
+// This schema does not compute metrics or enforce benchmark gates (E01 implements the runner).
+syntax = "proto3";
+package regulagraph.v1;
+option go_package = "regulagraph.local/server/gen/regulagraph/v1;regulagraphv1";
+import "regulagraph/v1/common.proto";
+import "regulagraph/v1/answers.proto";
+import "regulagraph/v1/graph.proto";
+import "google/protobuf/timestamp.proto";
+enum DatasetSplit {
+  DATASET_SPLIT_UNSPECIFIED=0;
+  DATASET_SPLIT_TRAIN=1;
+  DATASET_SPLIT_DEVELOPMENT=2;
+  DATASET_SPLIT_TEST=3;
+}
+enum Answerability {
+  ANSWERABILITY_UNSPECIFIED=0;
+  ANSWERABILITY_ANSWERABLE=1;
+  ANSWERABILITY_UNANSWERABLE=2;
+  ANSWERABILITY_AMBIGUOUS=3;
+  ANSWERABILITY_CONFLICTING=4;
+}
+enum GateStatus {
+  GATE_STATUS_UNSPECIFIED=0;
+  GATE_STATUS_PASS=1;
+  GATE_STATUS_FAIL=2;
+  GATE_STATUS_BLOCKED=3;
+  GATE_STATUS_NOT_MEASURED=4;
+  GATE_STATUS_NOT_APPLICABLE=5;
+}
+message ReviewProvenance {
+  string reviewer=1 [(rules).required=true];
+  google.protobuf.Timestamp reviewed_at=2 [(rules).required=true];
+  string method=3 [(rules).required=true];
+  optional string disagreement=4;
+}
+message QuestionGroupSplit {
+  string base_question_group=1 [(rules)={required:true ascii_id:true}];
+  DatasetSplit split=2 [(rules).required=true];
+}
+message DatasetManifest {
+  RecordMeta meta=1 [(rules).required=true];
+  string version=2 [(rules).required=true];
+  ContentHash dataset_hash=3 [(rules).required=true];
+  SnapshotRef corpus_snapshot=4 [(rules).required=true];
+  repeated QuestionGroupSplit groups=5 [(rules).min_items=1];
+  string label_schema=6 [(rules).required=true];
+  repeated ReviewProvenance reviews=7 [(rules).min_items=1];
+}
+message AcceptableEvidenceSet {
+  repeated string evidence_ids=1 [(rules)={ascii_id:true unique:true min_items:1}];
+  repeated string provision_version_ids=2 [(rules)={ascii_id:true unique:true min_items:1}];
+}
+message GoldQuestion {
+  RecordMeta meta=1 [(rules).required=true];
+  string question=2 [(rules).required=true];
+  string base_question_group=3 [(rules)={required:true ascii_id:true}];
+  DatasetSplit split=4 [(rules).required=true];
+  repeated string slice_labels=5 [(rules).min_items=1];
+  TemporalScope temporal_scope=6 [(rules).required=true];
+  Answerability answerability=7 [(rules).required=true];
+  repeated Claim expected_claims=8;
+  repeated AcceptableEvidenceSet acceptable_evidence_sets=9;
+  repeated GraphPath required_paths=10;
+  repeated ReviewProvenance reviews=11 [(rules).min_items=1];
+}
+message HardwareManifest {
+  string cpu=1 [(rules).required=true];
+  uint64 ram_bytes=2 [(rules).positive=true];
+  repeated string gpus=3;
+  repeated uint64 vram_bytes=4;
+  uint32 cpu_limit=5 [(rules).positive=true];
+  uint64 memory_limit_bytes=6 [(rules).positive=true];
+  string operating_system=7 [(rules).required=true];
+}
+message RunManifest {
+  RecordMeta meta=1 [(rules).required=true];
+  ContentHash software_hash=2 [(rules).required=true];
+  ContentHash config_hash=3 [(rules).required=true];
+  repeated ModelManifest models=4;
+  repeated ContentHash prompt_hashes=5;
+  ContentHash dataset_hash=6 [(rules).required=true];
+  SnapshotRef corpus_snapshot=7 [(rules).required=true];
+  ContentHash target_suite_hash=8 [(rules).required=true];
+  HardwareManifest hardware=9 [(rules).required=true];
+  string cache_policy=10 [(rules).required=true];
+  ArtifactRef workload=11 [(rules).required=true];
+  optional uint64 seed=12;
+}
+message QualityJudgment {
+  string metric=1 [(rules).required=true];
+  optional double value=2 [(rules).finite=true];
+  string method=3 [(rules).required=true];
+  repeated ReviewProvenance reviewers=4;
+  string reason=5;
+}
+message Observation {
+  RecordMeta meta=1 [(rules).required=true];
+  string run_id=2 [(rules)={required:true ascii_id:true}];
+  string request_id=3 [(rules)={required:true ascii_id:true}];
+  google.protobuf.Timestamp scheduled_arrival=4 [(rules).required=true];
+  CompletionStatus outcome=5 [(rules).required=true];
+  repeated StageDuration stage_durations=6;
+  optional uint64 first_substantive_token_ns=7;
+  uint64 completion_ns=8;
+  TokenUsage tokens=9;
+  repeated OperationError errors=10;
+  repeated QualityJudgment quality_judgments=11;
+  bool rejected_arrival=12;
+}
+message GateResult {
+  RecordMeta meta=1 [(rules).required=true];
+  string gate_id=2 [(rules)={required:true ascii_id:true}];
+  string applicable_workload=3 [(rules).required=true];
+  uint64 denominator=4;
+  optional double estimate=5 [(rules).finite=true];
+  optional double uncertainty=6 [(rules).finite=true];
+  string threshold_reference=7 [(rules).required=true];
+  GateStatus status=8 [(rules).required=true];
+  string reason=9 [(rules).required=true];
+  repeated ArtifactRef raw_artifacts=10;
+}

@@ -16,3 +16,4 @@ pub mod documents;
 pub mod entities;
 pub mod evidence;
 pub mod relations;
+pub mod wire;

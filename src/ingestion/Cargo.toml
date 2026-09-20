@@ -1,5 +1,5 @@
 # Metadata crate Rust untuk transformasi batch ingestion dan knowledge graph.
-# Integrasi: library menyediakan module tree; coordinator Go mengirim job melalui kontrak kelak.
+# Integrasi: library menyediakan module tree, generated protobuf dan validator C01; transport worker belum aktif.
 # Performa: belum ada dependency model/parser atau executable worker yang aktif.
 [package]
 name = "regulagraph-ingestion"
@@ -11,3 +11,7 @@ publish = false
 path = "src/lib.rs"
 
 [dependencies]
+protobuf = "=3.7.2"
+
+[build-dependencies]
+protobuf-codegen = "=3.7.2"

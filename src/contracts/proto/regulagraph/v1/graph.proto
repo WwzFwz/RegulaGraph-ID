@@ -1,15 +1,170 @@
-// Mention, canonical mapping, relasi dengan dukungan sumber, dan GraphDelta batch.
-//
-// Peran dalam komponen:
-// Sumber kontrak wire bagi runtime produksi dan evaluator.
-//
-// Integrasi dan perhatian performa:
-// Belum mendefinisikan message atau service; field belum dibekukan. Hindari transfer per-record berulang dan ukur bytes/request serta serialization latency.
-//
-// Benchmark dan gate penerimaan:
-// Ukur p50/p95/p99, throughput, waktu antre, serta RSS/VRAM sesuai workload. Ambang wajib ada di configs/benchmark-targets.yaml (REQUIRED_UNMEASURED); ukur cold/warm terpisah dan pertahankan kualitas sumber/versi.
-//
-// Status: scaffold; belum ada pipeline atau layanan yang aktif.
+// C01 graph contract separates mentions, canonical registry decisions and sourced assertions.
+// Registry revision checks and snapshot visibility accompany all publication proposals.
+// Batch interfaces avoid per-entity RPC; graph accuracy and latency gates remain unmeasured.
 syntax = "proto3";
-
 package regulagraph.v1;
+option go_package = "regulagraph.local/server/gen/regulagraph/v1;regulagraphv1";
+import "regulagraph/v1/common.proto";
+
+enum ResolutionAction {
+  RESOLUTION_ACTION_UNSPECIFIED=0;
+  RESOLUTION_ACTION_CREATE=1;
+  RESOLUTION_ACTION_LINK=2;
+  RESOLUTION_ACTION_MERGE=3;
+  RESOLUTION_ACTION_SPLIT=4;
+  RESOLUTION_ACTION_DEFER=5;
+  RESOLUTION_ACTION_REJECT=6;
+}
+enum AssertionOrigin {
+  ASSERTION_ORIGIN_UNSPECIFIED=0;
+  ASSERTION_ORIGIN_EXPLICIT=1;
+  ASSERTION_ORIGIN_INFERRED=2;
+}
+message IdentityKey {
+  string namespace=1 [(rules).required=true];
+  string value=2 [(rules).required=true];
+}
+message Mention {
+  RecordMeta meta=1 [(rules).required=true];
+  TextSpan text_span=2 [(rules).required=true];
+  repeated SourceVersionRef source_refs=3 [(rules).min_items=1];
+  string surface_form=4 [(rules).required=true];
+  string candidate_type=5 [(rules).required=true];
+  ProducerManifest extraction_manifest=6 [(rules).required=true];
+}
+message CanonicalEntity {
+  RecordMeta meta=1 [(rules).required=true];
+  string entity_type=2 [(rules).required=true];
+  repeated IdentityKey identity_keys=3;
+  string preferred_label=4 [(rules).required=true];
+  string scope=5 [(rules).required=true];
+  uint64 registry_revision=6 [(rules).positive=true];
+  ReviewState review_state=7 [(rules).required=true];
+}
+message Alias {
+  RecordMeta meta=1 [(rules).required=true];
+  string canonical_id=2 [(rules)={required:true ascii_id:true}];
+  string surface=3 [(rules).required=true];
+  string normalized_lookup=4 [(rules).required=true];
+  string language=5 [(rules).required=true];
+  string scope=6 [(rules).required=true];
+  LegalInterval valid_interval=7;
+  repeated string support_refs=8 [(rules)={ascii_id:true min_items:1}];
+}
+message ResolutionProposal {
+  RecordMeta meta=1 [(rules).required=true];
+  repeated string mention_ids=2 [(rules)={ascii_id:true unique:true min_items:1}];
+  repeated string candidate_ids=3 [(rules)={ascii_id:true unique:true}];
+  ResolutionAction action=4 [(rules).required=true];
+  Provenance evidence=5 [(rules).required=true];
+  string method=6 [(rules).required=true];
+  Confidence confidence=7;
+  uint64 expected_registry_revision=8;
+  string local_correlation_id=9 [(rules)={required:true ascii_id:true}];
+  repeated IdentityKey proposed_identity_keys=10;
+}
+message ResolutionDecision {
+  RecordMeta meta=1 [(rules).required=true];
+  string proposal_id=2 [(rules)={required:true ascii_id:true}];
+  repeated string assigned_canonical_ids=3 [(rules)={ascii_id:true unique:true}];
+  ResolutionAction action=4 [(rules).required=true];
+  string reason=5 [(rules).required=true];
+  string actor=6 [(rules).required=true];
+  optional string supersedes=7 [(rules).ascii_id=true];
+  uint64 registry_revision=8 [(rules).positive=true];
+}
+message Qualifier {
+  string predicate_id=1 [(rules)={required:true ascii_id:true}];
+  oneof value {
+    string canonical_id=2 [(rules).ascii_id=true];
+    string literal=3;
+    CalendarDate date=4;
+    double number=5 [(rules).finite=true];
+  }
+}
+message RelationAssertion {
+  RecordMeta meta=1 [(rules).required=true];
+  string subject_id=2 [(rules)={required:true ascii_id:true}];
+  string predicate_id=3 [(rules)={required:true ascii_id:true}];
+  string object_id=4 [(rules)={required:true ascii_id:true}];
+  repeated Qualifier qualifiers=5;
+  repeated string exception_refs=6 [(rules).ascii_id=true];
+  TemporalScope temporal_scope=7 [(rules).required=true];
+  AssertionOrigin origin=8 [(rules).required=true];
+  string ontology_version=9 [(rules).required=true];
+}
+message SupportRecord {
+  RecordMeta meta=1 [(rules).required=true];
+  string assertion_id=2 [(rules)={required:true ascii_id:true}];
+  repeated TextSpan evidence_spans=3 [(rules).min_items=1];
+  repeated SourceVersionRef source_refs=4 [(rules).min_items=1];
+  ProducerManifest extraction_manifest=5 [(rules).required=true];
+  string independent_source_group=6 [(rules)={required:true ascii_id:true}];
+  ReviewState review_state=7 [(rules).required=true];
+}
+message EntityProfile {
+  RecordMeta meta=1 [(rules).required=true];
+  string canonical_id=2 [(rules)={required:true ascii_id:true}];
+  string summary=3 [(rules).required=true];
+  repeated string evidence_refs=4 [(rules)={ascii_id:true min_items:1}];
+  ContentHash dependency_fingerprint=5 [(rules).required=true];
+  ModelManifest model_manifest=6 [(rules).required=true];
+}
+message VisibilityClosure {
+  string record_id=1 [(rules)={required:true ascii_id:true}];
+  uint64 expected_from_seq=2 [(rules).positive=true];
+  uint64 to_seq=3 [(rules).positive=true];
+}
+message SupportChange {
+  string support_id=1 [(rules)={required:true ascii_id:true}];
+  string assertion_id=2 [(rules)={required:true ascii_id:true}];
+  bool close_visibility=3;
+}
+message GraphDelta {
+  RecordMeta meta=1 [(rules).required=true];
+  SnapshotRef base_snapshot=2 [(rules).required=true];
+  uint64 registry_revision=3;
+  repeated CanonicalEntity entities=4;
+  repeated Alias aliases=5;
+  repeated Mention mentions=6;
+  repeated RelationAssertion assertions=7;
+  repeated SupportRecord supports=8;
+  repeated EntityProfile profiles=9;
+  repeated VisibilityClosure visibility_closures=10;
+  repeated SupportChange support_changes=11;
+  DependencyManifest dependencies=12 [(rules).required=true];
+  ValidationReport validation_report=13 [(rules).required=true];
+  string ontology_version=14 [(rules).required=true];
+  repeated ResolutionDecision decisions=15;
+}
+message GraphPath {
+  string path_id=1 [(rules)={required:true ascii_id:true}];
+  repeated string ordered_node_ids=2 [(rules)={ascii_id:true min_items:1}];
+  repeated string ordered_assertion_ids=3 [(rules).ascii_id=true];
+  repeated string selected_support_ids=4 [(rules).ascii_id=true];
+  Completeness coverage=5 [(rules).required=true];
+  bool frontier_exhausted=6;
+  SnapshotRef snapshot=7 [(rules).required=true];
+}
+message RegistryResolveRequest {
+  RequestContext context=1 [(rules).required=true];
+  string operation_key=2 [(rules)={required:true ascii_id:true}];
+  uint64 expected_revision=3;
+  repeated ResolutionProposal proposals=4 [(rules).min_items=1];
+}
+message RegistryAssignment {
+  string proposal_id=1 [(rules)={required:true ascii_id:true}];
+  string local_correlation_id=2 [(rules)={required:true ascii_id:true}];
+  oneof result {
+    ResolutionDecision decision=3;
+    OperationError error=4;
+  }
+}
+message RegistryResolveResponse {
+  string request_id=1 [(rules)={required:true ascii_id:true}];
+  uint64 registry_revision=2;
+  repeated RegistryAssignment assignments=3;
+}
+service Registry {
+  rpc ResolveBatch(RegistryResolveRequest) returns (RegistryResolveResponse);
+}

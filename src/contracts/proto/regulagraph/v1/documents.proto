@@ -1,15 +1,225 @@
-// Struktur dokumen, ketentuan, versi, chunk, dan parent.
-//
-// Peran dalam komponen:
-// Sumber kontrak wire bagi runtime produksi dan evaluator.
-//
-// Integrasi dan perhatian performa:
-// Belum mendefinisikan message atau service; field belum dibekukan. Hindari transfer per-record berulang dan ukur bytes/request serta serialization latency.
-//
-// Benchmark dan gate penerimaan:
-// Ukur p50/p95/p99, throughput, waktu antre, serta RSS/VRAM sesuai workload. Ambang wajib ada di configs/benchmark-targets.yaml (REQUIRED_UNMEASURED); ukur cold/warm terpisah dan pertahankan kualitas sumber/versi.
-//
-// Status: scaffold; belum ada pipeline atau layanan yang aktif.
+// C01 document wire records: source provenance, structure, legal versions and parent-aware chunks.
+// Producers preserve source offsets and uncertainty; consumers validate before storage publication.
+// Bulk records travel as artifacts or bounded batches. Benchmark: configs/benchmark-targets.yaml.
 syntax = "proto3";
-
 package regulagraph.v1;
+option go_package = "regulagraph.local/server/gen/regulagraph/v1;regulagraphv1";
+import "regulagraph/v1/common.proto";
+import "google/protobuf/timestamp.proto";
+
+enum ObservationStatus {
+  OBSERVATION_STATUS_UNSPECIFIED=0;
+  OBSERVATION_STATUS_COMPLETE=1;
+  OBSERVATION_STATUS_PARTIAL=2;
+  OBSERVATION_STATUS_FAILED=3;
+  OBSERVATION_STATUS_NOT_MODIFIED=4;
+}
+enum DocumentKind {
+  DOCUMENT_KIND_UNSPECIFIED=0;
+  DOCUMENT_KIND_REGULATION=1;
+  DOCUMENT_KIND_DRAFT=2;
+  DOCUMENT_KIND_GUIDANCE=3;
+  DOCUMENT_KIND_FAQ=4;
+  DOCUMENT_KIND_JUDGMENT=5;
+  DOCUMENT_KIND_EXPLANATION=6;
+}
+enum IdentityStatus {
+  IDENTITY_STATUS_UNSPECIFIED=0;
+  IDENTITY_STATUS_UNRESOLVED=1;
+  IDENTITY_STATUS_VERIFIED=2;
+  IDENTITY_STATUS_CONFLICT=3;
+}
+enum StructureKind {
+  STRUCTURE_KIND_UNSPECIFIED=0;
+  STRUCTURE_KIND_DOCUMENT=1;
+  STRUCTURE_KIND_CHAPTER=2;
+  STRUCTURE_KIND_PART=3;
+  STRUCTURE_KIND_ARTICLE=4;
+  STRUCTURE_KIND_PARAGRAPH=5;
+  STRUCTURE_KIND_ITEM=6;
+  STRUCTURE_KIND_TABLE=7;
+  STRUCTURE_KIND_CELL=8;
+  STRUCTURE_KIND_ANNEX=9;
+  STRUCTURE_KIND_EXPLANATION=10;
+}
+enum LegalStatus {
+  LEGAL_STATUS_UNSPECIFIED=0;
+  LEGAL_STATUS_UNKNOWN=1;
+  LEGAL_STATUS_ACTIVE=2;
+  LEGAL_STATUS_REPEALED=3;
+  LEGAL_STATUS_NOT_YET_EFFECTIVE=4;
+  LEGAL_STATUS_CONFLICT=5;
+}
+enum ChangeOperation {
+  CHANGE_OPERATION_UNSPECIFIED=0;
+  CHANGE_OPERATION_AMEND=1;
+  CHANGE_OPERATION_INSERT=2;
+  CHANGE_OPERATION_REPEAL=3;
+  CHANGE_OPERATION_RENUMBER=4;
+}
+message SourceObservation {
+  RecordMeta meta=1 [(rules).required=true];
+  string portal_id=2 [(rules)={required:true ascii_id:true}];
+  string detail_url=3 [(rules).required=true];
+  string resolved_url=4;
+  google.protobuf.Timestamp fetched_at=5 [(rules).required=true];
+  ObservationStatus status=6 [(rules).required=true];
+  optional string etag=7;
+  optional string last_modified=8;
+  ContentHash metadata_hash=9;
+  optional string source_blob_id=10 [(rules).ascii_id=true];
+  repeated NamedValue portal_metadata=11;
+  OperationError error=12;
+}
+message SourceBlob {
+  RecordMeta meta=1 [(rules).required=true];
+  ContentHash raw_sha256=2 [(rules).required=true];
+  string media_type=3 [(rules).required=true];
+  uint64 byte_size=4 [(rules).positive=true];
+  ArtifactRef artifact_ref=5 [(rules).required=true];
+}
+message Regulation {
+  RecordMeta meta=1 [(rules).required=true];
+  string kind=2 [(rules).required=true];
+  string issuer_id=3 [(rules)={required:true ascii_id:true}];
+  string jurisdiction=4 [(rules).required=true];
+  string official_number=5 [(rules).required=true];
+  uint32 year=6 [(rules).positive=true];
+  string title=7 [(rules).required=true];
+  IdentityStatus identity_status=8 [(rules).required=true];
+}
+message MetadataAssertion {
+  string field=1 [(rules).required=true];
+  string value=2;
+  repeated string observation_refs=3 [(rules)={ascii_id:true min_items:1}];
+  ReviewState review_state=4 [(rules).required=true];
+}
+message DocumentEdition {
+  RecordMeta meta=1 [(rules).required=true];
+  optional string regulation_id=2 [(rules).ascii_id=true];
+  repeated string source_refs=3 [(rules)={ascii_id:true unique:true min_items:1}];
+  string language=4 [(rules).required=true];
+  DocumentKind document_kind=5 [(rules).required=true];
+  DateAssertion publication_date=6;
+  repeated MetadataAssertion metadata_assertions=7;
+  DateAssertion enactment_date=8;
+  DateAssertion promulgation_date=9;
+}
+message TextMapping {
+  repeated TextSpan original_spans=1 [(rules).min_items=1];
+  repeated TextSpan normalized_spans=2 [(rules).min_items=1];
+}
+message PageResult {
+  uint32 page_number=1 [(rules).positive=true];
+  CompletionStatus status=2 [(rules).required=true];
+  bool used_ocr=3;
+  repeated TextSpan spans=4;
+  repeated OperationError errors=5;
+}
+message TextArtifact {
+  RecordMeta meta=1 [(rules).required=true];
+  string source_blob_id=2 [(rules)={required:true ascii_id:true}];
+  ProducerManifest parser_manifest=3 [(rules).required=true];
+  ArtifactRef raw_text_ref=4 [(rules).required=true];
+  ArtifactRef normalized_text_ref=5 [(rules).required=true];
+  ArtifactRef mapping_ref=6 [(rules).required=true];
+  repeated PageResult page_results=7 [(rules).min_items=1];
+}
+message TableCell {
+  string node_id=1 [(rules)={required:true ascii_id:true}];
+  uint32 row=2;
+  uint32 column=3;
+  uint32 row_span=4 [(rules).positive=true];
+  uint32 column_span=5 [(rules).positive=true];
+}
+message TableLayout {
+  uint32 rows=1 [(rules).positive=true];
+  uint32 columns=2 [(rules).positive=true];
+  repeated TableCell cells=3;
+}
+message StructureNode {
+  RecordMeta meta=1 [(rules).required=true];
+  StructureKind kind=2 [(rules).required=true];
+  string label=3;
+  optional string parent_id=4 [(rules).ascii_id=true];
+  repeated string ordered_children=5 [(rules)={ascii_id:true unique:true}];
+  repeated TextSpan source_spans=6;
+  repeated PageLocator page_locators=7;
+  TableLayout table_layout=8;
+}
+message Provision {
+  RecordMeta meta=1 [(rules).required=true];
+  string regulation_id=2 [(rules)={required:true ascii_id:true}];
+  repeated string structural_path=3 [(rules).min_items=1];
+  optional string parent_provision_id=4 [(rules).ascii_id=true];
+  repeated string lineage_refs=5 [(rules).ascii_id=true];
+}
+message ProvisionVersion {
+  RecordMeta meta=1 [(rules).required=true];
+  string provision_id=2 [(rules)={required:true ascii_id:true}];
+  ArtifactRef text_ref=3 [(rules).required=true];
+  repeated TextSpan spans=4 [(rules).min_items=1];
+  LegalInterval legal_interval=5 [(rules).required=true];
+  LegalStatus legal_status=6 [(rules).required=true];
+  repeated string supporting_events=7 [(rules).ascii_id=true];
+  ProducerManifest reconstruction_manifest=8;
+  ReviewState review_state=9 [(rules).required=true];
+}
+message LegalChangeEvent {
+  RecordMeta meta=1 [(rules).required=true];
+  SourceVersionRef amending_source=2 [(rules).required=true];
+  repeated string affected_provisions=3 [(rules)={ascii_id:true unique:true min_items:1}];
+  ChangeOperation operation=4 [(rules).required=true];
+  repeated TextSpan replacement_spans=5;
+  DateAssertion effective_date=6 [(rules).required=true];
+  Provenance supports=7 [(rules).required=true];
+  ReviewState review_state=8 [(rules).required=true];
+}
+message Chunk {
+  RecordMeta meta=1 [(rules).required=true];
+  repeated string provision_version_refs=2 [(rules)={ascii_id:true unique:true min_items:1}];
+  TextSpan text_span=3 [(rules).required=true];
+  repeated string structure_node_refs=4 [(rules)={ascii_id:true unique:true min_items:1}];
+  repeated string parent_refs=5 [(rules)={ascii_id:true unique:true}];
+  repeated string exception_refs=6 [(rules)={ascii_id:true unique:true}];
+  ProducerManifest chunker_manifest=7 [(rules).required=true];
+  repeated TokenUsage token_counts=8;
+}
+message DocumentBatch {
+  RecordMeta meta=1 [(rules).required=true];
+  RequestContext context=2 [(rules).required=true];
+  repeated SourceBlob sources=3;
+  repeated TextArtifact text_artifacts=4;
+  repeated StructureNode structures=5;
+  repeated Provision provisions=6;
+  repeated ProvisionVersion versions=7;
+  repeated Chunk chunks=8;
+  repeated ValidationIssue issues=9;
+  DependencyManifest dependency_manifest=10 [(rules).required=true];
+  Completeness completeness=11 [(rules).required=true];
+  repeated DocumentEdition editions=12;
+  repeated Regulation regulations=13;
+  repeated SourceObservation observations=14;
+  repeated LegalChangeEvent changes=15;
+}
+message GetDocumentRequest {
+  RequestContext context=1 [(rules).required=true];
+  string document_id=2 [(rules)={required:true ascii_id:true}];
+}
+message GetDocumentResponse {
+  Regulation regulation=1;
+  repeated DocumentEdition editions=2;
+  repeated SourceObservation observations=3;
+  SnapshotRef snapshot=4 [(rules).required=true];
+}
+message GetProvisionVersionsRequest {
+  RequestContext context=1 [(rules).required=true];
+  string provision_id=2 [(rules)={required:true ascii_id:true}];
+  Pagination pagination=3 [(rules).required=true];
+}
+message GetProvisionVersionsResponse {
+  repeated ProvisionVersion versions=1;
+  repeated LegalChangeEvent changes=2;
+  optional string next_cursor=3;
+  SnapshotRef snapshot=4 [(rules).required=true];
+}
