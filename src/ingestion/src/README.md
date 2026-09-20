@@ -8,7 +8,7 @@ Logika di luar cakupan ini ditempatkan pada komponen pemiliknya. Jika fungsi bar
 
 ## Peran dan integrasi anak
 
-lib.rs mengekspos module tree, proyeksi wire C01, adapter artefak lokal, dan service worker Tonic. Worker menerima batch PARSE dan STRUCTURE; Go tetap memegang job durable, registry identity, dan publication.
+lib.rs mengekspos module tree, proyeksi wire C01, adapter artefak lokal, dan service worker Tonic. Worker menerima batch PARSE, STRUCTURE, dan CHUNK; Go tetap memegang job durable, registry identity, dan publication.
 
 Pertahankan source/canonical/provision-version/snapshot ID dan schema version lintas anak. Boundary runtime mengikuti [src/contracts](../../contracts/README.md), dengan pekerjaan batch atau inference yang jelas. Perubahan bentuk data, error/status, serta offset sumber harus didokumentasikan bersama konsumennya; jangan menggandakan kebijakan publikasi di beberapa runtime.
 
@@ -26,4 +26,4 @@ Ikuti [kebijakan benchmark](../../../doc/benchmark-policy.md). Angka wajib mengi
 
 ## Status
 
-Modul parsing, normalisasi, structural chunking, validator chunk, proyeksi/persistence `TextArtifact` dan `DocumentBatch`, incremental planner, serta selector timeline telah aktif. Worker gRPC menjalankan PARSE dan STRUCTURE dengan descriptor terverifikasi, fencing/idempotency, completion eksplisit, serta checkpoint yang mengikat output dan terminal outcome; coordinator Go melakukan handoff dan crash recovery durable keduanya. Jalur library chunk menerima assignment provision-version eksplisit per structure node dari registry Go; stage CHUNK dan workflow pengirimannya belum aktif. Extraction change-event, registry canonical Rust, table/OCR, graph, indexing, object storage, dan publication penuh masih belum aktif. Build serta fixture tidak membuktikan acceptance kualitas, durability, atau latency produksi.
+Modul parsing, normalisasi, structural chunking, validator chunk, proyeksi/persistence `TextArtifact` dan `DocumentBatch`, incremental planner, serta selector timeline telah aktif. Worker gRPC menjalankan PARSE, STRUCTURE, dan CHUNK dengan descriptor terverifikasi, fencing/idempotency, completion eksplisit, serta checkpoint yang mengikat output dan terminal outcome; coordinator Go melakukan handoff dan crash recovery durable. CHUNK memakai assignment provision-version per node dari registry Go dan tokenizer hash-pinned yang dimuat sekali. Extraction change-event, registry canonical Rust, table/OCR, graph, indexing, object storage, dan publication penuh masih belum aktif. Build serta fixture tidak membuktikan acceptance kualitas, durability, atau latency produksi.

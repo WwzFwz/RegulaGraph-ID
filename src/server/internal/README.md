@@ -16,7 +16,7 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 Subfolder: [adapters/](adapters/README.md), [answering/](answering/README.md), [api/](api/README.md), [config/](config/README.md), [domain/](domain/README.md), [indexing/](indexing/README.md), [ingestion/](ingestion/README.md), [retrieval/](retrieval/README.md), [workflows/](workflows/README.md).
 
-Akuisisi dan audit inventory D01 sudah aktif melalui CLI, workflow batch, serta adapter sources. Scheduler durable dan publication coordinator S01 juga aktif. Executor PARSE→STRUCTURE menyerahkan artifact ke worker Rust; executor BIND Go menjalankan planner exact identity, allocator PostgreSQL, materializer regulation/provision, dependency persistence, dan checkpoint fenced. CHUNK, graph/index backend, serta query/answer produksi masih scaffold.
+Akuisisi dan audit inventory D01 sudah aktif melalui CLI, workflow batch, serta adapter sources. Scheduler durable dan publication coordinator S01 juga aktif. Executor PARSE→STRUCTURE menyerahkan artifact ke worker Rust; executor BIND Go menjalankan planner exact identity, allocator PostgreSQL, materializer regulation/provision, dependency persistence, dan checkpoint fenced. Executor CHUNK memverifikasi artifact BIND lalu menyerahkannya ke worker Rust untuk membentuk chunk struktural dengan konteks induk dan tokenizer yang dipin. EXTRACT, graph/index backend, serta query/answer produksi masih scaffold.
 
 ## Benchmark dan perhatian performa
 

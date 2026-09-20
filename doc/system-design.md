@@ -43,7 +43,7 @@ Ingestion mencakup PDF teks, halaman HTML resmi, OCR scan, tabel/lampiran, perub
 
 Proses target awal adalah satu server Go, worker Rust, service inference C++, PostgreSQL, Qdrant, Neo4j, dan storage artefak. Gateway semantik merupakan fungsi Go, bukan microservice tambahan. Coordinator berada pada server dengan antrean/pool terpisah dari query. Replikasi Go memungkinkan banyak reader, sedangkan publikasi satu corpus diserialkan. Proses terpisah untuk coordinator baru dievaluasi jika profiling membuktikan kebutuhannya; seluruh resource tetap dilaporkan.
 
-Layanan C++ belum ada; scaffold saat ini hanya static library. Rust memiliki executable worker Tonic loopback untuk batch PARSE dan STRUCTURE, dengan Go client dan coordinator durable yang memvalidasi deadline, attempt/fence, output, serta checkpoint. STRUCTURE mengonsumsi batch PARSE immutable dan tidak menciptakan ID ketentuan; binding provision/version dan CHUNK menjadi handoff berikutnya. Tidak ada RPC terpisah untuk fusion, filtering, context builder, atau pemeriksaan citation.
+Layanan C++ belum ada; scaffold saat ini hanya static library. Rust memiliki executable worker Tonic loopback untuk batch PARSE, STRUCTURE, dan CHUNK, dengan Go client serta coordinator durable yang memvalidasi deadline, attempt/fence, bytes output, dependency, dan checkpoint. STRUCTURE tidak menciptakan ID ketentuan; BIND Go memasok provision/version registry-owned sebelum CHUNK membentuk unit parent-aware. Tidak ada RPC terpisah untuk fusion, filtering, context builder, atau pemeriksaan citation.
 
 ## 3. Alur ingestion lengkap
 

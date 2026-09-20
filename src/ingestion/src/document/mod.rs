@@ -9,8 +9,8 @@
 //! Benchmark dan gate penerimaan:
 //! Ukur p50/p95/p99, throughput, waktu antre, serta RSS/VRAM sesuai workload. Ambang wajib ada di configs/benchmark-targets.yaml (REQUIRED_UNMEASURED); ukur cold/warm terpisah dan pertahankan kualitas sumber/versi.
 //!
-//! Status: parser PDFium, normalizer, structural chunking, incremental change planner, serta selector
-//! timeline ketentuan aktif dan terhubung ke kontrak C01; extraction event dan worker masih scaffold.
+//! Status: parser PDFium, normalizer, STRUCTURE/CHUNK registry-bound, incremental change planner,
+//! serta selector timeline aktif dan terhubung ke C01; OCR, tabel, dan extraction event belum aktif.
 
 pub mod change_detection;
 pub mod chunking;

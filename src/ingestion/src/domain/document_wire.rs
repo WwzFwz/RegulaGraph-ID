@@ -18,7 +18,7 @@
 //! unit roundtrip tidak membuktikan throughput atau parity seluruh `DocumentBatch`.
 //!
 //! Status: proyeksi StructureNode dipakai worker STRUCTURE dan proyeksi Chunk aktif sebagai library;
-//! stage CHUNK menunggu binding provision-version dari registry Go.
+//! stage CHUNK mengonsumsi binding provision-version eksplisit dari registry Go.
 
 use crate::document::chunking::builder::ChunkBatch;
 use crate::document::chunking::structural::{StructureKind, StructureTree};

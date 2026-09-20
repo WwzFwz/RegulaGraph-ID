@@ -8,7 +8,7 @@ Logika di luar cakupan ini ditempatkan pada komponen pemiliknya. Jika fungsi bar
 
 ## Peran dan integrasi anak
 
-Rust menyiapkan data dan artefak immutable, Go mengoordinasikan job serta commit/publikasi, dan C/C++ menyediakan engine parsing/inference. Transport gRPC batch tahap PARSE dan STRUCTURE menerima dispatch dari coordinator Go melalui job durable dan checkpoint fenced.
+Rust menyiapkan data dan artefak immutable, Go mengoordinasikan job serta commit/publikasi, dan C/C++ menyediakan engine parsing/inference. Transport gRPC batch tahap PARSE, STRUCTURE, dan CHUNK menerima dispatch dari coordinator Go melalui job durable dan checkpoint fenced.
 
 Pertahankan source/canonical/provision-version/snapshot ID dan schema version lintas anak. Boundary runtime mengikuti [src/contracts](../contracts/README.md), dengan pekerjaan batch atau inference yang jelas. Perubahan bentuk data, error/status, serta offset sumber harus didokumentasikan bersama konsumennya; jangan menggandakan kebijakan publikasi di beberapa runtime.
 
@@ -26,7 +26,7 @@ Ikuti [kebijakan benchmark](../../doc/benchmark-policy.md). Angka wajib mengikut
 
 ## Status
 
-Boundary parser PDFium, normalizer, structural chunking, proyeksi/persistence C01, incremental planner, dan selector timeline aktif sebagai library. Executable worker Tonic menjalankan PARSE dari PDF terverifikasi, mempertahankan source observation yang terikat blob, lalu STRUCTURE dari `DocumentBatch` immutable. STRUCTURE memverifikasi ulang raw/normalized/mapping beserta normalizer manifest, menghasilkan hierarki tanpa membuat ID ketentuan, dan mengembalikan batch baru yang terikat checkpoint. Builder/proyeksi library dapat menerima binding provision-version per node dari registry Go, tetapi stage CHUNK belum aktif. Extraction change-event, canonical registry Rust, tabel, graph/index batch, OCR, gold temporal, object storage, full-rebuild equivalence, dan acceptance produksi belum aktif.
+Boundary parser PDFium, normalizer, structural chunking, proyeksi/persistence C01, incremental planner, dan selector timeline aktif sebagai library. Executable worker Tonic menjalankan PARSE dari PDF terverifikasi, STRUCTURE dari `DocumentBatch` immutable, lalu CHUNK dari batch BIND lengkap. CHUNK memverifikasi ulang raw/normalized/mapping dan hierarchy, memasangkan node ke `ProvisionVersion` registry-owned secara eksak, memakai tokenizer Hugging Face hash-pinned, serta menghasilkan chunk parent-aware dengan batas token. Extraction change-event, canonical registry Rust, tabel, graph/index batch, OCR, gold temporal, object storage, full-rebuild equivalence, dan acceptance produksi belum aktif.
 
 ## Penambahan C01 dan panduan verifikasi
 
