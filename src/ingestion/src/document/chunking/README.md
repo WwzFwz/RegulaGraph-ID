@@ -24,7 +24,7 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Parser struktur hukum, builder chunk source-mapped, validator record, serta parent index acyclic aktif sebagai library Rust. Builder mempertahankan preamble, memecah unit panjang pada batas UTF-8/kata/kalimat, memakai tokenizer yang disuntikkan, dan menyimpan ancestry sebagai ID tanpa menduplikasi teks induk. Table reconstruction, exception linking lintas chunk/dokumen, tokenizer produksi, konversi wire, worker isolation, gold structure set, dan acceptance benchmark belum aktif. Unit test membuktikan invariant deterministik kecil, bukan target kualitas atau latency corpus.
+Parser struktur hukum, builder chunk source-mapped, validator record, parent index acyclic, dan proyeksi structure/chunk ke C01 aktif sebagai library Rust. Builder mempertahankan preamble, memecah unit panjang pada batas UTF-8/kata/kalimat, memakai tokenizer yang disuntikkan, dan menyimpan ancestry sebagai ID tanpa menduplikasi teks induk. Table reconstruction, exception linking lintas chunk/dokumen, tokenizer produksi, worker isolation, gold structure set, dan acceptance benchmark belum aktif. Unit test membuktikan invariant deterministik kecil, bukan target kualitas atau latency corpus.
 
 ## Rekomendasi implementasi anak
 

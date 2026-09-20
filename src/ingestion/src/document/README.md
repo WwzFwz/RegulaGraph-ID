@@ -32,7 +32,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-Parser PDFium I01 aktif di [parsing/pdf.rs](parsing/pdf.rs) dan menghasilkan teks, locator ternormalisasi terhadap intersection CropBox/MediaBox serta rotasi halaman, status halaman, dan manifest yang terikat hash. Normalizer di [normalization/text.rs](normalization/text.rs) menghasilkan teks konservatif beserta mapping byte raw-normalized yang canonical. [Chunking](chunking/README.md) kini mendeteksi hierarki hukum konservatif, membentuk chunk source-mapped dengan token count, dan memasang parent refs tervalidasi. Versioning, tabel, OCR, worker batch/wire, gold dataset, dan acceptance produksi belum aktif. Fixture membuktikan boundary serta invariant dasar, bukan kualitas corpus atau target latency.
+Parser PDFium I01 aktif di [parsing/pdf.rs](parsing/pdf.rs) dan menghasilkan teks, locator ternormalisasi terhadap intersection CropBox/MediaBox serta rotasi halaman, status halaman, dan manifest yang terikat hash. Normalizer menghasilkan mapping byte canonical; chunking membentuk hierarki, source-mapped chunk, token count, dan parent refs. Hasil tersebut sudah dapat diproyeksikan serta disimpan sebagai `TextArtifact` dan `DocumentBatch` C01 melalui domain/adapter. Reconstruction versioning, tabel, OCR, executable worker, gold dataset, dan acceptance produksi belum aktif. Fixture membuktikan boundary serta invariant dasar, bukan kualitas corpus atau target latency.
 
 ## Rekomendasi implementasi anak
 

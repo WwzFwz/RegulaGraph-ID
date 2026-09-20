@@ -14,7 +14,7 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
-Berkas: [chunks.rs](chunks.rs), [documents.rs](documents.rs), [document_wire.rs](document_wire.rs), [entities.rs](entities.rs), [evidence.rs](evidence.rs), [mod.rs](mod.rs), [relations.rs](relations.rs), dan [wire.rs](wire.rs).
+Berkas: [chunks.rs](chunks.rs), [document_batch.rs](document_batch.rs), [documents.rs](documents.rs), [document_wire.rs](document_wire.rs), [entities.rs](entities.rs), [evidence.rs](evidence.rs), [mod.rs](mod.rs), [relations.rs](relations.rs), [text_artifact_wire.rs](text_artifact_wire.rs), dan [wire.rs](wire.rs).
 
 ## Benchmark dan perhatian performa
 
@@ -24,7 +24,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-`chunks.rs` menyediakan record lokal dan validator provenance/source mapping/token count untuk hasil chunking I01. `document_wire.rs` memproyeksikan structure tree dan chunk batch tervalidasi ke pesan C01 serta mempertahankan source, corpus, provision-version, producer manifest, dan offset normalisasi. Wire validator C01 juga aktif; konstruksi `TextArtifact`/`DocumentBatch`, document versioning, graph/index pipeline, dan worker batch belum diimplementasikan. Fixture unit tidak membuktikan target kualitas atau latency produksi.
+`chunks.rs` menyediakan record lokal dan validator provenance/source mapping/token count. `document_wire.rs` memproyeksikan structure/chunk, `text_artifact_wire.rs` memproyeksikan mapping/page/parser output, dan `document_batch.rs` merakit batch dengan reference closure serta completeness eksplisit. Wire validator C01 juga aktif. Reconstruction versioning, graph/index pipeline, dan executable worker belum diimplementasikan. Fixture unit tidak membuktikan target kualitas atau latency produksi.
 
 ## Rekomendasi implementasi anak
 
@@ -33,11 +33,13 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
 | [chunks.rs](chunks.rs) | Pertahankan invariant record lokal ketika tokenizer atau kebijakan overlap berkembang; hindari menambahkan schema wire paralel. | Uji boundary Unicode, overlap, overflow, dan alokasi batch besar terhadap konfigurasi produksi. |
-| [document_wire.rs](document_wire.rs) | Lengkapi proyeksi `TextArtifact`, page result, dan `DocumentBatch` setelah kontrak versioning menyediakan provision/version yang tervalidasi. | Uji golden wire lintas bahasa, missing refs, hash mismatch, batas jumlah record, dan serialisasi batch besar. |
+| [document_batch.rs](document_batch.rs) | Hubungkan hasil reconstruction versioning dan metadata sumber nyata, lalu ukur assembly batch besar. | Uji dependency external/incremental, adversarial reference graph, cross-language decode, batas record/edge, p95/p99, dan peak RSS. |
+| [document_wire.rs](document_wire.rs) | Hubungkan tokenizer/model manifest produksi dan locator halaman ke structure/chunk projection. | Uji golden wire lintas bahasa, missing refs, overflow, dan alokasi batch besar. |
 | [documents.rs](documents.rs) | Construct validated document/source/provision views over generated types; keep observation time separate from legal dates. | Test stable IDs, raw/normalized mappings and historical version ambiguity; avoid redundant conversion/allocation across batches. |
 | [entities.rs](entities.rs) | Expose scoped canonical identity/revision and resolution decision helpers without autonomous registry writes. | Test alias ambiguity, merge/split lineage and deterministic identity comparison; avoid redundant conversion/allocation across batches. |
 | [evidence.rs](evidence.rs) | Expose snapshot-bound evidence/path operations while retaining primary provenance. | Test corpus/version/snapshot mismatches and missing support hydration; avoid redundant conversion/allocation across batches. |
 | [relations.rs](relations.rs) | Expose assertion/support and qualifier invariants without collapsing shared evidence. | Test endpoint types, source withdrawal and negation/condition preservation; avoid redundant conversion/allocation across batches. |
+| [text_artifact_wire.rs](text_artifact_wire.rs) | Tambahkan hasil OCR dan locator yang telah direkonsiliasi tanpa menyamarkan halaman parsial. | Uji mapping besar, mixed text/OCR, cross-language decode, hash mismatch, dan peak RSS. |
 
 ## Penambahan C01 dan panduan verifikasi
 

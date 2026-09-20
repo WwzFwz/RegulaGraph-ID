@@ -14,7 +14,7 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
-Berkas: [inference.rs](inference.rs), [mod.rs](mod.rs), [pdf_engine.rs](pdf_engine.rs), [storage.rs](storage.rs).
+Berkas: [document_batches.rs](document_batches.rs), [inference.rs](inference.rs), [mod.rs](mod.rs), [pdf_engine.rs](pdf_engine.rs), [storage.rs](storage.rs), dan [text_artifacts.rs](text_artifacts.rs).
 
 ## Benchmark dan perhatian performa
 
@@ -24,7 +24,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. `storage.rs` sudah menulis dan membaca artefak lokal immutable dengan key SHA-256, deduplikasi, atomic rename, batas ukuran, dan verifikasi hash. Object storage jarak jauh, publication artefak, pipeline graph/retrieval, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan durability atau target latency produksi.
+Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. `storage.rs` menulis dan membaca object lokal immutable dengan key SHA-256; `text_artifacts.rs` menyimpan raw/normalized/mapping; `document_batches.rs` menyimpan dan memuat batch protobuf terverifikasi. Object storage jarak jauh, lifecycle orphan, worker RPC, pipeline graph/retrieval, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan durability atau target latency produksi.
 
 ## Rekomendasi implementasi anak
 
@@ -32,6 +32,8 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
+| [document_batches.rs](document_batches.rs) | Integrasikan dengan response worker dan pembacaan coordinator Go tanpa mengirim blob besar melalui RPC. | Uji retry/fence/cancellation, corrupted remote object, cross-language decode, payload besar, serta p95/p99 dan peak RSS. |
 | [inference.rs](inference.rs) | Send typed semantic/embedding batches to pinned services; retain item IDs, producer manifests and bounded retry. | Test missing/duplicate/reordered items and partial errors; verify no model initialization per chunk. |
 | [pdf_engine.rs](pdf_engine.rs) | Bind the parser selected by M01 with explicit buffer ownership, safe page lifetimes and bounded worker concurrency. | Test malformed/encrypted/large PDFs and native error propagation; measure pages/s and RSS without copying entire corpus. |
 | [storage.rs](storage.rs) | Tambahkan backend object storage dengan semantik descriptor yang sama, lifecycle temporary-object, dan integrasi descriptor ke `ArtifactRef`; pertahankan publication sebagai tanggung jawab Go. | Jalankan fault injection untuk crash sebelum/sesudah rename, filesystem penuh, permission error, retry cleanup, dan durability; ukur throughput, p95/p99, fsync cost, serta peak RSS pada workload resmi. |
+| [text_artifacts.rs](text_artifacts.rs) | Integrasikan lifecycle orphan dan input worker; pertahankan hash binding raw/normalized/mapping serta status page failure. | Uji crash antar-object, retry konkuren, cleanup aman, corpus PDF nyata, throughput, p95/p99, dan peak RSS. |
