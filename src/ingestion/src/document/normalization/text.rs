@@ -179,6 +179,64 @@ impl NormalizedText {
         Ok(raw_start..raw_end)
     }
 
+    /// Mengembalikan cover normalized yang aman untuk rentang raw, termasuk rentang halaman kosong.
+    /// Transform many-to-one/one-to-many diperlebar ke seluruh span transformasi agar tidak mengklaim
+    /// pemetaan byte parsial yang tidak dapat dibalik secara tepat.
+    pub fn normalized_cover(&self, raw: Range<usize>) -> Result<Range<usize>, NormalizeError> {
+        self.validate_integrity()?;
+        if raw.start > raw.end || raw.end > self.raw_byte_length {
+            return Err(NormalizeError::InvalidRequestedSpan);
+        }
+        if raw.is_empty() {
+            if raw.start == 0 {
+                return Ok(0..0);
+            }
+            if raw.start == self.raw_byte_length {
+                return Ok(self.text.len()..self.text.len());
+            }
+            let index = self
+                .mapping
+                .partition_point(|span| span.raw_end_byte <= raw.start as u64);
+            let span = self
+                .mapping
+                .get(index)
+                .ok_or(NormalizeError::UnmappedSpan)?;
+            let boundary = project_raw_boundary(span, raw.start as u64, true)?;
+            let boundary = usize::try_from(boundary)
+                .map_err(|_| NormalizeError::InvalidMapping("normalized_cover_boundary"))?;
+            return Ok(boundary..boundary);
+        }
+        let first_index = self
+            .mapping
+            .partition_point(|span| span.raw_end_byte <= raw.start as u64);
+        let after_last = self
+            .mapping
+            .partition_point(|span| span.raw_start_byte < raw.end as u64);
+        let overlaps = &self.mapping[first_index..after_last];
+        let first = overlaps
+            .iter()
+            .find(|span| {
+                span.raw_end_byte > raw.start as u64 && span.raw_start_byte < raw.end as u64
+            })
+            .ok_or(NormalizeError::UnmappedSpan)?;
+        let last = overlaps
+            .iter()
+            .rev()
+            .find(|span| {
+                span.raw_end_byte > raw.start as u64 && span.raw_start_byte < raw.end as u64
+            })
+            .ok_or(NormalizeError::UnmappedSpan)?;
+        let normalized_start =
+            usize::try_from(project_raw_boundary(first, raw.start as u64, true)?)
+                .map_err(|_| NormalizeError::InvalidMapping("normalized_cover_start"))?;
+        let normalized_end = usize::try_from(project_raw_boundary(last, raw.end as u64, false)?)
+            .map_err(|_| NormalizeError::InvalidMapping("normalized_cover_end"))?;
+        if normalized_start > normalized_end || normalized_end > self.text.len() {
+            return Err(NormalizeError::InvalidMapping("normalized_cover_order"));
+        }
+        Ok(normalized_start..normalized_end)
+    }
+
     pub fn validate_mapping(
         &self,
         raw: &str,
@@ -487,6 +545,30 @@ fn project_normalized_boundary(
         span.raw_start_byte
     } else {
         span.raw_end_byte
+    })
+}
+
+fn project_raw_boundary(
+    span: &TextMappingSpan,
+    boundary: u64,
+    is_start: bool,
+) -> Result<u64, NormalizeError> {
+    if boundary < span.raw_start_byte || boundary > span.raw_end_byte {
+        return Err(NormalizeError::UnmappedSpan);
+    }
+    if span.kind == MappingKind::Identity {
+        let offset = boundary
+            .checked_sub(span.raw_start_byte)
+            .ok_or(NormalizeError::InvalidMapping("normalized_cover_offset"))?;
+        return span
+            .normalized_start_byte
+            .checked_add(offset)
+            .ok_or(NormalizeError::InvalidMapping("normalized_cover_overflow"));
+    }
+    Ok(if is_start {
+        span.normalized_start_byte
+    } else {
+        span.normalized_end_byte
     })
 }
 
@@ -839,6 +921,23 @@ mod tests {
         result
             .validate_mapping("", &TextNormalizerConfig::default())
             .unwrap();
+    }
+
+    #[test]
+    fn projects_raw_page_ranges_to_normalized_byte_covers() {
+        let raw = "Pasal 1\r\nA\u{00ad}B\x0cPasal 2";
+        let result = normalize_text(raw, &TextNormalizerConfig::default()).unwrap();
+        let page_break = raw.find('\x0c').unwrap();
+
+        let first = result.normalized_cover(0..page_break).unwrap();
+        let second = result.normalized_cover(page_break + 1..raw.len()).unwrap();
+        assert_eq!(&result.text[first], "Pasal 1\nAB");
+        assert_eq!(&result.text[second], "Pasal 2");
+        assert_eq!(result.normalized_cover(0..0).unwrap(), 0..0);
+        assert_eq!(
+            result.normalized_cover(raw.len()..raw.len()).unwrap(),
+            result.text.len()..result.text.len()
+        );
     }
 
     #[test]

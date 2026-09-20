@@ -227,7 +227,20 @@ fn project_text_artifact_inner(
     let page_results = parsed
         .pages
         .iter()
-        .map(|page| page_result(page, parsed.raw_text.len(), &config.text_artifact_id))
+        .enumerate()
+        .map(|(index, page)| {
+            let coverage_end = parsed
+                .pages
+                .get(index + 1)
+                .map_or(parsed.raw_text.len() as u64, |next| next.start_byte);
+            page_result(
+                page,
+                parsed.raw_text.len(),
+                coverage_end,
+                normalized,
+                &config.text_artifact_id,
+            )
+        })
         .collect::<Result<Vec<_>, _>>()?;
     let artifact = documents::TextArtifact {
         meta: MessageField::some(record_meta(&config.corpus_id, &config.text_artifact_id)),
@@ -309,6 +322,8 @@ fn validate_parsed_document(
             || start > raw_bytes.len()
             || start > end
             || end > raw_bytes.len()
+            || !parsed.raw_text.is_char_boundary(start)
+            || !parsed.raw_text.is_char_boundary(end)
             || raw_bytes[previous..start]
                 .iter()
                 .any(|byte| *byte != b'\x0c')
@@ -384,17 +399,32 @@ fn validate_reference(
 fn page_result(
     page: &PdfPageResult,
     raw_text_length: usize,
+    coverage_end: u64,
+    normalized: &NormalizedText,
     text_artifact_id: &str,
 ) -> Result<documents::PageResult, TextArtifactWireError> {
     let raw_length =
         u64::try_from(raw_text_length).map_err(|_| TextArtifactWireError::OffsetOverflow)?;
-    if page.page_number == 0 || page.start_byte > page.end_byte || page.end_byte > raw_length {
+    if page.page_number == 0
+        || page.start_byte > page.end_byte
+        || page.end_byte > coverage_end
+        || coverage_end > raw_length
+    {
         return Err(TextArtifactWireError::InvalidDocument("page_span"));
     }
+    let raw_start =
+        usize::try_from(page.start_byte).map_err(|_| TextArtifactWireError::OffsetOverflow)?;
+    let raw_end =
+        usize::try_from(coverage_end).map_err(|_| TextArtifactWireError::OffsetOverflow)?;
+    let normalized_span = normalized
+        .normalized_cover(raw_start..raw_end)
+        .map_err(|error| TextArtifactWireError::Normalization(error.to_string()))?;
     let span = common::TextSpan {
         text_artifact_id: text_artifact_id.to_owned(),
-        start_byte: page.start_byte,
-        end_byte: page.end_byte,
+        start_byte: u64::try_from(normalized_span.start)
+            .map_err(|_| TextArtifactWireError::OffsetOverflow)?,
+        end_byte: u64::try_from(normalized_span.end)
+            .map_err(|_| TextArtifactWireError::OffsetOverflow)?,
         ..Default::default()
     };
     let (status, errors) = match &page.status {
@@ -673,6 +703,19 @@ mod tests {
                 && page.errors.is_empty()
         }));
         assert_eq!(artifact.parser_manifest.input_hashes.len(), 2);
+        assert!(artifact.page_results.iter().all(|page| page
+            .spans
+            .iter()
+            .all(|span| span.end_byte <= normalized.text.len() as u64)));
+        assert_eq!(artifact.page_results[0].spans[0].start_byte, 0);
+        assert_eq!(
+            artifact.page_results[0].spans[0].end_byte,
+            artifact.page_results[1].spans[0].start_byte
+        );
+        assert_eq!(
+            artifact.page_results[1].spans[0].end_byte,
+            normalized.text.len() as u64
+        );
 
         let encoded = artifact.write_to_bytes().expect("artifact serializes");
         let decoded = documents::TextArtifact::parse_from_bytes(&encoded).unwrap();
@@ -769,6 +812,25 @@ mod tests {
             )
             .unwrap_err(),
             TextArtifactWireError::InvalidDocument("block")
+        );
+
+        let (mut parsed, normalized, normalizer_config, references, config) =
+            fixture(PdfPageStatus::Text);
+        parsed.raw_text = "é\x0cA".to_owned();
+        parsed.pages[0].start_byte = 0;
+        parsed.pages[0].end_byte = 1;
+        parsed.pages[1].start_byte = 1;
+        parsed.pages[1].end_byte = parsed.raw_text.len() as u64;
+        assert_eq!(
+            project_text_artifact(
+                &parsed,
+                &normalized,
+                &normalizer_config,
+                &references,
+                &config,
+            )
+            .unwrap_err(),
+            TextArtifactWireError::InvalidDocument("page_sequence")
         );
     }
 
