@@ -12,7 +12,7 @@ import (
 func candidateBatchFixture() (*pb.RegistryCandidateBatch, *pb.ExtractionBatch, *pb.ArtifactRef) {
 	_, source, sourceRef := resolutionClosureFixture()
 	source.Completeness = pb.Completeness_COMPLETENESS_COMPLETE
-	revision := &pb.LookupScopeRevision{ScopeId: "lookup:organization:national:instansi-a", Revision: 7}
+	revision := &pb.LookupScopeRevision{ScopeId: RegistryLookupScopeID("organization", "national", "instansi a"), Revision: 7}
 	batch := &pb.RegistryCandidateBatch{
 		Meta:                  &pb.RecordMeta{SchemaVersion: 1, CorpusId: source.Meta.CorpusId, RecordId: "candidates:one"},
 		Context:               proto.Clone(source.Context).(*pb.RequestContext),
@@ -21,6 +21,11 @@ func candidateBatchFixture() (*pb.RegistryCandidateBatch, *pb.ExtractionBatch, *
 		Candidates: []*pb.CanonicalEntity{{
 			Meta:       &pb.RecordMeta{SchemaVersion: 1, CorpusId: source.Meta.CorpusId, RecordId: "canonical:one"},
 			EntityType: "organization", PreferredLabel: "Instansi A", Scope: "national", RegistryRevision: 7, ReviewState: pb.ReviewState_REVIEW_STATE_UNREVIEWED,
+		}},
+		Aliases: []*pb.Alias{{
+			Meta:        &pb.RecordMeta{SchemaVersion: 1, CorpusId: source.Meta.CorpusId, RecordId: "alias:one"},
+			CanonicalId: "canonical:one", Surface: "Instansi A", NormalizedLookup: "instansi a",
+			Scope: "national", Language: "id", SupportRefs: []string{"mention:source"},
 		}},
 		Lookups: []*pb.CandidateLookup{{
 			MentionId: "mention:one", Scopes: []*pb.CandidateLookupScope{{
@@ -35,6 +40,13 @@ func candidateBatchFixture() (*pb.RegistryCandidateBatch, *pb.ExtractionBatch, *
 		},
 	}
 	return batch, source, sourceRef
+}
+
+func TestRegistryLookupScopeIDMatchesC01LengthPrefixedVector(t *testing.T) {
+	const expected = "lookup:bb3be67c5e48f47bdf9cf68eb8d80cd3f467178f360312977e9985d3c5aad732"
+	if actual := RegistryLookupScopeID("organization", "national", "badan a"); actual != expected {
+		t.Fatalf("cross-language scope key changed: got %q", actual)
+	}
 }
 
 func TestValidateRegistryCandidateBatchRejectsDrift(t *testing.T) {
@@ -55,7 +67,12 @@ func TestValidateRegistryCandidateBatchRejectsDrift(t *testing.T) {
 		"schema version drift":      func(batch *pb.RegistryCandidateBatch) { batch.Meta.SchemaVersion = 2 },
 		"different extraction hash": func(batch *pb.RegistryCandidateBatch) { batch.SourceExtractionBatch.ContentHash.Sha256 = "forged" },
 		"lookup revision omitted":   func(batch *pb.RegistryCandidateBatch) { batch.Dependencies.LookupScopeRevisions = nil },
-		"lookup revision drift":     func(batch *pb.RegistryCandidateBatch) { batch.Dependencies.LookupScopeRevisions[0].Revision = 6 },
+		"forged lookup scope ID": func(batch *pb.RegistryCandidateBatch) {
+			batch.Lookups[0].Scopes[0].Revision.ScopeId = "lookup:forged"
+			batch.Dependencies.LookupScopeRevisions[0].ScopeId = "lookup:forged"
+		},
+		"positive candidate without alias": func(batch *pb.RegistryCandidateBatch) { batch.Aliases = nil },
+		"lookup revision drift":            func(batch *pb.RegistryCandidateBatch) { batch.Dependencies.LookupScopeRevisions[0].Revision = 6 },
 		"lookup revision from future": func(batch *pb.RegistryCandidateBatch) {
 			batch.Lookups[0].Scopes[0].Revision.Revision = 8
 			batch.Dependencies.LookupScopeRevisions[0].Revision = 8
@@ -87,6 +104,7 @@ func TestValidateRegistryCandidateBatchRejectsDrift(t *testing.T) {
 func TestValidateRegistryCandidateBatchKeepsNegativeLookup(t *testing.T) {
 	batch, source, sourceRef := candidateBatchFixture()
 	batch.Candidates = nil
+	batch.Aliases = nil
 	batch.Lookups[0].Scopes[0].CandidateIds = nil
 	batch.Lookups[0].Scopes[0].Revision.EmptyResult = true
 	batch.Dependencies.LookupScopeRevisions[0].EmptyResult = true
@@ -97,11 +115,6 @@ func TestValidateRegistryCandidateBatchKeepsNegativeLookup(t *testing.T) {
 
 func TestValidateRegistryCandidateBatchRejectsUnrelatedAlias(t *testing.T) {
 	batch, source, sourceRef := candidateBatchFixture()
-	batch.Aliases = []*pb.Alias{{
-		Meta:        &pb.RecordMeta{SchemaVersion: 1, CorpusId: batch.Meta.CorpusId, RecordId: "alias:one"},
-		CanonicalId: "canonical:one", Surface: "Instansi A", NormalizedLookup: "instansi a",
-		Scope: "national", Language: "id", SupportRefs: []string{"mention:one"},
-	}}
 	if err := ValidateRegistryCandidateBatch(batch, source, sourceRef, 8, 3); err != nil {
 		t.Fatal("alias matching its returned lookup was rejected:", err)
 	}
@@ -118,7 +131,7 @@ func TestValidateRegistryCandidateBatchRejectsUnrelatedAlias(t *testing.T) {
 
 func TestValidateRegistryCandidateBatchRejectsCrossScopeContamination(t *testing.T) {
 	batch, source, sourceRef := candidateBatchFixture()
-	second := &pb.LookupScopeRevision{ScopeId: "lookup:organization:regional:instansi-a", Revision: 7, EmptyResult: true}
+	second := &pb.LookupScopeRevision{ScopeId: RegistryLookupScopeID("organization", "regional", "instansi a"), Revision: 7, EmptyResult: true}
 	batch.Lookups[0].Scopes = append(batch.Lookups[0].Scopes, &pb.CandidateLookupScope{
 		Revision: second, EntityType: "organization", CanonicalScope: "regional", NormalizedLookup: "instansi a",
 	})
@@ -159,6 +172,10 @@ func TestValidateRegistryCandidateBatchRequiresStableResultForSameScope(t *testi
 	secondCandidate := proto.Clone(batch.Candidates[0]).(*pb.CanonicalEntity)
 	secondCandidate.Meta.RecordId = "canonical:two"
 	batch.Candidates = append(batch.Candidates, secondCandidate)
+	secondAlias := proto.Clone(batch.Aliases[0]).(*pb.Alias)
+	secondAlias.Meta.RecordId = "alias:two"
+	secondAlias.CanonicalId = "canonical:two"
+	batch.Aliases = append(batch.Aliases, secondAlias)
 	secondLookup := proto.Clone(batch.Lookups[0]).(*pb.CandidateLookup)
 	secondLookup.MentionId = "mention:two"
 	secondLookup.Scopes[0].CandidateIds = []string{"canonical:two"}
@@ -168,7 +185,7 @@ func TestValidateRegistryCandidateBatchRequiresStableResultForSameScope(t *testi
 	}
 	batch.Lookups[0].Scopes[0].CandidateIds = append(batch.Lookups[0].Scopes[0].CandidateIds, "canonical:two")
 	batch.Lookups[1].Scopes[0].CandidateIds = append(batch.Lookups[1].Scopes[0].CandidateIds, "canonical:one")
-	if err := ValidateRegistryCandidateBatch(batch, source, sourceRef, 14, 3); err != nil {
+	if err := ValidateRegistryCandidateBatch(batch, source, sourceRef, 18, 3); err != nil {
 		t.Fatal("same candidate set in different order was rejected:", err)
 	}
 }

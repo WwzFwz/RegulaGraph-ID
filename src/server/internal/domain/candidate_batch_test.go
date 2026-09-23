@@ -40,6 +40,15 @@ func TestAssembleRegistryCandidateBatchSortsAndBindsEveryLookup(t *testing.T) {
 	secondEntity := proto.Clone(entities[0]).(*pb.CanonicalEntity)
 	secondEntity.Meta.RecordId = "canonical:two"
 	entities = append(entities, secondEntity)
+	firstAlias := &pb.Alias{
+		Meta:        &pb.RecordMeta{SchemaVersion: 1, CorpusId: source.Meta.CorpusId, RecordId: "alias:one"},
+		CanonicalId: "canonical:one", Surface: "Instansi A", NormalizedLookup: "instansi a",
+		Scope: "national", Language: "id", SupportRefs: []string{"mention:source"},
+	}
+	secondAlias := proto.Clone(firstAlias).(*pb.Alias)
+	secondAlias.Meta.RecordId = "alias:two"
+	secondAlias.CanonicalId = "canonical:two"
+	aliases := []*pb.Alias{firstAlias, secondAlias}
 	lookups[0].Scopes[0].CandidateIds = []string{"canonical:one", "canonical:two"}
 	secondLookup.Scopes[0].CandidateIds = []string{"canonical:one", "canonical:two"}
 	forward := []*pb.CandidateLookup{lookups[0], secondLookup}
@@ -51,12 +60,12 @@ func TestAssembleRegistryCandidateBatchSortsAndBindsEveryLookup(t *testing.T) {
 		lookup.Scopes[0].CandidateIds = []string{"canonical:two", "canonical:one"}
 	}
 	first, err := AssembleRegistryCandidateBatch(source, sourceRef, producer, "candidates:sorted", 7,
-		forward, entities, nil, 20, 3)
+		forward, entities, aliases, 24, 3)
 	if err != nil {
 		t.Fatal(err)
 	}
 	second, err := AssembleRegistryCandidateBatch(source, sourceRef, producer, "candidates:sorted", 7,
-		reverse, []*pb.CanonicalEntity{entities[1], entities[0]}, nil, 20, 3)
+		reverse, []*pb.CanonicalEntity{entities[1], entities[0]}, []*pb.Alias{secondAlias, firstAlias}, 24, 3)
 	if err != nil {
 		t.Fatal(err)
 	}

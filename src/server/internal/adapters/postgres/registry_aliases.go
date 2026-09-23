@@ -2,7 +2,8 @@
 // Go owns revision CAS and operation replay; every alias keeps support references and a stable
 // lookup-scope revision so RESOLVE can invalidate prior empty results. This append-only entry
 // point does not decide whether two legal entities are equivalent or rewrite prior decisions.
-// Measure batch p95/p99, lock wait, index growth, and false merge/split on gold; numeric targets
+// Lookup scope IDs delegate to domain's length-prefixed C01 key derivation so reader and
+// artifact validator cannot drift. Measure batch p95/p99, lock wait, index growth, and false merge/split on gold; numeric targets
 // in configs/benchmark-targets.yaml remain REQUIRED_UNMEASURED.
 package postgres
 
@@ -507,9 +508,5 @@ func writeRegistryHashPart(target hash.Hash, raw []byte) {
 }
 
 func registryLookupScopeID(entityType, scope, normalized string) string {
-	sum := sha256.New()
-	for _, field := range []string{"registry-alias-lookup:v1", entityType, scope, normalized} {
-		writeRegistryHashPart(sum, []byte(field))
-	}
-	return "lookup:" + hex.EncodeToString(sum.Sum(nil))
+	return domain.RegistryLookupScopeID(entityType, scope, normalized)
 }

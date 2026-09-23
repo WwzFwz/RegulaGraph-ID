@@ -1,12 +1,17 @@
 // Checks a read-only registry candidate artifact before RESOLVE dispatch.
 // Go assembles one revision-pinned batch and Rust consumes it without per-mention registry RPCs.
 // Every extracted mention has a lookup, including empty results; dependency revisions must be
-// identical to those lookup observations. This is structural provenance, not a semantic match
-// judgment or a database receipt. Candidate count, total references, and wire bytes must be
+// identical to those lookup observations. Positive results require a sourced alias with the
+// same canonical ID, scope, and normalized key; scope IDs are recomputed from those keys.
+// This is structural provenance, not a semantic match judgment or a database receipt.
+// Candidate count, total references, and wire bytes must be
 // bounded before persistence; quality/latency targets remain REQUIRED_UNMEASURED.
 package domain
 
 import (
+	"crypto/sha256"
+	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 
@@ -18,6 +23,20 @@ type candidateLookupKey struct {
 	entityType       string
 	canonicalScope   string
 	normalizedLookup string
+}
+
+// RegistryLookupScopeID is the C01 identity of one exact alias lookup key. PostgreSQL and
+// artifact validation share this implementation so an arbitrary scope ID cannot disguise
+// a changed type, legal scope, or normalized string.
+func RegistryLookupScopeID(entityType, scope, normalized string) string {
+	hasher := sha256.New()
+	for _, part := range []string{"registry-alias-lookup:v1", entityType, scope, normalized} {
+		var size [8]byte
+		binary.BigEndian.PutUint64(size[:], uint64(len(part)))
+		hasher.Write(size[:])
+		hasher.Write([]byte(part))
+	}
+	return "lookup:" + hex.EncodeToString(hasher.Sum(nil))
 }
 
 // ValidateRegistryCandidateBatch checks the complete EXTRACT-to-RESOLVE candidate handoff.
@@ -138,6 +157,7 @@ func ValidateRegistryCandidateBatch(batch *pb.RegistryCandidateBatch, source *pb
 		for _, scope := range lookup.Scopes {
 			revision := scope.GetRevision()
 			if revision == nil || revision.ScopeId == "" ||
+				revision.ScopeId != RegistryLookupScopeID(scope.EntityType, scope.CanonicalScope, scope.NormalizedLookup) ||
 				revision.Revision > batch.RegistryRevision ||
 				seenScopes[revision.ScopeId] || scope.EntityType != mention.CandidateType ||
 				scope.CanonicalScope == "" || scope.NormalizedLookup == "" ||
@@ -195,12 +215,24 @@ func ValidateRegistryCandidateBatch(batch *pb.RegistryCandidateBatch, source *pb
 			return fmt.Errorf("candidate %q has no lookup reference", id)
 		}
 	}
+	coveredByAlias := make(map[string]map[string]bool, len(observedResults))
 	for _, alias := range batch.Aliases {
 		owner := candidates[alias.CanonicalId]
 		key := candidateLookupKey{owner.EntityType, alias.Scope, alias.NormalizedLookup}
 		scopeID, exists := observedScopeIDs[key]
 		if !exists || !observedResults[scopeID][alias.CanonicalId] {
 			return fmt.Errorf("candidate alias %q is not returned by its lookup scope", alias.Meta.RecordId)
+		}
+		if coveredByAlias[scopeID] == nil {
+			coveredByAlias[scopeID] = make(map[string]bool)
+		}
+		coveredByAlias[scopeID][alias.CanonicalId] = true
+	}
+	for scopeID, ids := range observedResults {
+		for id := range ids {
+			if !coveredByAlias[scopeID][id] {
+				return fmt.Errorf("candidate %q has no sourced alias in lookup %q", id, scopeID)
+			}
 		}
 	}
 	if len(manifest.LookupScopeRevisions) != len(observedScopes) {
