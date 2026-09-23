@@ -29,6 +29,9 @@ builder kandidat deterministik dan validasi alias-to-scope; autentikasi PostgreS
 masih pekerjaan lanjutan.
 [verification-report-k01-pg-candidate-producer.md](verification-report-k01-pg-candidate-producer.md)
 mencatat adapter baca batch registry dan batas verifikasinya sebelum workflow RESOLVE aktif.
+[verification-report-k01-resolution-proposals.md](verification-report-k01-resolution-proposals.md)
+mencatat proposal LINK/DEFER Rust dari pilihan eksplisit dan kandidat terpin; keputusan registry
+serta stage RESOLVE belum tersedia.
 
 Mulai dari system-design untuk membaca keseluruhan rancangan, lalu system-contracts dan storage-consistency untuk semantik integrasi. Corpus-plan mengikat sumber pilihan pengguna dan prosedur gold dataset. Development-plan mengurutkan seluruh implementasi menurut dependency beserta bukti kelulusannya. Dokumen desain tidak berarti pipeline atau benchmark sudah aktif; status kontrak C01 dijelaskan terpisah.
 
