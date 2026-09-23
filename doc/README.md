@@ -35,6 +35,8 @@ serta stage RESOLVE belum tersedia.
 [verification-report-k01-go-candidate-proposals.md](verification-report-k01-go-candidate-proposals.md)
 mencatat pemeriksaan Go atas scope ID, alias kandidat positif, serta proposal sebelum keputusan
 registry; receipt dan integrasi stage masih belum diuji.
+[verification-report-g01-review-packet.md](verification-report-g01-review-packet.md) mencatat triase enam PDF
+yang metadata antreannya dicocokkan ulang ke inventory dan byte PDF-nya diverifikasi; gold manusia belum tersedia.
 
 Mulai dari system-design untuk membaca keseluruhan rancangan, lalu system-contracts dan storage-consistency untuk semantik integrasi. Corpus-plan mengikat sumber pilihan pengguna dan prosedur gold dataset. Development-plan mengurutkan seluruh implementasi menurut dependency beserta bukti kelulusannya. Dokumen desain tidak berarti pipeline atau benchmark sudah aktif; status kontrak C01 dijelaskan terpisah.
 
