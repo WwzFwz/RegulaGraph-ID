@@ -33,4 +33,6 @@ dan [test_evaluation_telemetry.py](test_evaluation_telemetry.py). Kontrak C01 te
 [test_corpus_profile.py](test_corpus_profile.py). Gunakan generated bindings pada PYTHONPATH.
 [test_g01_annotation_queue.py](test_g01_annotation_queue.py) memeriksa antrean deterministik, larangan
 overwrite, dan penolakan inventory records yang berubah; fixture tidak berisi label manusia.
+[test_g01_review_packet.py](test_g01_review_packet.py) memeriksa pemilihan PDF deterministik, integritas byte,
+penolakan metadata/path yang tidak sesuai inventory, escaping judul, dan larangan overwrite; fixture juga bukan gold.
 PASS test tersebut membuktikan perilaku deterministik evaluator, bukan target benchmark.
