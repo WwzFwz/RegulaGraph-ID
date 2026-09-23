@@ -28,6 +28,8 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. Pipeline parsing/graph/retrieval, mutasi backend, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan target kualitas atau latency.
 
+[context_builder.go](context_builder.go) kini mengepak bukti langsung dari satu snapshot dalam urutan retrieval, menghitung seluruh fragmen melalui penghitung tokenizer yang dipasok caller, serta menandai item, parent, path, dan dependency yang tidak masuk sebagai konteks parsial. ID jalur graph tidak dianggap bukti jalur sudah dirender. Parent/pengecualian/path hydration dan tokenizer generator aktual belum tersambung; generator, citation mapper, dan validasi semantik jawaban tetap scaffold.
+
 ## Rekomendasi implementasi anak
 
 Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan status aktif/scaffold; tabel bukan klaim fitur sudah tersedia. Integrasikan keluaran anak melalui kontrak induk dan jalankan [protokol verifikasi](../../../../doc/verification.md) sebelum menyatakan paket selesai. Target angka tetap bersumber dari configs/benchmark-targets.yaml.
