@@ -31,4 +31,6 @@ E01 memiliki pengujian aktif pada [test_evaluation_config.py](test_evaluation_co
 dan [test_evaluation_telemetry.py](test_evaluation_telemetry.py). Kontrak C01 tetap diperiksa oleh
 [test_evaluation_contracts.py](test_evaluation_contracts.py). Profiler corpus M01 diperiksa oleh
 [test_corpus_profile.py](test_corpus_profile.py). Gunakan generated bindings pada PYTHONPATH.
+[test_g01_annotation_queue.py](test_g01_annotation_queue.py) memeriksa antrean deterministik, larangan
+overwrite, dan penolakan inventory records yang berubah; fixture tidak berisi label manusia.
 PASS test tersebut membuktikan perilaku deterministik evaluator, bukan target benchmark.

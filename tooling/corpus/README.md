@@ -25,6 +25,11 @@ menerbitkan run secara bersamaan; lock yang tersisa setelah proses mati menandak
 [profile_pdfs.py](profile_pdfs.py) membandingkan pypdf, binding MuPDF, dan binding PDFium melalui proses
 terisolasi per dokumen dengan timeout keras, bounded concurrency, klasifikasi heuristic
 text/scan-candidate/mixed/sparse, serta JSONL/result manifest yang memakai sampel identik.
+[prepare_gold_queue.py](prepare_gold_queue.py) menerbitkan antrean anotasi G01 yang deterministik dari PDF
+primary pada inventory D01 yang diaudit. Manifest mengikat inventory ID, hash records, seed, jumlah per
+portal/ukuran/tahun metadata, dan hash queue; setiap baris menyimpan sumber, record, path blob, dan status
+UNREVIEWED. Tool menolak overwrite dan perubahan records, tetapi tidak membaca ulang byte PDF. Output ini
+belum memiliki label hukum, split, atau corpus snapshot beku, sehingga bukan gold dataset.
 [__init__.py](__init__.py) menandai package offline tanpa side effect.
 
 ## Benchmark dan perhatian kualitas
@@ -38,3 +43,4 @@ cold/warm terpisah dan jangan memakai heuristic strata sebagai label gold. Targe
 
 Pembanding pypdf/MuPDF/PDFium M01 aktif. Perbandingan OCR, peak RSS, layout/source mapping, CER/WER,
 table/column gold, binding Rust, serta pemilihan engine produksi belum selesai.
+Antrean kandidat G01 aktif; anotasi dan adjudikasi manusia belum selesai.

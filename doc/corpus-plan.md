@@ -65,6 +65,13 @@ Sampling harus mencakup regulasi pusat dan kementerian sesuai scope inventory, v
 
 ## 6. Prosedur penyusunan gold
 
+Antrean kerja awal dapat dibuat dengan `python -m tooling.corpus.prepare_gold_queue --inventory
+data/acquisition/inventory.json --output artifacts/g01-annotation-queue-<run-id>` dari root repo.
+Setiap baris mempertahankan blob SHA-256, sumber portal/record, dan strata metadata untuk dipilih reviewer.
+Manifest antrean ini berstatus `CANDIDATES_ONLY`: ia belum membekukan snapshot corpus, memverifikasi ulang
+byte PDF, menghasilkan label hukum, atau memenuhi jumlah gold wajib. JDIHN masih gap bila belum ada PDF
+valid pada inventory. Lakukan audit blob/snapshot dan review sebelum membuat gold berlabel.
+
 1. Bekukan corpus snapshot dan daftar dokumen/versi yang dapat dipakai. Tetapkan label guideline serta contoh ambigu sebelum menilai output sistem.
 2. Tulis pertanyaan dan intended date/interpretation. Tentukan answerable/unanswerable terhadap snapshot tersebut, bukan seluruh pengetahuan dunia.
 3. Label expected claims, syarat/pengecualian, provision-version IDs, source spans, dan satu atau beberapa acceptable minimal evidence sets. Multi-hop menyertakan ordered relations/support yang cukup menjelaskan jawaban.

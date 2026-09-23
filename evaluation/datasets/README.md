@@ -29,6 +29,9 @@ Lihat [kebijakan benchmark](../../doc/benchmark-policy.md) untuk protokol penguk
 Kontrak/validator manifest C01 dan konsumsi manifest oleh runner E01 sudah aktif. Gold dataset manusia,
 versioned loader pertanyaan, serta hasil acceptance produksi belum tersedia; fixture sintetis tidak
 membuktikan kualitas model.
+Antrean kandidat PDF di [tooling/corpus](../../tooling/corpus/README.md) hanya membantu memilih bahan
+anotasi. Baris UNREVIEWED tidak boleh dimuat sebagai GoldQuestion atau dibagi train/dev/test sebelum
+snapshot corpus, guideline, label, dan review manusia dibekukan.
 
 ## Rekomendasi implementasi anak
 
