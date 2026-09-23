@@ -63,6 +63,7 @@ Ringkasan milestone: [verification-report-c01.md](verification-report-c01.md),
 [verification-report-k01-exact-registry.md](verification-report-k01-exact-registry.md),
 [verification-report-k01-stage-handoff.md](verification-report-k01-stage-handoff.md),
 [verification-report-k01-ontology.md](verification-report-k01-ontology.md),
+[verification-report-k01-resolution-closure.md](verification-report-k01-resolution-closure.md),
 [verification-report-m01-pdf-profile.md](verification-report-m01-pdf-profile.md), dan
 [verification-report-s01.md](verification-report-s01.md), serta
 [verification-report-semantic-extract.md](verification-report-semantic-extract.md). Laporan S01 mengikat implementasi
