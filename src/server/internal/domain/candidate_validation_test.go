@@ -56,9 +56,13 @@ func TestValidateRegistryCandidateBatchRejectsDrift(t *testing.T) {
 		"different extraction hash": func(batch *pb.RegistryCandidateBatch) { batch.SourceExtractionBatch.ContentHash.Sha256 = "forged" },
 		"lookup revision omitted":   func(batch *pb.RegistryCandidateBatch) { batch.Dependencies.LookupScopeRevisions = nil },
 		"lookup revision drift":     func(batch *pb.RegistryCandidateBatch) { batch.Dependencies.LookupScopeRevisions[0].Revision = 6 },
-		"silent partial":            func(batch *pb.RegistryCandidateBatch) { batch.Completeness = pb.Completeness_COMPLETENESS_PARTIAL },
-		"no positive lookup scope":  func(batch *pb.RegistryCandidateBatch) { batch.Lookups[0].Scopes[0].Revision.EmptyResult = true },
-		"wrong canonical scope":     func(batch *pb.RegistryCandidateBatch) { batch.Lookups[0].Scopes[0].CanonicalScope = "regional" },
+		"lookup revision from future": func(batch *pb.RegistryCandidateBatch) {
+			batch.Lookups[0].Scopes[0].Revision.Revision = 8
+			batch.Dependencies.LookupScopeRevisions[0].Revision = 8
+		},
+		"silent partial":           func(batch *pb.RegistryCandidateBatch) { batch.Completeness = pb.Completeness_COMPLETENESS_PARTIAL },
+		"no positive lookup scope": func(batch *pb.RegistryCandidateBatch) { batch.Lookups[0].Scopes[0].Revision.EmptyResult = true },
+		"wrong canonical scope":    func(batch *pb.RegistryCandidateBatch) { batch.Lookups[0].Scopes[0].CanonicalScope = "regional" },
 		"candidate overflow": func(batch *pb.RegistryCandidateBatch) {
 			batch.Candidates = append(batch.Candidates, proto.Clone(batch.Candidates[0]).(*pb.CanonicalEntity))
 			batch.Candidates[1].Meta.RecordId = "canonical:two"

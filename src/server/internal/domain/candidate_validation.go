@@ -138,6 +138,7 @@ func ValidateRegistryCandidateBatch(batch *pb.RegistryCandidateBatch, source *pb
 		for _, scope := range lookup.Scopes {
 			revision := scope.GetRevision()
 			if revision == nil || revision.ScopeId == "" ||
+				revision.Revision > batch.RegistryRevision ||
 				seenScopes[revision.ScopeId] || scope.EntityType != mention.CandidateType ||
 				scope.CanonicalScope == "" || scope.NormalizedLookup == "" ||
 				len(scope.CandidateIds) > maximumCandidatesPerMention-candidateCount ||
