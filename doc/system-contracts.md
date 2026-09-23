@@ -75,6 +75,8 @@ Ontology EXTRACT bersumber dari `configs/ontology-v1.jsonc`. Go Semantic Gateway
 
 ResolutionProposal memakai client-local correlation ID untuk objek baru; ResolveBatch registry mengembalikan canonical ID sehingga semua referensi downstream dapat diikat ulang sebelum publikasi. Assignment idempotent berdasarkan proposal key dan registry revision. Alias adalah lookup; daftar sinonim tanpa konteks bukan canonical registry.
 
+Adapter PostgreSQL K01 sekarang mendukung registrasi append-only alias unreviewed untuk canonical ID regulasi/organisasi yang telah dialokasikan, serta lookup batch pada tipe, scope hukum, dan bentuk normalisasi yang eksplisit. Satu lookup mengembalikan seluruh kandidat ambigu sampai batas yang diminta dan revision scope untuk hasil positif maupun kosong. Reader mengunci satu snapshot registry dan memverifikasi payload serta kolom indeks sebelum mengeluarkan kandidat. Ini belum membuktikan kebenaran `support_refs`, pemilihan scope/normalisasi oleh producer, historical as-of lookup, atau keputusan merge/split; stage RESOLVE harus memverifikasi referensi artefak EXTRACT dan mengikat revision/scope tersebut sebelum assignment atau publication.
+
 Proposal EXTRACT tidak boleh menulis mention ID ke field `canonical_id`. Endpoint assertion dan qualifier entity tetap menunjuk `mention_id` deterministik sampai keputusan resolution yang revision-bound tersedia. ASSEMBLE menolak graph delta yang masih membawa referensi provisional atau canonical assignment stale.
 
 ## 5. Evidence, indeks, dan retrieval
