@@ -8,7 +8,7 @@ Logika di luar cakupan ini ditempatkan pada komponen pemiliknya. Jika fungsi bar
 
 ## Peran dan integrasi anak
 
-Hasilnya batch untuk Go publisher. Learned sparse dan BM25 tetap dibedakan; folder ini tidak menulis publication marker.
+Hasil akhirnya batch untuk Go publisher. `lexical.rs` sekarang menghitung statistik BM25 incremental dari token yang sudah dianalisis dengan identity analyzer terpin, tanpa menyamakan learned sparse BGE-M3 dengan BM25. Skor lokal memakai BM25 dengan frekuensi query sebagai pengali; formula dan parameter harus dipin saat artifact generation dibuat. Analyzer produksi, serialisasi artifact, writer backend, dan snapshot publication belum tersambung; folder ini tidak menulis publication marker.
 
 Pertahankan source/canonical/provision-version/snapshot ID dan schema version lintas anak. Boundary runtime mengikuti [src/contracts](../../../contracts/README.md), dengan pekerjaan batch atau inference yang jelas. Perubahan bentuk data, error/status, serta offset sumber harus didokumentasikan bersama konsumennya; jangan menggandakan kebijakan publikasi di beberapa runtime.
 
@@ -33,4 +33,4 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
 | [dense.rs](dense.rs) | Build model-bound dense records via batch embedding with deterministic IDs, dimensions and representation generation. | Test model drift, partial embeddings and retry idempotency; measure batch throughput/RSS and downstream recall. |
-| [lexical.rs](lexical.rs) | Build versioned BM25 analyzer/statistics records separately from learned sparse embeddings and preserve filter payloads. | Test legal identifiers, Unicode tokenization and incremental statistics; compare full rebuild parity and retrieval quality. |
+| [lexical.rs](lexical.rs) | Bekukan analyzer Unicode/nomor hukum, serialisasikan statistik/dictionary berversi, lalu hubungkan dengan filter payload dan query BM25. | Tes incremental/full rebuild statistik dan token Unicode lulus; parity retrieval, full corpus, throughput/RSS, dan Recall@k tetap NOT_MEASURED. |
