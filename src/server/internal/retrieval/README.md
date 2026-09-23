@@ -32,6 +32,8 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. Pipeline parsing/graph/retrieval, mutasi backend, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan target kualitas atau latency.
 
+Fusion RRF deterministik pada [fusion.go](fusion.go) sekarang aktif sebagai fungsi lokal: input cabang berbatas, rank dan keputusan filter divalidasi, hasil ambigu antar cabang dideduplikasi berdasarkan evidence key, dan seluruh provenance dipertahankan. Pemanggil tetap wajib membentuk key dari bukti/versi tepercaya dan menerapkan filter corpus/snapshot/versi yang nyata sebelum fusion. Jalur dense, BM25, graph, reranking, serta orkestrasi retrieval belum tersambung; tes lokal tidak membuktikan Recall@k atau p95/p99.
+
 ## Rekomendasi implementasi anak
 
 Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan status aktif/scaffold; tabel bukan klaim fitur sudah tersedia. Integrasikan keluaran anak melalui kontrak induk dan jalankan [protokol verifikasi](../../../../doc/verification.md) sebelum menyatakan paket selesai. Target angka tetap bersumber dari configs/benchmark-targets.yaml.
