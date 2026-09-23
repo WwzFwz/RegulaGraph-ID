@@ -27,6 +27,7 @@ use crate::domain::wire::{self, Limits};
 use crate::knowledge_graph::extraction::extractor::{
     assemble_extraction_batch, ExtractionBatchConfig, ExtractionBatchParts,
 };
+use crate::knowledge_graph::schema::Ontology;
 use crate::wire::{common, inference, jobs};
 use protobuf::{EnumOrUnknown, MessageField};
 use sha2::{Digest, Sha256};
@@ -52,6 +53,7 @@ pub struct ParseBatchProcessorConfig {
 pub struct ExtractionRuntimeConfig {
     pub model: common::ModelManifest,
     pub ontology_version: String,
+    pub ontology: Arc<Ontology>,
     pub output_schema: common::ArtifactRef,
     pub batch: ExtractionBatchConfig,
     pub maximum_items_per_rpc: usize,
@@ -993,6 +995,17 @@ impl ParseBatchProcessor {
                 "EXTRACT runtime is not configured",
             )
         })?;
+        if !request.manifest.as_ref().is_some_and(|manifest| {
+            manifest
+                .input_hashes
+                .iter()
+                .any(|hash| hash.sha256 == runtime.config.ontology.sha256())
+        }) {
+            return Err(ProcessError::new(
+                Code::FailedPrecondition,
+                "EXTRACT request did not pin ontology bytes",
+            ));
+        }
         let context = request
             .context
             .as_ref()
@@ -1077,6 +1090,16 @@ impl ParseBatchProcessor {
                     "semantic response producer manifest is missing",
                 )
             })?;
+            if !response_producer
+                .input_hashes
+                .iter()
+                .any(|hash| hash.sha256 == runtime.config.ontology.sha256())
+            {
+                return Err(ProcessError::new(
+                    Code::FailedPrecondition,
+                    "semantic producer did not pin ontology bytes",
+                ));
+            }
             if producer
                 .as_ref()
                 .is_some_and(|expected| expected != response_producer)
@@ -1219,6 +1242,11 @@ impl ParseBatchProcessor {
             &runtime.config.batch,
         )
         .map_err(|error| ProcessError::new(Code::FailedPrecondition, error.to_string()))?;
+        runtime
+            .config
+            .ontology
+            .validate_extraction_batch(&output)
+            .map_err(|error| ProcessError::new(Code::FailedPrecondition, error))?;
         let persisted = persist_extraction_batch(&self.store, &output, &input)
             .map_err(|error| ProcessError::new(Code::Internal, error.to_string()))?;
         let output_ref = persisted.reference;
@@ -1273,10 +1301,10 @@ fn validate_extraction_runtime(config: &ExtractionRuntimeConfig) -> Result<(), P
             "EXTRACT runtime requires an EXTRACT model with prompt hash",
         ));
     }
-    if config.ontology_version.trim().is_empty() {
+    if config.ontology_version != config.ontology.version() {
         return Err(ProcessError::new(
             Code::InvalidArgument,
-            "EXTRACT ontology version is required",
+            "EXTRACT ontology version differs from pinned source",
         ));
     }
     if config.output_schema.media_type != "application/schema+json" {
@@ -1502,6 +1530,7 @@ fn extraction_operation_key(
         hasher.update([0]);
     }
     hasher.update(config.ontology_version.as_bytes());
+    hasher.update(config.ontology.sha256().as_bytes());
     hasher.update(batch_index.to_le_bytes());
     for item in items {
         hasher.update(item.item_id.as_bytes());
@@ -1968,6 +1997,7 @@ mod tests {
     struct EmptyExtraction {
         calls: Arc<AtomicUsize>,
         reject_first_call: bool,
+        invalid_typed_output: bool,
     }
 
     impl ExtractionInference for EmptyExtraction {
@@ -1979,6 +2009,18 @@ mod tests {
         {
             let call_index = self.calls.fetch_add(1, Ordering::AcqRel);
             let model = request.batch.model.as_ref().unwrap().clone();
+            let producer = common::ProducerManifest {
+                software: "semantic-fixture".to_owned(),
+                build: "v1".to_owned(),
+                schema_version: 1,
+                models: vec![model.clone()],
+                prompt_hashes: vec![model.prompt_hash.as_ref().unwrap().clone()],
+                config_hash: MessageField::some(hash('f')),
+                input_hashes: vec![test_ontology().content_hash()],
+                ..Default::default()
+            };
+            let corpus_id = request.batch.context.corpus_id.clone();
+            let ontology_version = request.batch.ontology_version.clone();
             Ok(inference::ExtractBatchResponse {
                 request_id: request.batch.context.request_id.clone(),
                 results: request
@@ -2001,6 +2043,15 @@ mod tests {
                                         ..Default::default()
                                     },
                                 )
+                            } else if self.invalid_typed_output {
+                                inference::extract_item_result::Result::Proposal(
+                                    invalid_ontology_proposal(
+                                        &item,
+                                        &producer,
+                                        &corpus_id,
+                                        &ontology_version,
+                                    ),
+                                )
                             } else {
                                 inference::extract_item_result::Result::Proposal(
                                     inference::ExtractionProposal::default(),
@@ -2022,17 +2073,64 @@ mod tests {
                     duration_ns: 10,
                     ..Default::default()
                 }],
-                producer_manifest: MessageField::some(common::ProducerManifest {
-                    software: "semantic-fixture".to_owned(),
-                    build: "v1".to_owned(),
-                    schema_version: 1,
-                    models: vec![model.clone()],
-                    prompt_hashes: vec![model.prompt_hash.as_ref().unwrap().clone()],
-                    config_hash: MessageField::some(hash('f')),
-                    ..Default::default()
-                }),
+                producer_manifest: MessageField::some(producer),
                 ..Default::default()
             })
+        }
+    }
+
+    fn invalid_ontology_proposal(
+        item: &inference::TextItem,
+        producer: &common::ProducerManifest,
+        corpus_id: &str,
+        ontology_version: &str,
+    ) -> inference::ExtractionProposal {
+        use crate::wire::graph;
+        let provenance = item.provenance.as_ref().unwrap();
+        let span = provenance.spans[0].clone();
+        let source_refs = provenance.sources.clone();
+        let identity = format!("{:x}", Sha256::digest(item.item_id.as_bytes()));
+        let subject_id = format!("mention:{identity}:subject");
+        let object_id = format!("mention:{identity}:object");
+        let assertion_id = format!("assertion:{identity}");
+        let make_mention = |id: &str| graph::Mention {
+            meta: MessageField::some(meta(corpus_id, id)),
+            text_span: MessageField::some(span.clone()),
+            source_refs: source_refs.clone(),
+            surface_form: item.text.clone(),
+            candidate_type: "legal_concept".to_owned(),
+            extraction_manifest: MessageField::some(producer.clone()),
+            ..Default::default()
+        };
+        inference::ExtractionProposal {
+            mentions: vec![make_mention(&subject_id), make_mention(&object_id)],
+            assertions: vec![graph::RelationAssertion {
+                meta: MessageField::some(meta(corpus_id, &assertion_id)),
+                subject_id,
+                object_id,
+                predicate_id: "unknown_predicate".to_owned(),
+                temporal_scope: MessageField::some(common::TemporalScope {
+                    mode: EnumOrUnknown::new(common::TemporalMode::TEMPORAL_MODE_CURRENT),
+                    unresolved_policy: EnumOrUnknown::new(
+                        common::UnresolvedPolicy::UNRESOLVED_POLICY_REQUIRE_REVIEW,
+                    ),
+                    ..Default::default()
+                }),
+                origin: EnumOrUnknown::new(graph::AssertionOrigin::ASSERTION_ORIGIN_EXPLICIT),
+                ontology_version: ontology_version.to_owned(),
+                ..Default::default()
+            }],
+            supports: vec![graph::SupportRecord {
+                meta: MessageField::some(meta(corpus_id, &format!("support:{identity}"))),
+                assertion_id,
+                evidence_spans: vec![span],
+                source_refs,
+                extraction_manifest: MessageField::some(producer.clone()),
+                independent_source_group: provenance.sources[0].source_blob_id.clone(),
+                review_state: EnumOrUnknown::new(common::ReviewState::REVIEW_STATE_UNREVIEWED),
+                ..Default::default()
+            }],
+            ..Default::default()
         }
     }
 
@@ -2321,7 +2419,8 @@ mod tests {
         };
         let extraction_config = ExtractionRuntimeConfig {
             model,
-            ontology_version: "ontology:fixture-v1".to_owned(),
+            ontology_version: "id-regulation-ontology-v1".to_owned(),
+            ontology: Arc::new(test_ontology()),
             output_schema: common::ArtifactRef {
                 artifact_id: "artifact:schema:extract".to_owned(),
                 content_hash: MessageField::some(hash('e')),
@@ -2340,6 +2439,7 @@ mod tests {
                 Arc::new(EmptyExtraction {
                     calls: Arc::clone(&calls),
                     reject_first_call: false,
+                    invalid_typed_output: false,
                 }),
                 extraction_config.clone(),
             )
@@ -2392,8 +2492,9 @@ mod tests {
                 Arc::new(EmptyExtraction {
                     calls: Arc::clone(&rejected_calls),
                     reject_first_call: true,
+                    invalid_typed_output: false,
                 }),
-                extraction_config,
+                extraction_config.clone(),
             )
             .unwrap();
         let rejected_response = processor
@@ -2436,6 +2537,48 @@ mod tests {
         .unwrap();
         assert_eq!(rejected.item_counts.rejected, 1);
         assert_eq!(rejected.issues.len(), 1);
+
+        let malicious_calls = Arc::new(AtomicUsize::new(0));
+        let processor = processor
+            .with_extraction(
+                Arc::new(EmptyExtraction {
+                    calls: Arc::clone(&malicious_calls),
+                    reject_first_call: false,
+                    invalid_typed_output: true,
+                }),
+                extraction_config,
+            )
+            .unwrap();
+        let error = processor
+            .process(
+                jobs::ProcessBatchRequest {
+                    context: MessageField::some(request_context("extract:invalid-ontology")),
+                    job_id: "job:extract-invalid-ontology".to_owned(),
+                    attempt: 1,
+                    lease: MessageField::some(jobs::Lease {
+                        owner_id: "worker:fixture".to_owned(),
+                        fence: 10,
+                        expires_at: MessageField::some(Timestamp {
+                            seconds: 2_000_000_100,
+                            ..Default::default()
+                        }),
+                        ..Default::default()
+                    }),
+                    sources: vec![response.document_batch.as_ref().unwrap().clone()],
+                    manifest: MessageField::some(producer()),
+                    stages: vec![EnumOrUnknown::new(jobs::JobStage::JOB_STAGE_EXTRACT)],
+                    ..Default::default()
+                },
+                &AtomicBool::new(false),
+                &|_, _, _| {},
+            )
+            .expect_err("invalid ontology proposal should never be persisted");
+        assert_eq!(error.code(), Code::FailedPrecondition);
+        assert!(
+            error.to_string().contains("unknown predicate"),
+            "unexpected rejection: {error}"
+        );
+        assert!(malicious_calls.load(Ordering::Acquire) > 0);
     }
 
     fn meta(corpus_id: &str, record_id: &str) -> common::RecordMeta {
@@ -2454,12 +2597,21 @@ mod tests {
         }
     }
 
+    fn test_ontology() -> Ontology {
+        Ontology::parse_jsonc(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../configs/ontology-v1.jsonc"
+        )))
+        .unwrap()
+    }
+
     fn producer() -> common::ProducerManifest {
         common::ProducerManifest {
             software: "fixture".to_owned(),
             build: "fixture".to_owned(),
             schema_version: 1,
             config_hash: MessageField::some(hash('b')),
+            input_hashes: vec![test_ontology().content_hash()],
             ..Default::default()
         }
     }

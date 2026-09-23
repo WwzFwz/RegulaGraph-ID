@@ -10,6 +10,7 @@ use regulagraph_ingestion::adapters::storage::{ArtifactStore, ArtifactStoreConfi
 use regulagraph_ingestion::document::chunking::tokenizer::HuggingFaceTokenizer;
 use regulagraph_ingestion::document::parsing::pdf::{PdfParser, PdfParserConfig};
 use regulagraph_ingestion::knowledge_graph::extraction::extractor::ExtractionBatchConfig;
+use regulagraph_ingestion::knowledge_graph::schema::Ontology;
 use regulagraph_ingestion::wire::common;
 use regulagraph_ingestion::worker::transport::worker_server::WorkerServer;
 use regulagraph_ingestion::worker::{
@@ -19,6 +20,7 @@ use regulagraph_ingestion::worker::{
 use std::env;
 use std::error::Error;
 use std::fs;
+use std::io::Read;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -58,6 +60,27 @@ async fn main() -> Result<(), Box<dyn Error>> {
         },
     )?;
     let extraction = if let Some(endpoint) = configured("REGULAGRAPH_WORKER_SEMANTIC_ENDPOINT") {
+        let ontology_path = PathBuf::from(required("REGULAGRAPH_ONTOLOGY_PATH")?);
+        let ontology_file = fs::File::open(&ontology_path)?;
+        let ontology_metadata = ontology_file.metadata()?;
+        if !ontology_metadata.is_file()
+            || ontology_metadata.len() == 0
+            || ontology_metadata.len() > (1 << 20)
+        {
+            return Err("ontology file must be regular and at most 1 MiB".into());
+        }
+        let mut ontology_bytes = Vec::with_capacity(ontology_metadata.len() as usize);
+        ontology_file
+            .take((1 << 20) + 1)
+            .read_to_end(&mut ontology_bytes)?;
+        let ontology = Arc::new(Ontology::parse_jsonc(&ontology_bytes)?);
+        if ontology.sha256() != required("REGULAGRAPH_ONTOLOGY_SHA256")? {
+            return Err("ontology bytes differ from REGULAGRAPH_ONTOLOGY_SHA256".into());
+        }
+        let ontology_version = required("REGULAGRAPH_WORKER_EXTRACTION_ONTOLOGY_VERSION")?;
+        if ontology.version() != ontology_version {
+            return Err("ontology version differs from pinned source".into());
+        }
         let schema_path = PathBuf::from(required("REGULAGRAPH_WORKER_EXTRACTION_OUTPUT_SCHEMA")?);
         let schema_bytes = fs::read(&schema_path)?;
         let schema_ref = store
@@ -100,7 +123,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
             Arc::new(client),
             ExtractionRuntimeConfig {
                 model,
-                ontology_version: required("REGULAGRAPH_WORKER_EXTRACTION_ONTOLOGY_VERSION")?,
+                ontology_version,
+                ontology,
                 output_schema: schema_ref,
                 batch: ExtractionBatchConfig::default(),
                 maximum_items_per_rpc: parse_positive(
