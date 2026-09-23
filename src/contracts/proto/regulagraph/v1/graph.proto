@@ -122,6 +122,31 @@ message ExtractionBatch {
   TokenUsage token_usage=14 [(rules).required=true];
   repeated StageDuration durations=15;
 }
+// Read-only, revision-pinned registry lookup for one EXTRACT artifact. Go creates this bounded
+// artifact before dispatching RESOLVE; Rust consumes it without per-mention registry RPCs.
+// Every lookup, including an empty one, retains its scope revision for incremental invalidation.
+message CandidateLookupScope {
+  LookupScopeRevision revision=1 [(rules).required=true];
+  string entity_type=2 [(rules).required=true];
+  string canonical_scope=3 [(rules).required=true];
+  string normalized_lookup=4 [(rules).required=true];
+  repeated string candidate_ids=5 [(rules)={ascii_id:true unique:true}];
+}
+message CandidateLookup {
+  string mention_id=1 [(rules)={required:true ascii_id:true}];
+  repeated CandidateLookupScope scopes=2 [(rules).min_items=1];
+}
+message RegistryCandidateBatch {
+  RecordMeta meta=1 [(rules).required=true];
+  RequestContext context=2 [(rules).required=true];
+  ArtifactRef source_extraction_batch=3 [(rules).required=true];
+  uint64 registry_revision=4 [(rules).positive=true];
+  repeated CandidateLookup lookups=5;
+  repeated CanonicalEntity candidates=6;
+  repeated Alias aliases=7;
+  DependencyManifest dependencies=8 [(rules).required=true];
+  Completeness completeness=9 [(rules).required=true];
+}
 // Immutable output of RESOLVE. Proposals remain auditable beside registry decisions; downstream
 // ASSEMBLE consumes only assignments whose expected revision still matches the registry snapshot.
 message ResolutionBatch {

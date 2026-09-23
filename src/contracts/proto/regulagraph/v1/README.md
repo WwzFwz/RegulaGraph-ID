@@ -16,6 +16,8 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 Berkas: [answers.proto](answers.proto), [common.proto](common.proto), [documents.proto](documents.proto), [evidence.proto](evidence.proto), [graph.proto](graph.proto), [inference.proto](inference.proto), [jobs.proto](jobs.proto).
 
+`RegistryCandidateBatch` adalah kontrak handoff read-only antara EXTRACT dan RESOLVE: hasil kandidat serta lookup kosong dicatat per scope bersama revisi, tipe, canonical scope, dan key normalisasi. Kontrak aditif masuk schema lock setelah review independen. Pembaca registry dan konsumen RESOLVE produksi belum tersedia; validasi struktur tidak membuktikan kebenaran hasil query database.
+
 ## Benchmark dan perhatian performa
 
 Ukur p50/p95/p99, throughput, waktu antre, serta RSS/VRAM sesuai workload. Ambang wajib ada di [target numerik wajib](../../../../../configs/benchmark-targets.yaml) (REQUIRED_UNMEASURED); ukur cold/warm terpisah dan pertahankan kualitas sumber/versi.

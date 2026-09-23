@@ -1080,6 +1080,89 @@
         "type_name": ".regulagraph.v1.FilterDecision"
       }
     },
+    "regulagraph.v1.CandidateLookup": {
+      "1": {
+        "label": 1,
+        "name": "mention_id",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "ascii_id": true,
+          "required": true
+        },
+        "type": 9,
+        "type_name": ""
+      },
+      "2": {
+        "label": 3,
+        "name": "scopes",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "min_items": 1
+        },
+        "type": 11,
+        "type_name": ".regulagraph.v1.CandidateLookupScope"
+      }
+    },
+    "regulagraph.v1.CandidateLookupScope": {
+      "1": {
+        "label": 1,
+        "name": "revision",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 11,
+        "type_name": ".regulagraph.v1.LookupScopeRevision"
+      },
+      "2": {
+        "label": 1,
+        "name": "entity_type",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 9,
+        "type_name": ""
+      },
+      "3": {
+        "label": 1,
+        "name": "canonical_scope",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 9,
+        "type_name": ""
+      },
+      "4": {
+        "label": 1,
+        "name": "normalized_lookup",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 9,
+        "type_name": ""
+      },
+      "5": {
+        "label": 3,
+        "name": "candidate_ids",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "ascii_id": true,
+          "unique": true
+        },
+        "type": 9,
+        "type_name": ""
+      }
+    },
     "regulagraph.v1.CanonicalEntity": {
       "1": {
         "label": 1,
@@ -6347,6 +6430,101 @@
         "rules": {},
         "type": 11,
         "type_name": ".regulagraph.v1.OperationError"
+      }
+    },
+    "regulagraph.v1.RegistryCandidateBatch": {
+      "1": {
+        "label": 1,
+        "name": "meta",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 11,
+        "type_name": ".regulagraph.v1.RecordMeta"
+      },
+      "2": {
+        "label": 1,
+        "name": "context",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 11,
+        "type_name": ".regulagraph.v1.RequestContext"
+      },
+      "3": {
+        "label": 1,
+        "name": "source_extraction_batch",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 11,
+        "type_name": ".regulagraph.v1.ArtifactRef"
+      },
+      "4": {
+        "label": 1,
+        "name": "registry_revision",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "positive": true
+        },
+        "type": 4,
+        "type_name": ""
+      },
+      "5": {
+        "label": 3,
+        "name": "lookups",
+        "oneof": null,
+        "optional": false,
+        "rules": {},
+        "type": 11,
+        "type_name": ".regulagraph.v1.CandidateLookup"
+      },
+      "6": {
+        "label": 3,
+        "name": "candidates",
+        "oneof": null,
+        "optional": false,
+        "rules": {},
+        "type": 11,
+        "type_name": ".regulagraph.v1.CanonicalEntity"
+      },
+      "7": {
+        "label": 3,
+        "name": "aliases",
+        "oneof": null,
+        "optional": false,
+        "rules": {},
+        "type": 11,
+        "type_name": ".regulagraph.v1.Alias"
+      },
+      "8": {
+        "label": 1,
+        "name": "dependencies",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 11,
+        "type_name": ".regulagraph.v1.DependencyManifest"
+      },
+      "9": {
+        "label": 1,
+        "name": "completeness",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 14,
+        "type_name": ".regulagraph.v1.Completeness"
       }
     },
     "regulagraph.v1.RegistryResolveRequest": {
