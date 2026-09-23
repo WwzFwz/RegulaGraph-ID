@@ -1,20 +1,51 @@
-// Memuat, menggabungkan, dan memvalidasi konfigurasi environment serta YAML untuk aplikasi.
+// Loads explicit runtime configuration that must be shared across Go and Rust boundaries.
 //
-// Peran dalam komponen:
-// Menjadi titik masuk konfigurasi bagi workflow dan dependency wiring; belum ada loader yang diimplementasikan.
-//
-// Kontrak integrasi dan perhatian implementasi:
-// Rahasia tidak dicetak; konfigurasi eksperimen menghasilkan fingerprint dan parameter tak dikenal tidak diterima diam-diam.
-//
-// Benchmark dan gate penerimaan:
-// [CONFIG] Konfigurasi yang tidak valid harus ditolak secara eksplisit saat loader diimplementasikan. Inisialisasi paket tidak boleh memicu I/O atau inference. Ukur startup dan waktu validasi bila menjadi bottleneck; ambang wajib mengikuti configs/benchmark-targets.yaml; hasil belum diukur.
-// Target numerik required: configs/benchmark-targets.yaml; status REQUIRED_UNMEASURED.
-// Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
-//
-// Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
-// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
-// Load typed config once; reject unknown fields, invalid limits and incompatible model/index manifests; emit a redacted deterministic fingerprint.
-// Bukti verifikasi: Test precedence, missing secrets, semantic validation and identical fingerprints across equivalent inputs; measure startup separately.
-// Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
+// LoadOntology reads at most 1 MiB once at startup, compiles a versioned vocabulary, and checks
+// the exact source SHA-256. Callers then pass the immutable object to gateways and workflows;
+// package import performs no I/O. Other ingestion/retrieval configuration remains staged.
+// Measure startup validation and rejected configuration drift; benchmark thresholds remain
+// REQUIRED_UNMEASURED in configs/benchmark-targets.yaml.
 
 package config
+
+import (
+	"fmt"
+	"io"
+	"os"
+	"regexp"
+
+	"regulagraph.local/server/internal/domain"
+)
+
+const maximumOntologyFileBytes = 1 << 20
+
+var lowerSHA256 = regexp.MustCompile(`^[0-9a-f]{64}$`)
+
+// LoadOntology verifies exact source bytes and compiles a shared, immutable ontology once at startup.
+// Its bounded read prevents an accidentally large configuration from exhausting runtime memory.
+func LoadOntology(path, expectedSHA256 string) (*domain.Ontology, error) {
+	if path == "" || !lowerSHA256.MatchString(expectedSHA256) {
+		return nil, fmt.Errorf("ontology path and lowercase SHA-256 are required")
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("open ontology: %w", err)
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil || !info.Mode().IsRegular() || info.Size() <= 0 || info.Size() > maximumOntologyFileBytes {
+		return nil, fmt.Errorf("ontology must be a regular file of 1..%d bytes", maximumOntologyFileBytes)
+	}
+	raw, err := io.ReadAll(io.LimitReader(file, maximumOntologyFileBytes+1))
+	if err != nil {
+		return nil, fmt.Errorf("read ontology: %w", err)
+	}
+	ontology, err := domain.ParseOntologyJSONC(raw)
+	if err != nil {
+		return nil, err
+	}
+	if ontology.ContentHash().Sha256 != expectedSHA256 {
+		return nil, fmt.Errorf("ontology bytes differ from pinned SHA-256")
+	}
+	return ontology, nil
+}
