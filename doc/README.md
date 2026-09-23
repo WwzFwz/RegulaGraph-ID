@@ -37,6 +37,8 @@ mencatat pemeriksaan Go atas scope ID, alias kandidat positif, serta proposal se
 registry; receipt dan integrasi stage masih belum diuji.
 [verification-report-g01-review-packet.md](verification-report-g01-review-packet.md) mencatat triase enam PDF
 yang metadata antreannya dicocokkan ulang ke inventory dan byte PDF-nya diverifikasi; gold manusia belum tersedia.
+[verification-report-a01-citation-mapping.md](verification-report-a01-citation-mapping.md) mencatat helper
+sitasi sumber terikat versi, cakupan semua bukti klaim, pemeriksaan URL final, dan batas integrasinya.
 
 Mulai dari system-design untuk membaca keseluruhan rancangan, lalu system-contracts dan storage-consistency untuk semantik integrasi. Corpus-plan mengikat sumber pilihan pengguna dan prosedur gold dataset. Development-plan mengurutkan seluruh implementasi menurut dependency beserta bukti kelulusannya. Dokumen desain tidak berarti pipeline atau benchmark sudah aktif; status kontrak C01 dijelaskan terpisah.
 
