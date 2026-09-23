@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"unicode/utf8"
 
 	pb "regulagraph.local/server/gen/regulagraph/v1"
 )
@@ -72,11 +73,14 @@ type Ontology struct {
 
 // ParseOntologyJSONC parses and compiles an ontology while hashing the exact input bytes.
 func ParseOntologyJSONC(raw []byte) (*Ontology, error) {
-	if len(raw) == 0 || len(raw) > maximumOntologyBytes {
-		return nil, errors.New("ontology source must be non-empty and at most 1 MiB")
+	if len(raw) == 0 || len(raw) > maximumOntologyBytes || !utf8.Valid(raw) {
+		return nil, errors.New("ontology source must be valid UTF-8 and at most 1 MiB")
 	}
 	payload, err := trimLeadingJSONCComments(raw)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateOntologyJSONShape(payload); err != nil {
 		return nil, err
 	}
 	decoder := json.NewDecoder(bytes.NewReader(payload))
@@ -95,6 +99,99 @@ func ParseOntologyJSONC(raw []byte) (*Ontology, error) {
 	digest := sha256.Sum256(raw)
 	ontology.contentHash = hex.EncodeToString(digest[:])
 	return ontology, nil
+}
+
+// validateOntologyJSONShape enforces exact case-sensitive keys, presence, and JSON value types.
+// Struct decoding alone would accept case variants and silently default missing boolean fields.
+func validateOntologyJSONShape(payload []byte) error {
+	root, err := exactJSONObject(payload, []string{"schema_version", "ontology_version", "entity_types", "qualifiers", "predicates"})
+	if err != nil {
+		return err
+	}
+	for _, name := range []string{"qualifiers", "predicates", "entity_types"} {
+		if len(root[name]) == 0 || root[name][0] != '[' {
+			return fmt.Errorf("ontology %q must be an array", name)
+		}
+	}
+	if len(root["ontology_version"]) == 0 || root["ontology_version"][0] != '"' {
+		return errors.New("ontology_version must be a string")
+	}
+	for _, group := range []struct {
+		name   string
+		fields []string
+		arrays []string
+	}{
+		{"qualifiers", []string{"id", "value_kinds"}, []string{"value_kinds"}},
+		{"predicates", []string{"id", "subject_types", "object_types", "qualifier_ids", "origins", "allow_self"},
+			[]string{"subject_types", "object_types", "qualifier_ids", "origins"}},
+	} {
+		var entries []json.RawMessage
+		if err := json.Unmarshal(root[group.name], &entries); err != nil {
+			return fmt.Errorf("decode ontology %s: %w", group.name, err)
+		}
+		for index, entry := range entries {
+			object, err := exactJSONObject(entry, group.fields)
+			if err != nil {
+				return fmt.Errorf("ontology %s[%d]: %w", group.name, index, err)
+			}
+			if len(object["id"]) == 0 || object["id"][0] != '"' {
+				return fmt.Errorf("ontology %s[%d].id must be a string", group.name, index)
+			}
+			for _, name := range group.arrays {
+				if len(object[name]) == 0 || object[name][0] != '[' {
+					return fmt.Errorf("ontology %s[%d].%s must be an array", group.name, index, name)
+				}
+			}
+			if group.name == "predicates" && string(object["allow_self"]) != "true" && string(object["allow_self"]) != "false" {
+				return fmt.Errorf("ontology predicates[%d].allow_self must be a boolean", index)
+			}
+		}
+	}
+	return nil
+}
+
+func exactJSONObject(raw []byte, fields []string) (map[string]json.RawMessage, error) {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	start, err := decoder.Token()
+	if err != nil || start != json.Delim('{') {
+		return nil, errors.New("ontology entry must be a JSON object")
+	}
+	values := make(map[string]json.RawMessage, len(fields))
+	allowed := make(map[string]struct{}, len(fields))
+	for _, field := range fields {
+		allowed[field] = struct{}{}
+	}
+	for decoder.More() {
+		token, err := decoder.Token()
+		if err != nil {
+			return nil, fmt.Errorf("decode ontology key: %w", err)
+		}
+		name, ok := token.(string)
+		if !ok {
+			return nil, errors.New("ontology key must be a string")
+		}
+		if _, ok := allowed[name]; !ok {
+			return nil, fmt.Errorf("unknown ontology field %q", name)
+		}
+		if _, duplicate := values[name]; duplicate {
+			return nil, fmt.Errorf("duplicate ontology field %q", name)
+		}
+		var value json.RawMessage
+		if err := decoder.Decode(&value); err != nil {
+			return nil, fmt.Errorf("decode ontology field %q: %w", name, err)
+		}
+		values[name] = value
+	}
+	if _, err := decoder.Token(); err != nil {
+		return nil, fmt.Errorf("decode ontology object end: %w", err)
+	}
+	if err := requireJSONEOF(decoder); err != nil {
+		return nil, err
+	}
+	if len(values) != len(fields) {
+		return nil, errors.New("ontology entry omits required fields")
+	}
+	return values, nil
 }
 
 func trimLeadingJSONCComments(raw []byte) ([]byte, error) {
@@ -318,6 +415,12 @@ func (ontology *Ontology) ValidateExtractionRecords(
 			return errors.New("ontology validation received an incomplete mention")
 		}
 		id := mention.GetMeta().GetRecordId()
+		if id == "" {
+			return errors.New("ontology validation received a mention without ID")
+		}
+		if _, duplicate := mentions[id]; duplicate {
+			return fmt.Errorf("ontology validation received duplicate mention %q", id)
+		}
 		if _, known := ontology.entityTypes[mention.GetCandidateType()]; !known {
 			return fmt.Errorf("mention %q has unknown ontology type %q", id, mention.GetCandidateType())
 		}
@@ -328,6 +431,9 @@ func (ontology *Ontology) ValidateExtractionRecords(
 			return errors.New("ontology validation received an incomplete assertion")
 		}
 		id := assertion.GetMeta().GetRecordId()
+		if id == "" || assertion.OntologyVersion != version {
+			return fmt.Errorf("assertion %q has no ID or differs from ontology version %q", id, version)
+		}
 		predicate, known := ontology.predicates[assertion.PredicateId]
 		if !known {
 			return fmt.Errorf("assertion %q has unknown predicate %q", id, assertion.PredicateId)
@@ -350,6 +456,9 @@ func (ontology *Ontology) ValidateExtractionRecords(
 			return fmt.Errorf("assertion %q has origin disallowed by predicate %q", id, assertion.PredicateId)
 		}
 		for _, qualifier := range assertion.Qualifiers {
+			if qualifier == nil {
+				return fmt.Errorf("assertion %q has a nil qualifier", id)
+			}
 			if _, allowed := predicate.qualifiers[qualifier.PredicateId]; !allowed {
 				return fmt.Errorf("assertion %q uses qualifier %q outside predicate %q", id, qualifier.PredicateId, assertion.PredicateId)
 			}

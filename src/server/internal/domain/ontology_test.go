@@ -32,13 +32,13 @@ func loadRepositoryOntology(t *testing.T) *Ontology {
 func validOntologyRecords() ([]*pb.Mention, []*pb.RelationAssertion) {
 	mentions := []*pb.Mention{
 		{Meta: &pb.RecordMeta{RecordId: "mention:organization"}, CandidateType: "organization"},
-		{Meta: &pb.RecordMeta{RecordId: "mention:permit"}, CandidateType: "permit"},
+		{Meta: &pb.RecordMeta{RecordId: "mention:requirement"}, CandidateType: "requirement"},
 	}
 	assertions := []*pb.RelationAssertion{{
 		Meta: &pb.RecordMeta{RecordId: "assertion:requires"}, SubjectId: "mention:organization",
-		PredicateId: "requires", ObjectId: "mention:permit", Origin: pb.AssertionOrigin_ASSERTION_ORIGIN_EXPLICIT,
+		PredicateId: "requires", ObjectId: "mention:requirement", Origin: pb.AssertionOrigin_ASSERTION_ORIGIN_EXPLICIT,
 		OntologyVersion: "id-regulation-ontology-v1",
-		Qualifiers: []*pb.Qualifier{{PredicateId: "scope", Value: &pb.Qualifier_MentionId{MentionId: "mention:permit"}}},
+		Qualifiers:      []*pb.Qualifier{{PredicateId: "scope", Value: &pb.Qualifier_MentionId{MentionId: "mention:requirement"}}},
 	}}
 	return mentions, assertions
 }
@@ -54,10 +54,12 @@ func TestOntologyAcceptsTypedExtractionRecords(t *testing.T) {
 func TestOntologyRejectsInvalidGraphSemantics(t *testing.T) {
 	ontology := loadRepositoryOntology(t)
 	tests := map[string]func([]*pb.Mention, []*pb.RelationAssertion){
-		"unknown mention type": func(mentions []*pb.Mention, _ []*pb.RelationAssertion) { mentions[0].CandidateType = "agency_typo" },
-		"unknown predicate": func(_ []*pb.Mention, assertions []*pb.RelationAssertion) { assertions[0].PredicateId = "requires_typo" },
+		"unknown mention type":  func(mentions []*pb.Mention, _ []*pb.RelationAssertion) { mentions[0].CandidateType = "agency_typo" },
+		"unknown predicate":     func(_ []*pb.Mention, assertions []*pb.RelationAssertion) { assertions[0].PredicateId = "requires_typo" },
 		"invalid endpoint type": func(mentions []*pb.Mention, _ []*pb.RelationAssertion) { mentions[0].CandidateType = "date" },
-		"self edge": func(_ []*pb.Mention, assertions []*pb.RelationAssertion) { assertions[0].ObjectId = assertions[0].SubjectId },
+		"self edge": func(_ []*pb.Mention, assertions []*pb.RelationAssertion) {
+			assertions[0].ObjectId = assertions[0].SubjectId
+		},
 		"wrong qualifier kind": func(_ []*pb.Mention, assertions []*pb.RelationAssertion) {
 			assertions[0].Qualifiers[0] = &pb.Qualifier{PredicateId: "effective_on", Value: &pb.Qualifier_Literal{Literal: "segera"}}
 		},
@@ -80,9 +82,13 @@ func TestOntologyRejectsInvalidGraphSemantics(t *testing.T) {
 func TestOntologyCompilerRejectsAmbiguousConfiguration(t *testing.T) {
 	valid := `{"schema_version":1,"ontology_version":"v1","entity_types":["thing"],"qualifiers":[{"id":"scope","value_kinds":["literal"]}],"predicates":[{"id":"links","subject_types":["thing"],"object_types":["thing"],"qualifier_ids":["scope"],"origins":["explicit"],"allow_self":false}]}`
 	tests := map[string]string{
-		"unknown field": strings.Replace(valid, `"schema_version":1`, `"schema_version":1,"surprise":true`, 1),
-		"duplicate entity": strings.Replace(valid, `["thing"]`, `["thing","thing"]`, 1),
-		"dangling endpoint": strings.Replace(valid, `"subject_types":["thing"]`, `"subject_types":["missing"]`, 1),
+		"unknown field":      strings.Replace(valid, `"schema_version":1`, `"schema_version":1,"surprise":true`, 1),
+		"case variant field": strings.Replace(valid, `"allow_self":false`, `"Allow_Self":false`, 1),
+		"missing boolean":    strings.Replace(valid, `,"allow_self":false`, ``, 1),
+		"duplicate key":      strings.Replace(valid, `"allow_self":false`, `"allow_self":false,"allow_self":false`, 1),
+		"null boolean":       strings.Replace(valid, `"allow_self":false`, `"allow_self":null`, 1),
+		"duplicate entity":   strings.Replace(valid, `["thing"]`, `["thing","thing"]`, 1),
+		"dangling endpoint":  strings.Replace(valid, `"subject_types":["thing"]`, `"subject_types":["missing"]`, 1),
 		"multiple documents": valid + `{}`,
 	}
 	for name, raw := range tests {
@@ -91,5 +97,12 @@ func TestOntologyCompilerRejectsAmbiguousConfiguration(t *testing.T) {
 				t.Fatal("invalid ontology configuration was accepted")
 			}
 		})
+	}
+}
+
+func TestOntologyRejectsInvalidUTF8InComment(t *testing.T) {
+	raw := append([]byte{'/', '/', ' ', 0xff, '\n'}, []byte(`{"schema_version":1}`)...)
+	if _, err := ParseOntologyJSONC(raw); err == nil {
+		t.Fatal("invalid UTF-8 in leading comment escaped the shared byte contract")
 	}
 }
