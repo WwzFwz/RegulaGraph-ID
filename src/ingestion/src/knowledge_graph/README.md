@@ -30,7 +30,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-EXTRACT memiliki validator, artefak immutable terikat `DocumentBatch`, executor worker, Semantic Gateway deterministic, coordinator durable, dan ontology JSONC bersama yang memvalidasi tipe/predicate/qualifier sebelum persistence. Provider/model produksi, resolution, assembly, summarization, dan publication graph belum aktif. Build serta fixture invariant tidak membuktikan kualitas semantik atau latency produksi.
+EXTRACT memiliki validator, artefak immutable terikat `DocumentBatch`, executor worker, Semantic Gateway deterministic, coordinator durable, dan ontology JSONC bersama yang memvalidasi tipe/predicate/qualifier sebelum persistence. Resolution memiliki blocking kandidat dan helper alias LINK sourced sebagai library; stage RESOLVE, receipt registry terintegrasi, merge/split, assembly, summarization, serta publication graph belum aktif. Provider/model produksi dan kualitas semantik/latency belum dibuktikan.
 
 ## Rekomendasi implementasi anak
 

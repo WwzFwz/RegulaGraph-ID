@@ -114,7 +114,11 @@ impl BlockingIndex {
 }
 
 impl LookupKey {
-    fn new(entity_type: &str, scope: &str, surface: &str) -> Result<Self, BlockingError> {
+    pub(crate) fn new(
+        entity_type: &str,
+        scope: &str,
+        surface: &str,
+    ) -> Result<Self, BlockingError> {
         if entity_type.trim().is_empty() || scope.trim().is_empty() {
             return Err(BlockingError::EmptyField);
         }

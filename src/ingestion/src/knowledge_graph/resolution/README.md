@@ -16,6 +16,13 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 Berkas: [aliases.rs](aliases.rs), [blocking.rs](blocking.rs), [mod.rs](mod.rs), [resolver.rs](resolver.rs).
 
+`blocking.rs` menjaga kandidat dengan tipe dan scope tanpa membuat keputusan identitas. `aliases.rs`
+membentuk alias deterministik dari satu mention dalam proposal/keputusan LINK yang sudah diautentikasi
+oleh registry Go, hanya untuk `regulation` dan `organization` yang dapat disimpan oleh adapter PostgreSQL
+saat ini. Helper memeriksa ID, revisi, tipe, source/span evidence, batas normalized lookup, dan
+mempertahankan mention ID sebagai support. Caller tetap wajib memverifikasi receipt/state registry,
+provenance sumber, serta memakai entity dari snapshot yang sama; helper bukan pemberi otoritas LINK.
+
 ## Benchmark dan perhatian performa
 
 **RESOLUTION.** Ukur pairwise precision/recall/F1, false merge, false split, mention yang hilang, waktu per batch, dan biaya. Gate: semua mention tetap terlacak; pasal dari peraturan berbeda tidak digabung hanya karena nama sama. Blocking harus diukur juga terhadap pasangan benar yang terlewat.
@@ -24,7 +31,10 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. Pipeline parsing/graph/retrieval, mutasi backend, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan target kualitas atau latency.
+Blocking kandidat dan materialisasi alias LINK sourced aktif sebagai library. Stage RESOLVE, receipt
+registry terintegrasi, merge/split, alias provision, pengukuran false merge/split, dan benchmark
+produksi belum tersedia. Status anak dijelaskan pada header masing-masing; tes fixture tidak
+membuktikan kualitas resolusi.
 
 ## Rekomendasi implementasi anak
 
@@ -32,6 +42,6 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
-| [aliases.rs](aliases.rs) | Generate scoped alias proposals from mentions without equating synonyms to identity automatically. | Test homonyms, acronyms and same article numbers across laws; preserve provenance and measure false alias merges. |
+| [aliases.rs](aliases.rs) | Hubungkan helper alias LINK ke keputusan registry yang terverifikasi; perluas tipe hanya bersama adapter Go/storage dan gold yang sesuai. | Uji homonym, singkatan, dan versi; ukur false alias merge serta registrasi PostgreSQL nyata. |
 | [blocking.rs](blocking.rs) | Retrieve bounded canonical candidates using deterministic legal keys and contextual signals before expensive resolution. | Measure candidate recall and reduction ratio on hard aliases; record empty lookup scopes for later invalidation. |
 | [resolver.rs](resolver.rs) | Resolve or explicitly abstain, emitting revision-aware proposals for authoritative Go registry decisions. | Test ambiguous merges, splits and concurrent registry revisions; measure precision/recall and review workload. |
