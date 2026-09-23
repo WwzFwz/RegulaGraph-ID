@@ -159,4 +159,21 @@ func TestCitationTrustedURLAndSourceLocator(t *testing.T) {
 	if VerifyCitationEvidence(answer, bundle, lookup) == nil {
 		t.Fatal("URL and locator from different blobs accepted")
 	}
+	citation.PageLocator = nil
+	if VerifyCitationEvidence(answer, bundle, lookup) == nil {
+		t.Fatal("citation without source locator accepted")
+	}
+	citation.SourceSpan = &pb.TextSpan{TextArtifactId: "t", StartByte: 1, EndByte: 1}
+	if VerifyCitationEvidence(answer, bundle, lookup) == nil {
+		t.Fatal("empty citation span accepted")
+	}
+	citation.SourceSpan.EndByte = 4
+	if err := VerifyCitationEvidence(answer, bundle, lookup); err != nil {
+		t.Fatal("single-source contained span rejected:", err)
+	}
+	evidence.SourceRefs = append(evidence.SourceRefs, &pb.SourceVersionRef{
+		SourceBlobId: "source-b", ProvisionVersionId: "v2", RegulationId: "r2"})
+	if VerifyCitationEvidence(answer, bundle, lookup) == nil {
+		t.Fatal("span with no source-artifact binding accepted")
+	}
 }

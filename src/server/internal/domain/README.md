@@ -48,3 +48,5 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 ## Penambahan C01 dan panduan verifikasi
 
 Berkas terkait: [wire.go](wire.go), [wire_test.go](wire_test.go), [boundaries.go](boundaries.go), [boundaries_test.go](boundaries_test.go). Dependency, cara menjalankan dan batas pembuktiannya mengikuti [implementasi C01](../../../../doc/contracts-implementation.md).
+
+`VerifyCitationEvidence` kini menolak sitasi tanpa locator, span kosong, dan span pada evidence multisumber karena daftar `SourceSpans` belum mengikat artefak teks ke source blob. Sitasi multisumber dengan page locator yang terikat blob tetap dapat diperiksa. Pembatasan ini harus diperbarui bersama kontrak pemetaan artefak–sumber saat X01/A01 mengaktifkan bukti multisumber.

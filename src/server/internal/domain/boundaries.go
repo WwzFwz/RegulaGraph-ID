@@ -222,6 +222,20 @@ func VerifyCitationEvidence(answer *pb.Answer, bundle *pb.EvidenceBundle, lookup
 		if !urlOK {
 			return errors.New("citation URL absent from trusted source metadata")
 		}
+		if citation.SourceSpan == nil && citation.PageLocator == nil {
+			return errors.New("citation requires a source locator")
+		}
+		if citation.SourceSpan != nil {
+			if citation.SourceSpan.StartByte >= citation.SourceSpan.EndByte {
+				return errors.New("citation source span is empty")
+			}
+			// Evidence.SourceSpans is flat: it has no source-blob binding. Until
+			// trusted artifact metadata supplies that relation, a span can only
+			// be attributed safely when the evidence has exactly one source.
+			if len(item.SourceRefs) != 1 {
+				return errors.New("citation source span is ambiguous across sources")
+			}
+		}
 		spanOK := citation.SourceSpan == nil
 		for _, s := range item.SourceSpans {
 			if citation.SourceSpan != nil && citation.SourceSpan.TextArtifactId == s.TextArtifactId && citation.SourceSpan.StartByte >= s.StartByte && citation.SourceSpan.EndByte <= s.EndByte {
