@@ -16,6 +16,12 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 [repository.go](repository.go) mengelola lifecycle pool dan error boundary. [migrate.go](migrate.go) menerapkan migration terurut dengan advisory lock serta checksum. [jobs.go](jobs.go) mengelola idempotency, claim PARSE/STRUCTURE/BIND/CHUNK/EXTRACT, attempt global dan budget retry per stage, lease/fence, polling cancellation, checkpoint, dan completion atomik yang memberi prioritas pada cancellation. [artifacts.go](artifacts.go) mengikat serta memuat metadata immutable untuk handoff checkpoint. [registry.go](registry.go) mengalokasikan exact canonical identity secara revisioned dan idempotent. [registry_aliases.go](registry_aliases.go) meregistrasikan profil/alias bersumber secara append-only dengan CAS revision, sedangkan [registry_candidates.go](registry_candidates.go) membaca kandidat ambigu dan revision lookup positif/negatif dalam satu snapshot. [publication.go](publication.go) merealisasikan reservation, backend receipt, snapshot CAS, outbox, abort, dan read lease. [repository_integration_test.go](repository_integration_test.go) dan [registry_aliases_integration_test.go](registry_aliases_integration_test.go) adalah suite PostgreSQL aktual dan akan skip jika DSN test tidak tersedia.
 
+[registry_candidate_batch.go](registry_candidate_batch.go) membaca scope yang dipilih eksplisit per mention
+dalam satu transaksi lookup, memeriksa key/revisi serta closure alias, kemudian meneruskan observasi ke
+builder artefak C01. Nol mention menghasilkan `ErrNoCandidateMentions` tanpa pembacaan registry agar workflow
+dapat melewati RESOLVE secara eksplisit. [registry_candidate_batch_test.go](registry_candidate_batch_test.go)
+memeriksa mapping dan hasil tidak mungkin dengan fixture; belum membuktikan transaksi PostgreSQL nyata.
+
 ## Benchmark dan perhatian performa
 
 **STORAGE.** Ukur latency p50/p95/p99, throughput batch, pool saturation, retry, dan error rate pada concurrency serta volume data yang disebutkan. Gate: timeout terlapor, resource dilepas, dan operasi tulis idempotent sesuai kontrak; tidak ada asumsi transaksi atomik lintas layanan.
@@ -25,6 +31,10 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib mengikuti [target numerik wajib](../../../../../configs/benchmark-targets.yaml) dengan profil asumsi yang dinyatakan; statusnya **REQUIRED_UNMEASURED** sampai diuji. Ukur waktu antre serta p95/p99 selain throughput; validitas source/version dan ketepatan bukti tetap menjadi syarat optimasi.
 
 ## Status
+
+Producer kandidat untuk scope eksplisit tersedia sebagai adapter, tetapi belum dipanggil workflow
+RESOLVE dan belum menjalani uji artefak lengkap pada PostgreSQL aktual. Alias `support_refs`
+tetap memerlukan verifikasi provenance sebelum publikasi; helper tidak mengesahkan identitas semantik.
 
 Fondasi S01 untuk schema migration, artifact metadata/dependency, durable jobs, retry availability dan budget per stage, handoff PARSE→STRUCTURE→BIND→CHUNK→EXTRACT, publication ledger, active-snapshot pointer, dan read lease telah aktif. Exact allocator K01 mengunci revision corpus, menyimpan operation ledger, dan mendeteksi replay/corruption; serialization failure PostgreSQL `40001` dikembalikan agar caller mengulang dengan budget. Registry alias K01 menyimpan alias unreviewed pada canonical ID yang sudah ada, mengembalikan semua kandidat ambigu dalam batas caller, dan mencatat perubahan lookup kosong; replay/reuse dan read memeriksa payload/hash/kolom persisten. Executor BIND memakai adapter ini untuk registry batch idempotent, artefak immutable, fingerprint dependency, empty lookup, dan checkpoint fenced. Belum ada producer alias produksi atau callsite RESOLVE; `support_refs` baru divalidasi bentuknya dan harus dibuktikan merujuk artefak EXTRACT sebelum publikasi. Canonical resolution semantik/merge-split, dependency closure U01, backend mutation, retention/GC, dan benchmark performa masih mengikuti paket pemiliknya.
 
