@@ -28,6 +28,8 @@ func ValidateRegistryCandidateBatch(batch *pb.RegistryCandidateBatch, source *pb
 		return errors.New("candidate batch, source, ref, and positive limits are required")
 	}
 	if batch.Meta.RecordId == "" || batch.Meta.CorpusId == "" || batch.Meta.CorpusId != source.Meta.CorpusId ||
+		batch.Meta.SchemaVersion == 0 || batch.Meta.SchemaVersion != source.Meta.SchemaVersion ||
+		batch.Meta.SchemaVersion != batch.Context.SchemaVersion ||
 		batch.Context.CorpusId != source.Context.CorpusId || batch.Meta.CorpusId != batch.Context.CorpusId ||
 		batch.Context.SchemaVersion != source.Context.SchemaVersion ||
 		batch.Context.AuthScopeRef == "" || batch.Context.AuthScopeRef != source.Context.AuthScopeRef ||

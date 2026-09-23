@@ -52,6 +52,7 @@ func TestValidateRegistryCandidateBatchRejectsDrift(t *testing.T) {
 			batch.Lookups[0].Scopes[0].CandidateIds[0] = "canonical:forged"
 		},
 		"stale context":             func(batch *pb.RegistryCandidateBatch) { batch.Context.AuthScopeRef = "scope:other" },
+		"schema version drift":      func(batch *pb.RegistryCandidateBatch) { batch.Meta.SchemaVersion = 2 },
 		"different extraction hash": func(batch *pb.RegistryCandidateBatch) { batch.SourceExtractionBatch.ContentHash.Sha256 = "forged" },
 		"lookup revision omitted":   func(batch *pb.RegistryCandidateBatch) { batch.Dependencies.LookupScopeRevisions = nil },
 		"lookup revision drift":     func(batch *pb.RegistryCandidateBatch) { batch.Dependencies.LookupScopeRevisions[0].Revision = 6 },
