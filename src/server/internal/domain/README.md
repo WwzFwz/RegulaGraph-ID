@@ -33,6 +33,12 @@ keputusan otoritatif, atau kebenaran identitas hukum; workflow wajib memanggilny
 [resolution_candidates_test.go](resolution_candidates_test.go) menutup target asing, rev stale,
 bukti palsu, dan kandidat tersembunyi. Kualitas/performa tetap REQUIRED_UNMEASURED.
 
+`VerifyCitationEvidence` pada [boundaries.go](boundaries.go) kini menolak ID klaim/sitasi duplikat,
+memerlukan sitasi untuk setiap pasangan klaim–evidence–source version pada klaim SUPPORTED,
+serta memakai satu lookup URL tepercaya per source/version selama validasi. Evidence multisumber
+wajib memiliki page locator terikat blob; kontrak saat ini tidak membedakan mirror alternatif
+dari dukungan bersama, sehingga gate memilih kebijakan fail-closed sampai kontrak diperluas.
+
 ## Benchmark dan perhatian performa
 
 **DOMAIN.** Gate deterministik: ID dan referensi sumber/versi tidak ambigu; invalid record ditolak atau dikarantina secara eksplisit. Kompatibilitas schema diperiksa dengan fixtures; belum ada hasil pengukuran.

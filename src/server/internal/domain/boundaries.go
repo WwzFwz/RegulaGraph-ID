@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"google.golang.org/protobuf/proto"
+	"net/url"
 	pb "regulagraph.local/server/gen/regulagraph/v1"
 )
 
@@ -163,6 +164,15 @@ func VerifyPublicationReady(manifest *pb.PublicationManifest, parent *pb.Snapsho
 // It returns observed detail/download/final URLs; model-generated URLs are never accepted as metadata.
 type SourceURLLookup func(sourceBlobID, provisionVersionID string) ([]string, error)
 
+type citationSourceKey struct {
+	blobID, versionID string
+}
+
+type citationCoverageKey struct {
+	claimID, evidenceID string
+	source              citationSourceKey
+}
+
 func VerifyCitationEvidence(answer *pb.Answer, bundle *pb.EvidenceBundle, lookup SourceURLLookup) error {
 	if e := ValidateWire(answer, DefaultWireLimits); e != nil {
 		return e
@@ -174,11 +184,27 @@ func VerifyCitationEvidence(answer *pb.Answer, bundle *pb.EvidenceBundle, lookup
 		return errors.New("answer/evidence snapshot mismatch")
 	}
 	evidence := map[string]*pb.Evidence{}
+	evidenceSources := map[string][]citationSourceKey{}
 	for _, e := range bundle.Items {
+		if evidence[e.Meta.RecordId] != nil {
+			return errors.New("evidence bundle repeats an evidence ID")
+		}
 		evidence[e.Meta.RecordId] = e
+		seenSources := map[citationSourceKey]bool{}
+		for _, source := range e.SourceRefs {
+			key := citationSourceKey{source.SourceBlobId, source.ProvisionVersionId}
+			if seenSources[key] {
+				return errors.New("evidence repeats a source version")
+			}
+			seenSources[key] = true
+			evidenceSources[e.Meta.RecordId] = append(evidenceSources[e.Meta.RecordId], key)
+		}
 	}
 	claims := map[string]*pb.Claim{}
 	for _, c := range answer.Claims {
+		if claims[c.ClaimId] != nil {
+			return errors.New("answer repeats a claim ID")
+		}
 		claims[c.ClaimId] = c
 		for _, id := range c.EvidenceIds {
 			if evidence[id] == nil {
@@ -186,7 +212,14 @@ func VerifyCitationEvidence(answer *pb.Answer, bundle *pb.EvidenceBundle, lookup
 			}
 		}
 	}
+	citedSources := make(map[citationCoverageKey]bool)
+	seenCitationIDs := make(map[string]bool, len(answer.Citations))
+	urlCache := make(map[citationSourceKey][]string)
 	for _, citation := range answer.Citations {
+		if seenCitationIDs[citation.CitationId] {
+			return errors.New("answer repeats a citation ID")
+		}
+		seenCitationIDs[citation.CitationId] = true
 		if lookup == nil {
 			return errors.New("citation URL verification requires trusted source metadata")
 		}
@@ -194,30 +227,45 @@ func VerifyCitationEvidence(answer *pb.Answer, bundle *pb.EvidenceBundle, lookup
 		if item == nil {
 			return errors.New("citation references unknown evidence")
 		}
-		version := false
-		for _, s := range item.SourceRefs {
-			if s.ProvisionVersionId == citation.ProvisionVersionId {
-				version = true
+		parsedURL, parseErr := url.Parse(citation.SourceUrl)
+		if parseErr != nil || (parsedURL.Scheme != "https" && parsedURL.Scheme != "http") ||
+			parsedURL.Host == "" || parsedURL.User != nil {
+			return errors.New("citation URL is not a safe absolute HTTP URL")
+		}
+		var citedSource citationSourceKey
+		if len(item.SourceRefs) == 1 {
+			citedSource = evidenceSources[citation.EvidenceId][0]
+			if citedSource.versionID != citation.ProvisionVersionId {
+				return errors.New("citation version mismatch")
+			}
+		} else {
+			if citation.PageLocator == nil || citation.SourceSpan != nil {
+				return errors.New("multi-source citation requires only a blob-bound page locator")
+			}
+			citedSource = citationSourceKey{citation.PageLocator.SourceBlobId, citation.ProvisionVersionId}
+			found := false
+			for _, source := range evidenceSources[citation.EvidenceId] {
+				found = found || source == citedSource
+			}
+			if !found {
+				return errors.New("citation source version absent from evidence")
 			}
 		}
-		if !version {
-			return errors.New("citation version mismatch")
+		urls, cached := urlCache[citedSource]
+		if !cached {
+			var err error
+			urls, err = lookup(citedSource.blobID, citedSource.versionID)
+			if err != nil {
+				return err
+			}
+			if len(urls) > 32 {
+				return errors.New("trusted source metadata contains too many URLs")
+			}
+			urlCache[citedSource] = urls
 		}
 		urlOK := false
-		matchedSources := map[string]bool{}
-		for _, source := range item.SourceRefs {
-			if source.ProvisionVersionId == citation.ProvisionVersionId {
-				urls, err := lookup(source.SourceBlobId, source.ProvisionVersionId)
-				if err != nil {
-					return err
-				}
-				for _, u := range urls {
-					if u == citation.SourceUrl {
-						urlOK = true
-						matchedSources[source.SourceBlobId] = true
-					}
-				}
-			}
+		for _, observed := range urls {
+			urlOK = urlOK || observed == citation.SourceUrl
 		}
 		if !urlOK {
 			return errors.New("citation URL absent from trusted source metadata")
@@ -244,22 +292,45 @@ func VerifyCitationEvidence(answer *pb.Answer, bundle *pb.EvidenceBundle, lookup
 		}
 		locatorOK := citation.PageLocator == nil
 		for _, l := range item.Locators {
-			if citation.PageLocator != nil && matchedSources[citation.PageLocator.SourceBlobId] && proto.Equal(l, citation.PageLocator) {
+			if citation.PageLocator != nil && citation.PageLocator.SourceBlobId == citedSource.blobID && proto.Equal(l, citation.PageLocator) {
 				locatorOK = true
 			}
 		}
 		if !spanOK || !locatorOK {
 			return errors.New("citation locator not in selected evidence")
 		}
+		if citation.PageLocator != nil && citation.PageLocator.SourceBlobId != citedSource.blobID {
+			return errors.New("citation locator is not bound to its source URL")
+		}
 		for _, id := range citation.ClaimIds {
+			claim := claims[id]
+			if claim == nil {
+				return errors.New("citation references an unknown claim")
+			}
 			linked := false
-			for _, e := range claims[id].EvidenceIds {
+			for _, e := range claim.EvidenceIds {
 				if e == citation.EvidenceId {
 					linked = true
 				}
 			}
 			if !linked {
 				return errors.New("citation evidence absent from claim mapping")
+			}
+			citedSources[citationCoverageKey{id, citation.EvidenceId, citedSource}] = true
+		}
+	}
+	for _, claim := range answer.Claims {
+		if claim.SupportStatus != pb.SupportStatus_SUPPORT_STATUS_SUPPORTED {
+			continue
+		}
+		if len(claim.EvidenceIds) == 0 {
+			return errors.New("supported claim has no evidence")
+		}
+		for _, id := range claim.EvidenceIds {
+			for _, source := range evidenceSources[id] {
+				if !citedSources[citationCoverageKey{claim.ClaimId, id, source}] {
+					return errors.New("supported claim source lacks a verified citation")
+				}
 			}
 		}
 	}
