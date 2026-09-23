@@ -73,6 +73,7 @@ type ParseWorker interface {
 }
 
 type ParseExecutorConfig struct {
+	Ontology          *domain.Ontology
 	OwnerID           string
 	AuthScope         string
 	Lease             time.Duration
@@ -92,8 +93,8 @@ type ParseExecutor struct {
 }
 
 func NewParseExecutor(store ParseExecutionStore, worker ParseWorker, config ParseExecutorConfig) (*ParseExecutor, error) {
-	if store == nil || worker == nil {
-		return nil, errors.New("parse store and worker are required")
+	if store == nil || worker == nil || config.Ontology == nil {
+		return nil, errors.New("parse store, worker, and ontology are required")
 	}
 	if config.OwnerID == "" || config.AuthScope == "" || config.Lease <= 0 || config.CallTimeout <= 0 || config.CallTimeout >= config.Lease {
 		return nil, errors.New("parse executor requires owner, auth scope, and call timeout shorter than lease")
@@ -448,6 +449,10 @@ func (e *ParseExecutor) verifyExtractionOutput(
 		!containsExpectedHash(expectedConfig.PromptHashes, batch.PromptHash) {
 		return nil, invalidExtractionOutput("ExtractionBatch model, prompt, or config differs from the persisted ingestion request")
 	}
+	if !containsExpectedHash(expectedConfig.InputHashes, e.config.Ontology.ContentHash()) ||
+		!containsExpectedHash(manifest.InputHashes, e.config.Ontology.ContentHash()) {
+		return nil, invalidExtractionOutput("ExtractionBatch ontology bytes differ from pinned request or producer")
+	}
 	sourceRaw, err := e.store.ReadVerified(ctx, sourceRef, e.config.MaximumBatchBytes)
 	if err != nil {
 		return nil, err
@@ -468,6 +473,9 @@ func (e *ParseExecutor) verifyExtractionOutput(
 	}
 	if err = domain.ValidateExtractionBatchClosure(batch, source, e.config.WireLimits.MaxItems); err != nil {
 		return nil, invalidExtractionOutput(fmt.Sprintf("validate ExtractionBatch closure: %v", err))
+	}
+	if err = e.config.Ontology.ValidateExtractionOntology(batch); err != nil {
+		return nil, invalidExtractionOutput(fmt.Sprintf("validate ExtractionBatch ontology: %v", err))
 	}
 	if err = e.verifyExtractionSourceText(ctx, batch, source); err != nil {
 		if errors.Is(err, errInvalidMentionSurface) {
@@ -651,6 +659,9 @@ func (e *ParseExecutor) processRequest(ctx context.Context, job domain.JobRecord
 		(job.Stage != pb.JobStage_JOB_STAGE_PARSE && job.Stage != pb.JobStage_JOB_STAGE_STRUCTURE && job.Stage != pb.JobStage_JOB_STAGE_CHUNK && job.Stage != pb.JobStage_JOB_STAGE_EXTRACT) ||
 		job.Attempt == 0 || job.LeaseFence == 0 || job.LeaseOwner != e.config.OwnerID || job.CorpusID != request.GetCorpusId() {
 		return nil, status.Error(codes.FailedPrecondition, "claimed job and ingestion request are inconsistent")
+	}
+	if job.Stage == pb.JobStage_JOB_STAGE_EXTRACT && !containsExpectedHash(request.ConfigManifest.InputHashes, e.config.Ontology.ContentHash()) {
+		return nil, status.Error(codes.FailedPrecondition, "persisted EXTRACT request did not pin ontology bytes")
 	}
 	now := time.Now()
 	deadline := now.Add(e.config.CallTimeout)

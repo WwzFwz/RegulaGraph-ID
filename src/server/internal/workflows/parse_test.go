@@ -6,6 +6,7 @@ package workflows
 import (
 	"context"
 	"errors"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -239,13 +240,24 @@ func TestExtractExecutorRejectsUntrustedExtractionBoundaries(t *testing.T) {
 				response.Checkpoint.Manifest = proto.Clone(unapproved).(*pb.ProducerManifest)
 			}
 		}},
+		{name: "ontology version drift", setup: func(store *parseStoreFake, _ *parseWorkerFake) {
+			store.mutateExtraction = func(batch *pb.ExtractionBatch) { batch.OntologyVersion = "id-regulation-ontology-v2" }
+		}},
+		{name: "producer omitted ontology hash", setup: func(store *parseStoreFake, worker *parseWorkerFake) {
+			store.mutateExtraction = func(batch *pb.ExtractionBatch) {
+				batch.Dependencies.ProducerManifest.InputHashes = nil
+			}
+			worker.mutateResponse = func(response *pb.ProcessBatchResponse) {
+				response.Checkpoint.Manifest.InputHashes = nil
+			}
+		}},
 		{name: "surface form differs from normalized text", setup: func(store *parseStoreFake, _ *parseWorkerFake) {
 			store.mutateExtraction = func(batch *pb.ExtractionBatch) {
 				batch.Mentions = []*pb.Mention{{
 					Meta:        &pb.RecordMeta{SchemaVersion: 1, CorpusId: store.job.CorpusID, RecordId: "mention:forged"},
 					TextSpan:    &pb.TextSpan{TextArtifactId: "text:fixture", StartByte: 0, EndByte: 1},
 					SourceRefs:  []*pb.SourceVersionRef{{SourceBlobId: "source:fixture", ProvisionVersionId: "version:fixture", RegulationId: "regulation:fixture"}},
-					SurfaceForm: "invented phrase", CandidateType: "LEGAL_CONCEPT", ExtractionManifest: extractionManifest(),
+					SurfaceForm: "invented phrase", CandidateType: "legal_concept", ExtractionManifest: extractionManifest(),
 				}}
 			}
 		}},
@@ -256,11 +268,15 @@ func TestExtractExecutorRejectsUntrustedExtractionBoundaries(t *testing.T) {
 				batch.Mentions = []*pb.Mention{{
 					Meta:       &pb.RecordMeta{SchemaVersion: 1, CorpusId: store.job.CorpusID, RecordId: "mention:utf8"},
 					TextSpan:   &pb.TextSpan{TextArtifactId: "text:fixture", StartByte: 2, EndByte: 3},
-					SourceRefs: []*pb.SourceVersionRef{reference}, SurfaceForm: "a", CandidateType: "LEGAL_CONCEPT", ExtractionManifest: extractionManifest(),
+					SourceRefs: []*pb.SourceVersionRef{reference}, SurfaceForm: "a", CandidateType: "legal_concept", ExtractionManifest: extractionManifest(),
+				}, {
+					Meta:       &pb.RecordMeta{SchemaVersion: 1, CorpusId: store.job.CorpusID, RecordId: "mention:utf8:second"},
+					TextSpan:   &pb.TextSpan{TextArtifactId: "text:fixture", StartByte: 2, EndByte: 3},
+					SourceRefs: []*pb.SourceVersionRef{proto.Clone(reference).(*pb.SourceVersionRef)}, SurfaceForm: "a", CandidateType: "legal_concept", ExtractionManifest: extractionManifest(),
 				}}
 				batch.Assertions = []*pb.RelationAssertion{{
 					Meta:      &pb.RecordMeta{SchemaVersion: 1, CorpusId: store.job.CorpusID, RecordId: "assertion:utf8"},
-					SubjectId: "mention:utf8", PredicateId: "references", ObjectId: "mention:utf8",
+					SubjectId: "mention:utf8", PredicateId: "references", ObjectId: "mention:utf8:second",
 					TemporalScope: &pb.TemporalScope{Mode: pb.TemporalMode_TEMPORAL_MODE_CURRENT, UnresolvedPolicy: pb.UnresolvedPolicy_UNRESOLVED_POLICY_REPORT},
 					Origin:        pb.AssertionOrigin_ASSERTION_ORIGIN_EXPLICIT, OntologyVersion: batch.OntologyVersion,
 				}}
@@ -286,6 +302,9 @@ func TestExtractExecutorRejectsUntrustedExtractionBoundaries(t *testing.T) {
 			if status.Code(err) != codes.FailedPrecondition || store.registered != nil || store.checkpoint != nil {
 				t.Fatalf("untrusted EXTRACT output reached persistence: err=%v registered=%v", err, store.registered)
 			}
+			if test.name == "support splits UTF-8 code point" && !strings.Contains(err.Error(), "non-UTF-8 source boundary") {
+				t.Fatalf("support span was rejected for an unrelated reason: %v", err)
+			}
 			if got := store.transitions; len(got) != 1 || got[0] != pb.JobState_JOB_STATE_FAILED {
 				t.Fatalf("untrusted EXTRACT output was not terminal: %v", got)
 			}
@@ -301,7 +320,7 @@ func TestExtractExecutorRetriesTransientNormalizedTextRead(t *testing.T) {
 			Meta:        &pb.RecordMeta{SchemaVersion: 1, CorpusId: store.job.CorpusID, RecordId: "mention:valid"},
 			TextSpan:    &pb.TextSpan{TextArtifactId: "text:fixture", StartByte: 0, EndByte: 1},
 			SourceRefs:  []*pb.SourceVersionRef{{SourceBlobId: "source:fixture", ProvisionVersionId: "version:fixture", RegulationId: "regulation:fixture"}},
-			SurfaceForm: "f", CandidateType: "LEGAL_CONCEPT", ExtractionManifest: extractionManifest(),
+			SurfaceForm: "f", CandidateType: "legal_concept", ExtractionManifest: extractionManifest(),
 		}}
 	}
 	executor, _ := NewParseExecutor(store, &parseWorkerFake{completion: pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED}, parseExecutorConfig())
@@ -768,7 +787,7 @@ func TestParseExecutorRetriesUnavailableWorker(t *testing.T) {
 func TestParseRetryDelayIsExponentiallyBounded(t *testing.T) {
 	executor, _ := NewParseExecutor(parseFixtureStore(false), &parseWorkerFake{}, ParseExecutorConfig{
 		OwnerID: "executor:fixture", AuthScope: "scope:ingestion", Lease: 10 * time.Second,
-		CallTimeout: 2 * time.Second, RetryBase: 2 * time.Second, RetryMax: 10 * time.Second,
+		CallTimeout: 2 * time.Second, RetryBase: 2 * time.Second, RetryMax: 10 * time.Second, Ontology: parseTestOntology(),
 	})
 	for attempt, expected := range map[uint32]time.Duration{1: 2 * time.Second, 2: 4 * time.Second, 3: 8 * time.Second, 4: 10 * time.Second, 32: 10 * time.Second} {
 		if got := executor.retryDelay(attempt); got != expected {
@@ -905,7 +924,19 @@ func parseFixtureStore(url bool) *parseStoreFake {
 }
 
 func parseExecutorConfig() ParseExecutorConfig {
-	return ParseExecutorConfig{OwnerID: "executor:fixture", AuthScope: "scope:ingestion", Lease: 10 * time.Second, CallTimeout: 2 * time.Second}
+	return ParseExecutorConfig{OwnerID: "executor:fixture", AuthScope: "scope:ingestion", Lease: 10 * time.Second, CallTimeout: 2 * time.Second, Ontology: parseTestOntology()}
+}
+
+func parseTestOntology() *domain.Ontology {
+	raw, err := os.ReadFile("../../../../configs/ontology-v1.jsonc")
+	if err != nil {
+		panic(err)
+	}
+	ontology, err := domain.ParseOntologyJSONC(raw)
+	if err != nil {
+		panic(err)
+	}
+	return ontology
 }
 
 func documentBatchFixture(stage pb.JobStage, corpusID string, completeness pb.Completeness) *pb.DocumentBatch {
@@ -991,7 +1022,7 @@ func extractionBatchFixture(corpusID string, source *pb.ArtifactRef) *pb.Extract
 			ArtifactId: "dependency-manifest:extract", ProducerManifest: producer,
 			Dependencies: []*pb.Dependency{{DependencyId: source.ArtifactId, Fingerprint: proto.Clone(source.ContentHash).(*pb.ContentHash)}},
 		},
-		Completeness: pb.Completeness_COMPLETENESS_COMPLETE, OntologyVersion: "ontology:fixture-v1",
+		Completeness: pb.Completeness_COMPLETENESS_COMPLETE, OntologyVersion: "id-regulation-ontology-v1",
 		ModelManifest: model, PromptHash: prompt, ItemCounts: &pb.Counts{Expected: 1, Accepted: 1},
 		TokenUsage: &pb.TokenUsage{InputTokens: 5, OutputTokens: 2, TokenizerId: "tokenizer:fixture"},
 	}
@@ -1005,7 +1036,7 @@ func extractionManifest() *pb.ProducerManifest {
 	}
 	return &pb.ProducerManifest{
 		Software: "regulagraph-ingestion", Build: "test", SchemaVersion: 1, ConfigHash: parseHash("c"),
-		Models: []*pb.ModelManifest{model}, PromptHashes: []*pb.ContentHash{prompt},
+		Models: []*pb.ModelManifest{model}, PromptHashes: []*pb.ContentHash{prompt}, InputHashes: []*pb.ContentHash{parseTestOntology().ContentHash()},
 	}
 }
 
@@ -1017,7 +1048,7 @@ func unapprovedExtractionManifest() *pb.ProducerManifest {
 	}
 	return &pb.ProducerManifest{
 		Software: "unapproved-worker", Build: "test", SchemaVersion: 1, ConfigHash: parseHash("3"),
-		Models: []*pb.ModelManifest{model}, PromptHashes: []*pb.ContentHash{prompt},
+		Models: []*pb.ModelManifest{model}, PromptHashes: []*pb.ContentHash{prompt}, InputHashes: []*pb.ContentHash{parseTestOntology().ContentHash()},
 	}
 }
 
@@ -1029,7 +1060,7 @@ func parseManifest() *pb.ProducerManifest {
 	}
 	return &pb.ProducerManifest{
 		Software: "regulagraph-server", Build: "test", SchemaVersion: 1, ConfigHash: parseHash("c"),
-		Models: []*pb.ModelManifest{model}, PromptHashes: []*pb.ContentHash{prompt},
+		Models: []*pb.ModelManifest{model}, PromptHashes: []*pb.ContentHash{prompt}, InputHashes: []*pb.ContentHash{parseTestOntology().ContentHash()},
 	}
 }
 

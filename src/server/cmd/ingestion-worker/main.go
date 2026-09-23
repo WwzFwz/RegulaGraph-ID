@@ -25,6 +25,7 @@ import (
 	"regulagraph.local/server/internal/adapters/postgres"
 	artifactstorage "regulagraph.local/server/internal/adapters/storage"
 	workeradapter "regulagraph.local/server/internal/adapters/worker"
+	serverconfig "regulagraph.local/server/internal/config"
 	"regulagraph.local/server/internal/domain"
 	"regulagraph.local/server/internal/workflows"
 )
@@ -67,6 +68,10 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	ontology, err := serverconfig.LoadOntology(os.Getenv("REGULAGRAPH_ONTOLOGY_PATH"), os.Getenv("REGULAGRAPH_ONTOLOGY_SHA256"))
+	if err != nil {
+		return fmt.Errorf("load pinned ontology: %w", err)
+	}
 	repository, err := postgres.Open(ctx, postgres.Config{
 		DSN: config.postgresDSN, MaxConnections: 8, MinConnections: 1,
 		ConnectTimeout: 5 * time.Second, HealthTimeout: 5 * time.Second,
@@ -90,7 +95,8 @@ func run(ctx context.Context) error {
 		return err
 	}
 	parseExecutor, err := workflows.NewParseExecutor(documentStore, worker, workflows.ParseExecutorConfig{
-		OwnerID: config.ownerID, AuthScope: config.authScope, Lease: config.lease,
+		Ontology: ontology,
+		OwnerID:  config.ownerID, AuthScope: config.authScope, Lease: config.lease,
 		CallTimeout: config.callTimeout, CancellationPoll: config.cancellationPoll,
 		RetryBase: config.retryBase, RetryMax: config.retryMax,
 		MaximumBatchBytes: uint64(config.bindMaxBytes),

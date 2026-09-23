@@ -4,11 +4,45 @@
 package workflows
 
 import (
+	"context"
 	"strings"
 	"testing"
 
+	"google.golang.org/protobuf/proto"
 	pb "regulagraph.local/server/gen/regulagraph/v1"
+	"regulagraph.local/server/internal/domain"
 )
+
+type ontologySubmitStore struct {
+	*parseStoreFake
+	submitted []domain.JobIntent
+}
+
+func (store *ontologySubmitStore) SubmitJob(_ context.Context, intent domain.JobIntent) (domain.JobRecord, bool, error) {
+	store.submitted = append(store.submitted, intent)
+	return domain.JobRecord{}, false, nil
+}
+
+func TestJobSchedulerRejectsUnpinnedOntologyBeforeDurableSubmit(t *testing.T) {
+	store := &ontologySubmitStore{parseStoreFake: parseFixtureStore(false)}
+	scheduler, err := NewJobScheduler(store, parseTestOntology())
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := proto.Clone(store.request).(*pb.IngestionRequest)
+	request.ConfigManifest.InputHashes = nil
+	if _, _, err := scheduler.Submit(context.Background(), "job:unbound", request); err == nil || len(store.submitted) != 0 {
+		t.Fatalf("unpinned request reached durable store: err=%v intents=%d", err, len(store.submitted))
+	}
+	request.ConfigManifest.InputHashes = []*pb.ContentHash{{Sha256: strings.Repeat("f", 64)}}
+	if _, _, err := scheduler.Submit(context.Background(), "job:wrong-pin", request); err == nil || len(store.submitted) != 0 {
+		t.Fatalf("wrong ontology hash reached durable store: err=%v intents=%d", err, len(store.submitted))
+	}
+	request.ConfigManifest.InputHashes = []*pb.ContentHash{parseTestOntology().ContentHash()}
+	if _, _, err := scheduler.Submit(context.Background(), "job:pinned", request); err != nil || len(store.submitted) != 1 {
+		t.Fatalf("valid ontology pin did not reach durable store: err=%v intents=%d", err, len(store.submitted))
+	}
+}
 
 func TestInitialIngestionStageRequiresAllSourcesAcquired(t *testing.T) {
 	blob := &pb.SourceLocator{PortalId: "bpk", Locator: &pb.SourceLocator_Blob{Blob: &pb.ArtifactRef{

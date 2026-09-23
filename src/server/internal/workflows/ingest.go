@@ -20,7 +20,8 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: scheduler S01 aktif untuk submit, claim, renew, checkpoint, dan transisi state.
-// Eksekusi stage Rust/model dan handoff batch produksi belum aktif sampai paket dependennya.
+// Submit memerlukan ontology hash terpin sebelum durable enqueue; executor Rust/Go berjalan
+// sampai EXTRACT, sedangkan RESOLVE dan tahap selanjutnya menunggu paket dependennya.
 // Bukti verifikasi mengikuti doc/verification.md.
 package workflows
 
@@ -46,19 +47,23 @@ type JobStore interface {
 }
 
 type JobScheduler struct {
-	store JobStore
+	store    JobStore
+	ontology *domain.Ontology
 }
 
-func NewJobScheduler(store JobStore) (*JobScheduler, error) {
-	if store == nil {
-		return nil, errors.New("job store is required")
+func NewJobScheduler(store JobStore, ontology *domain.Ontology) (*JobScheduler, error) {
+	if store == nil || ontology == nil {
+		return nil, errors.New("job store and pinned ontology are required")
 	}
-	return &JobScheduler{store: store}, nil
+	return &JobScheduler{store: store, ontology: ontology}, nil
 }
 
 func (s *JobScheduler) Submit(ctx context.Context, jobID string, request *pb.IngestionRequest) (domain.JobRecord, bool, error) {
 	if err := domain.ValidateWire(request, domain.DefaultWireLimits); err != nil {
 		return domain.JobRecord{}, false, fmt.Errorf("validate ingestion request: %w", err)
+	}
+	if request == nil || request.ConfigManifest == nil || !containsExpectedHash(request.ConfigManifest.InputHashes, s.ontology.ContentHash()) {
+		return domain.JobRecord{}, false, errors.New("ingestion request must pin current ontology bytes before submit")
 	}
 	payload, err := proto.MarshalOptions{Deterministic: true}.Marshal(request)
 	if err != nil {
