@@ -12,6 +12,10 @@ import (
 
 func configureFixture(t *testing.T) ([]byte, string) {
 	t.Helper()
+	ontology, err := os.ReadFile("../../../../configs/ontology-v1.jsonc")
+	if err != nil {
+		t.Fatal(err)
+	}
 	directory := t.TempDir()
 	prompt := []byte("trusted extraction prompt\n")
 	schema := []byte(`{"type":"object"}`)
@@ -23,7 +27,13 @@ func configureFixture(t *testing.T) ([]byte, string) {
 	if err := os.WriteFile(schemaPath, schema, 0o600); err != nil {
 		t.Fatal(err)
 	}
+	ontologyPath := filepath.Join(directory, "ontology.jsonc")
+	if err := os.WriteFile(ontologyPath, ontology, 0o600); err != nil {
+		t.Fatal(err)
+	}
 	values := map[string]string{
+		"REGULAGRAPH_ONTOLOGY_PATH":                      ontologyPath,
+		"REGULAGRAPH_ONTOLOGY_SHA256":                    hashBytes(ontology),
 		"REGULAGRAPH_SEMANTIC_LISTEN":                    "127.0.0.1:50052",
 		"REGULAGRAPH_SEMANTIC_PROVIDER_ENDPOINT":         "https://provider.invalid",
 		"REGULAGRAPH_SEMANTIC_PROVIDER_API_KEY":          "secret-one",

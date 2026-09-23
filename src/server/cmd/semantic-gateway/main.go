@@ -24,6 +24,8 @@ import (
 	"google.golang.org/grpc"
 	pb "regulagraph.local/server/gen/regulagraph/v1"
 	"regulagraph.local/server/internal/adapters/inference"
+	serverconfig "regulagraph.local/server/internal/config"
+	"regulagraph.local/server/internal/domain"
 )
 
 const (
@@ -41,6 +43,7 @@ type runtimeConfig struct {
 	schemaPath               string
 	model                    *pb.ModelManifest
 	ontologyVersion          string
+	ontology                 *domain.Ontology
 	build                    string
 	maximumItems             int
 	maximumInputBytes        int
@@ -74,7 +77,7 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("configure structured provider: %w", err)
 	}
 	service, err := inference.NewSemanticService(provider, inference.SemanticConfig{
-		Model: config.model, OntologyVersion: config.ontologyVersion,
+		Model: config.model, Ontology: config.ontology,
 		OutputSchemaHash: contentHash(schema), SystemPrompt: string(prompt), OutputSchema: schema,
 		SchemaName: "regulagraph_extraction_v1", Software: "regulagraph-semantic-gateway",
 		Build: config.build, ConfigHash: configHash, TokenizerID: config.model.ModelId + ":provider",
@@ -136,6 +139,14 @@ func loadConfig() (runtimeConfig, []byte, json.RawMessage, *pb.ContentHash, erro
 	if config.listen == "" || config.providerEndpoint == "" || config.promptPath == "" || config.schemaPath == "" ||
 		config.ontologyVersion == "" || config.build == "" {
 		return runtimeConfig{}, nil, nil, nil, errors.New("semantic listen/provider, prompt/schema paths, ontology version, and build ID are required")
+	}
+	var err error
+	config.ontology, err = serverconfig.LoadOntology(os.Getenv("REGULAGRAPH_ONTOLOGY_PATH"), os.Getenv("REGULAGRAPH_ONTOLOGY_SHA256"))
+	if err != nil {
+		return runtimeConfig{}, nil, nil, nil, fmt.Errorf("load pinned ontology: %w", err)
+	}
+	if config.ontology.Version() != config.ontologyVersion {
+		return runtimeConfig{}, nil, nil, nil, errors.New("semantic ontology version differs from pinned ontology bytes")
 	}
 	if err := requireLoopback(config.listen); err != nil {
 		return runtimeConfig{}, nil, nil, nil, err
@@ -218,6 +229,7 @@ func loadConfig() (runtimeConfig, []byte, json.RawMessage, *pb.ContentHash, erro
 		ProviderTimeout   string `json:"provider_timeout"`
 		MaxResponseBytes  int    `json:"max_response_bytes"`
 		OntologyVersion   string `json:"ontology_version"`
+		OntologyHash      string `json:"ontology_hash"`
 		Build             string `json:"build"`
 		MaximumItems      int    `json:"maximum_items"`
 		MaximumInput      int    `json:"maximum_input_bytes"`
@@ -230,7 +242,7 @@ func loadConfig() (runtimeConfig, []byte, json.RawMessage, *pb.ContentHash, erro
 		ModelVersion      string `json:"model_version"`
 	}{
 		ProviderEndpoint: config.providerEndpoint, ProviderTimeout: config.providerTimeout.String(),
-		MaxResponseBytes: config.providerMaxResponseBytes, OntologyVersion: config.ontologyVersion,
+		MaxResponseBytes: config.providerMaxResponseBytes, OntologyVersion: config.ontologyVersion, OntologyHash: config.ontology.ContentHash().Sha256,
 		Build: config.build, MaximumItems: config.maximumItems, MaximumInput: config.maximumInputBytes,
 		MaximumConcurrent: config.maximumConcurrent, MaximumCacheItems: config.maximumCacheEntries,
 		MaximumCacheBytes: config.maximumCacheBytes, PromptHash: promptHash.Sha256,

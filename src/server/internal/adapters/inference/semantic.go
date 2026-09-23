@@ -29,7 +29,7 @@ import (
 
 type SemanticConfig struct {
 	Model               *pb.ModelManifest
-	OntologyVersion     string
+	Ontology            *domain.Ontology
 	OutputSchemaHash    *pb.ContentHash
 	SystemPrompt        string
 	OutputSchema        json.RawMessage
@@ -60,7 +60,7 @@ func NewSemanticService(provider StructuredProvider, config SemanticConfig) (*Se
 		return nil, errors.New("structured provider is required")
 	}
 	if config.Model == nil || config.OutputSchemaHash == nil || config.ConfigHash == nil ||
-		config.OntologyVersion == "" || config.SystemPrompt == "" || config.SchemaName == "" ||
+		config.Ontology == nil || config.SystemPrompt == "" || config.SchemaName == "" ||
 		config.Software == "" || config.Build == "" || config.TokenizerID == "" ||
 		config.MaximumItems <= 0 || config.MaximumInputBytes <= 0 || config.MaximumConcurrent <= 0 ||
 		config.MaximumCacheEntries <= 0 || config.MaximumCacheBytes <= 0 {
@@ -83,7 +83,7 @@ func NewSemanticService(provider StructuredProvider, config SemanticConfig) (*Se
 		Models:       []*pb.ModelManifest{proto.Clone(config.Model).(*pb.ModelManifest)},
 		PromptHashes: []*pb.ContentHash{proto.Clone(config.Model.PromptHash).(*pb.ContentHash)},
 		ConfigHash:   proto.Clone(config.ConfigHash).(*pb.ContentHash),
-		InputHashes:  []*pb.ContentHash{proto.Clone(config.OutputSchemaHash).(*pb.ContentHash)},
+		InputHashes:  []*pb.ContentHash{proto.Clone(config.OutputSchemaHash).(*pb.ContentHash), config.Ontology.ContentHash()},
 	}
 	if err := domain.ValidateWire(producer, domain.DefaultWireLimits); err != nil {
 		return nil, fmt.Errorf("validate semantic producer: %w", err)
@@ -137,7 +137,7 @@ func (s *SemanticService) validateExtractRequest(request *pb.ExtractBatchRequest
 	if err := request.Batch.Context.Deadline.CheckValid(); err != nil {
 		return status.Error(codes.InvalidArgument, "semantic request deadline is invalid")
 	}
-	if !proto.Equal(request.Batch.Model, s.config.Model) || request.Batch.OntologyVersion != s.config.OntologyVersion {
+	if !proto.Equal(request.Batch.Model, s.config.Model) || request.Batch.OntologyVersion != s.config.Ontology.Version() {
 		return status.Error(codes.FailedPrecondition, "semantic model or ontology differs from the pinned runtime")
 	}
 	if request.Batch.OutputSchema.MediaType != "application/schema+json" || request.Batch.OutputSchema.SchemaVersion != 1 ||
@@ -209,7 +209,10 @@ func (s *SemanticService) executeExtract(ctx context.Context, request *pb.Extrac
 				s.cache.storeItem(request.Batch.OperationKey, item.ItemId, fingerprint, outcomes[index])
 				return
 			}
-			proposal, proposalErr := projectExtractionProposal(request, item, generated.JSON, s.producer, s.config.OntologyVersion)
+			proposal, proposalErr := projectExtractionProposal(request, item, generated.JSON, s.producer, s.config.Ontology.Version())
+			if proposalErr == nil {
+				proposalErr = s.config.Ontology.ValidateExtractionRecords(s.config.Ontology.Version(), proposal.Mentions, proposal.Assertions)
+			}
 			if proposalErr != nil {
 				outcomes[index].result = itemError(item.ItemId, &pb.OperationError{
 					Code: pb.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, SafeMessage: "provider output failed semantic projection",
