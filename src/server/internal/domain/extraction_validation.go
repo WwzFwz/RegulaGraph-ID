@@ -284,6 +284,20 @@ func buildSpanCoverage(chunks []*pb.Chunk) spanCoverage {
 			grouped[span.TextArtifactId] = append(grouped[span.TextArtifactId], byteRange{start: span.StartByte, end: span.EndByte})
 		}
 	}
+	return buildGroupedSpanCoverage(grouped)
+}
+
+func buildEvidenceCoverage(spans []*pb.TextSpan) spanCoverage {
+	grouped := make(map[string][]byteRange)
+	for _, span := range spans {
+		if span != nil && span.StartByte < span.EndByte {
+			grouped[span.TextArtifactId] = append(grouped[span.TextArtifactId], byteRange{start: span.StartByte, end: span.EndByte})
+		}
+	}
+	return buildGroupedSpanCoverage(grouped)
+}
+
+func buildGroupedSpanCoverage(grouped map[string][]byteRange) spanCoverage {
 	result := make(spanCoverage, len(grouped))
 	for textID, ranges := range grouped {
 		sort.Slice(ranges, func(left, right int) bool { return ranges[left].start < ranges[right].start })
