@@ -22,6 +22,11 @@ oleh registry Go, hanya untuk `regulation` dan `organization` yang dapat disimpa
 saat ini. Helper memeriksa ID, revisi, tipe, source/span evidence, batas normalized lookup, dan
 mempertahankan mention ID sebagai support. Caller tetap wajib memverifikasi receipt/state registry,
 provenance sumber, serta memakai entity dari snapshot yang sama; helper bukan pemberi otoritas LINK.
+`resolver.rs` merakit proposal LINK/DEFER per mention dari pilihan eksplisit dan kandidat registry
+terpin. Satu kandidat tidak memicu LINK otomatis. Proposal mengikat bukti, revisi, hash artefak
+sumber, dan fingerprint batch kandidat; Go tetap harus membuktikan receipt serta keputusan
+registry sebelum assignment. Batas item mencakup mention, pilihan, scope, entitas, alias, dan
+total kandidat; ukur candidate recall dan biaya proposal pada gold sebelum memilih pemotongan.
 
 ## Benchmark dan perhatian performa
 
@@ -31,7 +36,8 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Blocking kandidat dan materialisasi alias LINK sourced aktif sebagai library. Stage RESOLVE, receipt
+Blocking kandidat, proposal LINK/DEFER, dan materialisasi alias LINK sourced aktif sebagai library.
+Pemilih semantik belum terhubung; stage RESOLVE dan receipt
 registry terintegrasi, merge/split, alias provision, pengukuran false merge/split, dan benchmark
 produksi belum tersedia. Status anak dijelaskan pada header masing-masing; tes fixture tidak
 membuktikan kualitas resolusi.
@@ -44,4 +50,4 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | --- | --- | --- |
 | [aliases.rs](aliases.rs) | Hubungkan helper alias LINK ke keputusan registry yang terverifikasi; perluas tipe hanya bersama adapter Go/storage dan gold yang sesuai. | Uji homonym, singkatan, dan versi; ukur false alias merge serta registrasi PostgreSQL nyata. |
 | [blocking.rs](blocking.rs) | Retrieve bounded canonical candidates using deterministic legal keys and contextual signals before expensive resolution. | Measure candidate recall and reduction ratio on hard aliases; record empty lookup scopes for later invalidation. |
-| [resolver.rs](resolver.rs) | Resolve or explicitly abstain, emitting revision-aware proposals for authoritative Go registry decisions. | Test ambiguous merges, splits and concurrent registry revisions; measure precision/recall and review workload. |
+| [resolver.rs](resolver.rs) | Hubungkan pemilih semantik/peninjau ke builder proposal, validasi artefak kandidat saat dispatch, dan dapatkan keputusan otoritatif Go. | Uji link/review homonym, revisi stale, crash/retry dan gold false merge/split; ukur latency dan review workload. |
