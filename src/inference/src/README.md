@@ -8,13 +8,13 @@ Fungsi di luar cakupan ini mengikuti komponen pemiliknya. Jika fungsi baru tidak
 
 ## Peran dan integrasi anak
 
-Tidak mengatur fusion atau citation; target saat ini hanya membuktikan layout build, bukan kecepatan inference.
+Tidak mengatur fusion atau citation. `batching.cpp` sekarang menjadwalkan antrean query/bulk berbatas, deadline, cancellation, dan fairness lewat event loop satu thread. Kegagalan alokasi atau indeks mengakhiri proses worker; supervisor dan retry klien merupakan kewajiban integrasi runtime yang belum tersedia. Model dan transport masih scaffold.
 
 Pertahankan source/canonical/provision-version/snapshot ID dan schema version lintas anak. Boundary runtime mengikuti [src/contracts](../../contracts/README.md), dengan pekerjaan batch atau inference yang jelas. Perubahan bentuk data, error/status, serta offset sumber harus didokumentasikan bersama konsumennya; jangan menggandakan kebijakan publikasi di beberapa runtime.
 
 ## Isi saat ini
 
-Berkas: [batching.cpp](batching.cpp), [cross_encoder.cpp](cross_encoder.cpp), [embeddings.cpp](embeddings.cpp), [runtime.cpp](runtime.cpp).
+Berkas: [batching.cpp](batching.cpp), [batching_test.cpp](batching_test.cpp), [cross_encoder.cpp](cross_encoder.cpp), [embeddings.cpp](embeddings.cpp), [runtime.cpp](runtime.cpp).
 
 ## Benchmark dan perhatian performa
 
@@ -32,7 +32,7 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
-| [batching.cpp](batching.cpp) | Schedule length/token-aware bounded microbatches with deadlines, cancellation and separate query/bulk capacity. | Test overload, fairness, starvation and cancelled items; measure p95/p99 queue wait, utilization and RSS/VRAM. |
+| [batching.cpp](batching.cpp) | Hubungkan scheduler yang sudah aktif ke session warm, mapping typed error, supervisor/retry, dan telemetry antrean. | CTest memeriksa overload, fairness, deadline, serta cancel; p95/p99 queue wait, utilization, RSS/VRAM tetap NOT_MEASURED. |
 | [cross_encoder.cpp](cross_encoder.cpp) | Implement batched pair tokenization/scoring with stable pair IDs, calibrated score interpretation and explicit truncation. | Check Python/native score/rank parity including long legal clauses; measure reranking quality, batch wait and throughput. |
 | [embeddings.cpp](embeddings.cpp) | Implement exact tokenization, pooling and normalization for the selected export; return item-correlated vectors and truncation metadata. | Check Python/native numeric and retrieval parity, dimensions/non-finite values, multilingual long inputs and queue-inclusive latency. |
 | [runtime.cpp](runtime.cpp) | Own long-lived model sessions, tokenizer/config manifests, resource pools and explicit startup/shutdown; connect the C01 wire library during N01. | Measure cold start separately; test load failure cleanup, concurrent reuse and cancellation without per-request reload. |

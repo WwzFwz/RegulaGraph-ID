@@ -8,7 +8,7 @@ Fungsi di luar cakupan ini mengikuti komponen pemiliknya. Jika fungsi baru tidak
 
 ## Peran dan integrasi anak
 
-Header saat ini hanya namespace scaffold. Kelak definisikan ownership buffer, model identity, cancellation, dan panjang input.
+`batching.hpp` kini mendefinisikan ownership metadata antrean, batas item/token, deadline, cancellation, dan prioritas query/bulk untuk satu event-loop thread. Header model lain masih scaffold; kelak definisikan ownership buffer, model identity, dan panjang input. Scheduler tidak memuat model saat header di-include.
 
 Pertahankan source/canonical/provision-version/snapshot ID dan schema version lintas anak. Boundary runtime mengikuti [src/contracts](../../../../contracts/README.md), dengan pekerjaan batch atau inference yang jelas. Perubahan bentuk data, error/status, serta offset sumber harus didokumentasikan bersama konsumennya; jangan menggandakan kebijakan publikasi di beberapa runtime.
 
@@ -32,7 +32,7 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
-| [batching.hpp](batching.hpp) | Define the batching interface with explicit ownership, lifetimes, typed errors and cancellation; keep implementation in matching .cpp. | Test overload, fairness, starvation and cancelled items; measure p95/p99 queue wait, utilization and RSS/VRAM; header inclusion must not allocate model resources. |
+| [batching.hpp](batching.hpp) | Integrasikan antarmuka scheduler aktif dengan typed C01 errors, worker supervisor/retry, dan model warm. | CTest overload, fairness, deadline, cancellation lulus; p95/p99 queue wait, utilization, RSS/VRAM tetap NOT_MEASURED. |
 | [cross_encoder.hpp](cross_encoder.hpp) | Define the cross_encoder interface with explicit ownership, lifetimes, typed errors and cancellation; keep implementation in matching .cpp. | Check Python/native score/rank parity including long legal clauses; measure reranking quality, batch wait and throughput; header inclusion must not allocate model resources. |
 | [embeddings.hpp](embeddings.hpp) | Define the embeddings interface with explicit ownership, lifetimes, typed errors and cancellation; keep implementation in matching .cpp. | Check Python/native numeric and retrieval parity, dimensions/non-finite values, multilingual long inputs and queue-inclusive latency; header inclusion must not allocate model resources. |
 | [runtime.hpp](runtime.hpp) | Define the runtime interface with explicit ownership, lifetimes, typed errors and cancellation; keep implementation in matching .cpp. | Measure cold start separately; test load failure cleanup, concurrent reuse and cancellation without per-request reload; header inclusion must not allocate model resources. |

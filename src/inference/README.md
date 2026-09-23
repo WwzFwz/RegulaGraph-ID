@@ -8,7 +8,7 @@ Fungsi di luar cakupan ini mengikuti komponen pemiliknya. Jika fungsi baru tidak
 
 ## Peran dan integrasi anak
 
-Scaffold dapat dikompilasi tanpa model/ONNX SDK. Integrasi runtime dan transport akan ditambahkan kemudian; generator LLM tetap adapter provider/engine terpisah.
+Library dapat dikompilasi tanpa model/ONNX SDK. Scheduler batch bounded sudah aktif dan diuji; session model, tokenization, scoring, serta transport akan ditambahkan kemudian. Generator LLM tetap adapter provider/engine terpisah.
 
 Pertahankan source/canonical/provision-version/snapshot ID dan schema version lintas anak. Boundary runtime mengikuti [src/contracts](../contracts/README.md), dengan pekerjaan batch atau inference yang jelas. Perubahan bentuk data, error/status, serta offset sumber harus didokumentasikan bersama konsumennya; jangan menggandakan kebijakan publikasi di beberapa runtime.
 
