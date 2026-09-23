@@ -20,6 +20,8 @@ Berkas langsung: [acquisition.md](acquisition.md), [system-design.md](system-des
 
 [verification-report-semantic-extract.md](verification-report-semantic-extract.md) merekam audit adversarial boundary model EXTRACT, sedangkan [verification-report-i01-durable-extract.md](verification-report-i01-durable-extract.md) merekam claim, commit, source-evidence validation, dan recovery coordinator EXTRACT. [verification-report-k01-alias-registry.md](verification-report-k01-alias-registry.md) mencatat bukti PostgreSQL untuk alias berversi, lookup kandidat ambigu, revision lookup kosong, serta batas hasil verifikasinya.
 
+[verification-report-q01-a01-core.md](verification-report-q01-a01-core.md) mencatat fungsi fusion dan packing konteks yang diuji, beserta batas bahwa retrieval, generation, dan benchmark end-to-end belum aktif.
+
 Mulai dari system-design untuk membaca keseluruhan rancangan, lalu system-contracts dan storage-consistency untuk semantik integrasi. Corpus-plan mengikat sumber pilihan pengguna dan prosedur gold dataset. Development-plan mengurutkan seluruh implementasi menurut dependency beserta bukti kelulusannya. Dokumen desain tidak berarti pipeline atau benchmark sudah aktif; status kontrak C01 dijelaskan terpisah.
 
 ## Benchmark dan perhatian kualitas
