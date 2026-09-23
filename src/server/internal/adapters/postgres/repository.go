@@ -40,6 +40,7 @@ import (
 
 var (
 	ErrConflict            = errors.New("storage conflict")
+	ErrResultLimit         = errors.New("storage result limit exceeded")
 	ErrNotFound            = domain.ErrNotFound
 	ErrStaleFence          = errors.New("stale lease or publication fence")
 	ErrLeaseUnavailable    = domain.ErrLeaseUnavailable
