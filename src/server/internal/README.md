@@ -26,4 +26,6 @@ Ikuti [kebijakan benchmark](../../../doc/benchmark-policy.md). Angka wajib mengi
 
 ## Status
 
+EXTRACT memakai ontology JSONC bersama: gateway menolak proposal di luar vocabulary dan coordinator memverifikasi versi/hash serta typed graph sebelum commit. Nilai kualitas/performa masih belum diukur.
+
 Collector/audit D01, kontrak/validator C01, evaluator E01, storage/publication S01, durable pipeline sampai EXTRACT, exact identity BIND K01, worker EXTRACT, dan Semantic Gateway sudah tersedia. Graph/index/retrieval, mutasi backend, serta provider/model produksi belum aktif; target kualitas dan latency belum diukur.

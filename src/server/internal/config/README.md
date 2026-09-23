@@ -24,7 +24,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. Pipeline parsing/graph/retrieval, mutasi backend, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan target kualitas atau latency.
+`config.go` memuat ontology JSONC berbatas 1 MiB saat startup dan menolak hash sumber yang berbeda dari pin environment. Loader konfigurasi ingestion/retrieval lain masih bertahap. Collector/audit D01, kontrak/validator C01, evaluator E01, storage/publication S01, dan pipeline sampai EXTRACT tersedia; graph/retrieval, gold dataset, serta acceptance produksi belum aktif. Build dan fixture tidak membuktikan target kualitas atau latency.
 
 ## Rekomendasi implementasi anak
 

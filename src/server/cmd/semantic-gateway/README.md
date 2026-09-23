@@ -1,5 +1,7 @@
 # src/server/cmd/semantic-gateway
 
+Startup juga memuat `configs/ontology-v1.jsonc` dengan SHA-256 dari environment. Proposal model yang memakai tipe, predicate, endpoint, origin, atau qualifier di luar vocabulary menjadi error per item; producer manifest mencatat hash ontology agar output dapat diaudit.
+
 Entry point ini menjalankan layanan gRPC internal `Semantic.ExtractBatch`. Proses membaca prompt dan JSON Schema yang dipin, memverifikasi seluruh hash model, membuat satu client provider OpenAI-compatible, lalu memakai concurrency serta batas byte yang eksplisit. Model tidak dimuat atau client tidak dibuat ulang per item.
 
 Listener wajib loopback sampai autentikasi transport/TLS tersedia. Provider eksternal wajib HTTPS; provider HTTP hanya diterima pada loopback. API key hanya berasal dari environment dan tidak dimasukkan ke fingerprint atau log. Shutdown menunggu RPC aktif paling lama sepuluh detik sebelum menghentikan server.

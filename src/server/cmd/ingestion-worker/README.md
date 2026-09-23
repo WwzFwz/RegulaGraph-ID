@@ -1,5 +1,7 @@
 # src/server/cmd/ingestion-worker
 
+Coordinator memuat ontology JSONC terpin SHA-256 sekali saat startup. EXTRACT mensyaratkan hash yang sama pada request tersimpan dan manifest producer serta memeriksa typed predicate/qualifier sebelum artefak didaftarkan.
+
 Entry point daemon coordinator ingestion Go. Proses ini membuka pool PostgreSQL, shared FileStore, dan client gRPC Rust sekali, lalu menjalankan workflow PARSE, STRUCTURE, BIND, CHUNK, dan EXTRACT durable. Executor dokumen merotasi PARSE/STRUCTURE/CHUNK/EXTRACT, sedangkan loop luar bergantian dengan BIND agar backlog awal tidak membuat binding kelaparan. Ia tidak menjalankan parser sendiri dan tidak melakukan publication snapshot.
 
 Listener Rust masih dibatasi loopback tanpa TLS, sehingga endpoint daemon ini juga wajib berupa host loopback. Migrasi database dijalankan sebagai langkah operasional terpisah sebelum daemon start. Shutdown menghentikan claim baru, membatalkan RPC aktif melalui context, meneruskan cancellation ke worker, dan menutup client/pool.

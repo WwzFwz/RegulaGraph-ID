@@ -26,6 +26,8 @@ Ikuti [kebijakan benchmark](../../doc/benchmark-policy.md). Angka wajib mengikut
 
 ## Status
 
+Worker EXTRACT memuat ontology berversi dengan hash terpin, memeriksa pin pada request/manifest Semantic Gateway, dan menolak graph typed yang tidak sesuai sebelum persistence. Gate ini belum mengukur akurasi extraction.
+
 Boundary parser PDFium, normalizer, structural chunking, proyeksi/persistence C01, incremental planner, dan selector timeline aktif sebagai library. Executable worker Tonic menjalankan PARSE dari PDF terverifikasi, STRUCTURE dari `DocumentBatch` immutable, lalu CHUNK dari batch BIND lengkap. CHUNK memverifikasi ulang raw/normalized/mapping dan hierarchy, memasangkan node ke `ProvisionVersion` registry-owned secara eksak, memakai tokenizer Hugging Face hash-pinned, serta menghasilkan chunk parent-aware dengan batas token. Extraction change-event, canonical registry Rust, tabel, graph/index batch, OCR, gold temporal, object storage, full-rebuild equivalence, dan acceptance produksi belum aktif.
 
 ## Penambahan C01 dan panduan verifikasi

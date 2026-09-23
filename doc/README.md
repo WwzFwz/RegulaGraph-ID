@@ -32,7 +32,7 @@ Lihat [kebijakan benchmark](benchmark-policy.md) untuk protokol pengukuran dan p
 
 Collector dan audit inventory D01, kontrak/validator C01, evaluator offline E01, fondasi control-plane
 storage/publication S01, source provenance, parser PDFium, normalizer teks, parser struktur hukum, parent-aware chunk builder, boundary artefak dokumen, incremental planner, selector timeline, serta worker/coordinator PARSE -> STRUCTURE -> BIND -> CHUNK -> EXTRACT I01 sudah aktif. Planner exact regulation identity, allocator canonical PostgreSQL, materializer `Regulation`/`ProvisionVersion`, workflow/persistence BIND, dan binding chunk per-node K01 juga aktif. Profiler M01 telah membandingkan tiga
-engine PDF. Worker EXTRACT, Semantic Gateway, serta commit/recovery durable EXTRACT oleh coordinator sudah aktif secara deterministik. Ontology enforcement, resolusi semantik/merge-split, stage ASSEMBLE-INDEX, graph/retrieval, mutasi backend Qdrant/Neo4j,
+engine PDF. Worker EXTRACT, Semantic Gateway, commit/recovery durable EXTRACT, serta ontology EXTRACT terpin bersama sudah aktif secara deterministik. Resolusi semantik/merge-split, stage ASSEMBLE-INDEX, graph/retrieval, mutasi backend Qdrant/Neo4j,
 provider/model produksi, gold dataset, serta acceptance run produksi belum aktif. Status anak dijelaskan pada header
 masing-masing; profil parser, audit integrity, test correctness S01, dan evaluator sintetis tidak membuktikan
 target kualitas atau latency produksi.
@@ -62,6 +62,7 @@ Ringkasan milestone: [verification-report-c01.md](verification-report-c01.md),
 [verification-report-k01-document-binding.md](verification-report-k01-document-binding.md),
 [verification-report-k01-exact-registry.md](verification-report-k01-exact-registry.md),
 [verification-report-k01-stage-handoff.md](verification-report-k01-stage-handoff.md),
+[verification-report-k01-ontology.md](verification-report-k01-ontology.md),
 [verification-report-m01-pdf-profile.md](verification-report-m01-pdf-profile.md), dan
 [verification-report-s01.md](verification-report-s01.md), serta
 [verification-report-semantic-extract.md](verification-report-semantic-extract.md). Laporan S01 mengikat implementasi

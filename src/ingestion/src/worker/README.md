@@ -1,5 +1,7 @@
 # src/ingestion/src/worker
 
+Pada EXTRACT, request dan manifest Semantic Gateway harus membawa hash ontology yang sama dengan source lokal terpin; hasil typed graph divalidasi sebelum ditulis sebagai artefak. Kegagalan vocabulary menghasilkan `FailedPrecondition` dan tidak dinilai sebagai graph legal yang benar.
+
 Boundary transport gRPC dan orkestrasi proses batch Rust. Folder ini menerima message C01, memvalidasi deadline serta attempt/fence, menjalankan transformasi melalui processor terbatas, dan hanya mengembalikan referensi artefak immutable. Go tetap memiliki status durable, retry policy, dan publication.
 
 Anak folder tidak boleh menambahkan schema transport sendiri atau melakukan publication backend. Konversi Tonic dan rust-protobuf harus melalui byte Protobuf dari schema yang sama. Proses besar berjalan per batch, dibatasi ukuran pesan dan concurrency, serta memeriksa cancellation di antara item. Perubahan kontrak harus dimulai dari `src/contracts/proto`.

@@ -70,6 +70,8 @@ Tanggal berlaku/legal status adalah assertion bersumber dan berversi, bukan nila
 | GraphDelta | delta_id, base_snapshot, registry_revision, upserts, visibility_closures, support_changes, dependencies, validation_report | Go menolak base stale, orphan, schema/ontology mismatch sebelum publish |
 | GraphPath | path_id, ordered_node_ids, ordered_assertion_ids, selected_support_ids, coverage, frontier_exhausted | Setiap edge yang dipakai menjawab memiliki support terlihat pada snapshot |
 
+Ontology EXTRACT bersumber dari `configs/ontology-v1.jsonc`. Go Semantic Gateway, Rust worker, dan Go coordinator harus memuat bytes dengan SHA-256 yang sama. `IngestionRequest.config_manifest.input_hashes` memin ontology saat submit; producer Semantic Gateway memasukkan hash yang sama ke `input_hashes`, dan worker/coordinator menolak mismatch sebelum artefak diterima. `ontology_version` pada batch/assertion tetap identitas semantik; hash bytes memastikan perubahan aturan dengan label versi sama tidak lolos diam-diam. Gate ini memeriksa bentuk relasi, bukan kebenaran hukum dari hasil model.
+
 ResolutionProposal memakai client-local correlation ID untuk objek baru; ResolveBatch registry mengembalikan canonical ID sehingga semua referensi downstream dapat diikat ulang sebelum publikasi. Assignment idempotent berdasarkan proposal key dan registry revision. Alias adalah lookup; daftar sinonim tanpa konteks bukan canonical registry.
 
 Proposal EXTRACT tidak boleh menulis mention ID ke field `canonical_id`. Endpoint assertion dan qualifier entity tetap menunjuk `mention_id` deterministik sampai keputusan resolution yang revision-bound tersedia. ASSEMBLE menolak graph delta yang masih membawa referensi provisional atau canonical assignment stale.

@@ -14,6 +14,8 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+[ontology.go](ontology.go) memuat vocabulary EXTRACT bersama dari JSONC terpin hash dan memvalidasi tipe mention, predicate, endpoint, origin, serta qualifier. [ontology_test.go](ontology_test.go) menutup drift istilah dan konfigurasi; gate deterministik ini masih membutuhkan gold set untuk mengukur kebenaran hukum.
+
 Berkas: [answers.go](answers.go), [chunks.go](chunks.go), [documents.go](documents.go), [document_validation.go](document_validation.go), [extraction_validation.go](extraction_validation.go), [entities.go](entities.go), [evidence.go](evidence.go), [relations.go](relations.go), [registry.go](registry.go), serta [operations.go](operations.go) untuk boundary job/publication S01. Validator dokumen dan ekstraksi memeriksa closure referensi, accounting, provenance source/version, identitas model/prompt, qualifier provisional, serta containment span sebelum artefak diregistrasi. [registry_test.go](registry_test.go) memverifikasi exact-key planning, sedangkan [documents_test.go](documents_test.go) memverifikasi binding regulation/provision, provenance, completeness, dan structural closure. Validator wire dan boundary lintas record dijelaskan pada bagian C01 di bawah.
 
 ## Benchmark dan perhatian performa

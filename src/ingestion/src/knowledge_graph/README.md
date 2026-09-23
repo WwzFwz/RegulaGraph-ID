@@ -30,7 +30,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-EXTRACT sudah memiliki validator, artefak immutable terikat `DocumentBatch`, executor worker, Semantic Gateway deterministic, serta coordinator durable dengan recovery checkpoint. Ontology enforcement, provider/model produksi, resolution, assembly, summarization, dan publication graph belum aktif. Build serta fixture invariant tidak membuktikan kualitas semantik atau latency produksi.
+EXTRACT memiliki validator, artefak immutable terikat `DocumentBatch`, executor worker, Semantic Gateway deterministic, coordinator durable, dan ontology JSONC bersama yang memvalidasi tipe/predicate/qualifier sebelum persistence. Provider/model produksi, resolution, assembly, summarization, dan publication graph belum aktif. Build serta fixture invariant tidak membuktikan kualitas semantik atau latency produksi.
 
 ## Rekomendasi implementasi anak
 
@@ -38,4 +38,4 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
-| [schema.rs](schema.rs) | Implement typed ontology/predicate/qualifier constraints mapped to graph.proto without a parallel wire schema. | Test allowed endpoint types, explicit vs inferred assertions and unknown predicates; version ontology changes with affected artifacts. |
+| [schema.rs](schema.rs) | Pertahankan compiler ontology bersama dan integrasikan aturan temporal/evidence tambahan saat gold set menuntutnya; jangan buat wire schema paralel. | Uji drift versi/hash, endpoint, explicit/inferred, unknown predicate, serta kualitas semantic pada gold split. |

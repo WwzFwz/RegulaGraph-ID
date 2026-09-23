@@ -16,7 +16,7 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 Berkas: [cross_encoder.go](cross_encoder.go), [embeddings.go](embeddings.go), [llm.go](llm.go), [semantic.go](semantic.go). Test boundary berada pada file `_test.go` pendamping.
 
-`llm.go` menyediakan adapter HTTP structured output OpenAI-compatible tanpa retry implisit. `semantic.go` mengimplementasikan `Semantic.ExtractBatch`: validasi request/model/schema, concurrency terbatas, cache operation-key dalam proses, proyeksi ID deterministik, exact UTF-8 span, provenance, support closure, manifest, accounting token, dan error eksplisit per item. Replay durable lintas restart tetap milik coordinator.
+`llm.go` menyediakan adapter HTTP structured output OpenAI-compatible tanpa retry implisit. `semantic.go` mengimplementasikan `Semantic.ExtractBatch`: validasi request/model/schema/ontology, concurrency terbatas, cache operation-key dalam proses, proyeksi ID deterministik, exact UTF-8 span, provenance, support closure, manifest termasuk hash ontology, accounting token, dan error eksplisit per item. Replay durable lintas restart tetap milik coordinator.
 
 ## Benchmark dan perhatian performa
 
@@ -26,7 +26,7 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Semantic.ExtractBatch dan adapter provider sudah aktif secara fungsional serta diuji dengan provider deterministic. Embedding/reranking C++, ontology enforcement, provider/model produksi, benchmark kualitas/latency/biaya, ResolveBatch, SummarizeBatch, dan acceptance produksi belum aktif.
+Semantic.ExtractBatch, gate vocabulary ontology, dan adapter provider sudah aktif secara fungsional serta diuji dengan provider deterministic. Embedding/reranking C++, provider/model produksi, benchmark kualitas/latency/biaya, ResolveBatch, SummarizeBatch, dan acceptance produksi belum aktif.
 
 ## Rekomendasi implementasi anak
 

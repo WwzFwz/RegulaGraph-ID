@@ -2,7 +2,7 @@
 
 Repositori ini menampung pengembangan Hybrid GraphRAG untuk regulasi Indonesia dengan pemisahan runtime berdasarkan latency dan throughput. README ini menjadi peta fungsi, pemilik komponen, dan cara memeriksa struktur build.
 
-**Status: collector/audit D01, kontrak C01, evaluator E01, storage/publication S01, pipeline durable sampai EXTRACT, dan Semantic EXTRACT Gateway tersedia; Hybrid GraphRAG end-to-end belum aktif.** Go/Rust/C++ memegang runtime produk; Python untuk evaluasi/tooling offline. Audit D01 telah memverifikasi provenance dan blob lokal sekitar 3 GB, tetapi coverage queue/reference, connector JDIHN, stratifikasi format, dan gold data masih belum lengkap. Rust menghasilkan artefak dokumen, chunk, dan proposal ekstraksi berbukti; Go memegang exact identity, orchestration, gateway model, validasi commit EXTRACT, serta control-plane. Ontology enforcement, canonical resolution, graph/index, retrieval/answering, provider/model produksi, dan benchmark masih harus diselesaikan. Mulai kelanjutan dari [panduan implementasi](doc/implementation-guide.md), [runner evaluasi](doc/evaluation-runner.md), dan [protokol verifikasi](doc/verification.md).
+**Status: collector/audit D01, kontrak C01, evaluator E01, storage/publication S01, pipeline durable sampai EXTRACT, Semantic EXTRACT Gateway, dan ontology EXTRACT bersama tersedia; Hybrid GraphRAG end-to-end belum aktif.** Go/Rust/C++ memegang runtime produk; Python untuk evaluasi/tooling offline. Audit D01 telah memverifikasi provenance dan blob lokal sekitar 3 GB, tetapi coverage queue/reference, connector JDIHN, stratifikasi format, dan gold data masih belum lengkap. Rust menghasilkan artefak dokumen, chunk, dan proposal ekstraksi berbukti; Go memegang exact identity, orchestration, gateway model, validasi commit EXTRACT, serta control-plane. Canonical resolution, graph/index, retrieval/answering, provider/model produksi, dan benchmark masih harus diselesaikan. Mulai kelanjutan dari [panduan implementasi](doc/implementation-guide.md), [runner evaluasi](doc/evaluation-runner.md), dan [protokol verifikasi](doc/verification.md).
 
 ## Struktur dan cakupan
 
@@ -16,6 +16,7 @@ RegulaGraph-ID/
 │   ├── benchmark-targets.yaml
 │   ├── evaluation.yaml
 │   ├── ingestion.yaml
+│   ├── ontology-v1.jsonc
 │   ├── listings.txt
 │   ├── README.md
 │   ├── retrieval.yaml
