@@ -17,6 +17,8 @@ Anak tidak boleh mengubah kontrak input/output secara tersembunyi. Perubahan ben
 ## Isi saat ini
 
 Berkas langsung: [__init__.py](__init__.py), [schema.py](schema.py), dan [loader.py](loader.py).
+[annotation-guide.md](annotation-guide.md) memberi urutan label parsing/graph/query, review manusia,
+adjudikasi, split, dan freeze terhadap kontrak `GoldQuestion`; belum ada gold berlabel aktif.
 
 ## Benchmark dan perhatian kualitas
 

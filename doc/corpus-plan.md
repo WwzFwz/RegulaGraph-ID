@@ -80,7 +80,7 @@ valid pada inventory. Lakukan audit blob/snapshot dan review sebelum membuat gol
 6. Review manusia memeriksa label, evidence alternatif, dan disagreement. Simpan reviewer, versi guideline, uncertainty, serta adjudication. Model dapat mengusulkan pertanyaan, tetapi gold tidak berasal dari penilaian model yang sama tanpa review.
 7. Bekukan test manifest/hash; gunakan dev untuk pemilihan model, fusion, chunking, dan prompt. Koreksi label test harus bersumber, berversi, dan dilaporkan; jangan menghapus kasus karena model gagal.
 
-Gold parsing memberi struktur pasal/ayat, reading order, spans, CER reference, serta token kritis angka/negasi/pengecualian. Gold graph memberi mention, canonical same/different, predicate/arah/conditions, supports, dan blocking candidate coverage. Label sumber/teks tidak boleh diasumsikan benar hanya karena extractor menghasilkan JSON valid.
+Gold parsing memberi struktur pasal/ayat, reading order, spans, CER reference, serta token kritis angka/negasi/pengecualian. Gold graph memberi mention, canonical same/different, predicate/arah/conditions, supports, dan blocking candidate coverage. [Pedoman anotasi G01](../evaluation/datasets/annotation-guide.md) menjelaskan field, review, dan freeze secara operasional. Label sumber/teks tidak boleh diasumsikan benar hanya karena extractor menghasilkan JSON valid.
 
 ## 7. Hasil persiapan data yang harus tersedia
 
