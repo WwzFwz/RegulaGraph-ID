@@ -22,6 +22,8 @@ Berkas langsung: [acquisition.md](acquisition.md), [system-design.md](system-des
 
 [verification-report-q01-a01-core.md](verification-report-q01-a01-core.md) mencatat fungsi fusion dan packing konteks yang diuji, beserta batas bahwa retrieval, generation, dan benchmark end-to-end belum aktif.
 
+[verification-report-n01-a01-boundaries.md](verification-report-n01-a01-boundaries.md) mencatat scheduler native serta validasi struktural jawaban/sitasi. [verification-report-x01-bm25-statistics.md](verification-report-x01-bm25-statistics.md) mencatat statistik BM25 lokal dari token yang sudah dianalisis. [verification-report-q01-rerank-correlation.md](verification-report-q01-rerank-correlation.md) mencatat korelasi hasil reranker. Ketiga laporan membatasi PASS pada fixture fungsi terkait, bukan milestone atau benchmark end-to-end.
+
 Mulai dari system-design untuk membaca keseluruhan rancangan, lalu system-contracts dan storage-consistency untuk semantik integrasi. Corpus-plan mengikat sumber pilihan pengguna dan prosedur gold dataset. Development-plan mengurutkan seluruh implementasi menurut dependency beserta bukti kelulusannya. Dokumen desain tidak berarti pipeline atau benchmark sudah aktif; status kontrak C01 dijelaskan terpisah.
 
 ## Benchmark dan perhatian kualitas
@@ -35,7 +37,8 @@ Lihat [kebijakan benchmark](benchmark-policy.md) untuk protokol pengukuran dan p
 Collector dan audit inventory D01, kontrak/validator C01, evaluator offline E01, fondasi control-plane
 storage/publication S01, source provenance, parser PDFium, normalizer teks, parser struktur hukum, parent-aware chunk builder, boundary artefak dokumen, incremental planner, selector timeline, serta worker/coordinator PARSE -> STRUCTURE -> BIND -> CHUNK -> EXTRACT I01 sudah aktif. Planner exact regulation identity, allocator canonical PostgreSQL, materializer `Regulation`/`ProvisionVersion`, workflow/persistence BIND, dan binding chunk per-node K01 juga aktif. Profiler M01 telah membandingkan tiga
 engine PDF. Worker EXTRACT, Semantic Gateway, commit/recovery durable EXTRACT, serta ontology EXTRACT terpin bersama sudah aktif secara deterministik. Resolusi semantik/merge-split, stage ASSEMBLE-INDEX, graph/retrieval, mutasi backend Qdrant/Neo4j,
-provider/model produksi, gold dataset, serta acceptance run produksi belum aktif. Status anak dijelaskan pada header
+provider/model produksi, gold dataset, serta acceptance run produksi belum aktif. Primitive fusion, korelasi reranker,
+statistik BM25 lokal, packing konteks, dan validasi struktural sitasi telah diuji, tetapi belum membentuk pipeline query produksi. Status anak dijelaskan pada header
 masing-masing; profil parser, audit integrity, test correctness S01, dan evaluator sintetis tidak membuktikan
 target kualitas atau latency produksi.
 
