@@ -91,6 +91,27 @@ func TestValidateRegistryCandidateBatchKeepsNegativeLookup(t *testing.T) {
 	}
 }
 
+func TestValidateRegistryCandidateBatchRejectsUnrelatedAlias(t *testing.T) {
+	batch, source, sourceRef := candidateBatchFixture()
+	batch.Aliases = []*pb.Alias{{
+		Meta:        &pb.RecordMeta{SchemaVersion: 1, CorpusId: batch.Meta.CorpusId, RecordId: "alias:one"},
+		CanonicalId: "canonical:one", Surface: "Instansi A", NormalizedLookup: "instansi a",
+		Scope: "national", Language: "id", SupportRefs: []string{"mention:one"},
+	}}
+	if err := ValidateRegistryCandidateBatch(batch, source, sourceRef, 8, 3); err != nil {
+		t.Fatal("alias matching its returned lookup was rejected:", err)
+	}
+	batch.Aliases[0].NormalizedLookup = "instansi lain"
+	if err := ValidateRegistryCandidateBatch(batch, source, sourceRef, 8, 3); err == nil {
+		t.Fatal("alias outside the returned lookup was accepted")
+	}
+	batch.Aliases[0].NormalizedLookup = "instansi a"
+	batch.Aliases[0].CanonicalId = "canonical:other"
+	if err := ValidateRegistryCandidateBatch(batch, source, sourceRef, 8, 3); err == nil {
+		t.Fatal("alias with a foreign canonical owner was accepted")
+	}
+}
+
 func TestValidateRegistryCandidateBatchRejectsCrossScopeContamination(t *testing.T) {
 	batch, source, sourceRef := candidateBatchFixture()
 	second := &pb.LookupScopeRevision{ScopeId: "lookup:organization:regional:instansi-a", Revision: 7, EmptyResult: true}

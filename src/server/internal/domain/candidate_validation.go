@@ -194,6 +194,14 @@ func ValidateRegistryCandidateBatch(batch *pb.RegistryCandidateBatch, source *pb
 			return fmt.Errorf("candidate %q has no lookup reference", id)
 		}
 	}
+	for _, alias := range batch.Aliases {
+		owner := candidates[alias.CanonicalId]
+		key := candidateLookupKey{owner.EntityType, alias.Scope, alias.NormalizedLookup}
+		scopeID, exists := observedScopeIDs[key]
+		if !exists || !observedResults[scopeID][alias.CanonicalId] {
+			return fmt.Errorf("candidate alias %q is not returned by its lookup scope", alias.Meta.RecordId)
+		}
+	}
 	if len(manifest.LookupScopeRevisions) != len(observedScopes) {
 		return errors.New("candidate dependency manifest omits or adds lookup scopes")
 	}
