@@ -35,6 +35,9 @@ serta stage RESOLVE belum tersedia.
 [verification-report-k01-go-candidate-proposals.md](verification-report-k01-go-candidate-proposals.md)
 mencatat pemeriksaan Go atas scope ID, alias kandidat positif, serta proposal sebelum keputusan
 registry; receipt dan integrasi stage masih belum diuji.
+[verification-report-k01-registry-receipts.md](verification-report-k01-registry-receipts.md)
+mencatat validator struktural receipt LINK/DEFER terhadap kandidat terpin serta review independen;
+autentikasi PostgreSQL, stage RESOLVE, dan akurasi hukum masih menunggu integrasi dan gold.
 [verification-report-g01-review-packet.md](verification-report-g01-review-packet.md) mencatat triase enam PDF
 yang metadata antreannya dicocokkan ulang ke inventory dan byte PDF-nya diverifikasi; gold manusia belum tersedia.
 [verification-report-a01-citation-mapping.md](verification-report-a01-citation-mapping.md) mencatat helper
