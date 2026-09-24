@@ -1,4 +1,4 @@
-// Implements the internal Semantic.ExtractBatch gateway and projects strict provider JSON into C01.
+// Configures the internal Semantic EXTRACT/RESOLVE gateway and projects strict provider JSON into C01.
 // Source text remains untrusted data; the gateway owns IDs, provenance, manifests, review state, and
 // absolute UTF-8 byte spans. In-memory operation caching prevents duplicate sampling within a process;
 // durable replay across restarts remains a coordinator storage task. Required quality/latency is unmeasured.
@@ -47,12 +47,13 @@ type SemanticConfig struct {
 
 type SemanticService struct {
 	pb.UnimplementedSemanticServer
-	provider   StructuredProvider
-	config     SemanticConfig
-	producer   *pb.ProducerManifest
-	semaphore  chan struct{}
-	operations chan struct{}
-	cache      *semanticCache
+	provider        StructuredProvider
+	config          SemanticConfig
+	producer        *pb.ProducerManifest
+	semaphore       chan struct{}
+	operations      chan struct{}
+	cache           *semanticCache
+	resolutionCache *resolutionCache
 }
 
 func NewSemanticService(provider StructuredProvider, config SemanticConfig) (*SemanticService, error) {
@@ -69,8 +70,8 @@ func NewSemanticService(provider StructuredProvider, config SemanticConfig) (*Se
 	if err := domain.ValidateWire(config.Model, domain.DefaultWireLimits); err != nil {
 		return nil, fmt.Errorf("validate semantic model: %w", err)
 	}
-	if config.Model.Task != pb.ModelTask_MODEL_TASK_EXTRACT || config.Model.PromptHash == nil {
-		return nil, errors.New("semantic gateway requires an EXTRACT model with prompt hash")
+	if (config.Model.Task != pb.ModelTask_MODEL_TASK_EXTRACT && config.Model.Task != pb.ModelTask_MODEL_TASK_RESOLVE) || config.Model.PromptHash == nil {
+		return nil, errors.New("semantic gateway requires an EXTRACT or RESOLVE model with prompt hash")
 	}
 	if config.Model.PromptHash.Sha256 != sha256String([]byte(config.SystemPrompt)) {
 		return nil, errors.New("semantic system prompt differs from pinned prompt hash")
@@ -89,16 +90,20 @@ func NewSemanticService(provider StructuredProvider, config SemanticConfig) (*Se
 		return nil, fmt.Errorf("validate semantic producer: %w", err)
 	}
 	return &SemanticService{
-		provider:   provider,
-		config:     config,
-		producer:   producer,
-		semaphore:  make(chan struct{}, config.MaximumConcurrent),
-		operations: make(chan struct{}, config.MaximumConcurrent),
-		cache:      newSemanticCache(config.MaximumCacheEntries, config.MaximumCacheBytes),
+		provider:        provider,
+		config:          config,
+		producer:        producer,
+		semaphore:       make(chan struct{}, config.MaximumConcurrent),
+		operations:      make(chan struct{}, config.MaximumConcurrent),
+		cache:           newSemanticCache(config.MaximumCacheEntries, config.MaximumCacheBytes),
+		resolutionCache: newResolutionCache(config.MaximumCacheEntries, config.MaximumCacheBytes),
 	}, nil
 }
 
 func (s *SemanticService) ExtractBatch(ctx context.Context, request *pb.ExtractBatchRequest) (*pb.ExtractBatchResponse, error) {
+	if s.config.Model.Task != pb.ModelTask_MODEL_TASK_EXTRACT {
+		return nil, status.Error(codes.FailedPrecondition, "gateway is not configured for EXTRACT")
+	}
 	if err := s.validateExtractRequest(request); err != nil {
 		return nil, err
 	}

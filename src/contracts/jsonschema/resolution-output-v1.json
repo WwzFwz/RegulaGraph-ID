@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Pinned provider output for contextual LINK/DEFER proposals; Go validates candidate/evidence IDs and projects authoritative provenance. Not a registry decision.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["action", "candidate_id", "rationale", "evidence_item_ids"],
+  "properties": {
+    "action": {"type": "string", "enum": ["LINK", "DEFER"]},
+    "candidate_id": {"type": "string"},
+    "rationale": {"type": "string", "minLength": 1},
+    "evidence_item_ids": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+  }
+}
