@@ -121,6 +121,15 @@ message ExtractBatchResponse {
   repeated StageDuration durations=5;
   ProducerManifest producer_manifest=6 [(rules).required=true];
 }
+// Candidate-side source evidence, kept distinct from the mention being resolved.
+// The caller verifies alias ownership, support membership, artifact bytes and snapshot;
+// the gateway checks source/span correlation. This is context, not registry approval.
+message ResolutionCandidateContext {
+  string canonical_id=1 [(rules)={required:true ascii_id:true}];
+  string alias_id=2 [(rules)={required:true ascii_id:true}];
+  Mention support_mention=3 [(rules).required=true];
+  repeated TextItem context_items=4 [(rules).min_items=1];
+}
 message AmbiguousMention {
   string item_id=1 [(rules)={required:true ascii_id:true}];
   Mention mention=2 [(rules).required=true];
@@ -131,6 +140,9 @@ message AmbiguousMention {
   // containing the exact mention span; references alone are insufficient for semantic judgment.
   // Additive for binary compatibility; older writers receive an explicit context-missing error.
   repeated TextItem context_items=6;
+  // Additive wire field. A LINK from the current gateway must cite context for its
+  // selected candidate as well as the source mention; missing evidence permits DEFER only.
+  repeated ResolutionCandidateContext candidate_contexts=7;
 }
 message ResolveItemResult {
   string item_id=1 [(rules)={required:true ascii_id:true}];

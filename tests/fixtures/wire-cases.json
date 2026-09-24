@@ -899,6 +899,258 @@
           "chunk-1"
         ]
       }
+    },
+    {
+      "name": "semantic-resolve-candidate-context-roundtrip",
+      "type": "SemanticResolveRequest",
+      "value": {
+        "batch": {
+          "context": {
+            "schema_version": 1,
+            "request_id": "req-1",
+            "trace_id": "trace-1",
+            "corpus_id": "corpus-1",
+            "deadline": "2030-01-01T00:00:00Z",
+            "config_fingerprint": {
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "auth_scope_ref": "scope-1"
+          },
+          "model": {
+            "model_id": "m",
+            "version": "v1",
+            "weights_hash": {
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "tokenizer_hash": {
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "task": "MODEL_TASK_RESOLVE",
+            "max_tokens": 128,
+            "precision": "fp32",
+            "backend": "test"
+          },
+          "operation_key": "op",
+          "ontology_version": "v1",
+          "output_schema": {
+            "artifact_id": "a-1",
+            "content_hash": {
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "storage_key": "blobs/fixture.bin",
+            "media_type": "application/octet-stream",
+            "byte_size": "5",
+            "schema_version": 1
+          }
+        },
+        "items": [
+          {
+            "item_id": "i",
+            "mention": {
+              "meta": {
+                "schema_version": 1,
+                "corpus_id": "corpus-1",
+                "record_id": "mention-1"
+              },
+              "text_span": {
+                "text_artifact_id": "text-1",
+                "end_byte": "5"
+              },
+              "source_refs": [
+                {
+                  "source_blob_id": "blob-1",
+                  "provision_version_id": "pv-1",
+                  "regulation_id": "reg-1"
+                }
+              ],
+              "surface_form": "Pasal",
+              "candidate_type": "provision",
+              "extraction_manifest": {
+                "software": "test",
+                "build": "test",
+                "schema_version": 1,
+                "config_hash": {
+                  "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                }
+              }
+            },
+            "evidence": {
+              "sources": [
+                {
+                  "source_blob_id": "blob-1",
+                  "provision_version_id": "pv-1",
+                  "regulation_id": "reg-1"
+                }
+              ],
+              "spans": [
+                {
+                  "text_artifact_id": "text-1",
+                  "end_byte": "5"
+                }
+              ]
+            },
+            "expected_registry_revision": "1",
+            "context_items": [
+              {
+                "item_id": "chunk-1",
+                "text": "Pasal",
+                "provenance": {
+                  "sources": [
+                    {
+                      "source_blob_id": "blob-1",
+                      "provision_version_id": "pv-1",
+                      "regulation_id": "reg-1"
+                    }
+                  ],
+                  "spans": [
+                    {
+                      "text_artifact_id": "text-1",
+                      "end_byte": "5"
+                    }
+                  ]
+                }
+              }
+            ],
+            "candidate_contexts": [
+              {
+                "canonical_id": "canonical-2",
+                "alias_id": "alias-2",
+                "support_mention": {
+                  "meta": {
+                    "schema_version": 1,
+                    "corpus_id": "corpus-1",
+                    "record_id": "mention-2"
+                  },
+                  "text_span": {
+                    "text_artifact_id": "text-2",
+                    "end_byte": "5"
+                  },
+                  "source_refs": [
+                    {
+                      "source_blob_id": "blob-2",
+                      "provision_version_id": "pv-2",
+                      "regulation_id": "reg-2"
+                    }
+                  ],
+                  "surface_form": "Pasal",
+                  "candidate_type": "provision",
+                  "extraction_manifest": {
+                    "software": "test",
+                    "build": "test",
+                    "schema_version": 1,
+                    "config_hash": {
+                      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                    }
+                  }
+                },
+                "context_items": [
+                  {
+                    "item_id": "chunk-2",
+                    "text": "Pasal",
+                    "provenance": {
+                      "sources": [
+                        {
+                          "source_blob_id": "blob-2",
+                          "provision_version_id": "pv-2",
+                          "regulation_id": "reg-2"
+                        }
+                      ],
+                      "spans": [
+                        {
+                          "text_artifact_id": "text-2",
+                          "end_byte": "5"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            ],
+            "candidates": [
+              {
+                "meta": {
+                  "schema_version": 1,
+                  "corpus_id": "corpus-1",
+                  "record_id": "canonical-2"
+                },
+                "entity_type": "provision",
+                "preferred_label": "Pasal",
+                "scope": "synthetic",
+                "registry_revision": "1",
+                "review_state": "REVIEW_STATE_UNREVIEWED"
+              }
+            ]
+          }
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "candidate-context-missing-support",
+      "type": "ResolutionCandidateContext",
+      "valid": false,
+      "value": {
+        "canonical_id": "canonical-2",
+        "alias_id": "alias-2",
+        "context_items": [
+          {
+            "item_id": "chunk-2",
+            "text": "Pasal",
+            "provenance": {
+              "sources": [
+                {
+                  "source_blob_id": "blob-2",
+                  "provision_version_id": "pv-2",
+                  "regulation_id": "reg-2"
+                }
+              ],
+              "spans": [
+                {
+                  "text_artifact_id": "text-2",
+                  "end_byte": "5"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "candidate-context-empty-excerpts",
+      "type": "ResolutionCandidateContext",
+      "valid": false,
+      "value": {
+        "canonical_id": "canonical-2",
+        "alias_id": "alias-2",
+        "support_mention": {
+          "meta": {
+            "schema_version": 1,
+            "corpus_id": "corpus-1",
+            "record_id": "mention-2"
+          },
+          "text_span": {
+            "text_artifact_id": "text-2",
+            "end_byte": "5"
+          },
+          "source_refs": [
+            {
+              "source_blob_id": "blob-2",
+              "provision_version_id": "pv-2",
+              "regulation_id": "reg-2"
+            }
+          ],
+          "surface_form": "Pasal",
+          "candidate_type": "provision",
+          "extraction_manifest": {
+            "software": "test",
+            "build": "test",
+            "schema_version": 1,
+            "config_hash": {
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          }
+        }
+      }
     }
   ]
 }

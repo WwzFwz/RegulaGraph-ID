@@ -1376,6 +1376,77 @@ func (x *ExtractBatchResponse) GetProducerManifest() *ProducerManifest {
 	return nil
 }
 
+// Candidate-side source evidence, kept distinct from the mention being resolved.
+// The caller verifies alias ownership, support membership, artifact bytes and snapshot;
+// the gateway checks source/span correlation. This is context, not registry approval.
+type ResolutionCandidateContext struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	CanonicalId    string                 `protobuf:"bytes,1,opt,name=canonical_id,json=canonicalId,proto3" json:"canonical_id,omitempty"`
+	AliasId        string                 `protobuf:"bytes,2,opt,name=alias_id,json=aliasId,proto3" json:"alias_id,omitempty"`
+	SupportMention *Mention               `protobuf:"bytes,3,opt,name=support_mention,json=supportMention,proto3" json:"support_mention,omitempty"`
+	ContextItems   []*TextItem            `protobuf:"bytes,4,rep,name=context_items,json=contextItems,proto3" json:"context_items,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *ResolutionCandidateContext) Reset() {
+	*x = ResolutionCandidateContext{}
+	mi := &file_regulagraph_v1_inference_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResolutionCandidateContext) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResolutionCandidateContext) ProtoMessage() {}
+
+func (x *ResolutionCandidateContext) ProtoReflect() protoreflect.Message {
+	mi := &file_regulagraph_v1_inference_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResolutionCandidateContext.ProtoReflect.Descriptor instead.
+func (*ResolutionCandidateContext) Descriptor() ([]byte, []int) {
+	return file_regulagraph_v1_inference_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *ResolutionCandidateContext) GetCanonicalId() string {
+	if x != nil {
+		return x.CanonicalId
+	}
+	return ""
+}
+
+func (x *ResolutionCandidateContext) GetAliasId() string {
+	if x != nil {
+		return x.AliasId
+	}
+	return ""
+}
+
+func (x *ResolutionCandidateContext) GetSupportMention() *Mention {
+	if x != nil {
+		return x.SupportMention
+	}
+	return nil
+}
+
+func (x *ResolutionCandidateContext) GetContextItems() []*TextItem {
+	if x != nil {
+		return x.ContextItems
+	}
+	return nil
+}
+
 type AmbiguousMention struct {
 	state                    protoimpl.MessageState `protogen:"open.v1"`
 	ItemId                   string                 `protobuf:"bytes,1,opt,name=item_id,json=itemId,proto3" json:"item_id,omitempty"`
@@ -1386,14 +1457,17 @@ type AmbiguousMention struct {
 	// Verified source excerpts hydrated by the caller. The resolver requires a context item
 	// containing the exact mention span; references alone are insufficient for semantic judgment.
 	// Additive for binary compatibility; older writers receive an explicit context-missing error.
-	ContextItems  []*TextItem `protobuf:"bytes,6,rep,name=context_items,json=contextItems,proto3" json:"context_items,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	ContextItems []*TextItem `protobuf:"bytes,6,rep,name=context_items,json=contextItems,proto3" json:"context_items,omitempty"`
+	// Additive wire field. A LINK from the current gateway must cite context for its
+	// selected candidate as well as the source mention; missing evidence permits DEFER only.
+	CandidateContexts []*ResolutionCandidateContext `protobuf:"bytes,7,rep,name=candidate_contexts,json=candidateContexts,proto3" json:"candidate_contexts,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *AmbiguousMention) Reset() {
 	*x = AmbiguousMention{}
-	mi := &file_regulagraph_v1_inference_proto_msgTypes[19]
+	mi := &file_regulagraph_v1_inference_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1405,7 +1479,7 @@ func (x *AmbiguousMention) String() string {
 func (*AmbiguousMention) ProtoMessage() {}
 
 func (x *AmbiguousMention) ProtoReflect() protoreflect.Message {
-	mi := &file_regulagraph_v1_inference_proto_msgTypes[19]
+	mi := &file_regulagraph_v1_inference_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1418,7 +1492,7 @@ func (x *AmbiguousMention) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AmbiguousMention.ProtoReflect.Descriptor instead.
 func (*AmbiguousMention) Descriptor() ([]byte, []int) {
-	return file_regulagraph_v1_inference_proto_rawDescGZIP(), []int{19}
+	return file_regulagraph_v1_inference_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *AmbiguousMention) GetItemId() string {
@@ -1463,6 +1537,13 @@ func (x *AmbiguousMention) GetContextItems() []*TextItem {
 	return nil
 }
 
+func (x *AmbiguousMention) GetCandidateContexts() []*ResolutionCandidateContext {
+	if x != nil {
+		return x.CandidateContexts
+	}
+	return nil
+}
+
 type ResolveItemResult struct {
 	state  protoimpl.MessageState `protogen:"open.v1"`
 	ItemId string                 `protobuf:"bytes,1,opt,name=item_id,json=itemId,proto3" json:"item_id,omitempty"`
@@ -1477,7 +1558,7 @@ type ResolveItemResult struct {
 
 func (x *ResolveItemResult) Reset() {
 	*x = ResolveItemResult{}
-	mi := &file_regulagraph_v1_inference_proto_msgTypes[20]
+	mi := &file_regulagraph_v1_inference_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1489,7 +1570,7 @@ func (x *ResolveItemResult) String() string {
 func (*ResolveItemResult) ProtoMessage() {}
 
 func (x *ResolveItemResult) ProtoReflect() protoreflect.Message {
-	mi := &file_regulagraph_v1_inference_proto_msgTypes[20]
+	mi := &file_regulagraph_v1_inference_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1502,7 +1583,7 @@ func (x *ResolveItemResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResolveItemResult.ProtoReflect.Descriptor instead.
 func (*ResolveItemResult) Descriptor() ([]byte, []int) {
-	return file_regulagraph_v1_inference_proto_rawDescGZIP(), []int{20}
+	return file_regulagraph_v1_inference_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *ResolveItemResult) GetItemId() string {
@@ -1563,7 +1644,7 @@ type SemanticResolveRequest struct {
 
 func (x *SemanticResolveRequest) Reset() {
 	*x = SemanticResolveRequest{}
-	mi := &file_regulagraph_v1_inference_proto_msgTypes[21]
+	mi := &file_regulagraph_v1_inference_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1575,7 +1656,7 @@ func (x *SemanticResolveRequest) String() string {
 func (*SemanticResolveRequest) ProtoMessage() {}
 
 func (x *SemanticResolveRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_regulagraph_v1_inference_proto_msgTypes[21]
+	mi := &file_regulagraph_v1_inference_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1588,7 +1669,7 @@ func (x *SemanticResolveRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SemanticResolveRequest.ProtoReflect.Descriptor instead.
 func (*SemanticResolveRequest) Descriptor() ([]byte, []int) {
-	return file_regulagraph_v1_inference_proto_rawDescGZIP(), []int{21}
+	return file_regulagraph_v1_inference_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *SemanticResolveRequest) GetBatch() *SemanticBatchContext {
@@ -1619,7 +1700,7 @@ type SemanticResolveResponse struct {
 
 func (x *SemanticResolveResponse) Reset() {
 	*x = SemanticResolveResponse{}
-	mi := &file_regulagraph_v1_inference_proto_msgTypes[22]
+	mi := &file_regulagraph_v1_inference_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1631,7 +1712,7 @@ func (x *SemanticResolveResponse) String() string {
 func (*SemanticResolveResponse) ProtoMessage() {}
 
 func (x *SemanticResolveResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_regulagraph_v1_inference_proto_msgTypes[22]
+	mi := &file_regulagraph_v1_inference_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1644,7 +1725,7 @@ func (x *SemanticResolveResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SemanticResolveResponse.ProtoReflect.Descriptor instead.
 func (*SemanticResolveResponse) Descriptor() ([]byte, []int) {
-	return file_regulagraph_v1_inference_proto_rawDescGZIP(), []int{22}
+	return file_regulagraph_v1_inference_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *SemanticResolveResponse) GetRequestId() string {
@@ -1701,7 +1782,7 @@ type EntityFacts struct {
 
 func (x *EntityFacts) Reset() {
 	*x = EntityFacts{}
-	mi := &file_regulagraph_v1_inference_proto_msgTypes[23]
+	mi := &file_regulagraph_v1_inference_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1713,7 +1794,7 @@ func (x *EntityFacts) String() string {
 func (*EntityFacts) ProtoMessage() {}
 
 func (x *EntityFacts) ProtoReflect() protoreflect.Message {
-	mi := &file_regulagraph_v1_inference_proto_msgTypes[23]
+	mi := &file_regulagraph_v1_inference_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1726,7 +1807,7 @@ func (x *EntityFacts) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EntityFacts.ProtoReflect.Descriptor instead.
 func (*EntityFacts) Descriptor() ([]byte, []int) {
-	return file_regulagraph_v1_inference_proto_rawDescGZIP(), []int{23}
+	return file_regulagraph_v1_inference_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *EntityFacts) GetItemId() string {
@@ -1771,7 +1852,7 @@ type SummarizeItemResult struct {
 
 func (x *SummarizeItemResult) Reset() {
 	*x = SummarizeItemResult{}
-	mi := &file_regulagraph_v1_inference_proto_msgTypes[24]
+	mi := &file_regulagraph_v1_inference_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1783,7 +1864,7 @@ func (x *SummarizeItemResult) String() string {
 func (*SummarizeItemResult) ProtoMessage() {}
 
 func (x *SummarizeItemResult) ProtoReflect() protoreflect.Message {
-	mi := &file_regulagraph_v1_inference_proto_msgTypes[24]
+	mi := &file_regulagraph_v1_inference_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1796,7 +1877,7 @@ func (x *SummarizeItemResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SummarizeItemResult.ProtoReflect.Descriptor instead.
 func (*SummarizeItemResult) Descriptor() ([]byte, []int) {
-	return file_regulagraph_v1_inference_proto_rawDescGZIP(), []int{24}
+	return file_regulagraph_v1_inference_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *SummarizeItemResult) GetItemId() string {
@@ -1857,7 +1938,7 @@ type SummarizeBatchRequest struct {
 
 func (x *SummarizeBatchRequest) Reset() {
 	*x = SummarizeBatchRequest{}
-	mi := &file_regulagraph_v1_inference_proto_msgTypes[25]
+	mi := &file_regulagraph_v1_inference_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1869,7 +1950,7 @@ func (x *SummarizeBatchRequest) String() string {
 func (*SummarizeBatchRequest) ProtoMessage() {}
 
 func (x *SummarizeBatchRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_regulagraph_v1_inference_proto_msgTypes[25]
+	mi := &file_regulagraph_v1_inference_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1882,7 +1963,7 @@ func (x *SummarizeBatchRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SummarizeBatchRequest.ProtoReflect.Descriptor instead.
 func (*SummarizeBatchRequest) Descriptor() ([]byte, []int) {
-	return file_regulagraph_v1_inference_proto_rawDescGZIP(), []int{25}
+	return file_regulagraph_v1_inference_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *SummarizeBatchRequest) GetBatch() *SemanticBatchContext {
@@ -1913,7 +1994,7 @@ type SummarizeBatchResponse struct {
 
 func (x *SummarizeBatchResponse) Reset() {
 	*x = SummarizeBatchResponse{}
-	mi := &file_regulagraph_v1_inference_proto_msgTypes[26]
+	mi := &file_regulagraph_v1_inference_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1925,7 +2006,7 @@ func (x *SummarizeBatchResponse) String() string {
 func (*SummarizeBatchResponse) ProtoMessage() {}
 
 func (x *SummarizeBatchResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_regulagraph_v1_inference_proto_msgTypes[26]
+	mi := &file_regulagraph_v1_inference_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1938,7 +2019,7 @@ func (x *SummarizeBatchResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SummarizeBatchResponse.ProtoReflect.Descriptor instead.
 func (*SummarizeBatchResponse) Descriptor() ([]byte, []int) {
-	return file_regulagraph_v1_inference_proto_rawDescGZIP(), []int{26}
+	return file_regulagraph_v1_inference_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *SummarizeBatchResponse) GetRequestId() string {
@@ -2090,7 +2171,12 @@ const file_regulagraph_v1_inference_proto_rawDesc = "" +
 	"\x05model\x18\x03 \x01(\v2\x1d.regulagraph.v1.ModelManifestB\x06\x8a\xb5\x18\x02\b\x01R\x05model\x128\n" +
 	"\x05usage\x18\x04 \x01(\v2\x1a.regulagraph.v1.TokenUsageB\x06\x8a\xb5\x18\x02\b\x01R\x05usage\x12;\n" +
 	"\tdurations\x18\x05 \x03(\v2\x1d.regulagraph.v1.StageDurationR\tdurations\x12U\n" +
-	"\x11producer_manifest\x18\x06 \x01(\v2 .regulagraph.v1.ProducerManifestB\x06\x8a\xb5\x18\x02\b\x01R\x10producerManifest\"\xee\x02\n" +
+	"\x11producer_manifest\x18\x06 \x01(\v2 .regulagraph.v1.ProducerManifestB\x06\x8a\xb5\x18\x02\b\x01R\x10producerManifest\"\xff\x01\n" +
+	"\x1aResolutionCandidateContext\x12+\n" +
+	"\fcanonical_id\x18\x01 \x01(\tB\b\x8a\xb5\x18\x04\b\x01\x10\x01R\vcanonicalId\x12#\n" +
+	"\balias_id\x18\x02 \x01(\tB\b\x8a\xb5\x18\x04\b\x01\x10\x01R\aaliasId\x12H\n" +
+	"\x0fsupport_mention\x18\x03 \x01(\v2\x17.regulagraph.v1.MentionB\x06\x8a\xb5\x18\x02\b\x01R\x0esupportMention\x12E\n" +
+	"\rcontext_items\x18\x04 \x03(\v2\x18.regulagraph.v1.TextItemB\x06\x8a\xb5\x18\x02@\x01R\fcontextItems\"\xc9\x03\n" +
 	"\x10AmbiguousMention\x12!\n" +
 	"\aitem_id\x18\x01 \x01(\tB\b\x8a\xb5\x18\x04\b\x01\x10\x01R\x06itemId\x129\n" +
 	"\amention\x18\x02 \x01(\v2\x17.regulagraph.v1.MentionB\x06\x8a\xb5\x18\x02\b\x01R\amention\x12?\n" +
@@ -2099,7 +2185,8 @@ const file_regulagraph_v1_inference_proto_rawDesc = "" +
 	"candidates\x12>\n" +
 	"\bevidence\x18\x04 \x01(\v2\x1a.regulagraph.v1.ProvenanceB\x06\x8a\xb5\x18\x02\b\x01R\bevidence\x12<\n" +
 	"\x1aexpected_registry_revision\x18\x05 \x01(\x04R\x18expectedRegistryRevision\x12=\n" +
-	"\rcontext_items\x18\x06 \x03(\v2\x18.regulagraph.v1.TextItemR\fcontextItems\"\xba\x01\n" +
+	"\rcontext_items\x18\x06 \x03(\v2\x18.regulagraph.v1.TextItemR\fcontextItems\x12Y\n" +
+	"\x12candidate_contexts\x18\a \x03(\v2*.regulagraph.v1.ResolutionCandidateContextR\x11candidateContexts\"\xba\x01\n" +
 	"\x11ResolveItemResult\x12!\n" +
 	"\aitem_id\x18\x01 \x01(\tB\b\x8a\xb5\x18\x04\b\x01\x10\x01R\x06itemId\x12@\n" +
 	"\bproposal\x18\x02 \x01(\v2\".regulagraph.v1.ResolutionProposalH\x00R\bproposal\x126\n" +
@@ -2164,139 +2251,143 @@ func file_regulagraph_v1_inference_proto_rawDescGZIP() []byte {
 }
 
 var file_regulagraph_v1_inference_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_regulagraph_v1_inference_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
+var file_regulagraph_v1_inference_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
 var file_regulagraph_v1_inference_proto_goTypes = []any{
-	(EmbeddingPurpose)(0),           // 0: regulagraph.v1.EmbeddingPurpose
-	(*BatchLimits)(nil),             // 1: regulagraph.v1.BatchLimits
-	(*TextItem)(nil),                // 2: regulagraph.v1.TextItem
-	(*Embedding)(nil),               // 3: regulagraph.v1.Embedding
-	(*EmbeddingResult)(nil),         // 4: regulagraph.v1.EmbeddingResult
-	(*EmbedBatchRequest)(nil),       // 5: regulagraph.v1.EmbedBatchRequest
-	(*EmbedBatchResponse)(nil),      // 6: regulagraph.v1.EmbedBatchResponse
-	(*RerankPair)(nil),              // 7: regulagraph.v1.RerankPair
-	(*RerankScore)(nil),             // 8: regulagraph.v1.RerankScore
-	(*RerankItemResult)(nil),        // 9: regulagraph.v1.RerankItemResult
-	(*RerankBatchRequest)(nil),      // 10: regulagraph.v1.RerankBatchRequest
-	(*RerankBatchResponse)(nil),     // 11: regulagraph.v1.RerankBatchResponse
-	(*CapabilitiesRequest)(nil),     // 12: regulagraph.v1.CapabilitiesRequest
-	(*ModelCapability)(nil),         // 13: regulagraph.v1.ModelCapability
-	(*CapabilitiesResponse)(nil),    // 14: regulagraph.v1.CapabilitiesResponse
-	(*SemanticBatchContext)(nil),    // 15: regulagraph.v1.SemanticBatchContext
-	(*ExtractionProposal)(nil),      // 16: regulagraph.v1.ExtractionProposal
-	(*ExtractItemResult)(nil),       // 17: regulagraph.v1.ExtractItemResult
-	(*ExtractBatchRequest)(nil),     // 18: regulagraph.v1.ExtractBatchRequest
-	(*ExtractBatchResponse)(nil),    // 19: regulagraph.v1.ExtractBatchResponse
-	(*AmbiguousMention)(nil),        // 20: regulagraph.v1.AmbiguousMention
-	(*ResolveItemResult)(nil),       // 21: regulagraph.v1.ResolveItemResult
-	(*SemanticResolveRequest)(nil),  // 22: regulagraph.v1.SemanticResolveRequest
-	(*SemanticResolveResponse)(nil), // 23: regulagraph.v1.SemanticResolveResponse
-	(*EntityFacts)(nil),             // 24: regulagraph.v1.EntityFacts
-	(*SummarizeItemResult)(nil),     // 25: regulagraph.v1.SummarizeItemResult
-	(*SummarizeBatchRequest)(nil),   // 26: regulagraph.v1.SummarizeBatchRequest
-	(*SummarizeBatchResponse)(nil),  // 27: regulagraph.v1.SummarizeBatchResponse
-	(*Provenance)(nil),              // 28: regulagraph.v1.Provenance
-	(*TruncationInfo)(nil),          // 29: regulagraph.v1.TruncationInfo
-	(*OperationError)(nil),          // 30: regulagraph.v1.OperationError
-	(*RequestContext)(nil),          // 31: regulagraph.v1.RequestContext
-	(*ModelManifest)(nil),           // 32: regulagraph.v1.ModelManifest
-	(*StageDuration)(nil),           // 33: regulagraph.v1.StageDuration
-	(ModelTask)(0),                  // 34: regulagraph.v1.ModelTask
-	(*ArtifactRef)(nil),             // 35: regulagraph.v1.ArtifactRef
-	(*Mention)(nil),                 // 36: regulagraph.v1.Mention
-	(*RelationAssertion)(nil),       // 37: regulagraph.v1.RelationAssertion
-	(*SupportRecord)(nil),           // 38: regulagraph.v1.SupportRecord
-	(*ValidationIssue)(nil),         // 39: regulagraph.v1.ValidationIssue
-	(*TokenUsage)(nil),              // 40: regulagraph.v1.TokenUsage
-	(*ProducerManifest)(nil),        // 41: regulagraph.v1.ProducerManifest
-	(*CanonicalEntity)(nil),         // 42: regulagraph.v1.CanonicalEntity
-	(*ResolutionProposal)(nil),      // 43: regulagraph.v1.ResolutionProposal
-	(*EntityProfile)(nil),           // 44: regulagraph.v1.EntityProfile
+	(EmbeddingPurpose)(0),              // 0: regulagraph.v1.EmbeddingPurpose
+	(*BatchLimits)(nil),                // 1: regulagraph.v1.BatchLimits
+	(*TextItem)(nil),                   // 2: regulagraph.v1.TextItem
+	(*Embedding)(nil),                  // 3: regulagraph.v1.Embedding
+	(*EmbeddingResult)(nil),            // 4: regulagraph.v1.EmbeddingResult
+	(*EmbedBatchRequest)(nil),          // 5: regulagraph.v1.EmbedBatchRequest
+	(*EmbedBatchResponse)(nil),         // 6: regulagraph.v1.EmbedBatchResponse
+	(*RerankPair)(nil),                 // 7: regulagraph.v1.RerankPair
+	(*RerankScore)(nil),                // 8: regulagraph.v1.RerankScore
+	(*RerankItemResult)(nil),           // 9: regulagraph.v1.RerankItemResult
+	(*RerankBatchRequest)(nil),         // 10: regulagraph.v1.RerankBatchRequest
+	(*RerankBatchResponse)(nil),        // 11: regulagraph.v1.RerankBatchResponse
+	(*CapabilitiesRequest)(nil),        // 12: regulagraph.v1.CapabilitiesRequest
+	(*ModelCapability)(nil),            // 13: regulagraph.v1.ModelCapability
+	(*CapabilitiesResponse)(nil),       // 14: regulagraph.v1.CapabilitiesResponse
+	(*SemanticBatchContext)(nil),       // 15: regulagraph.v1.SemanticBatchContext
+	(*ExtractionProposal)(nil),         // 16: regulagraph.v1.ExtractionProposal
+	(*ExtractItemResult)(nil),          // 17: regulagraph.v1.ExtractItemResult
+	(*ExtractBatchRequest)(nil),        // 18: regulagraph.v1.ExtractBatchRequest
+	(*ExtractBatchResponse)(nil),       // 19: regulagraph.v1.ExtractBatchResponse
+	(*ResolutionCandidateContext)(nil), // 20: regulagraph.v1.ResolutionCandidateContext
+	(*AmbiguousMention)(nil),           // 21: regulagraph.v1.AmbiguousMention
+	(*ResolveItemResult)(nil),          // 22: regulagraph.v1.ResolveItemResult
+	(*SemanticResolveRequest)(nil),     // 23: regulagraph.v1.SemanticResolveRequest
+	(*SemanticResolveResponse)(nil),    // 24: regulagraph.v1.SemanticResolveResponse
+	(*EntityFacts)(nil),                // 25: regulagraph.v1.EntityFacts
+	(*SummarizeItemResult)(nil),        // 26: regulagraph.v1.SummarizeItemResult
+	(*SummarizeBatchRequest)(nil),      // 27: regulagraph.v1.SummarizeBatchRequest
+	(*SummarizeBatchResponse)(nil),     // 28: regulagraph.v1.SummarizeBatchResponse
+	(*Provenance)(nil),                 // 29: regulagraph.v1.Provenance
+	(*TruncationInfo)(nil),             // 30: regulagraph.v1.TruncationInfo
+	(*OperationError)(nil),             // 31: regulagraph.v1.OperationError
+	(*RequestContext)(nil),             // 32: regulagraph.v1.RequestContext
+	(*ModelManifest)(nil),              // 33: regulagraph.v1.ModelManifest
+	(*StageDuration)(nil),              // 34: regulagraph.v1.StageDuration
+	(ModelTask)(0),                     // 35: regulagraph.v1.ModelTask
+	(*ArtifactRef)(nil),                // 36: regulagraph.v1.ArtifactRef
+	(*Mention)(nil),                    // 37: regulagraph.v1.Mention
+	(*RelationAssertion)(nil),          // 38: regulagraph.v1.RelationAssertion
+	(*SupportRecord)(nil),              // 39: regulagraph.v1.SupportRecord
+	(*ValidationIssue)(nil),            // 40: regulagraph.v1.ValidationIssue
+	(*TokenUsage)(nil),                 // 41: regulagraph.v1.TokenUsage
+	(*ProducerManifest)(nil),           // 42: regulagraph.v1.ProducerManifest
+	(*CanonicalEntity)(nil),            // 43: regulagraph.v1.CanonicalEntity
+	(*ResolutionProposal)(nil),         // 44: regulagraph.v1.ResolutionProposal
+	(*EntityProfile)(nil),              // 45: regulagraph.v1.EntityProfile
 }
 var file_regulagraph_v1_inference_proto_depIdxs = []int32{
-	28, // 0: regulagraph.v1.TextItem.provenance:type_name -> regulagraph.v1.Provenance
-	29, // 1: regulagraph.v1.Embedding.truncation:type_name -> regulagraph.v1.TruncationInfo
+	29, // 0: regulagraph.v1.TextItem.provenance:type_name -> regulagraph.v1.Provenance
+	30, // 1: regulagraph.v1.Embedding.truncation:type_name -> regulagraph.v1.TruncationInfo
 	3,  // 2: regulagraph.v1.EmbeddingResult.embedding:type_name -> regulagraph.v1.Embedding
-	30, // 3: regulagraph.v1.EmbeddingResult.error:type_name -> regulagraph.v1.OperationError
-	31, // 4: regulagraph.v1.EmbedBatchRequest.context:type_name -> regulagraph.v1.RequestContext
-	32, // 5: regulagraph.v1.EmbedBatchRequest.model:type_name -> regulagraph.v1.ModelManifest
+	31, // 3: regulagraph.v1.EmbeddingResult.error:type_name -> regulagraph.v1.OperationError
+	32, // 4: regulagraph.v1.EmbedBatchRequest.context:type_name -> regulagraph.v1.RequestContext
+	33, // 5: regulagraph.v1.EmbedBatchRequest.model:type_name -> regulagraph.v1.ModelManifest
 	2,  // 6: regulagraph.v1.EmbedBatchRequest.items:type_name -> regulagraph.v1.TextItem
 	0,  // 7: regulagraph.v1.EmbedBatchRequest.purpose:type_name -> regulagraph.v1.EmbeddingPurpose
-	32, // 8: regulagraph.v1.EmbedBatchResponse.model:type_name -> regulagraph.v1.ModelManifest
+	33, // 8: regulagraph.v1.EmbedBatchResponse.model:type_name -> regulagraph.v1.ModelManifest
 	4,  // 9: regulagraph.v1.EmbedBatchResponse.results:type_name -> regulagraph.v1.EmbeddingResult
-	33, // 10: regulagraph.v1.EmbedBatchResponse.durations:type_name -> regulagraph.v1.StageDuration
-	28, // 11: regulagraph.v1.RerankPair.provenance:type_name -> regulagraph.v1.Provenance
-	29, // 12: regulagraph.v1.RerankScore.truncation:type_name -> regulagraph.v1.TruncationInfo
+	34, // 10: regulagraph.v1.EmbedBatchResponse.durations:type_name -> regulagraph.v1.StageDuration
+	29, // 11: regulagraph.v1.RerankPair.provenance:type_name -> regulagraph.v1.Provenance
+	30, // 12: regulagraph.v1.RerankScore.truncation:type_name -> regulagraph.v1.TruncationInfo
 	8,  // 13: regulagraph.v1.RerankItemResult.score:type_name -> regulagraph.v1.RerankScore
-	30, // 14: regulagraph.v1.RerankItemResult.error:type_name -> regulagraph.v1.OperationError
-	31, // 15: regulagraph.v1.RerankBatchRequest.context:type_name -> regulagraph.v1.RequestContext
-	32, // 16: regulagraph.v1.RerankBatchRequest.model:type_name -> regulagraph.v1.ModelManifest
+	31, // 14: regulagraph.v1.RerankItemResult.error:type_name -> regulagraph.v1.OperationError
+	32, // 15: regulagraph.v1.RerankBatchRequest.context:type_name -> regulagraph.v1.RequestContext
+	33, // 16: regulagraph.v1.RerankBatchRequest.model:type_name -> regulagraph.v1.ModelManifest
 	7,  // 17: regulagraph.v1.RerankBatchRequest.pairs:type_name -> regulagraph.v1.RerankPair
-	32, // 18: regulagraph.v1.RerankBatchResponse.model:type_name -> regulagraph.v1.ModelManifest
+	33, // 18: regulagraph.v1.RerankBatchResponse.model:type_name -> regulagraph.v1.ModelManifest
 	9,  // 19: regulagraph.v1.RerankBatchResponse.results:type_name -> regulagraph.v1.RerankItemResult
-	33, // 20: regulagraph.v1.RerankBatchResponse.durations:type_name -> regulagraph.v1.StageDuration
-	31, // 21: regulagraph.v1.CapabilitiesRequest.context:type_name -> regulagraph.v1.RequestContext
-	32, // 22: regulagraph.v1.ModelCapability.model:type_name -> regulagraph.v1.ModelManifest
+	34, // 20: regulagraph.v1.RerankBatchResponse.durations:type_name -> regulagraph.v1.StageDuration
+	32, // 21: regulagraph.v1.CapabilitiesRequest.context:type_name -> regulagraph.v1.RequestContext
+	33, // 22: regulagraph.v1.ModelCapability.model:type_name -> regulagraph.v1.ModelManifest
 	1,  // 23: regulagraph.v1.ModelCapability.limits:type_name -> regulagraph.v1.BatchLimits
 	13, // 24: regulagraph.v1.CapabilitiesResponse.models:type_name -> regulagraph.v1.ModelCapability
-	34, // 25: regulagraph.v1.CapabilitiesResponse.supported_tasks:type_name -> regulagraph.v1.ModelTask
-	31, // 26: regulagraph.v1.SemanticBatchContext.context:type_name -> regulagraph.v1.RequestContext
-	32, // 27: regulagraph.v1.SemanticBatchContext.model:type_name -> regulagraph.v1.ModelManifest
-	35, // 28: regulagraph.v1.SemanticBatchContext.output_schema:type_name -> regulagraph.v1.ArtifactRef
-	36, // 29: regulagraph.v1.ExtractionProposal.mentions:type_name -> regulagraph.v1.Mention
-	37, // 30: regulagraph.v1.ExtractionProposal.assertions:type_name -> regulagraph.v1.RelationAssertion
-	38, // 31: regulagraph.v1.ExtractionProposal.supports:type_name -> regulagraph.v1.SupportRecord
-	39, // 32: regulagraph.v1.ExtractionProposal.issues:type_name -> regulagraph.v1.ValidationIssue
+	35, // 25: regulagraph.v1.CapabilitiesResponse.supported_tasks:type_name -> regulagraph.v1.ModelTask
+	32, // 26: regulagraph.v1.SemanticBatchContext.context:type_name -> regulagraph.v1.RequestContext
+	33, // 27: regulagraph.v1.SemanticBatchContext.model:type_name -> regulagraph.v1.ModelManifest
+	36, // 28: regulagraph.v1.SemanticBatchContext.output_schema:type_name -> regulagraph.v1.ArtifactRef
+	37, // 29: regulagraph.v1.ExtractionProposal.mentions:type_name -> regulagraph.v1.Mention
+	38, // 30: regulagraph.v1.ExtractionProposal.assertions:type_name -> regulagraph.v1.RelationAssertion
+	39, // 31: regulagraph.v1.ExtractionProposal.supports:type_name -> regulagraph.v1.SupportRecord
+	40, // 32: regulagraph.v1.ExtractionProposal.issues:type_name -> regulagraph.v1.ValidationIssue
 	16, // 33: regulagraph.v1.ExtractItemResult.proposal:type_name -> regulagraph.v1.ExtractionProposal
-	30, // 34: regulagraph.v1.ExtractItemResult.error:type_name -> regulagraph.v1.OperationError
+	31, // 34: regulagraph.v1.ExtractItemResult.error:type_name -> regulagraph.v1.OperationError
 	15, // 35: regulagraph.v1.ExtractBatchRequest.batch:type_name -> regulagraph.v1.SemanticBatchContext
 	2,  // 36: regulagraph.v1.ExtractBatchRequest.items:type_name -> regulagraph.v1.TextItem
 	17, // 37: regulagraph.v1.ExtractBatchResponse.results:type_name -> regulagraph.v1.ExtractItemResult
-	32, // 38: regulagraph.v1.ExtractBatchResponse.model:type_name -> regulagraph.v1.ModelManifest
-	40, // 39: regulagraph.v1.ExtractBatchResponse.usage:type_name -> regulagraph.v1.TokenUsage
-	33, // 40: regulagraph.v1.ExtractBatchResponse.durations:type_name -> regulagraph.v1.StageDuration
-	41, // 41: regulagraph.v1.ExtractBatchResponse.producer_manifest:type_name -> regulagraph.v1.ProducerManifest
-	36, // 42: regulagraph.v1.AmbiguousMention.mention:type_name -> regulagraph.v1.Mention
-	42, // 43: regulagraph.v1.AmbiguousMention.candidates:type_name -> regulagraph.v1.CanonicalEntity
-	28, // 44: regulagraph.v1.AmbiguousMention.evidence:type_name -> regulagraph.v1.Provenance
-	2,  // 45: regulagraph.v1.AmbiguousMention.context_items:type_name -> regulagraph.v1.TextItem
-	43, // 46: regulagraph.v1.ResolveItemResult.proposal:type_name -> regulagraph.v1.ResolutionProposal
-	30, // 47: regulagraph.v1.ResolveItemResult.error:type_name -> regulagraph.v1.OperationError
-	15, // 48: regulagraph.v1.SemanticResolveRequest.batch:type_name -> regulagraph.v1.SemanticBatchContext
-	20, // 49: regulagraph.v1.SemanticResolveRequest.items:type_name -> regulagraph.v1.AmbiguousMention
-	21, // 50: regulagraph.v1.SemanticResolveResponse.results:type_name -> regulagraph.v1.ResolveItemResult
-	32, // 51: regulagraph.v1.SemanticResolveResponse.model:type_name -> regulagraph.v1.ModelManifest
-	40, // 52: regulagraph.v1.SemanticResolveResponse.usage:type_name -> regulagraph.v1.TokenUsage
-	33, // 53: regulagraph.v1.SemanticResolveResponse.durations:type_name -> regulagraph.v1.StageDuration
-	41, // 54: regulagraph.v1.SemanticResolveResponse.producer_manifest:type_name -> regulagraph.v1.ProducerManifest
-	42, // 55: regulagraph.v1.EntityFacts.entity:type_name -> regulagraph.v1.CanonicalEntity
-	37, // 56: regulagraph.v1.EntityFacts.facts:type_name -> regulagraph.v1.RelationAssertion
-	38, // 57: regulagraph.v1.EntityFacts.supports:type_name -> regulagraph.v1.SupportRecord
-	44, // 58: regulagraph.v1.SummarizeItemResult.profile_draft:type_name -> regulagraph.v1.EntityProfile
-	30, // 59: regulagraph.v1.SummarizeItemResult.error:type_name -> regulagraph.v1.OperationError
-	15, // 60: regulagraph.v1.SummarizeBatchRequest.batch:type_name -> regulagraph.v1.SemanticBatchContext
-	24, // 61: regulagraph.v1.SummarizeBatchRequest.items:type_name -> regulagraph.v1.EntityFacts
-	25, // 62: regulagraph.v1.SummarizeBatchResponse.results:type_name -> regulagraph.v1.SummarizeItemResult
-	32, // 63: regulagraph.v1.SummarizeBatchResponse.model:type_name -> regulagraph.v1.ModelManifest
-	40, // 64: regulagraph.v1.SummarizeBatchResponse.usage:type_name -> regulagraph.v1.TokenUsage
-	33, // 65: regulagraph.v1.SummarizeBatchResponse.durations:type_name -> regulagraph.v1.StageDuration
-	41, // 66: regulagraph.v1.SummarizeBatchResponse.producer_manifest:type_name -> regulagraph.v1.ProducerManifest
-	5,  // 67: regulagraph.v1.Inference.EmbedBatch:input_type -> regulagraph.v1.EmbedBatchRequest
-	10, // 68: regulagraph.v1.Inference.RerankBatch:input_type -> regulagraph.v1.RerankBatchRequest
-	12, // 69: regulagraph.v1.Inference.GetCapabilities:input_type -> regulagraph.v1.CapabilitiesRequest
-	18, // 70: regulagraph.v1.Semantic.ExtractBatch:input_type -> regulagraph.v1.ExtractBatchRequest
-	22, // 71: regulagraph.v1.Semantic.ResolveBatch:input_type -> regulagraph.v1.SemanticResolveRequest
-	26, // 72: regulagraph.v1.Semantic.SummarizeBatch:input_type -> regulagraph.v1.SummarizeBatchRequest
-	6,  // 73: regulagraph.v1.Inference.EmbedBatch:output_type -> regulagraph.v1.EmbedBatchResponse
-	11, // 74: regulagraph.v1.Inference.RerankBatch:output_type -> regulagraph.v1.RerankBatchResponse
-	14, // 75: regulagraph.v1.Inference.GetCapabilities:output_type -> regulagraph.v1.CapabilitiesResponse
-	19, // 76: regulagraph.v1.Semantic.ExtractBatch:output_type -> regulagraph.v1.ExtractBatchResponse
-	23, // 77: regulagraph.v1.Semantic.ResolveBatch:output_type -> regulagraph.v1.SemanticResolveResponse
-	27, // 78: regulagraph.v1.Semantic.SummarizeBatch:output_type -> regulagraph.v1.SummarizeBatchResponse
-	73, // [73:79] is the sub-list for method output_type
-	67, // [67:73] is the sub-list for method input_type
-	67, // [67:67] is the sub-list for extension type_name
-	67, // [67:67] is the sub-list for extension extendee
-	0,  // [0:67] is the sub-list for field type_name
+	33, // 38: regulagraph.v1.ExtractBatchResponse.model:type_name -> regulagraph.v1.ModelManifest
+	41, // 39: regulagraph.v1.ExtractBatchResponse.usage:type_name -> regulagraph.v1.TokenUsage
+	34, // 40: regulagraph.v1.ExtractBatchResponse.durations:type_name -> regulagraph.v1.StageDuration
+	42, // 41: regulagraph.v1.ExtractBatchResponse.producer_manifest:type_name -> regulagraph.v1.ProducerManifest
+	37, // 42: regulagraph.v1.ResolutionCandidateContext.support_mention:type_name -> regulagraph.v1.Mention
+	2,  // 43: regulagraph.v1.ResolutionCandidateContext.context_items:type_name -> regulagraph.v1.TextItem
+	37, // 44: regulagraph.v1.AmbiguousMention.mention:type_name -> regulagraph.v1.Mention
+	43, // 45: regulagraph.v1.AmbiguousMention.candidates:type_name -> regulagraph.v1.CanonicalEntity
+	29, // 46: regulagraph.v1.AmbiguousMention.evidence:type_name -> regulagraph.v1.Provenance
+	2,  // 47: regulagraph.v1.AmbiguousMention.context_items:type_name -> regulagraph.v1.TextItem
+	20, // 48: regulagraph.v1.AmbiguousMention.candidate_contexts:type_name -> regulagraph.v1.ResolutionCandidateContext
+	44, // 49: regulagraph.v1.ResolveItemResult.proposal:type_name -> regulagraph.v1.ResolutionProposal
+	31, // 50: regulagraph.v1.ResolveItemResult.error:type_name -> regulagraph.v1.OperationError
+	15, // 51: regulagraph.v1.SemanticResolveRequest.batch:type_name -> regulagraph.v1.SemanticBatchContext
+	21, // 52: regulagraph.v1.SemanticResolveRequest.items:type_name -> regulagraph.v1.AmbiguousMention
+	22, // 53: regulagraph.v1.SemanticResolveResponse.results:type_name -> regulagraph.v1.ResolveItemResult
+	33, // 54: regulagraph.v1.SemanticResolveResponse.model:type_name -> regulagraph.v1.ModelManifest
+	41, // 55: regulagraph.v1.SemanticResolveResponse.usage:type_name -> regulagraph.v1.TokenUsage
+	34, // 56: regulagraph.v1.SemanticResolveResponse.durations:type_name -> regulagraph.v1.StageDuration
+	42, // 57: regulagraph.v1.SemanticResolveResponse.producer_manifest:type_name -> regulagraph.v1.ProducerManifest
+	43, // 58: regulagraph.v1.EntityFacts.entity:type_name -> regulagraph.v1.CanonicalEntity
+	38, // 59: regulagraph.v1.EntityFacts.facts:type_name -> regulagraph.v1.RelationAssertion
+	39, // 60: regulagraph.v1.EntityFacts.supports:type_name -> regulagraph.v1.SupportRecord
+	45, // 61: regulagraph.v1.SummarizeItemResult.profile_draft:type_name -> regulagraph.v1.EntityProfile
+	31, // 62: regulagraph.v1.SummarizeItemResult.error:type_name -> regulagraph.v1.OperationError
+	15, // 63: regulagraph.v1.SummarizeBatchRequest.batch:type_name -> regulagraph.v1.SemanticBatchContext
+	25, // 64: regulagraph.v1.SummarizeBatchRequest.items:type_name -> regulagraph.v1.EntityFacts
+	26, // 65: regulagraph.v1.SummarizeBatchResponse.results:type_name -> regulagraph.v1.SummarizeItemResult
+	33, // 66: regulagraph.v1.SummarizeBatchResponse.model:type_name -> regulagraph.v1.ModelManifest
+	41, // 67: regulagraph.v1.SummarizeBatchResponse.usage:type_name -> regulagraph.v1.TokenUsage
+	34, // 68: regulagraph.v1.SummarizeBatchResponse.durations:type_name -> regulagraph.v1.StageDuration
+	42, // 69: regulagraph.v1.SummarizeBatchResponse.producer_manifest:type_name -> regulagraph.v1.ProducerManifest
+	5,  // 70: regulagraph.v1.Inference.EmbedBatch:input_type -> regulagraph.v1.EmbedBatchRequest
+	10, // 71: regulagraph.v1.Inference.RerankBatch:input_type -> regulagraph.v1.RerankBatchRequest
+	12, // 72: regulagraph.v1.Inference.GetCapabilities:input_type -> regulagraph.v1.CapabilitiesRequest
+	18, // 73: regulagraph.v1.Semantic.ExtractBatch:input_type -> regulagraph.v1.ExtractBatchRequest
+	23, // 74: regulagraph.v1.Semantic.ResolveBatch:input_type -> regulagraph.v1.SemanticResolveRequest
+	27, // 75: regulagraph.v1.Semantic.SummarizeBatch:input_type -> regulagraph.v1.SummarizeBatchRequest
+	6,  // 76: regulagraph.v1.Inference.EmbedBatch:output_type -> regulagraph.v1.EmbedBatchResponse
+	11, // 77: regulagraph.v1.Inference.RerankBatch:output_type -> regulagraph.v1.RerankBatchResponse
+	14, // 78: regulagraph.v1.Inference.GetCapabilities:output_type -> regulagraph.v1.CapabilitiesResponse
+	19, // 79: regulagraph.v1.Semantic.ExtractBatch:output_type -> regulagraph.v1.ExtractBatchResponse
+	24, // 80: regulagraph.v1.Semantic.ResolveBatch:output_type -> regulagraph.v1.SemanticResolveResponse
+	28, // 81: regulagraph.v1.Semantic.SummarizeBatch:output_type -> regulagraph.v1.SummarizeBatchResponse
+	76, // [76:82] is the sub-list for method output_type
+	70, // [70:76] is the sub-list for method input_type
+	70, // [70:70] is the sub-list for extension type_name
+	70, // [70:70] is the sub-list for extension extendee
+	0,  // [0:70] is the sub-list for field type_name
 }
 
 func init() { file_regulagraph_v1_inference_proto_init() }
@@ -2318,11 +2409,11 @@ func file_regulagraph_v1_inference_proto_init() {
 		(*ExtractItemResult_Proposal)(nil),
 		(*ExtractItemResult_Error)(nil),
 	}
-	file_regulagraph_v1_inference_proto_msgTypes[20].OneofWrappers = []any{
+	file_regulagraph_v1_inference_proto_msgTypes[21].OneofWrappers = []any{
 		(*ResolveItemResult_Proposal)(nil),
 		(*ResolveItemResult_Error)(nil),
 	}
-	file_regulagraph_v1_inference_proto_msgTypes[24].OneofWrappers = []any{
+	file_regulagraph_v1_inference_proto_msgTypes[25].OneofWrappers = []any{
 		(*SummarizeItemResult_ProfileDraft)(nil),
 		(*SummarizeItemResult_Error)(nil),
 	}
@@ -2332,7 +2423,7 @@ func file_regulagraph_v1_inference_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_regulagraph_v1_inference_proto_rawDesc), len(file_regulagraph_v1_inference_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   27,
+			NumMessages:   28,
 			NumExtensions: 0,
 			NumServices:   2,
 		},
