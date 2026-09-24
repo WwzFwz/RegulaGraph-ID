@@ -108,3 +108,5 @@ storage/publication ke PostgreSQL aktual dan audit agent independen.
 [semantic-resolution.md](semantic-resolution.md) menjelaskan gateway model kontekstual, workflow audit/replay, setup endpoint lokal, dan batas dispatch/approval. [verification-report-contextual-resolution.md](verification-report-contextual-resolution.md) mencatat bukti correctness lintas runtime dan prasyarat kualitas yang belum diukur.
 
 [verification-report-candidate-evidence.md](verification-report-candidate-evidence.md) mencatat katalog checkpoint EXTRACT atomik, hidrasi bukti kandidat lintas dokumen, citation kedua sisi LINK, dan smoke protokol model lokal. Status tersebut belum menyelesaikan dispatch RESOLVE, K01, ataupun acceptance kualitas/performa.
+
+[verification-report-candidate-planner.md](verification-report-candidate-planner.md) mencatat policy kandidat terpin pada request ingest, parity normalisasi Go/Rust, cakupan tipe ontology, isolasi scope pasal pada PostgreSQL, dan batas pengukuran kualitas/performa yang masih terbuka.

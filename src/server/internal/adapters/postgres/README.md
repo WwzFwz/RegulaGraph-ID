@@ -21,6 +21,7 @@ dalam satu transaksi lookup, memeriksa key/revisi serta closure alias, kemudian 
 builder artefak C01. Nol mention menghasilkan `ErrNoCandidateMentions` tanpa pembacaan registry agar workflow
 dapat melewati RESOLVE secara eksplisit. [registry_candidate_batch_test.go](registry_candidate_batch_test.go)
 memeriksa mapping dan hasil tidak mungkin dengan fixture. Workflow kandidat sekarang menguji pembacaan PostgreSQL nyata, fencing EXTRACT, dan penyimpanan artefak berhash dalam tes integrasi semantik.
+`registry_aliases.go` menerima seluruh tipe ontology v1 melalui kode identitas stabil di domain; tes PostgreSQL menegaskan alias `provision` pada satu regulation scope tidak bocor ke peraturan lain. Tes tersebut memeriksa storage/scope, belum membuktikan rantai BIND ke alias sourced atau kualitas resolusi hukum.
 
 [registry_semantic.go](registry_semantic.go) menerima proposal LINK/DEFER terikat batch kandidat dan melakukan
 CAS revision dalam transaksi serializable. [registry_semantic_inputs.go](registry_semantic_inputs.go) memeriksa
