@@ -279,7 +279,7 @@
       "valid": true,
       "value": {
         "item_id": "item-1",
-        "text": "Pasal \u00c3\u00a9 \u00e2\u20ac\u201d kewajiban; \u00e4\u00b8\u00ad\u00e6\u2013\u2021"
+        "text": "Pasal é — kewajiban; 中文"
       }
     },
     {
@@ -744,6 +744,161 @@
         ]
       },
       "valid": false
+    },
+    {
+      "name": "semantic-resolve-context-roundtrip",
+      "type": "SemanticResolveRequest",
+      "value": {
+        "batch": {
+          "context": {
+            "schema_version": 1,
+            "request_id": "req-1",
+            "trace_id": "trace-1",
+            "corpus_id": "corpus-1",
+            "deadline": "2030-01-01T00:00:00Z",
+            "config_fingerprint": {
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "auth_scope_ref": "scope-1"
+          },
+          "model": {
+            "model_id": "m",
+            "version": "v1",
+            "weights_hash": {
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "tokenizer_hash": {
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "task": "MODEL_TASK_RESOLVE",
+            "max_tokens": 128,
+            "precision": "fp32",
+            "backend": "test"
+          },
+          "operation_key": "op",
+          "ontology_version": "v1",
+          "output_schema": {
+            "artifact_id": "a-1",
+            "content_hash": {
+              "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "storage_key": "blobs/fixture.bin",
+            "media_type": "application/octet-stream",
+            "byte_size": "5",
+            "schema_version": 1
+          }
+        },
+        "items": [
+          {
+            "item_id": "i",
+            "mention": {
+              "meta": {
+                "schema_version": 1,
+                "corpus_id": "corpus-1",
+                "record_id": "mention-1"
+              },
+              "text_span": {
+                "text_artifact_id": "text-1",
+                "end_byte": "5"
+              },
+              "source_refs": [
+                {
+                  "source_blob_id": "blob-1",
+                  "provision_version_id": "pv-1",
+                  "regulation_id": "reg-1"
+                }
+              ],
+              "surface_form": "Pasal",
+              "candidate_type": "provision",
+              "extraction_manifest": {
+                "software": "test",
+                "build": "test",
+                "schema_version": 1,
+                "config_hash": {
+                  "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                }
+              }
+            },
+            "evidence": {
+              "sources": [
+                {
+                  "source_blob_id": "blob-1",
+                  "provision_version_id": "pv-1",
+                  "regulation_id": "reg-1"
+                }
+              ],
+              "spans": [
+                {
+                  "text_artifact_id": "text-1",
+                  "end_byte": "5"
+                }
+              ]
+            },
+            "expected_registry_revision": "1",
+            "context_items": [
+              {
+                "item_id": "chunk-1",
+                "text": "Pasal",
+                "provenance": {
+                  "sources": [
+                    {
+                      "source_blob_id": "blob-1",
+                      "provision_version_id": "pv-1",
+                      "regulation_id": "reg-1"
+                    }
+                  ],
+                  "spans": [
+                    {
+                      "text_artifact_id": "text-1",
+                      "end_byte": "5"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "valid": true
+    },
+    {
+      "name": "resolution-rationale-context-roundtrip",
+      "type": "ResolutionProposal",
+      "valid": true,
+      "value": {
+        "meta": {
+          "schema_version": 1,
+          "corpus_id": "corpus-1",
+          "record_id": "mention-1"
+        },
+        "mention_ids": [
+          "mention-1"
+        ],
+        "candidate_ids": [],
+        "action": "RESOLUTION_ACTION_DEFER",
+        "evidence": {
+          "sources": [
+            {
+              "source_blob_id": "blob-1",
+              "provision_version_id": "pv-1",
+              "regulation_id": "reg-1"
+            }
+          ],
+          "spans": [
+            {
+              "text_artifact_id": "text-1",
+              "end_byte": "5"
+            }
+          ]
+        },
+        "method": "llm_context_resolution_v1",
+        "expected_registry_revision": "1",
+        "local_correlation_id": "i",
+        "rationale": "Insufficient contextual evidence.",
+        "supporting_context_ids": [
+          "chunk-1"
+        ]
+      }
     }
   ]
 }

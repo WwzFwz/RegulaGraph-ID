@@ -62,6 +62,10 @@ message ResolutionProposal {
   uint64 expected_registry_revision=8;
   string local_correlation_id=9 [(rules)={required:true ascii_id:true}];
   repeated IdentityKey proposed_identity_keys=10;
+  // Model justification is auditable explanation, never an authenticated review or evidence.
+  optional string rationale=11;
+  // Context IDs refer to the persisted SemanticResolveRequest, not independent evidence IDs.
+  repeated string supporting_context_ids=12 [(rules)={ascii_id:true unique:true}];
 }
 message ResolutionDecision {
   RecordMeta meta=1 [(rules).required=true];

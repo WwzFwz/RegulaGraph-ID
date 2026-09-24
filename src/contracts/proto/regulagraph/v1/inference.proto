@@ -127,6 +127,10 @@ message AmbiguousMention {
   repeated CanonicalEntity candidates=3;
   Provenance evidence=4 [(rules).required=true];
   uint64 expected_registry_revision=5;
+  // Verified source excerpts hydrated by the caller. The resolver requires a context item
+  // containing the exact mention span; references alone are insufficient for semantic judgment.
+  // Additive for binary compatibility; older writers receive an explicit context-missing error.
+  repeated TextItem context_items=6;
 }
 message ResolveItemResult {
   string item_id=1 [(rules)={required:true ascii_id:true}];

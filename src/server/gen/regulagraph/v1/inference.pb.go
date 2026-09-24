@@ -1383,8 +1383,12 @@ type AmbiguousMention struct {
 	Candidates               []*CanonicalEntity     `protobuf:"bytes,3,rep,name=candidates,proto3" json:"candidates,omitempty"`
 	Evidence                 *Provenance            `protobuf:"bytes,4,opt,name=evidence,proto3" json:"evidence,omitempty"`
 	ExpectedRegistryRevision uint64                 `protobuf:"varint,5,opt,name=expected_registry_revision,json=expectedRegistryRevision,proto3" json:"expected_registry_revision,omitempty"`
-	unknownFields            protoimpl.UnknownFields
-	sizeCache                protoimpl.SizeCache
+	// Verified source excerpts hydrated by the caller. The resolver requires a context item
+	// containing the exact mention span; references alone are insufficient for semantic judgment.
+	// Additive for binary compatibility; older writers receive an explicit context-missing error.
+	ContextItems  []*TextItem `protobuf:"bytes,6,rep,name=context_items,json=contextItems,proto3" json:"context_items,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *AmbiguousMention) Reset() {
@@ -1450,6 +1454,13 @@ func (x *AmbiguousMention) GetExpectedRegistryRevision() uint64 {
 		return x.ExpectedRegistryRevision
 	}
 	return 0
+}
+
+func (x *AmbiguousMention) GetContextItems() []*TextItem {
+	if x != nil {
+		return x.ContextItems
+	}
+	return nil
 }
 
 type ResolveItemResult struct {
@@ -2079,7 +2090,7 @@ const file_regulagraph_v1_inference_proto_rawDesc = "" +
 	"\x05model\x18\x03 \x01(\v2\x1d.regulagraph.v1.ModelManifestB\x06\x8a\xb5\x18\x02\b\x01R\x05model\x128\n" +
 	"\x05usage\x18\x04 \x01(\v2\x1a.regulagraph.v1.TokenUsageB\x06\x8a\xb5\x18\x02\b\x01R\x05usage\x12;\n" +
 	"\tdurations\x18\x05 \x03(\v2\x1d.regulagraph.v1.StageDurationR\tdurations\x12U\n" +
-	"\x11producer_manifest\x18\x06 \x01(\v2 .regulagraph.v1.ProducerManifestB\x06\x8a\xb5\x18\x02\b\x01R\x10producerManifest\"\xaf\x02\n" +
+	"\x11producer_manifest\x18\x06 \x01(\v2 .regulagraph.v1.ProducerManifestB\x06\x8a\xb5\x18\x02\b\x01R\x10producerManifest\"\xee\x02\n" +
 	"\x10AmbiguousMention\x12!\n" +
 	"\aitem_id\x18\x01 \x01(\tB\b\x8a\xb5\x18\x04\b\x01\x10\x01R\x06itemId\x129\n" +
 	"\amention\x18\x02 \x01(\v2\x17.regulagraph.v1.MentionB\x06\x8a\xb5\x18\x02\b\x01R\amention\x12?\n" +
@@ -2087,7 +2098,8 @@ const file_regulagraph_v1_inference_proto_rawDesc = "" +
 	"candidates\x18\x03 \x03(\v2\x1f.regulagraph.v1.CanonicalEntityR\n" +
 	"candidates\x12>\n" +
 	"\bevidence\x18\x04 \x01(\v2\x1a.regulagraph.v1.ProvenanceB\x06\x8a\xb5\x18\x02\b\x01R\bevidence\x12<\n" +
-	"\x1aexpected_registry_revision\x18\x05 \x01(\x04R\x18expectedRegistryRevision\"\xba\x01\n" +
+	"\x1aexpected_registry_revision\x18\x05 \x01(\x04R\x18expectedRegistryRevision\x12=\n" +
+	"\rcontext_items\x18\x06 \x03(\v2\x18.regulagraph.v1.TextItemR\fcontextItems\"\xba\x01\n" +
 	"\x11ResolveItemResult\x12!\n" +
 	"\aitem_id\x18\x01 \x01(\tB\b\x8a\xb5\x18\x04\b\x01\x10\x01R\x06itemId\x12@\n" +
 	"\bproposal\x18\x02 \x01(\v2\".regulagraph.v1.ResolutionProposalH\x00R\bproposal\x126\n" +
@@ -2246,44 +2258,45 @@ var file_regulagraph_v1_inference_proto_depIdxs = []int32{
 	36, // 42: regulagraph.v1.AmbiguousMention.mention:type_name -> regulagraph.v1.Mention
 	42, // 43: regulagraph.v1.AmbiguousMention.candidates:type_name -> regulagraph.v1.CanonicalEntity
 	28, // 44: regulagraph.v1.AmbiguousMention.evidence:type_name -> regulagraph.v1.Provenance
-	43, // 45: regulagraph.v1.ResolveItemResult.proposal:type_name -> regulagraph.v1.ResolutionProposal
-	30, // 46: regulagraph.v1.ResolveItemResult.error:type_name -> regulagraph.v1.OperationError
-	15, // 47: regulagraph.v1.SemanticResolveRequest.batch:type_name -> regulagraph.v1.SemanticBatchContext
-	20, // 48: regulagraph.v1.SemanticResolveRequest.items:type_name -> regulagraph.v1.AmbiguousMention
-	21, // 49: regulagraph.v1.SemanticResolveResponse.results:type_name -> regulagraph.v1.ResolveItemResult
-	32, // 50: regulagraph.v1.SemanticResolveResponse.model:type_name -> regulagraph.v1.ModelManifest
-	40, // 51: regulagraph.v1.SemanticResolveResponse.usage:type_name -> regulagraph.v1.TokenUsage
-	33, // 52: regulagraph.v1.SemanticResolveResponse.durations:type_name -> regulagraph.v1.StageDuration
-	41, // 53: regulagraph.v1.SemanticResolveResponse.producer_manifest:type_name -> regulagraph.v1.ProducerManifest
-	42, // 54: regulagraph.v1.EntityFacts.entity:type_name -> regulagraph.v1.CanonicalEntity
-	37, // 55: regulagraph.v1.EntityFacts.facts:type_name -> regulagraph.v1.RelationAssertion
-	38, // 56: regulagraph.v1.EntityFacts.supports:type_name -> regulagraph.v1.SupportRecord
-	44, // 57: regulagraph.v1.SummarizeItemResult.profile_draft:type_name -> regulagraph.v1.EntityProfile
-	30, // 58: regulagraph.v1.SummarizeItemResult.error:type_name -> regulagraph.v1.OperationError
-	15, // 59: regulagraph.v1.SummarizeBatchRequest.batch:type_name -> regulagraph.v1.SemanticBatchContext
-	24, // 60: regulagraph.v1.SummarizeBatchRequest.items:type_name -> regulagraph.v1.EntityFacts
-	25, // 61: regulagraph.v1.SummarizeBatchResponse.results:type_name -> regulagraph.v1.SummarizeItemResult
-	32, // 62: regulagraph.v1.SummarizeBatchResponse.model:type_name -> regulagraph.v1.ModelManifest
-	40, // 63: regulagraph.v1.SummarizeBatchResponse.usage:type_name -> regulagraph.v1.TokenUsage
-	33, // 64: regulagraph.v1.SummarizeBatchResponse.durations:type_name -> regulagraph.v1.StageDuration
-	41, // 65: regulagraph.v1.SummarizeBatchResponse.producer_manifest:type_name -> regulagraph.v1.ProducerManifest
-	5,  // 66: regulagraph.v1.Inference.EmbedBatch:input_type -> regulagraph.v1.EmbedBatchRequest
-	10, // 67: regulagraph.v1.Inference.RerankBatch:input_type -> regulagraph.v1.RerankBatchRequest
-	12, // 68: regulagraph.v1.Inference.GetCapabilities:input_type -> regulagraph.v1.CapabilitiesRequest
-	18, // 69: regulagraph.v1.Semantic.ExtractBatch:input_type -> regulagraph.v1.ExtractBatchRequest
-	22, // 70: regulagraph.v1.Semantic.ResolveBatch:input_type -> regulagraph.v1.SemanticResolveRequest
-	26, // 71: regulagraph.v1.Semantic.SummarizeBatch:input_type -> regulagraph.v1.SummarizeBatchRequest
-	6,  // 72: regulagraph.v1.Inference.EmbedBatch:output_type -> regulagraph.v1.EmbedBatchResponse
-	11, // 73: regulagraph.v1.Inference.RerankBatch:output_type -> regulagraph.v1.RerankBatchResponse
-	14, // 74: regulagraph.v1.Inference.GetCapabilities:output_type -> regulagraph.v1.CapabilitiesResponse
-	19, // 75: regulagraph.v1.Semantic.ExtractBatch:output_type -> regulagraph.v1.ExtractBatchResponse
-	23, // 76: regulagraph.v1.Semantic.ResolveBatch:output_type -> regulagraph.v1.SemanticResolveResponse
-	27, // 77: regulagraph.v1.Semantic.SummarizeBatch:output_type -> regulagraph.v1.SummarizeBatchResponse
-	72, // [72:78] is the sub-list for method output_type
-	66, // [66:72] is the sub-list for method input_type
-	66, // [66:66] is the sub-list for extension type_name
-	66, // [66:66] is the sub-list for extension extendee
-	0,  // [0:66] is the sub-list for field type_name
+	2,  // 45: regulagraph.v1.AmbiguousMention.context_items:type_name -> regulagraph.v1.TextItem
+	43, // 46: regulagraph.v1.ResolveItemResult.proposal:type_name -> regulagraph.v1.ResolutionProposal
+	30, // 47: regulagraph.v1.ResolveItemResult.error:type_name -> regulagraph.v1.OperationError
+	15, // 48: regulagraph.v1.SemanticResolveRequest.batch:type_name -> regulagraph.v1.SemanticBatchContext
+	20, // 49: regulagraph.v1.SemanticResolveRequest.items:type_name -> regulagraph.v1.AmbiguousMention
+	21, // 50: regulagraph.v1.SemanticResolveResponse.results:type_name -> regulagraph.v1.ResolveItemResult
+	32, // 51: regulagraph.v1.SemanticResolveResponse.model:type_name -> regulagraph.v1.ModelManifest
+	40, // 52: regulagraph.v1.SemanticResolveResponse.usage:type_name -> regulagraph.v1.TokenUsage
+	33, // 53: regulagraph.v1.SemanticResolveResponse.durations:type_name -> regulagraph.v1.StageDuration
+	41, // 54: regulagraph.v1.SemanticResolveResponse.producer_manifest:type_name -> regulagraph.v1.ProducerManifest
+	42, // 55: regulagraph.v1.EntityFacts.entity:type_name -> regulagraph.v1.CanonicalEntity
+	37, // 56: regulagraph.v1.EntityFacts.facts:type_name -> regulagraph.v1.RelationAssertion
+	38, // 57: regulagraph.v1.EntityFacts.supports:type_name -> regulagraph.v1.SupportRecord
+	44, // 58: regulagraph.v1.SummarizeItemResult.profile_draft:type_name -> regulagraph.v1.EntityProfile
+	30, // 59: regulagraph.v1.SummarizeItemResult.error:type_name -> regulagraph.v1.OperationError
+	15, // 60: regulagraph.v1.SummarizeBatchRequest.batch:type_name -> regulagraph.v1.SemanticBatchContext
+	24, // 61: regulagraph.v1.SummarizeBatchRequest.items:type_name -> regulagraph.v1.EntityFacts
+	25, // 62: regulagraph.v1.SummarizeBatchResponse.results:type_name -> regulagraph.v1.SummarizeItemResult
+	32, // 63: regulagraph.v1.SummarizeBatchResponse.model:type_name -> regulagraph.v1.ModelManifest
+	40, // 64: regulagraph.v1.SummarizeBatchResponse.usage:type_name -> regulagraph.v1.TokenUsage
+	33, // 65: regulagraph.v1.SummarizeBatchResponse.durations:type_name -> regulagraph.v1.StageDuration
+	41, // 66: regulagraph.v1.SummarizeBatchResponse.producer_manifest:type_name -> regulagraph.v1.ProducerManifest
+	5,  // 67: regulagraph.v1.Inference.EmbedBatch:input_type -> regulagraph.v1.EmbedBatchRequest
+	10, // 68: regulagraph.v1.Inference.RerankBatch:input_type -> regulagraph.v1.RerankBatchRequest
+	12, // 69: regulagraph.v1.Inference.GetCapabilities:input_type -> regulagraph.v1.CapabilitiesRequest
+	18, // 70: regulagraph.v1.Semantic.ExtractBatch:input_type -> regulagraph.v1.ExtractBatchRequest
+	22, // 71: regulagraph.v1.Semantic.ResolveBatch:input_type -> regulagraph.v1.SemanticResolveRequest
+	26, // 72: regulagraph.v1.Semantic.SummarizeBatch:input_type -> regulagraph.v1.SummarizeBatchRequest
+	6,  // 73: regulagraph.v1.Inference.EmbedBatch:output_type -> regulagraph.v1.EmbedBatchResponse
+	11, // 74: regulagraph.v1.Inference.RerankBatch:output_type -> regulagraph.v1.RerankBatchResponse
+	14, // 75: regulagraph.v1.Inference.GetCapabilities:output_type -> regulagraph.v1.CapabilitiesResponse
+	19, // 76: regulagraph.v1.Semantic.ExtractBatch:output_type -> regulagraph.v1.ExtractBatchResponse
+	23, // 77: regulagraph.v1.Semantic.ResolveBatch:output_type -> regulagraph.v1.SemanticResolveResponse
+	27, // 78: regulagraph.v1.Semantic.SummarizeBatch:output_type -> regulagraph.v1.SummarizeBatchResponse
+	73, // [73:79] is the sub-list for method output_type
+	67, // [67:73] is the sub-list for method input_type
+	67, // [67:67] is the sub-list for extension type_name
+	67, // [67:67] is the sub-list for extension extendee
+	0,  // [0:67] is the sub-list for field type_name
 }
 
 func init() { file_regulagraph_v1_inference_proto_init() }

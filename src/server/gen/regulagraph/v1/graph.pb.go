@@ -475,8 +475,12 @@ type ResolutionProposal struct {
 	ExpectedRegistryRevision uint64                 `protobuf:"varint,8,opt,name=expected_registry_revision,json=expectedRegistryRevision,proto3" json:"expected_registry_revision,omitempty"`
 	LocalCorrelationId       string                 `protobuf:"bytes,9,opt,name=local_correlation_id,json=localCorrelationId,proto3" json:"local_correlation_id,omitempty"`
 	ProposedIdentityKeys     []*IdentityKey         `protobuf:"bytes,10,rep,name=proposed_identity_keys,json=proposedIdentityKeys,proto3" json:"proposed_identity_keys,omitempty"`
-	unknownFields            protoimpl.UnknownFields
-	sizeCache                protoimpl.SizeCache
+	// Model justification is auditable explanation, never an authenticated review or evidence.
+	Rationale *string `protobuf:"bytes,11,opt,name=rationale,proto3,oneof" json:"rationale,omitempty"`
+	// Context IDs refer to the persisted SemanticResolveRequest, not independent evidence IDs.
+	SupportingContextIds []string `protobuf:"bytes,12,rep,name=supporting_context_ids,json=supportingContextIds,proto3" json:"supporting_context_ids,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *ResolutionProposal) Reset() {
@@ -575,6 +579,20 @@ func (x *ResolutionProposal) GetLocalCorrelationId() string {
 func (x *ResolutionProposal) GetProposedIdentityKeys() []*IdentityKey {
 	if x != nil {
 		return x.ProposedIdentityKeys
+	}
+	return nil
+}
+
+func (x *ResolutionProposal) GetRationale() string {
+	if x != nil && x.Rationale != nil {
+		return *x.Rationale
+	}
+	return ""
+}
+
+func (x *ResolutionProposal) GetSupportingContextIds() []string {
+	if x != nil {
+		return x.SupportingContextIds
 	}
 	return nil
 }
@@ -2275,7 +2293,7 @@ const file_regulagraph_v1_graph_proto_rawDesc = "" +
 	"\blanguage\x18\x05 \x01(\tB\x06\x8a\xb5\x18\x02\b\x01R\blanguage\x12\x1c\n" +
 	"\x05scope\x18\x06 \x01(\tB\x06\x8a\xb5\x18\x02\b\x01R\x05scope\x12D\n" +
 	"\x0evalid_interval\x18\a \x01(\v2\x1d.regulagraph.v1.LegalIntervalR\rvalidInterval\x12+\n" +
-	"\fsupport_refs\x18\b \x03(\tB\b\x8a\xb5\x18\x04\x10\x01@\x01R\vsupportRefs\"\xd3\x04\n" +
+	"\fsupport_refs\x18\b \x03(\tB\b\x8a\xb5\x18\x04\x10\x01@\x01R\vsupportRefs\"\xc4\x05\n" +
 	"\x12ResolutionProposal\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\x1a.regulagraph.v1.RecordMetaB\x06\x8a\xb5\x18\x02\b\x01R\x04meta\x12+\n" +
 	"\vmention_ids\x18\x02 \x03(\tB\n" +
@@ -2291,7 +2309,11 @@ const file_regulagraph_v1_graph_proto_rawDesc = "" +
 	"\x1aexpected_registry_revision\x18\b \x01(\x04R\x18expectedRegistryRevision\x12:\n" +
 	"\x14local_correlation_id\x18\t \x01(\tB\b\x8a\xb5\x18\x04\b\x01\x10\x01R\x12localCorrelationId\x12Q\n" +
 	"\x16proposed_identity_keys\x18\n" +
-	" \x03(\v2\x1b.regulagraph.v1.IdentityKeyR\x14proposedIdentityKeys\"\xa8\x03\n" +
+	" \x03(\v2\x1b.regulagraph.v1.IdentityKeyR\x14proposedIdentityKeys\x12!\n" +
+	"\trationale\x18\v \x01(\tH\x00R\trationale\x88\x01\x01\x12>\n" +
+	"\x16supporting_context_ids\x18\f \x03(\tB\b\x8a\xb5\x18\x04\x10\x018\x01R\x14supportingContextIdsB\f\n" +
+	"\n" +
+	"_rationale\"\xa8\x03\n" +
 	"\x12ResolutionDecision\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\x1a.regulagraph.v1.RecordMetaB\x06\x8a\xb5\x18\x02\b\x01R\x04meta\x12)\n" +
 	"\vproposal_id\x18\x02 \x01(\tB\b\x8a\xb5\x18\x04\b\x01\x10\x01R\n" +
@@ -2640,6 +2662,7 @@ func file_regulagraph_v1_graph_proto_init() {
 		return
 	}
 	file_regulagraph_v1_common_proto_init()
+	file_regulagraph_v1_graph_proto_msgTypes[4].OneofWrappers = []any{}
 	file_regulagraph_v1_graph_proto_msgTypes[5].OneofWrappers = []any{}
 	file_regulagraph_v1_graph_proto_msgTypes[6].OneofWrappers = []any{
 		(*Qualifier_CanonicalId)(nil),
