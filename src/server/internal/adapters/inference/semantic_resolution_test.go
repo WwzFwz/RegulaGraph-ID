@@ -59,10 +59,21 @@ func resolutionFixture(provider StructuredProvider) (*SemanticService, *pb.Seman
 		Candidates: []*pb.CanonicalEntity{{Meta: extractionMeta("corpus:1", "canonical:1"), EntityType: "organization",
 			PreferredLabel: "Badan Perizinan", Scope: "ID:national", RegistryRevision: 2, ReviewState: pb.ReviewState_REVIEW_STATE_UNREVIEWED}},
 	}
+	support := proto.Clone(mention).(*pb.Mention)
+	support.Meta.RecordId = "mention:candidate"
+	support.TextSpan.TextArtifactId = "text:candidate"
+	support.SourceRefs[0].SourceBlobId = "source:candidate"
+	support.SourceRefs[0].ProvisionVersionId = "version:candidate"
+	excerpt := proto.Clone(context).(*pb.TextItem)
+	excerpt.ItemId = "chunk:candidate"
+	excerpt.Provenance.Spans[0].TextArtifactId = "text:candidate"
+	excerpt.Provenance.Sources = cloneSourceRefs(support.SourceRefs)
+	item.CandidateContexts = []*pb.ResolutionCandidateContext{{CanonicalId: "canonical:1", AliasId: "alias:candidate",
+		SupportMention: support, ContextItems: []*pb.TextItem{excerpt}}}
 	return service, &pb.SemanticResolveRequest{Batch: batch, Items: []*pb.AmbiguousMention{item}}
 }
 
-const validResolutionJSON = `{"action":"LINK","candidate_id":"canonical:1","rationale":"Identitas sesuai konteks dokumen.","evidence_item_ids":["chunk:1"]}`
+const validResolutionJSON = `{"action":"LINK","candidate_id":"canonical:1","rationale":"Identitas sesuai konteks dokumen.","evidence_item_ids":["chunk:1","chunk:candidate"]}`
 
 func TestResolutionGRPCClientPreservesContextAndRationale(t *testing.T) {
 	provider := &providerDouble{raw: json.RawMessage(validResolutionJSON)}
@@ -104,7 +115,7 @@ func TestResolveProjectsEvidenceAndReusesOperation(t *testing.T) {
 	if proposal == nil || proposal.Action != pb.ResolutionAction_RESOLUTION_ACTION_LINK ||
 		proposal.ExpectedRegistryRevision != 3 || proposal.GetRationale() == "" ||
 		!proto.Equal(proposal.Evidence, request.Items[0].Evidence) ||
-		len(proposal.SupportingContextIds) != 1 || proposal.Confidence != nil {
+		len(proposal.SupportingContextIds) != 2 || proposal.Confidence != nil {
 		t.Fatalf("lost authoritative resolution binding: %v", proposal)
 	}
 	if response.Usage.InputTokens != 20 || len(response.Durations) != 3 {
@@ -137,6 +148,7 @@ func TestResolveDeferPreservesCandidates(t *testing.T) {
 	}
 	request.Batch.OperationKey = "operation:empty"
 	request.Items[0].Candidates = nil
+	request.Items[0].CandidateContexts = nil
 	result, err = service.ResolveBatch(context.Background(), request)
 	if err != nil || result.Results[0].GetProposal() == nil || len(result.Results[0].GetProposal().CandidateIds) != 0 {
 		t.Fatalf("empty candidate defer failed: %v %v", result, err)

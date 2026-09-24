@@ -17,7 +17,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode/utf8"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -102,64 +101,7 @@ func (s *SemanticService) validateResolveRequest(request *pb.SemanticResolveRequ
 // Context is an internal trusted-caller boundary: the workflow verifies artifact hashes.
 // Here we reject inconsistent source/version IDs, malformed spans, and forged mention bytes.
 func validateResolutionContext(item *pb.AmbiguousMention, corpus string) error {
-	mention := item.Mention
-	if mention.Meta.CorpusId != corpus || item.ExpectedRegistryRevision == 0 ||
-		len(item.ContextItems) == 0 || mention.TextSpan == nil {
-		return errors.New("matching corpus, registry revision and hydrated context are required")
-	}
-	expected := &pb.Provenance{Sources: mention.SourceRefs, Spans: []*pb.TextSpan{mention.TextSpan}}
-	if !proto.Equal(item.Evidence, expected) {
-		return errors.New("proposal evidence must preserve the exact mention provenance")
-	}
-	candidates := map[string]bool{}
-	for _, candidate := range item.Candidates {
-		if candidate == nil || candidate.Meta == nil || candidate.Meta.CorpusId != corpus ||
-			candidate.EntityType != mention.CandidateType || candidate.RegistryRevision == 0 ||
-			candidate.RegistryRevision > item.ExpectedRegistryRevision || candidates[candidate.Meta.RecordId] {
-			return errors.New("candidate identity, type, corpus or revision differs")
-		}
-		candidates[candidate.Meta.RecordId] = true
-	}
-	seen := map[string]bool{}
-	covered := false
-	for _, excerpt := range item.ContextItems {
-		if excerpt == nil || excerpt.ItemId == "" || seen[excerpt.ItemId] || excerpt.Text == "" ||
-			!utf8.ValidString(excerpt.Text) || excerpt.Provenance == nil ||
-			len(excerpt.Provenance.Spans) != 1 || len(excerpt.Provenance.Sources) == 0 {
-			return errors.New("context requires unique IDs, UTF-8 text and source provenance")
-		}
-		seen[excerpt.ItemId] = true
-		span := excerpt.Provenance.Spans[0]
-		if span == nil || span.EndByte < span.StartByte || span.EndByte-span.StartByte != uint64(len(excerpt.Text)) {
-			return errors.New("context span does not cover its UTF-8 bytes")
-		}
-		// Structural chunks can span several provision versions in the same source document.
-		// The workflow verifies each chunk/version binding from its hashed DocumentBatch.
-		for _, source := range excerpt.Provenance.Sources {
-			found := false
-			for _, original := range mention.SourceRefs {
-				if source.SourceBlobId == original.SourceBlobId {
-					found = true
-					break
-				}
-			}
-			if !found {
-				return errors.New("context source document is outside the mention evidence")
-			}
-		}
-		target := mention.TextSpan
-		if span.TextArtifactId == target.TextArtifactId && span.StartByte <= target.StartByte && span.EndByte >= target.EndByte {
-			start, end := target.StartByte-span.StartByte, target.EndByte-span.StartByte
-			if end < start || !utf8.ValidString(excerpt.Text[start:end]) || excerpt.Text[start:end] != mention.SurfaceForm {
-				return errors.New("mention does not match context bytes")
-			}
-			covered = true
-		}
-	}
-	if !covered {
-		return errors.New("context does not contain the mention")
-	}
-	return nil
+	return domain.ValidateSemanticResolutionItem(item, corpus, domain.DefaultWireLimits.MaxItems)
 }
 
 type resolveOutcome struct {
@@ -283,28 +225,6 @@ func projectResolution(request *pb.SemanticResolveRequest, item *pb.AmbiguousMen
 	if strings.TrimSpace(output.Rationale) == "" || len(output.EvidenceIDs) == 0 {
 		return nil, errors.New("resolution requires rationale and evidence")
 	}
-	evidence := map[string]bool{}
-	for _, context := range item.ContextItems {
-		evidence[context.ItemId] = true
-	}
-	seen := map[string]bool{}
-	mentionContext := false
-	for _, id := range output.EvidenceIDs {
-		if !evidence[id] || seen[id] {
-			return nil, errors.New("unknown or duplicate resolution evidence")
-		}
-		seen[id] = true
-		for _, excerpt := range item.ContextItems {
-			span := excerpt.Provenance.Spans[0]
-			if excerpt.ItemId == id && span.TextArtifactId == item.Mention.TextSpan.TextArtifactId &&
-				span.StartByte <= item.Mention.TextSpan.StartByte && span.EndByte >= item.Mention.TextSpan.EndByte {
-				mentionContext = true
-			}
-		}
-	}
-	if !mentionContext {
-		return nil, errors.New("resolution must cite the mention context")
-	}
 	proposal := &pb.ResolutionProposal{
 		Meta:       extractionMeta(request.Batch.Context.CorpusId, deterministicID("resolution", request.Batch.OperationKey, item.ItemId)),
 		MentionIds: []string{item.Mention.Meta.RecordId}, Evidence: proto.Clone(item.Evidence).(*pb.Provenance),
@@ -335,6 +255,9 @@ func projectResolution(request *pb.SemanticResolveRequest, item *pb.AmbiguousMen
 		}
 	default:
 		return nil, fmt.Errorf("unsupported resolution action %q", output.Action)
+	}
+	if err := domain.ValidateResolutionContextReferences(item, proposal, domain.DefaultWireLimits.MaxItems); err != nil {
+		return nil, err
 	}
 	if err := domain.ValidateWire(proposal, domain.DefaultWireLimits); err != nil {
 		return nil, err

@@ -151,14 +151,28 @@ func (h *SemanticResolutionHandoff) ProposeWithModel(ctx context.Context, job do
 	if err = domain.ValidateExtractionBatchClosure(source, document, h.maximumReferences); err != nil {
 		return nil, err
 	}
-	request, err := hydrateResolutionRequest(attempt, batch, source, candidates, document, artifacts, &remaining, h.maximumBytes, h.maximumReferences)
+	budget := newResolutionHydrationBudget(h.maximumBytes, h.maximumReferences)
+	request, err := hydrateResolutionRequestWithBudget(attempt, batch, source, candidates, document, artifacts, &remaining, budget)
+	if err != nil {
+		return nil, err
+	}
+	evidenceRefs, err := h.hydrateCandidateEvidence(attempt, request, candidates, artifacts, &remaining, budget)
+	if err != nil {
+		return nil, err
+	}
+	for _, item := range request.Items {
+		if err = domain.ValidateSemanticResolutionItem(item, job.CorpusID, h.maximumReferences); err != nil {
+			return nil, err
+		}
+	}
+	modelDeps, err := uniqueModelDependencies(append([]*pb.ArtifactRef{candidateRef, sourceRef}, evidenceRefs...))
 	if err != nil {
 		return nil, err
 	}
 	if proto.Size(request) > domain.DefaultWireLimits.MaxBytes || uint64(proto.Size(request)) > h.maximumBytes {
 		return nil, errors.New("hydrated resolution request exceeds byte budget")
 	}
-	fingerprint, err := resolutionModelFingerprint(request, producer, candidateRef, sourceRef)
+	fingerprint, err := resolutionModelFingerprint(request, producer, modelDeps...)
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +189,7 @@ func (h *SemanticResolutionHandoff) ProposeWithModel(ctx context.Context, job do
 		return nil, err
 	}
 	if errors.Is(err, domain.ErrNotFound) {
-		inputRef, err = h.saveModelArtifact(attempt, job.CorpusID, inputID, request, producer, sourceRef, candidateRef)
+		inputRef, err = h.saveModelArtifact(attempt, job.CorpusID, inputID, request, producer, modelDeps...)
 		if err != nil {
 			return nil, err
 		}
@@ -185,7 +199,7 @@ func (h *SemanticResolutionHandoff) ProposeWithModel(ctx context.Context, job do
 		if err = readAudit(inputRef, existing); err != nil {
 			return nil, err
 		}
-		actual, e := resolutionModelFingerprint(existing, producer, candidateRef, sourceRef)
+		actual, e := resolutionModelFingerprint(existing, producer, modelDeps...)
 		if e != nil || actual != fingerprint {
 			return nil, domain.ErrPersistentIntegrity
 		}
@@ -214,7 +228,7 @@ func (h *SemanticResolutionHandoff) ProposeWithModel(ctx context.Context, job do
 		return nil, err
 	}
 	if !reused {
-		outputRef, err = h.saveModelArtifact(attempt, job.CorpusID, outputID, response, producer, inputRef, sourceRef, candidateRef)
+		outputRef, err = h.saveModelArtifact(attempt, job.CorpusID, outputID, response, producer, append([]*pb.ArtifactRef{inputRef}, modelDeps...)...)
 		if err != nil {
 			return nil, err
 		}
@@ -225,8 +239,8 @@ func (h *SemanticResolutionHandoff) ProposeWithModel(ctx context.Context, job do
 		ref  *pb.ArtifactRef
 		deps []*pb.ArtifactRef
 	}{
-		{inputRef, []*pb.ArtifactRef{sourceRef, candidateRef}},
-		{outputRef, []*pb.ArtifactRef{inputRef, sourceRef, candidateRef}},
+		{inputRef, modelDeps},
+		{outputRef, append([]*pb.ArtifactRef{inputRef}, modelDeps...)},
 	} {
 		if err = store.ReplaceArtifactDependencyManifest(attempt, job.CorpusID, entry.ref.ArtifactId,
 			modelArtifactDependencies(entry.ref, producer, entry.deps...)); err != nil {
@@ -246,6 +260,13 @@ func (h *SemanticResolutionHandoff) ProposeWithModel(ctx context.Context, job do
 func hydrateResolutionRequest(ctx context.Context, batch *pb.SemanticBatchContext, source *pb.ExtractionBatch,
 	candidates *pb.RegistryCandidateBatch, document *pb.DocumentBatch, artifacts SemanticResolutionArtifactReader,
 	remaining *uint64, maximumRequestBytes uint64, maximumWork int) (*pb.SemanticResolveRequest, error) {
+	return hydrateResolutionRequestWithBudget(ctx, batch, source, candidates, document, artifacts, remaining,
+		newResolutionHydrationBudget(maximumRequestBytes, maximumWork))
+}
+
+func hydrateResolutionRequestWithBudget(ctx context.Context, batch *pb.SemanticBatchContext, source *pb.ExtractionBatch,
+	candidates *pb.RegistryCandidateBatch, document *pb.DocumentBatch, artifacts SemanticResolutionArtifactReader,
+	remaining *uint64, budget *resolutionHydrationBudget) (*pb.SemanticResolveRequest, error) {
 	request := &pb.SemanticResolveRequest{Batch: proto.Clone(batch).(*pb.SemanticBatchContext)}
 	texts := map[string]*pb.TextArtifact{}
 	for _, text := range document.TextArtifacts {
@@ -264,21 +285,15 @@ func hydrateResolutionRequest(ctx context.Context, batch *pb.SemanticBatchContex
 			}
 		}
 	}
-	loaded := map[string][]byte{}
-	requestBytes := uint64(proto.Size(request)) + 32
-	if requestBytes > maximumRequestBytes {
-		return nil, errors.New("resolution context expansion exceeds request byte budget")
+	loaded := budget.texts
+	reserve := budget.reserve
+	if err := reserve(uint64(proto.Size(request)) + 32); err != nil {
+		return nil, err
 	}
-	reserve := func(size uint64) error {
-		if size > maximumRequestBytes-requestBytes {
-			return errors.New("resolution context/candidate expansion exceeds request byte budget")
-		}
-		requestBytes += size
-		return nil
-	}
-	if len(document.Chunks) != 0 && len(source.Mentions) > maximumWork/len(document.Chunks) {
+	if budget.work <= 0 || len(document.Chunks) != 0 && len(source.Mentions) > budget.work/len(document.Chunks) {
 		return nil, errors.New("resolution context coverage work exceeds budget")
 	}
+	budget.work -= len(source.Mentions) * len(document.Chunks)
 	versions := map[string]*pb.ProvisionVersion{}
 	provisions := map[string]*pb.Provision{}
 	for _, version := range document.Versions {
@@ -304,6 +319,9 @@ func hydrateResolutionRequest(ctx context.Context, batch *pb.SemanticBatchContex
 		}
 		ref := text.NormalizedTextRef
 		raw, ok := loaded[ref.ArtifactId]
+		if ok && !proto.Equal(budget.textRefs[ref.ArtifactId], ref) {
+			return nil, domain.ErrPersistentIntegrity
+		}
 		if !ok {
 			if ref.ByteSize == 0 || ref.ByteSize > *remaining || !isUTF8TextMediaType(ref.MediaType) {
 				return nil, errors.New("resolution text exceeds byte budget or media contract")
@@ -318,6 +336,7 @@ func hydrateResolutionRequest(ctx context.Context, batch *pb.SemanticBatchContex
 			}
 			*remaining -= ref.ByteSize
 			loaded[ref.ArtifactId] = raw
+			budget.textRefs[ref.ArtifactId] = ref
 		}
 		// All covering structural chunks are included: overlapping chunks may supply a definition
 		// or exception absent from the smallest window. Oversize is reported rather than truncated.
@@ -494,14 +513,8 @@ func validateModelResolutionResponse(request *pb.SemanticResolveRequest, respons
 			proposal.GetRationale() == "" || len(proposal.SupportingContextIds) == 0 {
 			return errors.New("model proposal lost correlation or explanation")
 		}
-		contexts := map[string]bool{}
-		for _, excerpt := range item.ContextItems {
-			contexts[excerpt.ItemId] = true
-		}
-		for _, id := range proposal.SupportingContextIds {
-			if !contexts[id] {
-				return errors.New("model proposal cites unknown context")
-			}
+		if err := domain.ValidateResolutionContextReferences(item, proposal, references); err != nil {
+			return err
 		}
 		proposals = append(proposals, proposal)
 	}

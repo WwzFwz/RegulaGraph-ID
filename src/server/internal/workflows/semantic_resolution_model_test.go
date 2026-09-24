@@ -22,6 +22,12 @@ type modelProposalStore struct {
 	*candidateRaceStore
 	revision     uint64
 	dependencies map[string]*pb.DependencyManifest
+	evidenceRefs []*pb.ArtifactRef
+	evidenceErr  error
+}
+
+func (s *modelProposalStore) LoadResolutionEvidenceSources(_ context.Context, _ *pb.RequestContext, _ []string, _ int) ([]*pb.ArtifactRef, error) {
+	return s.evidenceRefs, s.evidenceErr
 }
 
 func (s *modelProposalStore) LoadArtifact(_ context.Context, _, id string) (*pb.ArtifactRef, error) {
@@ -39,6 +45,13 @@ func (s *modelProposalStore) RegisterArtifact(_ context.Context, _ string, ref *
 	return nil
 }
 func (s *modelProposalStore) ReplaceArtifactDependencyManifest(_ context.Context, _, id string, manifest *pb.DependencyManifest) error {
+	seen := map[string]bool{}
+	for _, dependency := range manifest.Dependencies {
+		if seen[dependency.DependencyId] {
+			return errors.New("duplicate persisted dependency")
+		}
+		seen[dependency.DependencyId] = true
+	}
 	s.dependencies[id] = proto.Clone(manifest).(*pb.DependencyManifest)
 	return nil
 }
@@ -57,10 +70,18 @@ func (a *modelProposalArtifacts) Put(_ context.Context, ref *pb.ArtifactRef, rea
 	return false, nil
 }
 
-type modelProposalProvider struct{ calls int }
+type modelProposalProvider struct {
+	calls int
+	raw   json.RawMessage
+	input string
+}
 
-func (p *modelProposalProvider) Generate(_ context.Context, _ inference.StructuredRequest) (inference.StructuredResponse, error) {
+func (p *modelProposalProvider) Generate(_ context.Context, request inference.StructuredRequest) (inference.StructuredResponse, error) {
 	p.calls++
+	p.input = request.Text
+	if p.raw != nil {
+		return inference.StructuredResponse{JSON: p.raw, InputTokens: 10, OutputTokens: 5}, nil
+	}
 	return inference.StructuredResponse{JSON: json.RawMessage(`{"action":"DEFER","candidate_id":"","rationale":"No candidate is available.","evidence_item_ids":["chunk:fixture"]}`), InputTokens: 10, OutputTokens: 5}, nil
 }
 
