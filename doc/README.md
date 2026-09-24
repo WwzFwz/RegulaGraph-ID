@@ -49,6 +49,7 @@ mencatat klaim EXTRACT→RESOLVE, byte `ReadVerified`, dan fencing transaksi reg
 producer review terautentikasi dan executor RESOLVE penuh masih terbuka.
 [verification-report-k01-resolve-output.md](verification-report-k01-resolve-output.md) mencatat intent sebelum CAS, output/checkpoint, pemulihan crash, dan jalur tanpa mention pada PostgreSQL disposable; producer dan benchmark produksi masih terbuka.
 [verification-report-k01-resolve-replan.md](verification-report-k01-resolve-replan.md) mencatat terminal failure untuk kandidat/review stale dan prioritas cancellation/fence, dengan batas bahwa pembuatan job pengganti masih terbuka.
+[verification-report-k01-candidate-storage.md](verification-report-k01-candidate-storage.md) mencatat handoff kandidat berfence, revision lookup, artefak berhash, dan dependency PostgreSQL; pemilihan legal scope serta producer proposal tetap terbuka.
 [verification-report-g01-review-packet.md](verification-report-g01-review-packet.md) mencatat triase enam PDF
 yang metadata antreannya dicocokkan ulang ke inventory dan byte PDF-nya diverifikasi; gold manusia belum tersedia.
 [verification-report-a01-citation-mapping.md](verification-report-a01-citation-mapping.md) mencatat helper

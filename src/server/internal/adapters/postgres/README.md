@@ -20,7 +20,7 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 dalam satu transaksi lookup, memeriksa key/revisi serta closure alias, kemudian meneruskan observasi ke
 builder artefak C01. Nol mention menghasilkan `ErrNoCandidateMentions` tanpa pembacaan registry agar workflow
 dapat melewati RESOLVE secara eksplisit. [registry_candidate_batch_test.go](registry_candidate_batch_test.go)
-memeriksa mapping dan hasil tidak mungkin dengan fixture; belum membuktikan transaksi PostgreSQL nyata.
+memeriksa mapping dan hasil tidak mungkin dengan fixture. Workflow kandidat sekarang menguji pembacaan PostgreSQL nyata, fencing EXTRACT, dan penyimpanan artefak berhash dalam tes integrasi semantik.
 
 [registry_semantic.go](registry_semantic.go) menerima proposal LINK/DEFER terikat batch kandidat dan melakukan
 CAS revision dalam transaksi serializable. [registry_semantic_inputs.go](registry_semantic_inputs.go) memeriksa
@@ -31,7 +31,7 @@ CAS. [registry_semantic_replay.go](registry_semantic_replay.go) merekonstruksi r
 integritas row/payload. [registry_semantic_integration_test.go](registry_semantic_integration_test.go)
 menguji writer ini pada PostgreSQL disposable, termasuk retry, stale candidate, forgery, konkurensi,
 handoff FileStore nyata, dan lease yang berubah di tengah pembacaan/transaksi. Caller wajib memakai
-`SemanticResolutionHandoff` agar byte berasal dari `ReadVerified`. [registry_semantic_intent.go](registry_semantic_intent.go) menyimpan intent append-only sebelum CAS agar retry membawa request/review yang sama; [registry_semantic_empty.go](registry_semantic_empty.go) membaca revisi terikat lease untuk EXTRACT tanpa mention. Writer membedakan kandidat/review permanen stale yang menuntut job baru dari review yang belum tersimpan dan masih dapat tiba. Producer review terautentikasi belum tersedia dan adapter ini belum menjadi stage RESOLVE publik.
+`SemanticResolutionHandoff` agar byte berasal dari `ReadVerified`. [registry_semantic_intent.go](registry_semantic_intent.go) menyimpan intent append-only sebelum CAS agar retry membawa request/review yang sama; [registry_semantic_empty.go](registry_semantic_empty.go) membaca revisi terikat lease untuk EXTRACT kosong maupun validasi kandidat di sekitar lookup. Writer membedakan kandidat/review permanen stale yang menuntut job baru dari review yang belum tersimpan dan masih dapat tiba. Producer review terautentikasi belum tersedia dan adapter ini belum menjadi stage RESOLVE publik.
 
 ## Benchmark dan perhatian performa
 
