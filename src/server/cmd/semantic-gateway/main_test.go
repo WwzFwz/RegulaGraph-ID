@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	pb "regulagraph.local/server/gen/regulagraph/v1"
 	"strings"
 	"testing"
 )
@@ -53,6 +54,25 @@ func configureFixture(t *testing.T) ([]byte, string) {
 		t.Setenv(name, value)
 	}
 	return prompt, schemaPath
+}
+
+func TestLoadConfigSupportsPinnedResolutionTask(t *testing.T) {
+	configureFixture(t)
+	t.Setenv("REGULAGRAPH_SEMANTIC_TASK", "RESOLVE")
+	for _, suffix := range []string{"OUTPUT_SCHEMA", "ONTOLOGY_VERSION", "PROMPT_SHA256", "MODEL_ID", "MODEL_VERSION", "WEIGHTS_SHA256", "TOKENIZER_SHA256", "PRECISION", "BACKEND"} {
+		t.Setenv("REGULAGRAPH_WORKER_RESOLUTION_"+suffix, os.Getenv("REGULAGRAPH_WORKER_EXTRACTION_"+suffix))
+	}
+	config, _, _, _, err := loadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.model.Task != pb.ModelTask_MODEL_TASK_RESOLVE || semanticSchemaName(config.model.Task) != "regulagraph_resolution_v1" {
+		t.Fatal("gateway did not select RESOLVE")
+	}
+	t.Setenv("REGULAGRAPH_SEMANTIC_TASK", "UNKNOWN")
+	if _, _, _, _, err = loadConfig(); err == nil {
+		t.Fatal("unknown semantic task accepted")
+	}
 }
 
 func TestLoadConfigPinsPromptAndExcludesAPIKeyFromFingerprint(t *testing.T) {

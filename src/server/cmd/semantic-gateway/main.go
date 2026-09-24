@@ -1,4 +1,4 @@
-// Runs the internal Semantic gRPC gateway for bounded, schema-constrained extraction calls.
+// Runs the internal Semantic gRPC gateway for bounded, schema-constrained extraction or resolution calls.
 // Startup pins model, prompt, ontology, schema, and public runtime configuration by hash, then
 // reuses one provider client. The listener remains loopback-only until transport authentication is
 // deployed. Quality, provider latency, and cost targets remain REQUIRED_UNMEASURED.
@@ -79,7 +79,7 @@ func run(ctx context.Context) error {
 	service, err := inference.NewSemanticService(provider, inference.SemanticConfig{
 		Model: config.model, Ontology: config.ontology,
 		OutputSchemaHash: contentHash(schema), SystemPrompt: string(prompt), OutputSchema: schema,
-		SchemaName: "regulagraph_extraction_v1", Software: "regulagraph-semantic-gateway",
+		SchemaName: semanticSchemaName(config.model.Task), Software: "regulagraph-semantic-gateway",
 		Build: config.build, ConfigHash: configHash, TokenizerID: config.model.ModelId + ":provider",
 		MaximumItems: config.maximumItems, MaximumInputBytes: config.maximumInputBytes,
 		MaximumConcurrent: config.maximumConcurrent, MaximumCacheEntries: config.maximumCacheEntries,
@@ -127,13 +127,22 @@ func run(ctx context.Context) error {
 }
 
 func loadConfig() (runtimeConfig, []byte, json.RawMessage, *pb.ContentHash, error) {
+	task := os.Getenv("REGULAGRAPH_SEMANTIC_TASK")
+	modelTask := pb.ModelTask_MODEL_TASK_EXTRACT
+	prefix := "REGULAGRAPH_WORKER_EXTRACTION_"
+	if task == "RESOLVE" {
+		modelTask = pb.ModelTask_MODEL_TASK_RESOLVE
+		prefix = "REGULAGRAPH_WORKER_RESOLUTION_"
+	} else if task != "" && task != "EXTRACT" {
+		return runtimeConfig{}, nil, nil, nil, errors.New("semantic task must be EXTRACT or RESOLVE")
+	}
 	config := runtimeConfig{
 		listen:           os.Getenv("REGULAGRAPH_SEMANTIC_LISTEN"),
 		providerEndpoint: os.Getenv("REGULAGRAPH_SEMANTIC_PROVIDER_ENDPOINT"),
 		providerAPIKey:   os.Getenv("REGULAGRAPH_SEMANTIC_PROVIDER_API_KEY"),
 		promptPath:       os.Getenv("REGULAGRAPH_SEMANTIC_PROMPT_PATH"),
-		schemaPath:       os.Getenv("REGULAGRAPH_WORKER_EXTRACTION_OUTPUT_SCHEMA"),
-		ontologyVersion:  os.Getenv("REGULAGRAPH_WORKER_EXTRACTION_ONTOLOGY_VERSION"),
+		schemaPath:       os.Getenv(prefix + "OUTPUT_SCHEMA"),
+		ontologyVersion:  os.Getenv(prefix + "ONTOLOGY_VERSION"),
 		build:            os.Getenv("REGULAGRAPH_BUILD_ID"),
 	}
 	if config.listen == "" || config.providerEndpoint == "" || config.promptPath == "" || config.schemaPath == "" ||
@@ -162,29 +171,29 @@ func loadConfig() (runtimeConfig, []byte, json.RawMessage, *pb.ContentHash, erro
 	if len(strings.TrimSpace(string(prompt))) == 0 || !json.Valid(schemaBytes) {
 		return runtimeConfig{}, nil, nil, nil, errors.New("semantic prompt must be non-empty and extraction schema must be valid JSON")
 	}
-	promptHash, err := requiredHashEnv("REGULAGRAPH_WORKER_EXTRACTION_PROMPT_SHA256")
+	promptHash, err := requiredHashEnv(prefix + "PROMPT_SHA256")
 	if err != nil {
 		return runtimeConfig{}, nil, nil, nil, err
 	}
 	if promptHash.Sha256 != hashBytes(prompt) {
-		return runtimeConfig{}, nil, nil, nil, errors.New("semantic prompt bytes differ from REGULAGRAPH_WORKER_EXTRACTION_PROMPT_SHA256")
+		return runtimeConfig{}, nil, nil, nil, errors.New("semantic prompt bytes differ from the configured task prompt hash")
 	}
-	weightsHash, err := requiredHashEnv("REGULAGRAPH_WORKER_EXTRACTION_WEIGHTS_SHA256")
+	weightsHash, err := requiredHashEnv(prefix + "WEIGHTS_SHA256")
 	if err != nil {
 		return runtimeConfig{}, nil, nil, nil, err
 	}
-	tokenizerHash, err := requiredHashEnv("REGULAGRAPH_WORKER_EXTRACTION_TOKENIZER_SHA256")
+	tokenizerHash, err := requiredHashEnv(prefix + "TOKENIZER_SHA256")
 	if err != nil {
 		return runtimeConfig{}, nil, nil, nil, err
 	}
-	modelID := os.Getenv("REGULAGRAPH_WORKER_EXTRACTION_MODEL_ID")
-	modelVersion := os.Getenv("REGULAGRAPH_WORKER_EXTRACTION_MODEL_VERSION")
-	precision := os.Getenv("REGULAGRAPH_WORKER_EXTRACTION_PRECISION")
-	backend := os.Getenv("REGULAGRAPH_WORKER_EXTRACTION_BACKEND")
+	modelID := os.Getenv(prefix + "MODEL_ID")
+	modelVersion := os.Getenv(prefix + "MODEL_VERSION")
+	precision := os.Getenv(prefix + "PRECISION")
+	backend := os.Getenv(prefix + "BACKEND")
 	if modelID == "" || modelVersion == "" || precision == "" || backend == "" {
 		return runtimeConfig{}, nil, nil, nil, errors.New("semantic model ID, version, precision, and backend are required")
 	}
-	maxTokens, err := positiveIntEnv("REGULAGRAPH_WORKER_EXTRACTION_MAX_TOKENS", 8192)
+	maxTokens, err := positiveIntEnv(prefix+"MAX_TOKENS", 8192)
 	if err != nil {
 		return runtimeConfig{}, nil, nil, nil, err
 	}
@@ -193,7 +202,7 @@ func loadConfig() (runtimeConfig, []byte, json.RawMessage, *pb.ContentHash, erro
 	}
 	config.model = &pb.ModelManifest{
 		ModelId: modelID, Version: modelVersion, WeightsHash: weightsHash, TokenizerHash: tokenizerHash,
-		Task: pb.ModelTask_MODEL_TASK_EXTRACT, MaxTokens: uint32(maxTokens), Precision: precision,
+		Task: modelTask, MaxTokens: uint32(maxTokens), Precision: precision,
 		Backend: backend, PromptHash: promptHash,
 	}
 	if config.providerTimeout, err = durationEnv("REGULAGRAPH_SEMANTIC_PROVIDER_TIMEOUT", 90*time.Second); err != nil {
@@ -331,4 +340,11 @@ func positiveIntEnv(name string, fallback int) (int, error) {
 		return 0, fmt.Errorf("%s must be a positive integer", name)
 	}
 	return value, nil
+}
+
+func semanticSchemaName(task pb.ModelTask) string {
+	if task == pb.ModelTask_MODEL_TASK_RESOLVE {
+		return "regulagraph_resolution_v1"
+	}
+	return "regulagraph_extraction_v1"
 }
