@@ -61,6 +61,9 @@ func ValidateRegistryCandidateBatch(batch *pb.RegistryCandidateBatch, source *pb
 	if !proto.Equal(batch.SourceExtractionBatch, sourceRef) || sourceRef.ArtifactId == "" || sourceRef.ContentHash == nil {
 		return errors.New("candidate batch source ref differs from verified extraction artifact")
 	}
+	if batch.Meta.RecordId == source.Meta.RecordId || batch.Meta.RecordId == sourceRef.ArtifactId {
+		return errors.New("candidate batch identity collides with extraction input")
+	}
 	if len(batch.Lookups) != len(source.Mentions) || len(batch.Lookups) > maximumReferences ||
 		len(batch.Candidates) > maximumReferences || len(batch.Aliases) > maximumReferences {
 		return errors.New("candidate batch size or mention coverage is invalid")
@@ -95,7 +98,7 @@ func ValidateRegistryCandidateBatch(batch *pb.RegistryCandidateBatch, source *pb
 	mentions := make(map[string]*pb.Mention, len(source.Mentions))
 	for _, mention := range source.Mentions {
 		id := mention.GetMeta().GetRecordId()
-		if id == "" || mentions[id] != nil {
+		if id == "" || id == batch.Meta.RecordId || mentions[id] != nil {
 			return errors.New("extraction source has duplicate or missing mention identity")
 		}
 		mentions[id] = mention
@@ -110,7 +113,9 @@ func ValidateRegistryCandidateBatch(batch *pb.RegistryCandidateBatch, source *pb
 			return err
 		}
 		id := candidate.GetMeta().GetRecordId()
-		if id == "" || candidates[id] != nil || candidate.GetMeta().GetCorpusId() != batch.Meta.CorpusId ||
+		if id == "" || id == batch.Meta.RecordId || id == source.Meta.RecordId ||
+			id == sourceRef.ArtifactId || mentions[id] != nil || candidates[id] != nil ||
+			candidate.GetMeta().GetCorpusId() != batch.Meta.CorpusId ||
 			candidate.RegistryRevision == 0 || candidate.RegistryRevision > batch.RegistryRevision ||
 			candidate.EntityType == "" || candidate.Scope == "" ||
 			candidate.ReviewState != pb.ReviewState_REVIEW_STATE_APPROVED &&
@@ -129,7 +134,9 @@ func ValidateRegistryCandidateBatch(batch *pb.RegistryCandidateBatch, source *pb
 		}
 		id := alias.GetMeta().GetRecordId()
 		owner := candidates[alias.GetCanonicalId()]
-		if id == "" || aliases[id] || candidates[id] != nil || owner == nil ||
+		if id == "" || id == batch.Meta.RecordId || id == source.Meta.RecordId ||
+			id == sourceRef.ArtifactId || mentions[id] != nil || aliases[id] ||
+			candidates[id] != nil || owner == nil ||
 			alias.GetMeta().GetCorpusId() != batch.Meta.CorpusId || alias.Scope != owner.Scope ||
 			alias.Surface == "" || alias.NormalizedLookup == "" || len(alias.SupportRefs) == 0 {
 			return errors.New("candidate alias has invalid identity, owner, scope, or support")

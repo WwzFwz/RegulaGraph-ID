@@ -20,12 +20,8 @@ import (
 // with no mentions; no registry read or empty synthetic revision is performed.
 var ErrNoCandidateMentions = errors.New("complete extraction has no mentions to resolve")
 
-// RegistryCandidatePlan is an explicit legal lookup plan for one extracted mention. Scope
-// selection belongs to RESOLVE policy; this adapter only executes and binds the exact keys.
-type RegistryCandidatePlan struct {
-	MentionID string
-	Scopes    []RegistryLookupScope
-}
+// RegistryCandidatePlan keeps the adapter API while the shared plan lives in domain.
+type RegistryCandidatePlan = domain.RegistryCandidatePlan
 
 // PrepareRegistryCandidateBatch performs one batched lookup in one repeatable-read snapshot.
 // The resulting batch remains an immutable artifact proposal until the workflow verifies its

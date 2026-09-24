@@ -537,6 +537,39 @@ func TestSemanticRegistryAgainstPostgres(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	candidateHandoff, err := workflows.NewSemanticResolutionHandoff(repo, fileStore,
+		1<<20, 64, 8)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prepared, preparedRef, err := candidateHandoff.PrepareAndStoreCandidates(ctx,
+		claimed, producer, "candidates:workflow", plans, 8, 8)
+	if err != nil || prepared.RegistryRevision != revision || preparedRef == nil {
+		t.Fatalf("fenced candidate artifact was not prepared: batch=%v ref=%v err=%v",
+			prepared, preparedRef, err)
+	}
+	registeredCandidate, err := repo.LoadArtifact(ctx, corpusID, preparedRef.ArtifactId)
+	if err != nil || !proto.Equal(registeredCandidate, preparedRef) {
+		t.Fatalf("prepared candidate metadata was not registered: ref=%v err=%v",
+			registeredCandidate, err)
+	}
+	if _, err = fileStore.ReadVerified(ctx, preparedRef, 1<<20); err != nil {
+		t.Fatalf("prepared candidate bytes failed hash verification: %v", err)
+	}
+	var sourceDependencies, lookupDependencies, emptyLookups, totalDependencies int
+	if err = repo.pool.QueryRow(ctx, `SELECT
+		count(*) FILTER (WHERE dependency_kind='fingerprint' AND dependency_key=$2
+			AND dependency_fingerprint=$3),
+		count(*) FILTER (WHERE dependency_kind='lookup_scope'),
+		count(*) FILTER (WHERE dependency_kind='lookup_scope' AND empty_result), count(*)
+		FROM artifact_dependencies WHERE artifact_id=$1`, preparedRef.ArtifactId,
+		sourceRef.ArtifactId, sourceRef.ContentHash.Sha256).
+		Scan(&sourceDependencies, &lookupDependencies, &emptyLookups, &totalDependencies); err != nil ||
+		sourceDependencies != 1 || lookupDependencies != len(prepared.Dependencies.LookupScopeRevisions) ||
+		emptyLookups == 0 || totalDependencies != 1+lookupDependencies {
+		t.Fatalf("candidate dependency evidence incomplete: source=%d lookup=%d empty=%d total=%d err=%v",
+			sourceDependencies, lookupDependencies, emptyLookups, totalDependencies, err)
+	}
 	for _, transition := range []struct {
 		name    string
 		change  string

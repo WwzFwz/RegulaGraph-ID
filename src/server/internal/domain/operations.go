@@ -24,6 +24,10 @@ var ErrPersistentIntegrity = errors.New("persistent integrity violation")
 // longer commit. The same job must fail; a new job may build candidates at a fresh revision.
 var ErrResolutionReplan = errors.New("semantic resolution requires a new candidate plan")
 
+// ErrCandidateViewChanged means the registry advanced during candidate preparation,
+// before an immutable RESOLVE intent exists. The same claimed job may refresh its view.
+var ErrCandidateViewChanged = errors.New("candidate registry view changed; retry lookup")
+
 // ErrLeaseUnavailable is shared by schedulers and storage adapters when no durable job is due.
 var ErrLeaseUnavailable = errors.New("no claimable job")
 

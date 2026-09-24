@@ -23,12 +23,8 @@ import (
 	"regulagraph.local/server/internal/domain"
 )
 
-// RegistryLookupScope is an exact registry query key; no fuzzy match is promoted to identity.
-type RegistryLookupScope struct {
-	EntityType       string
-	CanonicalScope   string
-	NormalizedLookup string
-}
+// RegistryLookupScope keeps the existing PostgreSQL API while the shared key lives in domain.
+type RegistryLookupScope = domain.RegistryLookupScope
 
 // RegistryLookupResult retains every alias and the revision of its exact positive/negative key.
 type RegistryLookupResult struct {

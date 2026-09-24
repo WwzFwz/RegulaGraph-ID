@@ -55,8 +55,14 @@ func TestValidateRegistryCandidateBatchRejectsDrift(t *testing.T) {
 		t.Fatal("valid candidate batch rejected:", err)
 	}
 	cases := map[string]func(*pb.RegistryCandidateBatch){
-		"missing mention lookup": func(batch *pb.RegistryCandidateBatch) { batch.Lookups = nil },
-		"wrong candidate type":   func(batch *pb.RegistryCandidateBatch) { batch.Candidates[0].EntityType = "legal_concept" },
+		"batch ID equals extraction ID": func(batch *pb.RegistryCandidateBatch) { batch.Meta.RecordId = source.Meta.RecordId },
+		"batch ID equals mention ID":    func(batch *pb.RegistryCandidateBatch) { batch.Meta.RecordId = source.Mentions[0].Meta.RecordId },
+		"candidate ID equals mention ID": func(batch *pb.RegistryCandidateBatch) {
+			batch.Candidates[0].Meta.RecordId = source.Mentions[0].Meta.RecordId
+		},
+		"alias ID equals batch ID": func(batch *pb.RegistryCandidateBatch) { batch.Aliases[0].Meta.RecordId = batch.Meta.RecordId },
+		"missing mention lookup":   func(batch *pb.RegistryCandidateBatch) { batch.Lookups = nil },
+		"wrong candidate type":     func(batch *pb.RegistryCandidateBatch) { batch.Candidates[0].EntityType = "legal_concept" },
 		"rejected candidate": func(batch *pb.RegistryCandidateBatch) {
 			batch.Candidates[0].ReviewState = pb.ReviewState_REVIEW_STATE_REJECTED
 		},
