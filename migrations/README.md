@@ -22,6 +22,8 @@ Migration 0008 tidak menebak profil/alias historis dari canonical identity lama.
 
 [0009_semantic_resolution_receipts.up.sql](0009_semantic_resolution_receipts.up.sql) menambah ledger operasi/keputusan LINK-DEFER dan review yang mengikat hash proposal serta artefak kandidat. Migration ini forward-only tanpa backfill keputusan historis; terapkan sebelum writer baru. Unique proposal mencegah keputusan kedua dari operation key berbeda. Trigger operasi/keputusan menolak rewrite/delete; trigger review juga menolak rewrite/delete dan mengizinkan revokasi satu arah. Producer review harus mengautentikasi aktor sebelum INSERT. Aplikasi lama dapat mengabaikan tabel baru. Rehearsal waktu lock/indeks pada salinan corpus produksi tetap diperlukan. Jika migrasi gagal, transaksi schema batal dan file checksum yang sama diputar ulang setelah penyebab diperbaiki; jangan mengedit migration yang sudah diterapkan.
 
+[0010_semantic_resolution_intents.up.sql](0010_semantic_resolution_intents.up.sql) menambah intent immutable per job sebelum registry CAS, termasuk hash payload, operation key unik, dan foreign key checkpoint EXTRACT. Retry dengan fence baru memakai intent byte-identik; konflik memerlukan kegagalan terminal/replan job baru, bukan mengubah row lama. Tabel baru tidak melakukan backfill; penerapan transaksional perlu rehearsal lock/indeks pada corpus produksi. Migration yang sudah diterapkan tidak diedit untuk mengatasi checksum drift.
+
 ## Benchmark dan perhatian kualitas
 
 **STORAGE.** Ukur latency p50/p95/p99, throughput batch, pool saturation, retry, dan error rate pada concurrency serta volume data yang disebutkan. Gate: timeout terlapor, resource dilepas, dan operasi tulis idempotent sesuai kontrak; tidak ada asumsi transaksi atomik lintas layanan.
@@ -30,7 +32,7 @@ Lihat [kebijakan benchmark](../doc/benchmark-policy.md) untuk protokol pengukura
 
 ## Status implementasi
 
-Migration fondasi S01 dan registry K01 sudah aktif. Schema kosong, replay checksum, upgrade valid dari revision 0004, kompatibilitas natural key tekstual lama, serta rollback pada orphan telah diuji terhadap PostgreSQL aktual. Migration 0008 dan 0009 telah diuji pada PostgreSQL disposable bersama writer terkait, belum direhearsal pada snapshot produksi. Migration ini hanya mencakup transaksi lokal PostgreSQL; mutation/rollback lintas Neo4j dan Qdrant memakai publication protocol. Benchmark performa tetap REQUIRED_UNMEASURED.
+Migration fondasi S01 dan registry K01 sudah aktif. Schema kosong, replay checksum, upgrade valid dari revision 0004, kompatibilitas natural key tekstual lama, serta rollback pada orphan telah diuji terhadap PostgreSQL aktual. Migration 0008, 0009, dan 0010 telah diuji pada PostgreSQL disposable bersama writer terkait, belum direhearsal pada snapshot produksi. Migration ini hanya mencakup transaksi lokal PostgreSQL; mutation/rollback lintas Neo4j dan Qdrant memakai publication protocol. Benchmark performa tetap REQUIRED_UNMEASURED.
 
 ## Pekerjaan berikutnya dan integrasi
 

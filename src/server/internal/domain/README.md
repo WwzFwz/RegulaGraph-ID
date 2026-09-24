@@ -45,6 +45,8 @@ memeriksa dependency, copy input, receipt parsial, dan benturan ID. Caller masih
 memverifikasi byte artefak kandidat dan transaksi PostgreSQL; builder tidak mengaktifkan
 workflow RESOLVE atau membuktikan kualitas LINK.
 
+[semantic_resolution_receipt.go](semantic_resolution_receipt.go) membentuk preview keputusan deterministik yang dipakai sebelum CAS dan saat replay PostgreSQL. Preview bukan pengganti validasi input, autentikasi reviewer, atau receipt dari transaksi; kesetaraan preview dan hasil writer wajib diperiksa oleh workflow. Intent dalam [semantic_registry.go](semantic_registry.go) menyatakan request, approval, kandidat, dan batch yang tidak boleh berubah sepanjang retry job.
+
 [semantic_registry.go](semantic_registry.go) mendefinisikan input byte/ref, bukti lease/checkpoint,
 dan assertion review lintas workflow Go serta adapter PostgreSQL. Tipe ini tidak dengan sendirinya
 mengautentikasi aktor, mengesahkan isi hukum, atau membuka koneksi; writer yang memeriksa bukti
