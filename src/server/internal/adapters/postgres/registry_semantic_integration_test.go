@@ -175,13 +175,21 @@ func TestSemanticRegistryAgainstPostgres(t *testing.T) {
 	revokedApproval[0].ReviewID = "review:revoked"
 	if _, err = repo.pool.Exec(ctx, `INSERT INTO registry_semantic_reviews
 		(corpus_id,review_id,source_artifact_id,candidate_artifact_id,candidate_hash,
-		proposal_id,proposal_hash,canonical_id,actor,reason,revoked_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,clock_timestamp())`, corpusID,
+		proposal_id,proposal_hash,canonical_id,actor,reason)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, corpusID,
 		revokedApproval[0].ReviewID, sourceRef.ArtifactId, candidateRef.ArtifactId,
 		candidateRef.ContentHash.Sha256, approval[0].ProposalID,
 		hex.EncodeToString(proposalDigest[:]), canonicalID, approval[0].Actor,
 		approval[0].Reason); err != nil {
 		t.Fatal(err)
+	}
+	if _, err = repo.pool.Exec(ctx, `UPDATE registry_semantic_reviews SET revoked_at=clock_timestamp()
+		WHERE corpus_id=$1 AND review_id=$2`, corpusID, revokedApproval[0].ReviewID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = repo.pool.Exec(ctx, `UPDATE registry_semantic_reviews SET revoked_at=clock_timestamp()
+		WHERE corpus_id=$1 AND review_id=$2`, corpusID, revokedApproval[0].ReviewID); err == nil {
+		t.Fatal("revoked review could be rewritten again")
 	}
 	if _, err = repo.CommitSemanticResolutions(ctx, input, request, revokedApproval, 64, 8); !errors.Is(err, ErrConflict) {
 		t.Fatalf("revoked review authorized LINK: %v", err)
