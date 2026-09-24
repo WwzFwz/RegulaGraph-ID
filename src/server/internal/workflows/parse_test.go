@@ -44,6 +44,7 @@ type parseStoreFake struct {
 	mutateBatch        func(*pb.DocumentBatch)
 	mutateExtraction   func(*pb.ExtractionBatch)
 	extractionSource   *pb.ArtifactRef
+	catalogued         *pb.ExtractionBatch
 }
 
 func (s *parseStoreFake) SubmitJob(context.Context, domain.JobIntent) (domain.JobRecord, bool, error) {
@@ -89,6 +90,11 @@ func (s *parseStoreFake) SaveCheckpoint(_ context.Context, checkpoint *pb.Checkp
 		s.cancelled = true
 	}
 	return nil
+}
+
+func (s *parseStoreFake) SaveExtractionCheckpoint(ctx context.Context, checkpoint *pb.Checkpoint, owner string, _ *pb.ArtifactRef, source *pb.ExtractionBatch) error {
+	s.catalogued = proto.Clone(source).(*pb.ExtractionBatch)
+	return s.SaveCheckpoint(ctx, checkpoint, owner)
 }
 func (s *parseStoreFake) TransitionJob(_ context.Context, _, _ string, _ uint64, _, next pb.JobState) error {
 	s.transitions = append(s.transitions, next)
@@ -211,7 +217,7 @@ func TestExtractExecutorPersistsVerifiedExtractionBatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	if response.GetExtractionBatch() == nil || response.GetDocumentBatch() != nil || store.registered.GetMediaType() != extractionBatchMediaType ||
-		store.checkpoint.GetStage() != pb.JobStage_JOB_STAGE_EXTRACT || store.dependencies == nil ||
+		store.checkpoint.GetStage() != pb.JobStage_JOB_STAGE_EXTRACT || store.dependencies == nil || store.catalogued == nil ||
 		len(store.transitions) != 1 || store.transitions[0] != pb.JobState_JOB_STATE_STAGED ||
 		len(worker.lastRequest.Sources) != 1 || !proto.Equal(worker.lastRequest.Sources[0], store.priorArtifact) {
 		t.Fatalf("EXTRACT durable handoff incomplete: response=%+v registered=%+v transitions=%v", response, store.registered, store.transitions)
@@ -354,7 +360,7 @@ func TestExtractExecutorRecoversCheckpointWithoutRerunningWorker(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if worker.calls != 0 || response.GetExtractionBatch().GetArtifactId() != output.ArtifactId || store.checkpoint.GetFence() != store.job.LeaseFence {
+	if worker.calls != 0 || response.GetExtractionBatch().GetArtifactId() != output.ArtifactId || store.checkpoint.GetFence() != store.job.LeaseFence || store.catalogued == nil {
 		t.Fatalf("EXTRACT recovery reran worker or lost fencing: calls=%d response=%v checkpoint=%v", worker.calls, response, store.checkpoint)
 	}
 	if got := store.transitions; len(got) != 1 || got[0] != pb.JobState_JOB_STATE_STAGED {

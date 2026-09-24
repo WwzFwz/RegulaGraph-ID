@@ -15,6 +15,9 @@ import (
 	pb "regulagraph.local/server/gen/regulagraph/v1"
 )
 
+// ExtractionBatchMediaType is the Rust worker's typed protobuf artifact media contract.
+const ExtractionBatchMediaType = "application/vnd.regulagraph.extraction-batch+protobuf"
+
 // ValidateExtractionBatchClosure rejects graph proposals that escape their source DocumentBatch.
 func ValidateExtractionBatchClosure(batch *pb.ExtractionBatch, source *pb.DocumentBatch, maximumEdges int) error {
 	if batch == nil || source == nil || batch.GetMeta() == nil || batch.GetContext() == nil ||
@@ -25,6 +28,9 @@ func ValidateExtractionBatchClosure(batch *pb.ExtractionBatch, source *pb.Docume
 	corpusID := batch.Meta.CorpusId
 	if corpusID == "" || batch.Context.CorpusId != corpusID || source.GetMeta().GetCorpusId() != corpusID || source.GetContext().GetCorpusId() != corpusID {
 		return errors.New("extraction and source corpus identities differ")
+	}
+	if batch.Context.AuthScopeRef != source.Context.AuthScopeRef || !proto.Equal(batch.Context.SnapshotRef, source.Context.SnapshotRef) {
+		return errors.New("extraction and document snapshot or authorization scope differ")
 	}
 	if batch.ModelManifest.Task != pb.ModelTask_MODEL_TASK_EXTRACT || !proto.Equal(batch.ModelManifest.PromptHash, batch.PromptHash) {
 		return errors.New("extraction model task or prompt identity is invalid")

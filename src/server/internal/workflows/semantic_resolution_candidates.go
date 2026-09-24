@@ -69,7 +69,7 @@ func (handoff *SemanticResolutionHandoff) PrepareAndStoreCandidates(ctx context.
 			errors.Join(err, domain.ErrPersistentIntegrity))
 	}
 	sourceRef, err := store.LoadArtifact(attemptCtx, job.CorpusID, checkpoint.CompletedBatchKeys[0])
-	if err != nil || sourceRef == nil || sourceRef.MediaType != "application/x-protobuf" ||
+	if err != nil || sourceRef == nil || !resolutionProtoMedia(sourceRef.MediaType, new(pb.ExtractionBatch)) ||
 		!proto.Equal(sourceRef.ContentHash, checkpoint.ArtifactHashes[0]) ||
 		sourceRef.ByteSize == 0 || sourceRef.ByteSize >= handoff.maximumBytes {
 		return nil, nil, fmt.Errorf("candidate source differs from EXTRACT checkpoint or byte budget: %w",

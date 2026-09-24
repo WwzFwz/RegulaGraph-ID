@@ -26,16 +26,17 @@ func (r *Repository) decodeSemanticInputs(ctx context.Context, corpusID string,
 		return nil, nil, errors.New("distinct registered EXTRACT and candidate artifacts are required")
 	}
 	for _, artifact := range []struct {
-		ref *pb.ArtifactRef
-		raw []byte
+		ref        *pb.ArtifactRef
+		raw        []byte
+		typedMedia string
 	}{
-		{input.SourceRef, input.SourceBytes},
-		{input.CandidateRef, input.CandidateBytes},
+		{input.SourceRef, input.SourceBytes, domain.ExtractionBatchMediaType},
+		{input.CandidateRef, input.CandidateBytes, "application/x-protobuf"},
 	} {
 		if err := domain.ValidateWire(artifact.ref, domain.DefaultWireLimits); err != nil {
 			return nil, nil, fmt.Errorf("invalid registry artifact ref: %w", err)
 		}
-		if artifact.ref.MediaType != "application/x-protobuf" ||
+		if (artifact.ref.MediaType != "application/x-protobuf" && artifact.ref.MediaType != artifact.typedMedia) ||
 			len(artifact.raw) > domain.DefaultWireLimits.MaxBytes ||
 			artifact.ref.ByteSize != uint64(len(artifact.raw)) {
 			return nil, nil, errors.New("registry artifact media or byte size differs")

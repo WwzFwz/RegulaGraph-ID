@@ -403,6 +403,13 @@ func (r *Repository) CompleteWorkerAttempt(ctx context.Context, jobID, ownerID s
 }
 
 func (r *Repository) SaveCheckpoint(ctx context.Context, checkpoint *pb.Checkpoint, ownerID string) error {
+	return r.saveCheckpoint(ctx, checkpoint, ownerID, nil)
+}
+
+// saveCheckpoint allows stage-owned metadata to join the same fenced transaction.
+// The callback never commits; any catalog failure rolls back checkpoint and job pointer.
+func (r *Repository) saveCheckpoint(ctx context.Context, checkpoint *pb.Checkpoint, ownerID string,
+	afterSave func(context.Context, pgx.Tx) error) error {
 	if checkpoint == nil || checkpoint.GetMeta() == nil || checkpoint.GetJobId() == "" || checkpoint.GetFence() == 0 {
 		return errors.New("complete checkpoint required")
 	}
@@ -459,6 +466,11 @@ func (r *Repository) SaveCheckpoint(ctx context.Context, checkpoint *pb.Checkpoi
 		WHERE job_id=$1 AND lease_fence=$3`, checkpoint.JobId, int16(checkpoint.Stage),
 		int64(checkpoint.Fence), checkpoint.Meta.RecordId); err != nil {
 		return fmt.Errorf("advance checkpoint stage: %w", err)
+	}
+	if afterSave != nil {
+		if err = afterSave(ctx, tx); err != nil {
+			return err
+		}
 	}
 	return tx.Commit(ctx)
 }

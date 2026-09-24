@@ -58,7 +58,7 @@ func (handoff *SemanticResolutionHandoff) CompleteEmptyResolution(ctx context.Co
 	}
 	sourceRef, err := store.LoadArtifact(ctx, job.CorpusID, checkpoint.CompletedBatchKeys[0])
 	if err != nil || !proto.Equal(sourceRef.GetContentHash(), checkpoint.ArtifactHashes[0]) ||
-		sourceRef.MediaType != "application/x-protobuf" {
+		!resolutionProtoMedia(sourceRef.MediaType, new(pb.ExtractionBatch)) {
 		return nil, fmt.Errorf("empty RESOLVE source differs from checkpoint: %w", errors.Join(err, domain.ErrPersistentIntegrity))
 	}
 	sourceRaw, err := artifacts.ReadVerified(ctx, sourceRef, handoff.maximumBytes)

@@ -107,7 +107,7 @@ func (handoff *SemanticResolutionHandoff) commitVerified(ctx context.Context, jo
 		return nil, fmt.Errorf("load candidate artifact metadata: %w", err)
 	}
 	if !proto.Equal(storedCandidate, candidateRef) || sourceRef.ArtifactId == candidateRef.ArtifactId ||
-		sourceRef.MediaType != "application/x-protobuf" || candidateRef.MediaType != "application/x-protobuf" ||
+		!resolutionProtoMedia(sourceRef.MediaType, new(pb.ExtractionBatch)) || candidateRef.MediaType != "application/x-protobuf" ||
 		sourceRef.ByteSize == 0 || candidateRef.ByteSize == 0 ||
 		sourceRef.ByteSize > handoff.maximumBytes ||
 		candidateRef.ByteSize > handoff.maximumBytes-sourceRef.ByteSize {

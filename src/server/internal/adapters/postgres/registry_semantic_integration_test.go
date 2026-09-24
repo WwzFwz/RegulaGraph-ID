@@ -116,7 +116,7 @@ func TestEmptySemanticResolutionAgainstPostgres(t *testing.T) {
 	digest := sha256.Sum256(sourceBytes)
 	sourceRef := &pb.ArtifactRef{ArtifactId: "artifact:extract-empty",
 		ContentHash: &pb.ContentHash{Sha256: hex.EncodeToString(digest[:])},
-		StorageKey:  "objects/extract-empty", MediaType: "application/x-protobuf",
+		StorageKey:  "objects/extract-empty", MediaType: domain.ExtractionBatchMediaType,
 		ByteSize: uint64(len(sourceBytes)), SchemaVersion: 1}
 	fileStore, err := storage.NewFileStore(t.TempDir())
 	if err != nil {
@@ -293,7 +293,7 @@ func TestSemanticRegistryAgainstPostgres(t *testing.T) {
 	sourceDigest := sha256.Sum256(sourceBytes)
 	sourceRef := &pb.ArtifactRef{ArtifactId: "artifact:extract-semantic",
 		ContentHash: &pb.ContentHash{Sha256: hex.EncodeToString(sourceDigest[:])},
-		StorageKey:  "objects/extract-semantic", MediaType: "application/x-protobuf",
+		StorageKey:  "objects/extract-semantic", MediaType: domain.ExtractionBatchMediaType,
 		ByteSize: uint64(len(sourceBytes)), SchemaVersion: 1}
 	if err = repo.RegisterArtifact(ctx, corpusID, sourceRef); err != nil {
 		t.Fatal(err)

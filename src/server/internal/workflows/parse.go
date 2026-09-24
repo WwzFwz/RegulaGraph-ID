@@ -37,6 +37,7 @@ type ParseMetadataStore interface {
 	LoadLatestCheckpoint(context.Context, string) (*pb.Checkpoint, error)
 	LoadArtifact(context.Context, string, string) (*pb.ArtifactRef, error)
 	RegisterArtifact(context.Context, string, *pb.ArtifactRef) error
+	SaveExtractionCheckpoint(context.Context, *pb.Checkpoint, string, *pb.ArtifactRef, *pb.ExtractionBatch) error
 	ReplaceArtifactDependencyManifest(context.Context, string, string, *pb.DependencyManifest) error
 	CancellationRequested(context.Context, string, string, uint64) (bool, error)
 	CompleteWorkerAttempt(context.Context, string, string, uint64, pb.JobState, time.Duration) (pb.JobState, error)
@@ -199,6 +200,7 @@ func (e *ParseExecutor) executeClaimed(ctx context.Context, job domain.JobRecord
 	}
 	var outputRef *pb.ArtifactRef
 	var dependencies *pb.DependencyManifest
+	var extraction *pb.ExtractionBatch
 	if job.Stage == pb.JobStage_JOB_STAGE_EXTRACT {
 		if response.GetExtractionBatch() == nil || response.GetDocumentBatch() != nil || len(batch.Sources) != 1 {
 			cause := status.Error(codes.FailedPrecondition, "EXTRACT response requires only checkpoint and extraction batch outputs")
@@ -213,6 +215,7 @@ func (e *ParseExecutor) executeClaimed(ctx context.Context, job domain.JobRecord
 			return nil, e.finishAfterError(attemptCtx, job, cause)
 		}
 		outputRef, dependencies = response.ExtractionBatch, output.Dependencies
+		extraction = output
 	} else {
 		if response.GetDocumentBatch() == nil || response.GetExtractionBatch() != nil {
 			cause := status.Error(codes.FailedPrecondition, "document response requires only checkpoint and document batch outputs")
@@ -239,7 +242,12 @@ func (e *ParseExecutor) executeClaimed(ctx context.Context, job domain.JobRecord
 	if err = e.store.ReplaceArtifactDependencyManifest(attemptCtx, job.CorpusID, outputRef.ArtifactId, dependencies); err != nil {
 		return nil, e.finishAfterError(attemptCtx, job, fmt.Errorf("register worker artifact dependencies: %w", err))
 	}
-	if err = e.store.SaveCheckpoint(attemptCtx, response.Checkpoint, job.LeaseOwner); err != nil {
+	if extraction != nil {
+		err = e.store.SaveExtractionCheckpoint(attemptCtx, response.Checkpoint, job.LeaseOwner, outputRef, extraction)
+	} else {
+		err = e.store.SaveCheckpoint(attemptCtx, response.Checkpoint, job.LeaseOwner)
+	}
+	if err != nil {
 		return nil, e.finishAfterError(attemptCtx, job, fmt.Errorf("save worker checkpoint: %w", err))
 	}
 
@@ -292,6 +300,7 @@ func (e *ParseExecutor) recoverWorkerOutput(ctx context.Context, job domain.JobR
 		return nil, false, status.Error(codes.FailedPrecondition, "recovered worker artifact differs from checkpoint")
 	}
 	var dependencies *pb.DependencyManifest
+	var extraction *pb.ExtractionBatch
 	if job.Stage == pb.JobStage_JOB_STAGE_EXTRACT {
 		recoveredBatch, verifyErr := e.verifyExtractionOutput(ctx, job.CorpusID, artifact, nil, checkpoint.Manifest, expectedConfig, checkpoint.TerminalStatus)
 		if verifyErr != nil {
@@ -301,6 +310,7 @@ func (e *ParseExecutor) recoverWorkerOutput(ctx context.Context, job domain.JobR
 			return nil, false, fmt.Errorf("verify recovered extraction artifact: %w", verifyErr)
 		}
 		dependencies = recoveredBatch.Dependencies
+		extraction = recoveredBatch
 	} else {
 		recoveredBatch, verifyErr := e.verifyDocumentOutput(ctx, job.Stage, job.CorpusID, artifact, checkpoint.Manifest, checkpoint.TerminalStatus)
 		if verifyErr != nil {
@@ -337,7 +347,12 @@ func (e *ParseExecutor) recoverWorkerOutput(ctx context.Context, job domain.JobR
 	if err = e.store.ReplaceArtifactDependencyManifest(ctx, job.CorpusID, artifact.ArtifactId, dependencies); err != nil {
 		return nil, false, fmt.Errorf("restore recovered worker dependencies: %w", err)
 	}
-	if err = e.store.SaveCheckpoint(ctx, recoveredCheckpoint, job.LeaseOwner); err != nil {
+	if extraction != nil {
+		err = e.store.SaveExtractionCheckpoint(ctx, recoveredCheckpoint, job.LeaseOwner, artifact, extraction)
+	} else {
+		err = e.store.SaveCheckpoint(ctx, recoveredCheckpoint, job.LeaseOwner)
+	}
+	if err != nil {
 		return nil, false, fmt.Errorf("save recovered worker checkpoint: %w", err)
 	}
 	next, err := terminalState(checkpoint.TerminalStatus)
@@ -409,7 +424,7 @@ func (e *ParseExecutor) verifyDocumentOutput(
 	return batch, nil
 }
 
-const extractionBatchMediaType = "application/vnd.regulagraph.extraction-batch+protobuf"
+const extractionBatchMediaType = domain.ExtractionBatchMediaType
 
 func (e *ParseExecutor) verifyExtractionOutput(
 	ctx context.Context,

@@ -76,6 +76,7 @@ func TestCandidateRevisionRaceRetriesBeforeArtifactWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 	sourceRef := semanticRefForTest("artifact:extraction-race", raw)
+	sourceRef.MediaType = extractionBatchMediaType
 	sourceRef.StorageKey = "objects/extraction-race"
 	checkpoint := &pb.Checkpoint{Meta: &pb.RecordMeta{SchemaVersion: 1,
 		CorpusId: job.CorpusID, RecordId: "checkpoint:extraction-race"},
