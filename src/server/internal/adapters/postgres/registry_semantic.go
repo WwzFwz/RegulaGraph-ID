@@ -131,7 +131,7 @@ func (r *Repository) commitSemanticResolutions(ctx context.Context, proof *Seman
 		return response, nil
 	}
 	if current != int64(request.ExpectedRevision) {
-		return nil, fmt.Errorf("semantic registry revision changed: %w", ErrConflict)
+		return nil, fmt.Errorf("semantic registry revision changed: %w", errors.Join(ErrConflict, domain.ErrResolutionReplan))
 	}
 	proposalIDs := make([]string, 0, len(request.Proposals))
 	for _, proposal := range request.Proposals {
@@ -143,7 +143,7 @@ func (r *Repository) commitSemanticResolutions(ctx context.Context, proof *Seman
 		return nil, fmt.Errorf("inspect prior semantic decisions: %w", err)
 	}
 	if alreadyDecided {
-		return nil, fmt.Errorf("semantic proposal already has a decision: %w", ErrConflict)
+		return nil, fmt.Errorf("semantic proposal already has a decision: %w", errors.Join(ErrConflict, domain.ErrResolutionReplan))
 	}
 	if err = verifyStoredSemanticReviews(ctx, tx, corpusID, sourceRef.ArtifactId,
 		input.CandidateRef, request.Proposals, approvalByID); err != nil {
@@ -303,7 +303,7 @@ func (r *Repository) verifySemanticCandidateRead(ctx context.Context, source *pb
 		return err
 	}
 	if revision != candidates.RegistryRevision {
-		return fmt.Errorf("candidate registry revision changed: %w", ErrConflict)
+		return fmt.Errorf("candidate registry revision changed: %w", errors.Join(ErrConflict, domain.ErrResolutionReplan))
 	}
 	rebuilt, err := assembleRegistryCandidateResults(source, sourceRef,
 		candidates.Dependencies.ProducerManifest, candidates.Meta.RecordId, plans,
@@ -312,7 +312,7 @@ func (r *Repository) verifySemanticCandidateRead(ctx context.Context, source *pb
 		return fmt.Errorf("rebuild authoritative candidate batch: %w", err)
 	}
 	if !proto.Equal(rebuilt, candidates) {
-		return fmt.Errorf("candidate artifact differs from PostgreSQL lookup: %w", ErrConflict)
+		return fmt.Errorf("candidate artifact differs from PostgreSQL lookup: %w", errors.Join(ErrConflict, domain.ErrResolutionReplan))
 	}
 	return nil
 }

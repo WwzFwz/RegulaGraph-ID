@@ -45,6 +45,45 @@ type semanticArtifactReaderFake struct {
 	reads    int
 }
 
+type semanticCompletionFake struct {
+	state pb.JobState
+	err   error
+}
+
+func (fake semanticCompletionFake) CompleteWorkerAttempt(_ context.Context, _, _ string,
+	_ uint64, desired pb.JobState, delay time.Duration) (pb.JobState, error) {
+	if desired != pb.JobState_JOB_STATE_FAILED || delay != 0 {
+		return pb.JobState_JOB_STATE_UNSPECIFIED, errors.New("unexpected completion request")
+	}
+	return fake.state, fake.err
+}
+
+func TestStaleResolutionOnlySignalsReplanAfterOwnTerminalFailure(t *testing.T) {
+	job := domain.JobRecord{JobID: "job:stale", LeaseOwner: "owner:one", LeaseFence: 2,
+		LeaseExpiresAt: time.Now().Add(time.Minute)}
+	staleLease := errors.New("stale lease")
+	cases := []struct {
+		name       string
+		completion semanticCompletionFake
+		want       error
+		replan     bool
+	}{
+		{"failed", semanticCompletionFake{state: pb.JobState_JOB_STATE_FAILED}, domain.ErrResolutionReplan, true},
+		{"cancelled", semanticCompletionFake{state: pb.JobState_JOB_STATE_CANCELLED}, errJobCancellationRequested, false},
+		{"superseded", semanticCompletionFake{err: staleLease}, staleLease, false},
+		{"invalid state", semanticCompletionFake{state: pb.JobState_JOB_STATE_STAGED}, domain.ErrPersistentIntegrity, false},
+	}
+	for _, item := range cases {
+		t.Run(item.name, func(t *testing.T) {
+			err := finishStaleSemanticResolution(context.Background(), item.completion,
+				job, domain.ErrResolutionReplan)
+			if !errors.Is(err, item.want) || errors.Is(err, domain.ErrResolutionReplan) != item.replan {
+				t.Fatalf("completion leaked wrong retry signal: %v", err)
+			}
+		})
+	}
+}
+
 func (fake *semanticArtifactReaderFake) ReadVerified(_ context.Context,
 	ref *pb.ArtifactRef, maximum uint64) ([]byte, error) {
 	fake.reads++

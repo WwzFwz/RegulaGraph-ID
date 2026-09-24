@@ -345,7 +345,7 @@ func TestSemanticRegistryAgainstPostgres(t *testing.T) {
 	if _, err = repo.commitSemanticResolutions(ctx, nil, input, request, nil, 64, 8); err == nil {
 		t.Fatal("unapproved LINK was committed")
 	}
-	if _, err = repo.commitSemanticResolutions(ctx, nil, input, request, approval, 64, 8); !errors.Is(err, ErrConflict) {
+	if _, err = repo.commitSemanticResolutions(ctx, nil, input, request, approval, 64, 8); !errors.Is(err, ErrConflict) || errors.Is(err, domain.ErrResolutionReplan) {
 		t.Fatalf("unpersisted review authorized LINK: %v", err)
 	}
 	proposalBytes, err := (proto.MarshalOptions{Deterministic: true}).Marshal(request.Proposals[0])
@@ -382,12 +382,12 @@ func TestSemanticRegistryAgainstPostgres(t *testing.T) {
 		WHERE corpus_id=$1 AND review_id=$2`, corpusID, revokedApproval[0].ReviewID); err == nil {
 		t.Fatal("revoked review could be rewritten again")
 	}
-	if _, err = repo.commitSemanticResolutions(ctx, nil, input, request, revokedApproval, 64, 8); !errors.Is(err, ErrConflict) {
+	if _, err = repo.commitSemanticResolutions(ctx, nil, input, request, revokedApproval, 64, 8); !errors.Is(err, ErrConflict) || !errors.Is(err, domain.ErrResolutionReplan) {
 		t.Fatalf("revoked review authorized LINK: %v", err)
 	}
 	changedProposal := proto.Clone(request).(*pb.RegistryResolveRequest)
 	changedProposal.Proposals[0].Method = "changed_after_review"
-	if _, err = repo.commitSemanticResolutions(ctx, nil, input, changedProposal, approval, 64, 8); !errors.Is(err, ErrConflict) {
+	if _, err = repo.commitSemanticResolutions(ctx, nil, input, changedProposal, approval, 64, 8); !errors.Is(err, ErrConflict) || !errors.Is(err, domain.ErrResolutionReplan) {
 		t.Fatalf("review authorized changed proposal content: %v", err)
 	}
 	otherCandidateBatch := proto.Clone(candidates).(*pb.RegistryCandidateBatch)
@@ -859,6 +859,63 @@ func TestSemanticRegistryAgainstPostgres(t *testing.T) {
 	if succeeded != 1 || raceOperations != 1 || currentRevision != int64(freshCandidates.RegistryRevision)+1 {
 		t.Fatalf("concurrent CAS created inconsistent operations: errors=%v operations=%d revision=%d",
 			raceResults, raceOperations, currentRevision)
+	}
+	// A prior writer can invalidate a pinned candidate revision after the intent is
+	// saved. That job must fail once, rather than retry an immutable losing plan.
+	if _, err = fileStore.Put(ctx, freshRef, bytes.NewReader(freshBytes)); err != nil {
+		t.Fatal(err)
+	}
+	replanJobID := "job:semantic-replan"
+	replanCheckpoint := proto.Clone(checkpoint).(*pb.Checkpoint)
+	replanCheckpoint.JobId = replanJobID
+	replanCheckpoint.Meta.RecordId = "checkpoint:semantic-replan-extract"
+	replanBytes, err := (proto.MarshalOptions{Deterministic: true}).Marshal(replanCheckpoint)
+	if err != nil {
+		t.Fatal(err)
+	}
+	replanDigest := sha256.Sum256(replanBytes)
+	replanPayload := []byte("semantic-replan-fixture")
+	replanPayloadDigest := sha256.Sum256(replanPayload)
+	if _, err = repo.pool.Exec(ctx, `INSERT INTO jobs
+		(job_id,corpus_id,operation,state,stage,input_fingerprint,idempotency_key,
+		request_hash,request_payload,attempt,stage_attempt,lease_fence)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,1,1,1)`, replanJobID, corpusID,
+		int16(pb.JobOperation_JOB_OPERATION_INGEST), int16(pb.JobState_JOB_STATE_STAGED),
+		int16(pb.JobStage_JOB_STAGE_EXTRACT), strings.Repeat("e", 64),
+		"semantic-replan-fixture", hex.EncodeToString(replanPayloadDigest[:]), replanPayload); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = repo.pool.Exec(ctx, `INSERT INTO job_checkpoints
+		(checkpoint_id,job_id,stage,fence,payload,payload_hash,terminal_status)
+		VALUES ($1,$2,$3,1,$4,$5,$6)`, replanCheckpoint.Meta.RecordId, replanJobID,
+		int16(pb.JobStage_JOB_STAGE_EXTRACT), replanBytes,
+		hex.EncodeToString(replanDigest[:]), int16(pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = repo.pool.Exec(ctx, `UPDATE jobs SET latest_checkpoint_id=$2 WHERE job_id=$1`,
+		replanJobID, replanCheckpoint.Meta.RecordId); err != nil {
+		t.Fatal(err)
+	}
+	replanClaim, err := repo.ClaimResolveJob(ctx, "owner:replan", time.Minute)
+	if err != nil || replanClaim.JobID != replanJobID {
+		t.Fatalf("claim stale candidate job: job=%+v err=%v", replanClaim, err)
+	}
+	replanRequest := proto.Clone(raceBase).(*pb.RegistryResolveRequest)
+	replanRequest.OperationKey = "semantic:terminal-replan"
+	replanHandoff, err := workflows.NewSemanticResolutionHandoff(repo, fileStore,
+		uint64(len(sourceBytes)+len(freshBytes)), 64, 8)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = replanHandoff.CommitAndCheckpoint(ctx, replanClaim, freshRef, replanRequest,
+		nil, resolveModel, resolveProducer,
+		&pb.TokenUsage{TokenizerId: "resolver-tokenizer"}, "resolution:terminal-replan"); !errors.Is(err, domain.ErrResolutionReplan) {
+		t.Fatalf("stale candidate intent did not request replan: %v", err)
+	}
+	var replanState int16
+	if err = repo.pool.QueryRow(ctx, `SELECT state FROM jobs WHERE job_id=$1`, replanJobID).
+		Scan(&replanState); err != nil || replanState != int16(pb.JobState_JOB_STATE_FAILED) {
+		t.Fatalf("stale immutable intent remained retryable: state=%d err=%v", replanState, err)
 	}
 	forged := input
 	forged.CandidateBytes = append([]byte(nil), candidateBytes...)

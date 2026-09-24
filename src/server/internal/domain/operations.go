@@ -20,6 +20,10 @@ import (
 // Workflows use it to quarantine or fail the job while transport and database availability errors retry.
 var ErrPersistentIntegrity = errors.New("persistent integrity violation")
 
+// ErrResolutionReplan marks a verified RESOLVE intent whose pinned registry view can no
+// longer commit. The same job must fail; a new job may build candidates at a fresh revision.
+var ErrResolutionReplan = errors.New("semantic resolution requires a new candidate plan")
+
 // ErrLeaseUnavailable is shared by schedulers and storage adapters when no durable job is due.
 var ErrLeaseUnavailable = errors.New("no claimable job")
 

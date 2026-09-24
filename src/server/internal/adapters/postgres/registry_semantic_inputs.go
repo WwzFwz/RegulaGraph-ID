@@ -119,7 +119,8 @@ func verifyStoredSemanticReviews(ctx context.Context, tx pgx.Tx, corpusID, sourc
 			proposalID != approval.ProposalID || proposalHash != proposalHashes[approval.ProposalID] ||
 			canonicalID != approval.CanonicalID ||
 			actor != approval.Actor || reason != approval.Reason {
-			return fmt.Errorf("LINK review record differs from authorization: %w", ErrConflict)
+			return fmt.Errorf("LINK review record differs from authorization: %w",
+				errors.Join(ErrConflict, domain.ErrResolutionReplan))
 		}
 		seen[reviewID] = true
 	}

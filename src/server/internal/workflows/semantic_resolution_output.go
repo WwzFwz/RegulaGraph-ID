@@ -136,12 +136,39 @@ func (handoff *SemanticResolutionHandoff) CommitAndCheckpoint(ctx context.Contex
 	}
 	committed, err := handoff.commitVerified(ctx, job, candidateRef, request, approvals, preflight)
 	if err != nil {
+		if errors.Is(err, domain.ErrResolutionReplan) {
+			return nil, finishStaleSemanticResolution(ctx, store, job, err)
+		}
 		return nil, err
 	}
 	if !proto.Equal(committed.response, preview) {
 		return nil, fmt.Errorf("registry receipt differs from preflight: %w", domain.ErrPersistentIntegrity)
 	}
 	return persistSemanticResolutionBatch(ctx, store, artifacts, job, batch, producer)
+}
+
+type semanticAttemptCompleter interface {
+	CompleteWorkerAttempt(context.Context, string, string, uint64, pb.JobState, time.Duration) (pb.JobState, error)
+}
+
+// finishStaleSemanticResolution exposes replan only after this lease has durably failed.
+// A superseded lease or user cancellation must remain the controlling outcome.
+func finishStaleSemanticResolution(ctx context.Context, store semanticAttemptCompleter,
+	job domain.JobRecord, cause error) error {
+	transitionCtx, cancel := context.WithDeadline(context.WithoutCancel(ctx), job.LeaseExpiresAt)
+	defer cancel()
+	actual, err := store.CompleteWorkerAttempt(transitionCtx, job.JobID,
+		job.LeaseOwner, job.LeaseFence, pb.JobState_JOB_STATE_FAILED, 0)
+	if err != nil {
+		return fmt.Errorf("terminalize stale RESOLVE intent after %v: %w", cause, err)
+	}
+	if actual == pb.JobState_JOB_STATE_CANCELLED {
+		return errJobCancellationRequested
+	}
+	if actual != pb.JobState_JOB_STATE_FAILED {
+		return fmt.Errorf("stale RESOLVE intent completed as %s: %w", actual, domain.ErrPersistentIntegrity)
+	}
+	return cause
 }
 
 func persistSemanticResolutionBatch(ctx context.Context, store SemanticResolutionOutputStore,
