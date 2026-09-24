@@ -38,6 +38,12 @@ revision, canonical ID, dan ID record tidak boleh bergeser atau bertabrakan. Err
 receipt parsial ditolak. [resolution_receipts_test.go](resolution_receipts_test.go) menguji drift
 tersebut; validator ini belum mengautentikasi adapter/receipt PostgreSQL atau mengaktifkan stage
 RESOLVE. Writer dan workflow wajib memakai keputusan terverifikasi dari transaksi otoritatif.
+[resolution_batch_builder.go](resolution_batch_builder.go) merakit artefak RESOLVE immutable setelah
+receipt lolos: ia mengikat hash EXTRACT/kandidat, revision lookup positif/negatif, model RESOLVE,
+accounting mention, keputusan registry, serta konteks request. [resolution_batch_builder_test.go](resolution_batch_builder_test.go)
+memeriksa dependency, copy input, receipt parsial, dan benturan ID. Caller masih wajib
+memverifikasi byte artefak kandidat dan transaksi PostgreSQL; builder tidak mengaktifkan
+workflow RESOLVE atau membuktikan kualitas LINK.
 
 `VerifyCitationEvidence` pada [boundaries.go](boundaries.go) kini menolak ID klaim/sitasi duplikat,
 memerlukan sitasi untuk setiap pasangan klaim–evidence–source version pada klaim SUPPORTED,
