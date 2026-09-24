@@ -31,7 +31,7 @@ CAS. [registry_semantic_replay.go](registry_semantic_replay.go) merekonstruksi r
 integritas row/payload. [registry_semantic_integration_test.go](registry_semantic_integration_test.go)
 menguji writer ini pada PostgreSQL disposable, termasuk retry, stale candidate, forgery, konkurensi,
 handoff FileStore nyata, dan lease yang berubah di tengah pembacaan/transaksi. Caller wajib memakai
-`SemanticResolutionHandoff` agar byte berasal dari `ReadVerified`. [registry_semantic_intent.go](registry_semantic_intent.go) menyimpan intent append-only sebelum CAS agar retry membawa request/review yang sama; [registry_semantic_empty.go](registry_semantic_empty.go) membaca revisi terikat lease untuk EXTRACT tanpa mention. Producer review terautentikasi belum tersedia dan adapter ini belum menjadi stage RESOLVE publik.
+`SemanticResolutionHandoff` agar byte berasal dari `ReadVerified`. [registry_semantic_intent.go](registry_semantic_intent.go) menyimpan intent append-only sebelum CAS agar retry membawa request/review yang sama; [registry_semantic_empty.go](registry_semantic_empty.go) membaca revisi terikat lease untuk EXTRACT tanpa mention. Writer membedakan kandidat/review permanen stale yang menuntut job baru dari review yang belum tersimpan dan masih dapat tiba. Producer review terautentikasi belum tersedia dan adapter ini belum menjadi stage RESOLVE publik.
 
 ## Benchmark dan perhatian performa
 
