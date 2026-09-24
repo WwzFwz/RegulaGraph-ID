@@ -32,6 +32,12 @@ dan source version harus berasal dari mention EXTRACT. Ini belum memverifikasi r
 keputusan otoritatif, atau kebenaran identitas hukum; workflow wajib memanggilnya sebelum writer.
 [resolution_candidates_test.go](resolution_candidates_test.go) menutup target asing, rev stale,
 bukti palsu, dan kandidat tersembunyi. Kualitas/performa tetap REQUIRED_UNMEASURED.
+[resolution_receipts.go](resolution_receipts.go) memeriksa request/response registry terhadap proposal
+dan kandidat terpin: setiap proposal memiliki tepat satu keputusan LINK/DEFER, correlation ID,
+revision, canonical ID, dan ID record tidak boleh bergeser atau bertabrakan. Error item dan
+receipt parsial ditolak. [resolution_receipts_test.go](resolution_receipts_test.go) menguji drift
+tersebut; validator ini belum mengautentikasi adapter/receipt PostgreSQL atau mengaktifkan stage
+RESOLVE. Writer dan workflow wajib memakai keputusan terverifikasi dari transaksi otoritatif.
 
 `VerifyCitationEvidence` pada [boundaries.go](boundaries.go) kini menolak ID klaim/sitasi duplikat,
 memerlukan sitasi untuk setiap pasangan klaim–evidence–source version pada klaim SUPPORTED,
