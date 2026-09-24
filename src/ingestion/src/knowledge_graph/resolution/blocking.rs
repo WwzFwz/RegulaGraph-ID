@@ -175,6 +175,19 @@ mod tests {
     }
 
     #[test]
+    fn unicode_lookup_key_matches_gateway_casing_contract() {
+        for (surface, expected) in [
+            ("  PASAL\t1 (2)  ", "pasal 1 (2)"),
+            ("İzin Baru", "i̇zin baru"),
+            ("ΟΣ", "ος"),
+            ("Tidak-Berlaku 2024", "tidak-berlaku 2024"),
+        ] {
+            let key = LookupKey::new("provision", "regulation:a", surface).unwrap();
+            assert_eq!(key.normalized_surface, expected, "surface {surface:?}");
+        }
+    }
+
+    #[test]
     fn ambiguous_acronym_is_retained_and_overflow_is_reported() {
         let index = BlockingIndex::build(&[
             ScopedCanonical {

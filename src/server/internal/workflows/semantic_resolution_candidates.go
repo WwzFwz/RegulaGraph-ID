@@ -36,12 +36,76 @@ type SemanticCandidateArtifacts interface {
 	Put(context.Context, *pb.ArtifactRef, io.Reader) (bool, error)
 }
 
+// SemanticCandidatePolicyStore loads the checksum-verified request saved at job submission.
+// The candidate policy is authorized by that durable manifest, not only by a new producer.
+type SemanticCandidatePolicyStore interface {
+	LoadIngestionRequest(context.Context, string) (*pb.IngestionRequest, error)
+}
+
 // PrepareAndStoreCandidates uses the exact source checkpoint and caller-supplied legal scope
 // plan. A registry change during preparation is retryable with a fresh candidate read because
 // no immutable decision intent has been saved yet.
 func (handoff *SemanticResolutionHandoff) PrepareAndStoreCandidates(ctx context.Context,
 	job domain.JobRecord, producer *pb.ProducerManifest, recordID string,
 	plans []domain.RegistryCandidatePlan, maximumScopes, maximumAliasesPerScope int,
+) (*pb.RegistryCandidateBatch, *pb.ArtifactRef, error) {
+	return handoff.prepareAndStoreCandidates(ctx, job, producer, recordID, plans, nil,
+		maximumScopes, maximumAliasesPerScope)
+}
+
+// PrepareAndStorePlannedCandidates derives every mention's exact scopes from a pinned corpus
+// policy after reading the verified EXTRACT artifact. The policy fingerprint must be in both
+// the durable job request and the producer manifest; a caller cannot silently replace it.
+func (handoff *SemanticResolutionHandoff) PrepareAndStorePlannedCandidates(ctx context.Context,
+	job domain.JobRecord, producer *pb.ProducerManifest, recordID string,
+	policy domain.CandidatePlanningPolicy, maximumScopes, maximumAliasesPerScope int,
+) (*pb.RegistryCandidateBatch, *pb.ArtifactRef, error) {
+	if handoff == nil || handoff.store == nil || ctx == nil || job.JobID == "" ||
+		job.State != pb.JobState_JOB_STATE_RUNNING || job.Stage != pb.JobStage_JOB_STAGE_RESOLVE ||
+		job.CancellationRequested || !job.LeaseExpiresAt.After(time.Now()) {
+		return nil, nil, errors.New("live RESOLVE claim required before loading candidate policy")
+	}
+	fingerprint, err := policy.Fingerprint()
+	if err != nil {
+		return nil, nil, err
+	}
+	pinned := false
+	if producer != nil {
+		for _, hash := range producer.InputHashes {
+			pinned = pinned || proto.Equal(hash, fingerprint)
+		}
+	}
+	if !pinned {
+		return nil, nil, errors.New("candidate planning policy hash is not pinned in producer input hashes")
+	}
+	policyStore, ok := handoff.store.(SemanticCandidatePolicyStore)
+	if !ok {
+		return nil, nil, errors.New("candidate planning requires the durable ingestion request")
+	}
+	request, err := policyStore.LoadIngestionRequest(ctx, job.JobID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("load durable candidate policy: %w", err)
+	}
+	if request == nil || request.CorpusId != job.CorpusID || request.ConfigManifest == nil ||
+		request.ConfigManifest.ConfigHash == nil ||
+		!containsExpectedHash(request.ConfigManifest.InputHashes, fingerprint) {
+		return nil, nil, fmt.Errorf("candidate policy or config differs from submitted job: %w",
+			domain.ErrPersistentIntegrity)
+	}
+	return handoff.prepareAndStoreCandidates(ctx, job, producer, recordID, nil,
+		func(source *pb.ExtractionBatch) ([]domain.RegistryCandidatePlan, error) {
+			if !proto.Equal(source.GetContext().GetConfigFingerprint(), request.ConfigManifest.ConfigHash) {
+				return nil, fmt.Errorf("EXTRACT config differs from submitted candidate policy: %w",
+					domain.ErrPersistentIntegrity)
+			}
+			return domain.PlanRegistryCandidates(source, policy)
+		}, maximumScopes, maximumAliasesPerScope)
+}
+
+func (handoff *SemanticResolutionHandoff) prepareAndStoreCandidates(ctx context.Context,
+	job domain.JobRecord, producer *pb.ProducerManifest, recordID string,
+	plans []domain.RegistryCandidatePlan, planner func(*pb.ExtractionBatch) ([]domain.RegistryCandidatePlan, error),
+	maximumScopes, maximumAliasesPerScope int,
 ) (*pb.RegistryCandidateBatch, *pb.ArtifactRef, error) {
 	if handoff == nil || ctx == nil || producer == nil || recordID == "" ||
 		job.JobID == "" || job.CorpusID == "" || job.LeaseOwner == "" || job.LeaseFence == 0 ||
@@ -87,6 +151,12 @@ func (handoff *SemanticResolutionHandoff) PrepareAndStoreCandidates(ctx context.
 		return nil, nil, fmt.Errorf("candidate source is not complete EXTRACT with mentions: %w",
 			errors.Join(err, domain.ErrPersistentIntegrity))
 	}
+	if planner != nil {
+		plans, err = planner(source)
+		if err != nil {
+			return nil, nil, fmt.Errorf("plan verified EXTRACT candidates: %w", err)
+		}
+	}
 	proof := domain.SemanticJobFence{JobID: job.JobID, OwnerID: job.LeaseOwner,
 		SourceCheckpointID: checkpoint.Meta.RecordId, Fence: job.LeaseFence}
 	before, err := store.ReadFencedResolveRevision(attemptCtx, proof, sourceRef, source)
@@ -114,6 +184,9 @@ func (handoff *SemanticResolutionHandoff) PrepareAndStoreCandidates(ctx context.
 	if err = domain.ValidateRegistryCandidateBatch(batch, source, sourceRef,
 		handoff.maximumReferences, handoff.maximumCandidatesPerMention); err != nil {
 		return nil, nil, fmt.Errorf("candidate closure before storage: %w", err)
+	}
+	if !proto.Equal(batch.GetDependencies().GetProducerManifest(), producer) {
+		return nil, nil, errors.New("candidate artifact omitted or changed the pinned planning producer")
 	}
 	raw, err := (proto.MarshalOptions{Deterministic: true}).Marshal(batch)
 	if err != nil || len(raw) == 0 || uint64(len(raw)) > handoff.maximumBytes-sourceRef.ByteSize {

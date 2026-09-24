@@ -20,6 +20,7 @@ type candidateRaceStore struct {
 	revisions []uint64
 	reads     int
 	prepared  *pb.RegistryCandidateBatch
+	planned   []domain.RegistryCandidatePlan
 }
 
 func (store *candidateRaceStore) ReadFencedResolveRevision(_ context.Context,
@@ -34,7 +35,8 @@ func (store *candidateRaceStore) ReadFencedResolveRevision(_ context.Context,
 
 func (store *candidateRaceStore) PrepareRegistryCandidateBatch(_ context.Context,
 	_ *pb.ExtractionBatch, _ *pb.ArtifactRef, _ *pb.ProducerManifest, _ string,
-	_ []domain.RegistryCandidatePlan, _, _, _, _ int) (*pb.RegistryCandidateBatch, error) {
+	plans []domain.RegistryCandidatePlan, _, _, _, _ int) (*pb.RegistryCandidateBatch, error) {
+	store.planned = plans
 	return store.prepared, nil
 }
 
@@ -113,5 +115,66 @@ func TestCandidateRevisionRaceRetriesBeforeArtifactWrite(t *testing.T) {
 				t.Fatalf("revision race wrote stale candidate: err=%v puts=%d", runErr, artifacts.puts)
 			}
 		})
+	}
+}
+
+func TestPlannedCandidatesBindPolicyAndStoredExtract(t *testing.T) {
+	handoff, job, oldRef, _, _, _, _, store, artifacts := modelWorkflowFixture(t)
+	policy := domain.CandidatePlanningPolicy{ScopesByType: map[string][]string{"permit": {"national"}},
+		MaximumMentions: 10, MaximumScopesPerMention: 2, MaximumTotalScopes: 10}
+	fingerprint, err := policy.Fingerprint()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prepared := new(pb.RegistryCandidateBatch)
+	if err = domain.DecodeWire(artifacts.contents[oldRef.ArtifactId], prepared, domain.DefaultWireLimits); err != nil {
+		t.Fatal(err)
+	}
+	producer := proto.Clone(prepared.Dependencies.ProducerManifest).(*pb.ProducerManifest)
+	producer.InputHashes = append(producer.InputHashes, fingerprint)
+	prepared.Dependencies.ProducerManifest = proto.Clone(producer).(*pb.ProducerManifest)
+	store.request = &pb.IngestionRequest{CorpusId: job.CorpusID,
+		ConfigManifest: proto.Clone(parseManifest()).(*pb.ProducerManifest)}
+	store.request.ConfigManifest.InputHashes = append(store.request.ConfigManifest.InputHashes, fingerprint)
+	store.prepared = prepared
+	batch, ref, err := handoff.PrepareAndStorePlannedCandidates(context.Background(), job,
+		producer, "candidates:planned", policy, 4, 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ref == nil || ref.ArtifactId == oldRef.ArtifactId || store.planned == nil ||
+		len(store.planned) != 1 || store.planned[0].MentionID != "mention:fixture" ||
+		len(store.planned[0].Scopes) != 1 || store.planned[0].Scopes[0].NormalizedLookup != "izin" ||
+		batch.GetDependencies().GetProducerManifest() == nil ||
+		!proto.Equal(batch.Dependencies.ProducerManifest, producer) ||
+		len(artifacts.contents[ref.ArtifactId]) == 0 || store.dependencies[ref.ArtifactId] == nil {
+		t.Fatal("automatic candidate plan was not stored with pinned policy and EXTRACT dependency")
+	}
+	// A policy drift must fail before reading a registry revision or writing an artifact.
+	changed := policy
+	changed.ScopesByType = map[string][]string{"permit": {"regional"}}
+	store.planned = nil
+	if _, _, err = handoff.PrepareAndStorePlannedCandidates(context.Background(), job,
+		producer, "candidates:drift", changed, 4, 4); err == nil || store.planned != nil {
+		t.Fatal("un-pinned candidate policy was read or persisted")
+	}
+	// A newly constructed producer cannot authorize a policy absent from the submitted job.
+	changedFingerprint, err := changed.Fingerprint()
+	if err != nil {
+		t.Fatal(err)
+	}
+	forgedProducer := proto.Clone(producer).(*pb.ProducerManifest)
+	forgedProducer.InputHashes = append(forgedProducer.InputHashes, changedFingerprint)
+	if _, _, err = handoff.PrepareAndStorePlannedCandidates(context.Background(), job,
+		forgedProducer, "candidates:forged-policy", changed, 4, 4); !errors.Is(err, domain.ErrPersistentIntegrity) ||
+		store.planned != nil {
+		t.Fatalf("caller re-pinned unsanctioned policy: %v", err)
+	}
+	// The source must come from the same submitted config even if both manifests pin the policy.
+	store.request.ConfigManifest.ConfigHash = parseHash("d")
+	if _, _, err = handoff.PrepareAndStorePlannedCandidates(context.Background(), job,
+		producer, "candidates:foreign-source", policy, 4, 4); !errors.Is(err, domain.ErrPersistentIntegrity) ||
+		store.planned != nil {
+		t.Fatalf("candidate planner accepted source from another config: %v", err)
 	}
 }

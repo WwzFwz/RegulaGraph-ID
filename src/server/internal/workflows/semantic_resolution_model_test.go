@@ -24,6 +24,14 @@ type modelProposalStore struct {
 	dependencies map[string]*pb.DependencyManifest
 	evidenceRefs []*pb.ArtifactRef
 	evidenceErr  error
+	request      *pb.IngestionRequest
+}
+
+func (s *modelProposalStore) LoadIngestionRequest(_ context.Context, _ string) (*pb.IngestionRequest, error) {
+	if s.request == nil {
+		return nil, domain.ErrNotFound
+	}
+	return proto.Clone(s.request).(*pb.IngestionRequest), nil
 }
 
 func (s *modelProposalStore) LoadResolutionEvidenceSources(_ context.Context, _ *pb.RequestContext, _ []string, _ int) ([]*pb.ArtifactRef, error) {
