@@ -38,6 +38,9 @@ registry; receipt dan integrasi stage masih belum diuji.
 [verification-report-k01-registry-receipts.md](verification-report-k01-registry-receipts.md)
 mencatat validator struktural receipt LINK/DEFER terhadap kandidat terpin serta review independen;
 autentikasi PostgreSQL, stage RESOLVE, dan akurasi hukum masih menunggu integrasi dan gold.
+[verification-report-k01-resolution-assembly.md](verification-report-k01-resolution-assembly.md)
+mencatat builder artefak RESOLVE yang membawa keputusan serta dependency EXTRACT/kandidat;
+autentikasi byte artefak dan transaksi registry masih milik workflow/adapter.
 [verification-report-g01-review-packet.md](verification-report-g01-review-packet.md) mencatat triase enam PDF
 yang metadata antreannya dicocokkan ulang ke inventory dan byte PDF-nya diverifikasi; gold manusia belum tersedia.
 [verification-report-a01-citation-mapping.md](verification-report-a01-citation-mapping.md) mencatat helper
