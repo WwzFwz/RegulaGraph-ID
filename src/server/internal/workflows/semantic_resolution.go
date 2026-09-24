@@ -54,6 +54,23 @@ func NewSemanticResolutionHandoff(store SemanticResolutionStore,
 func (handoff *SemanticResolutionHandoff) Commit(ctx context.Context, job domain.JobRecord,
 	candidateRef *pb.ArtifactRef, request *pb.RegistryResolveRequest,
 	approvals []domain.ReviewedLink) (*pb.RegistryResolveResponse, error) {
+	result, err := handoff.commitVerified(ctx, job, candidateRef, request, approvals, nil)
+	if err != nil {
+		return nil, err
+	}
+	return result.response, nil
+}
+
+type semanticCommitResult struct {
+	response  *pb.RegistryResolveResponse
+	sourceRef *pb.ArtifactRef
+	input     domain.SemanticRegistryInputs
+}
+
+func (handoff *SemanticResolutionHandoff) commitVerified(ctx context.Context, job domain.JobRecord,
+	candidateRef *pb.ArtifactRef, request *pb.RegistryResolveRequest,
+	approvals []domain.ReviewedLink,
+	preflight func(domain.SemanticRegistryInputs, string) error) (*semanticCommitResult, error) {
 	if handoff == nil || handoff.store == nil || handoff.artifacts == nil || ctx == nil ||
 		job.JobID == "" || job.CorpusID == "" || job.LeaseOwner == "" || job.LeaseFence == 0 ||
 		job.State != pb.JobState_JOB_STATE_RUNNING || job.Stage != pb.JobStage_JOB_STAGE_RESOLVE ||
@@ -107,8 +124,17 @@ func (handoff *SemanticResolutionHandoff) Commit(ctx context.Context, job domain
 	}
 	proof := domain.SemanticJobFence{JobID: job.JobID, OwnerID: job.LeaseOwner,
 		SourceCheckpointID: checkpoint.Meta.RecordId, Fence: job.LeaseFence}
-	return handoff.store.CommitSemanticResolutions(attemptCtx, proof,
-		domain.SemanticRegistryInputs{SourceRef: sourceRef, SourceBytes: sourceBytes,
-			CandidateRef: candidateRef, CandidateBytes: candidateBytes}, request, approvals,
+	input := domain.SemanticRegistryInputs{SourceRef: sourceRef, SourceBytes: sourceBytes,
+		CandidateRef: candidateRef, CandidateBytes: candidateBytes}
+	if preflight != nil {
+		if err = preflight(input, checkpoint.Meta.RecordId); err != nil {
+			return nil, fmt.Errorf("preflight RESOLVE output before registry CAS: %w", err)
+		}
+	}
+	response, err := handoff.store.CommitSemanticResolutions(attemptCtx, proof, input, request, approvals,
 		handoff.maximumReferences, handoff.maximumCandidatesPerMention)
+	if err != nil {
+		return nil, err
+	}
+	return &semanticCommitResult{response: response, sourceRef: sourceRef, input: input}, nil
 }

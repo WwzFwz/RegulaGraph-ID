@@ -98,15 +98,22 @@ func loadSemanticOperation(ctx context.Context, tx pgx.Tx, request *pb.RegistryR
 	if len(assignments) != count {
 		return nil, false, fmt.Errorf("semantic operation has missing decisions: %w", domain.ErrPersistentIntegrity)
 	}
+	approvalList := make([]ReviewedLink, 0, len(approvals))
+	for _, approval := range approvals {
+		approvalList = append(approvalList, approval)
+	}
+	expectedReceipt, err := domain.PreviewSemanticResolutionReceipt(request, approvalList)
+	if err != nil {
+		return nil, false, fmt.Errorf("rebuild deterministic semantic receipt: %w", domain.ErrPersistentIntegrity)
+	}
 	response := &pb.RegistryResolveResponse{RequestId: request.Context.RequestId,
 		RegistryRevision: uint64(committed)}
-	for _, proposal := range request.Proposals {
+	for index, proposal := range request.Proposals {
 		assignment := assignments[proposal.GetMeta().GetRecordId()]
 		if assignment == nil || assignment.LocalCorrelationId != proposal.LocalCorrelationId {
 			return nil, false, fmt.Errorf("stored semantic assignment differs from proposal: %w", domain.ErrPersistentIntegrity)
 		}
-		if !proto.Equal(assignment.GetDecision(), semanticDecision(corpusID, request.OperationKey,
-			proposal, approvals[proposal.Meta.RecordId], uint64(committed))) {
+		if !proto.Equal(assignment.GetDecision(), expectedReceipt.Assignments[index].GetDecision()) {
 			return nil, false, fmt.Errorf("stored semantic decision differs from deterministic receipt: %w",
 				domain.ErrPersistentIntegrity)
 		}

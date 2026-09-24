@@ -150,13 +150,12 @@ func (r *Repository) commitSemanticResolutions(ctx context.Context, proof *Seman
 		return nil, err
 	}
 	revision := current + 1
-	response = &pb.RegistryResolveResponse{RequestId: request.Context.RequestId, RegistryRevision: uint64(revision)}
-	for _, proposal := range request.Proposals {
-		decision := semanticDecision(corpusID, request.OperationKey, proposal, approvalByID[proposal.Meta.RecordId], uint64(revision))
-		response.Assignments = append(response.Assignments, &pb.RegistryAssignment{
-			ProposalId: proposal.Meta.RecordId, LocalCorrelationId: proposal.LocalCorrelationId,
-			Result: &pb.RegistryAssignment_Decision{Decision: decision},
-		})
+	response, err = domain.PreviewSemanticResolutionReceipt(request, approvals)
+	if err != nil {
+		return nil, fmt.Errorf("build semantic registry receipt: %w", err)
+	}
+	if response.RegistryRevision != uint64(revision) {
+		return nil, errors.New("semantic receipt revision differs from registry CAS")
 	}
 	if err = domain.ValidateRegistryResolveReceipt(source, sourceRef, candidates, request,
 		response, maximumReferences, maximumCandidatesPerMention); err != nil {
@@ -268,25 +267,6 @@ func semanticRequestHash(request *pb.RegistryResolveRequest, candidates *pb.Regi
 		sha256.Sum256(candidateRaw), sha256.Sum256(approvalRaw)
 	combined := sha256.Sum256(append(append(requestDigest[:], candidateDigest[:]...), approvalDigest[:]...))
 	return hex.EncodeToString(combined[:]), nil
-}
-
-func semanticDecision(corpusID, operationKey string, proposal *pb.ResolutionProposal,
-	approval ReviewedLink, revision uint64) *pb.ResolutionDecision {
-	digest := sha256.Sum256([]byte(corpusID + "\x00" + operationKey + "\x00" + proposal.Meta.RecordId))
-	decision := &pb.ResolutionDecision{
-		Meta: &pb.RecordMeta{SchemaVersion: proposal.Meta.SchemaVersion,
-			CorpusId: corpusID, RecordId: "decision:semantic:" + hex.EncodeToString(digest[:])},
-		ProposalId: proposal.Meta.RecordId, Action: proposal.Action, RegistryRevision: revision,
-	}
-	if proposal.Action == pb.ResolutionAction_RESOLUTION_ACTION_LINK {
-		decision.AssignedCanonicalIds = []string{proposal.CandidateIds[0]}
-		decision.Actor = approval.Actor
-		decision.Reason = approval.Reason + " [review:" + approval.ReviewID + "]"
-	} else {
-		decision.Actor = "registry-policy"
-		decision.Reason = "identity remains unresolved"
-	}
-	return decision
 }
 
 func (r *Repository) verifySemanticCandidateRead(ctx context.Context, source *pb.ExtractionBatch,

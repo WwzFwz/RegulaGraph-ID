@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -31,6 +32,18 @@ type semanticTransitionReader struct {
 	reads       int
 }
 
+type semanticFailingOutputStore struct{ delegate *storage.FileStore }
+
+func (s *semanticFailingOutputStore) ReadVerified(ctx context.Context,
+	ref *pb.ArtifactRef, maximum uint64) ([]byte, error) {
+	return s.delegate.ReadVerified(ctx, ref, maximum)
+}
+
+func (s *semanticFailingOutputStore) Put(context.Context, *pb.ArtifactRef,
+	io.Reader) (bool, error) {
+	return false, errors.New("injected output write failure after registry CAS")
+}
+
 func (reader *semanticTransitionReader) ReadVerified(ctx context.Context,
 	ref *pb.ArtifactRef, maximum uint64) ([]byte, error) {
 	raw, err := reader.delegate.ReadVerified(ctx, ref, maximum)
@@ -44,6 +57,160 @@ func (reader *semanticTransitionReader) ReadVerified(ctx context.Context,
 		}
 	}
 	return raw, nil
+}
+
+func TestEmptySemanticResolutionAgainstPostgres(t *testing.T) {
+	dsn := os.Getenv("REGULAGRAPH_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("REGULAGRAPH_TEST_POSTGRES_DSN is not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	repo, err := Open(ctx, Config{DSN: dsn, MaxConnections: 4, HealthTimeout: 3 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer repo.Close()
+	migrations, err := filepath.Abs(filepath.Join("..", "..", "..", "..", "..", "migrations"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = repo.ApplyMigrations(ctx, os.DirFS(migrations)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = repo.pool.Exec(ctx, `TRUNCATE TABLE corpus_state CASCADE`); err != nil {
+		t.Fatal(err)
+	}
+	corpusID, jobID := "corpus:empty-semantic", "job:empty-semantic"
+	extractModel := &pb.ModelManifest{ModelId: "extractor", Version: "v1",
+		Task:          pb.ModelTask_MODEL_TASK_EXTRACT,
+		WeightsHash:   &pb.ContentHash{Sha256: strings.Repeat("1", 64)},
+		TokenizerHash: &pb.ContentHash{Sha256: strings.Repeat("2", 64)},
+		PromptHash:    &pb.ContentHash{Sha256: strings.Repeat("6", 64)},
+		MaxTokens:     128, Precision: "fp32", Backend: "test"}
+	extractProducer := &pb.ProducerManifest{Software: "extract-worker", Build: "test",
+		SchemaVersion: 1, ConfigHash: &pb.ContentHash{Sha256: strings.Repeat("3", 64)},
+		Models:       []*pb.ModelManifest{extractModel},
+		PromptHashes: []*pb.ContentHash{{Sha256: strings.Repeat("6", 64)}}}
+	source := &pb.ExtractionBatch{Meta: &pb.RecordMeta{SchemaVersion: 1, CorpusId: corpusID,
+		RecordId: "extraction:empty"}, Context: &pb.RequestContext{SchemaVersion: 1,
+		RequestId: "request:empty", TraceId: "trace:empty", CorpusId: corpusID,
+		AuthScopeRef: "scope:empty", ConfigFingerprint: &pb.ContentHash{Sha256: strings.Repeat("4", 64)},
+		Deadline: timestamppb.New(time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC))},
+		SourceDocumentBatch: &pb.ArtifactRef{ArtifactId: "artifact:document-empty",
+			ContentHash: &pb.ContentHash{Sha256: strings.Repeat("5", 64)},
+			StorageKey:  "objects/document-empty", MediaType: "application/x-protobuf", SchemaVersion: 1},
+		Dependencies: &pb.DependencyManifest{ArtifactId: "dependencies:extract-empty",
+			ProducerManifest: extractProducer, Dependencies: []*pb.Dependency{{
+				DependencyId: "artifact:document-empty",
+				Fingerprint:  &pb.ContentHash{Sha256: strings.Repeat("5", 64)}}}},
+		Completeness:    pb.Completeness_COMPLETENESS_COMPLETE,
+		OntologyVersion: "ontology-empty-v1", ModelManifest: extractModel,
+		PromptHash: &pb.ContentHash{Sha256: strings.Repeat("6", 64)},
+		ItemCounts: &pb.Counts{Expected: 1, Accepted: 1},
+		TokenUsage: &pb.TokenUsage{TokenizerId: "extract-tokenizer"}}
+	sourceBytes, err := (proto.MarshalOptions{Deterministic: true}).Marshal(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	digest := sha256.Sum256(sourceBytes)
+	sourceRef := &pb.ArtifactRef{ArtifactId: "artifact:extract-empty",
+		ContentHash: &pb.ContentHash{Sha256: hex.EncodeToString(digest[:])},
+		StorageKey:  "objects/extract-empty", MediaType: "application/x-protobuf",
+		ByteSize: uint64(len(sourceBytes)), SchemaVersion: 1}
+	fileStore, err := storage.NewFileStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fileStore.Close()
+	if _, err = fileStore.Put(ctx, sourceRef, bytes.NewReader(sourceBytes)); err != nil {
+		t.Fatal(err)
+	}
+	if err = repo.RegisterArtifact(ctx, corpusID, sourceRef); err != nil {
+		t.Fatal(err)
+	}
+	checkpoint := &pb.Checkpoint{Meta: &pb.RecordMeta{SchemaVersion: 1, CorpusId: corpusID,
+		RecordId: "checkpoint:extract-empty"}, JobId: jobID,
+		Stage: pb.JobStage_JOB_STAGE_EXTRACT, Fence: 1,
+		TerminalStatus:     pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED,
+		CompletedBatchKeys: []string{sourceRef.ArtifactId},
+		ArtifactHashes:     []*pb.ContentHash{proto.Clone(sourceRef.ContentHash).(*pb.ContentHash)},
+		Manifest:           extractProducer}
+	checkpointBytes, err := (proto.MarshalOptions{Deterministic: true}).Marshal(checkpoint)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkpointDigest := sha256.Sum256(checkpointBytes)
+	jobPayload := []byte("empty-semantic-job")
+	jobDigest := sha256.Sum256(jobPayload)
+	if _, err = repo.pool.Exec(ctx, `INSERT INTO jobs
+		(job_id,corpus_id,operation,state,stage,input_fingerprint,idempotency_key,
+		request_hash,request_payload,attempt,stage_attempt,lease_fence)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,1,1,1)`, jobID, corpusID,
+		int16(pb.JobOperation_JOB_OPERATION_INGEST), int16(pb.JobState_JOB_STATE_STAGED),
+		int16(pb.JobStage_JOB_STAGE_EXTRACT), strings.Repeat("f", 64),
+		"empty-semantic-job", hex.EncodeToString(jobDigest[:]), jobPayload); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = repo.pool.Exec(ctx, `INSERT INTO job_checkpoints
+		(checkpoint_id,job_id,stage,fence,payload,payload_hash,terminal_status)
+		VALUES ($1,$2,$3,1,$4,$5,$6)`, checkpoint.Meta.RecordId, jobID,
+		int16(pb.JobStage_JOB_STAGE_EXTRACT), checkpointBytes,
+		hex.EncodeToString(checkpointDigest[:]),
+		int16(pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = repo.pool.Exec(ctx, `UPDATE jobs SET latest_checkpoint_id=$2 WHERE job_id=$1`,
+		jobID, checkpoint.Meta.RecordId); err != nil {
+		t.Fatal(err)
+	}
+	var before int64
+	if err = repo.pool.QueryRow(ctx, `SELECT registry_revision FROM corpus_state WHERE corpus_id=$1`,
+		corpusID).Scan(&before); err != nil {
+		t.Fatal(err)
+	}
+	claimed, err := repo.ClaimResolveJob(ctx, "owner:empty", time.Minute)
+	if err != nil || claimed.JobID != jobID {
+		t.Fatalf("claim empty RESOLVE: job=%+v err=%v", claimed, err)
+	}
+	model := proto.Clone(extractModel).(*pb.ModelManifest)
+	model.Task = pb.ModelTask_MODEL_TASK_RESOLVE
+	producer := &pb.ProducerManifest{Software: "resolve-worker", Build: "test", SchemaVersion: 1,
+		ConfigHash: &pb.ContentHash{Sha256: strings.Repeat("7", 64)}, Models: []*pb.ModelManifest{model}}
+	handoff, err := workflows.NewSemanticResolutionHandoff(repo, fileStore, uint64(len(sourceBytes)), 64, 8)
+	if err != nil {
+		t.Fatal(err)
+	}
+	output, err := handoff.CompleteEmptyResolution(ctx, claimed, model, producer,
+		&pb.TokenUsage{TokenizerId: "resolver-tokenizer"}, "resolution:empty")
+	if err != nil || output == nil || len(output.Batch.Proposals) != 0 ||
+		len(output.Batch.Decisions) != 0 || output.Batch.ItemCounts.Expected != 0 {
+		t.Fatalf("empty RESOLVE did not checkpoint: output=%v err=%v", output, err)
+	}
+	var after int64
+	if err = repo.pool.QueryRow(ctx, `SELECT registry_revision FROM corpus_state WHERE corpus_id=$1`,
+		corpusID).Scan(&after); err != nil || after != before {
+		t.Fatalf("empty RESOLVE changed registry revision: before=%d after=%d err=%v", before, after, err)
+	}
+	if _, err = repo.pool.Exec(ctx, `UPDATE jobs SET state=$2,lease_owner='owner:crashed',
+		lease_expires_at=clock_timestamp()-interval '1 second' WHERE job_id=$1`,
+		jobID, int16(pb.JobState_JOB_STATE_RUNNING)); err != nil {
+		t.Fatal(err)
+	}
+	reclaim, err := repo.ClaimResolveJob(ctx, "owner:empty-recovery", time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = handoff.CompleteEmptyResolution(ctx, reclaim, model, producer,
+		&pb.TokenUsage{TokenizerId: "resolver-tokenizer"}, "resolution:changed"); !errors.Is(err, domain.ErrPersistentIntegrity) {
+		t.Fatalf("changed retry identity must not recover the completed output: %v", err)
+	}
+	recovered, err := handoff.CompleteEmptyResolution(ctx, reclaim, model, producer,
+		&pb.TokenUsage{TokenizerId: "resolver-tokenizer"}, "resolution:empty")
+	if err != nil || recovered == nil || recovered.Artifact.ArtifactId != output.Artifact.ArtifactId ||
+		recovered.Checkpoint.Fence != reclaim.LeaseFence {
+		t.Fatalf("empty RESOLVE recovery failed: output=%v err=%v", recovered, err)
+	}
 }
 
 func TestSemanticRegistryAgainstPostgres(t *testing.T) {
@@ -481,18 +648,55 @@ func TestSemanticRegistryAgainstPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	response, err := handoff.Commit(ctx, claimed, candidateRef, request, approval)
-	if err != nil || response.RegistryRevision != revision+1 || len(response.Assignments) != 2 ||
-		response.Assignments[0].GetDecision().AssignedCanonicalIds[0] != canonicalID ||
-		len(response.Assignments[1].GetDecision().AssignedCanonicalIds) != 0 {
-		t.Fatalf("commit semantic LINK/DEFER: response=%v err=%v", response, err)
-	}
 	resolveModel := &pb.ModelManifest{ModelId: "resolver", Version: "v1", Task: pb.ModelTask_MODEL_TASK_RESOLVE,
 		WeightsHash:   &pb.ContentHash{Sha256: strings.Repeat("1", 64)},
 		TokenizerHash: &pb.ContentHash{Sha256: strings.Repeat("2", 64)},
 		MaxTokens:     128, Precision: "fp32", Backend: "test"}
 	resolveProducer := &pb.ProducerManifest{Software: "resolve-worker", Build: "test", SchemaVersion: 1,
 		ConfigHash: &pb.ContentHash{Sha256: strings.Repeat("3", 64)}, Models: []*pb.ModelManifest{resolveModel}}
+	if _, err = handoff.CommitAndCheckpoint(ctx, claimed, candidateRef, request, approval,
+		resolveModel, resolveProducer, &pb.TokenUsage{TokenizerId: "resolver-tokenizer"},
+		source.Meta.RecordId); err == nil {
+		t.Fatal("colliding RESOLVE output ID passed preflight")
+	}
+	var preflightOperations int
+	if err = repo.pool.QueryRow(ctx, `SELECT count(*) FROM registry_semantic_operations
+		WHERE corpus_id=$1 AND operation_key=$2`, corpusID, request.OperationKey).
+		Scan(&preflightOperations); err != nil || preflightOperations != 0 {
+		t.Fatalf("invalid output intent committed a registry operation: count=%d err=%v", preflightOperations, err)
+	}
+	failingHandoff, err := workflows.NewSemanticResolutionHandoff(repo,
+		&semanticFailingOutputStore{delegate: fileStore},
+		uint64(len(sourceBytes)+len(candidateBytes)), 64, 8)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = failingHandoff.CommitAndCheckpoint(ctx, claimed, candidateRef, request,
+		approval, resolveModel, resolveProducer,
+		&pb.TokenUsage{TokenizerId: "resolver-tokenizer"}, "resolution:semantic"); err == nil {
+		t.Fatal("injected output failure was ignored")
+	}
+	storedIntent, err := repo.LoadSemanticResolutionIntent(ctx, corpusID, jobID)
+	if err != nil || storedIntent.Request.OperationKey != request.OperationKey ||
+		storedIntent.Preview.GetMeta().GetRecordId() != "resolution:semantic" {
+		t.Fatalf("pre-CAS RESOLVE intent was not durable: intent=%v err=%v", storedIntent, err)
+	}
+	changedIntentRequest := proto.Clone(request).(*pb.RegistryResolveRequest)
+	changedIntentRequest.Context.RequestId = "request:changed-after-intent"
+	if _, err = handoff.CommitAndCheckpoint(ctx, claimed, candidateRef,
+		changedIntentRequest, nil, nil, nil, nil, ""); err == nil {
+		t.Fatal("changed retry replaced immutable RESOLVE intent")
+	}
+	priorCheckpoint, err := repo.LoadLatestCheckpoint(ctx, jobID)
+	if err != nil || priorCheckpoint.Stage != pb.JobStage_JOB_STAGE_EXTRACT {
+		t.Fatalf("failed output falsely advanced checkpoint: checkpoint=%v err=%v", priorCheckpoint, err)
+	}
+	response, err := repo.CommitSemanticResolutions(ctx, proof, input, request, approval, 64, 8)
+	if err != nil || response.RegistryRevision != revision+1 || len(response.Assignments) != 2 ||
+		response.Assignments[0].GetDecision().AssignedCanonicalIds[0] != canonicalID ||
+		len(response.Assignments[1].GetDecision().AssignedCanonicalIds) != 0 {
+		t.Fatalf("commit semantic LINK/DEFER: response=%v err=%v", response, err)
+	}
 	resolvedBatch, err := domain.AssembleResolutionBatchFromReceipt(source, sourceRef, candidates, candidateRef,
 		request, response, resolveModel, resolveProducer, &pb.TokenUsage{TokenizerId: "resolver-tokenizer"},
 		"resolution:semantic", 64, 8)
@@ -508,6 +712,33 @@ func TestSemanticRegistryAgainstPostgres(t *testing.T) {
 		replayed.RequestId != retry.Context.RequestId ||
 		replayed.Assignments[0].GetDecision().Meta.RecordId != response.Assignments[0].GetDecision().Meta.RecordId {
 		t.Fatalf("semantic replay changed decision: replay=%v err=%v", replayed, err)
+	}
+	output, err := handoff.CommitAndCheckpoint(ctx, claimed, nil,
+		nil, nil, nil, nil, nil, "")
+	if err != nil || output == nil || output.Batch == nil ||
+		output.Batch.RegistryRevision != response.RegistryRevision ||
+		len(output.Batch.Decisions) != 2 || output.Checkpoint.Stage != pb.JobStage_JOB_STAGE_RESOLVE {
+		t.Fatalf("RESOLVE receipt was not checkpointed: output=%v err=%v", output, err)
+	}
+	if _, err = fileStore.ReadVerified(ctx, output.Artifact, uint64(domain.DefaultWireLimits.MaxBytes)); err != nil {
+		t.Fatalf("checkpointed RESOLVE bytes are not readable: %v", err)
+	}
+	// Recreate the crash window after SaveCheckpoint and before completion: the latest
+	// RESOLVE output is durable, but the old RUNNING lease has expired.
+	if _, err = repo.pool.Exec(ctx, `UPDATE jobs SET state=$2,lease_owner='owner:crashed',
+		lease_expires_at=clock_timestamp()-interval '1 second' WHERE job_id=$1`,
+		jobID, int16(pb.JobState_JOB_STATE_RUNNING)); err != nil {
+		t.Fatal(err)
+	}
+	recoveryClaim, err := repo.ClaimResolveJob(ctx, "owner:recovery", time.Minute)
+	if err != nil || recoveryClaim.JobID != claimed.JobID || recoveryClaim.LeaseFence <= claimed.LeaseFence {
+		t.Fatalf("terminal RESOLVE checkpoint could not be reclaimed: job=%+v err=%v", recoveryClaim, err)
+	}
+	recovered, err := handoff.CommitAndCheckpoint(ctx, recoveryClaim, nil,
+		nil, nil, nil, nil, nil, "")
+	if err != nil || recovered == nil || recovered.Artifact.ArtifactId != output.Artifact.ArtifactId ||
+		recovered.Checkpoint.Fence != recoveryClaim.LeaseFence {
+		t.Fatalf("RESOLVE recovery reran or lost output: output=%v err=%v", recovered, err)
 	}
 	if _, err = repo.pool.Exec(ctx, `UPDATE jobs SET lease_owner='owner:successor',
 		lease_fence=lease_fence+1 WHERE job_id=$1`, jobID); err != nil {

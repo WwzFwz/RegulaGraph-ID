@@ -29,3 +29,14 @@ type ReviewedLink struct {
 	Reason      string
 	ReviewID    string
 }
+
+// SemanticResolutionIntent is the immutable input needed to replay a registry commit after a
+// crash before RESOLVE checkpoint publication. Its preview was validated before CAS; PostgreSQL
+// persists it under the EXTRACT job fence, then reloads and checks its hash on retry.
+type SemanticResolutionIntent struct {
+	SourceCheckpointID string
+	CandidateRef       *pb.ArtifactRef
+	Request            *pb.RegistryResolveRequest
+	Approvals          []ReviewedLink
+	Preview            *pb.ResolutionBatch
+}
