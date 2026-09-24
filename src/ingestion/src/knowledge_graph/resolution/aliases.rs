@@ -94,7 +94,27 @@ pub fn alias_from_registry_link(
         return Err(AliasError::MismatchedIdentity("registry revision"));
     }
     if mention.candidate_type != entity.entity_type
-        || !matches!(entity.entity_type.as_str(), "regulation" | "organization")
+        || !matches!(
+            entity.entity_type.as_str(),
+            "regulation"
+                | "provision"
+                | "organization"
+                | "role"
+                | "person"
+                | "activity"
+                | "obligation"
+                | "requirement"
+                | "exception"
+                | "defined_term"
+                | "permit"
+                | "prohibition"
+                | "procedure"
+                | "document"
+                | "sanction"
+                | "date"
+                | "place"
+                | "legal_concept"
+        )
         || entity.scope.trim().is_empty()
         || entity.scope.len() > 512
         || entity.scope.contains('\0')
@@ -312,7 +332,7 @@ mod tests {
             Err(AliasError::MissingEvidence)
         ));
         let mut unsupported_type = entity.clone();
-        unsupported_type.entity_type = "provision".into();
+        unsupported_type.entity_type = "unknown_entity_type".into();
         assert!(matches!(
             alias_from_registry_link(&mention, &proposal, &decision, &unsupported_type, "id"),
             Err(AliasError::MismatchedIdentity("type, scope or language"))
@@ -328,6 +348,18 @@ mod tests {
             alias_from_registry_link(&long_mention, &proposal, &decision, &entity, "id"),
             Err(AliasError::InvalidInput("normalized lookup"))
         ));
+    }
+
+    #[test]
+    fn sourced_alias_supports_provision_identity_without_merging_articles() {
+        let (mut mention, proposal, decision, mut entity) = fixture();
+        mention.candidate_type = "provision".into();
+        entity.entity_type = "provision".into();
+        entity.scope = "regulation:fixture".into();
+        let alias = alias_from_registry_link(&mention, &proposal, &decision, &entity, "id")
+            .expect("authenticated provision LINK can retain its parent regulation scope");
+        assert_eq!(alias.scope, "regulation:fixture");
+        assert_eq!(alias.support_refs, vec![mention.meta.record_id.clone()]);
     }
 
     #[test]

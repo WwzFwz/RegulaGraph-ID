@@ -351,14 +351,7 @@ func verifyAliasOperationReplay(ctx context.Context, tx pgx.Tx, corpusID string,
 }
 
 func aliasEntityType(name string) int16 {
-	switch name {
-	case "regulation":
-		return domain.CanonicalEntityTypeRegulation
-	case "organization":
-		return domain.CanonicalEntityTypeOrganization
-	default:
-		return 0
-	}
+	return domain.CanonicalEntityTypeCode(name)
 }
 
 func checkAliasRegistrations(corpusID, operationKey string, expectedRevision uint64,

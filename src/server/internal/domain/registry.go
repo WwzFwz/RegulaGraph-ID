@@ -28,6 +28,52 @@ const IssuerIdentityKeyNamespace = "issuer-exact-label-jurisdiction:v1"
 const CanonicalEntityTypeRegulation int16 = 1
 const CanonicalEntityTypeOrganization int16 = 2
 
+// CanonicalEntityTypeCode reserves stable positive IDs for ontology entity types in the
+// PostgreSQL identity table. Existing regulation/organization/provision IDs never change.
+// Adding a type requires a registry/ontology compatibility review before publication.
+func CanonicalEntityTypeCode(name string) int16 {
+	switch name {
+	case "regulation":
+		return CanonicalEntityTypeRegulation
+	case "organization":
+		return CanonicalEntityTypeOrganization
+	case "provision":
+		return CanonicalEntityTypeProvision
+	case "role":
+		return 4
+	case "person":
+		return 5
+	case "activity":
+		return 6
+	case "obligation":
+		return 7
+	case "requirement":
+		return 8
+	case "exception":
+		return 9
+	case "defined_term":
+		return 10
+	case "permit":
+		return 11
+	case "prohibition":
+		return 12
+	case "procedure":
+		return 13
+	case "document":
+		return 14
+	case "sanction":
+		return 15
+	case "date":
+		return 16
+	case "place":
+		return 17
+	case "legal_concept":
+		return 18
+	default:
+		return 0
+	}
+}
+
 // RegulationIdentityPolicy holds facts configured at the corpus boundary. Jurisdiction is not
 // derived from a portal hostname because one portal may contain national and regional rules.
 type RegulationIdentityPolicy struct {

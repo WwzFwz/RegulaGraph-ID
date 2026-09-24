@@ -186,3 +186,60 @@ func TestRegistryAliasesAgainstPostgres(t *testing.T) {
 		t.Fatalf("orphan alias gained an unversioned profile: %v", err)
 	}
 }
+
+func TestProvisionAliasAndLookupAgainstPostgres(t *testing.T) {
+	dsn := os.Getenv("REGULAGRAPH_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("REGULAGRAPH_TEST_POSTGRES_DSN is not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	repo, err := Open(ctx, Config{DSN: dsn, MaxConnections: 4, HealthTimeout: 3 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer repo.Close()
+	migrations, err := filepath.Abs(filepath.Join("..", "..", "..", "..", "..", "migrations"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = repo.ApplyMigrations(ctx, os.DirFS(migrations)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = repo.pool.Exec(ctx, `TRUNCATE TABLE corpus_state CASCADE`); err != nil {
+		t.Fatal(err)
+	}
+	corpusID := "corpus-provision-alias-test"
+	claim := domain.CanonicalIdentityClaim{ProposalKey: "provision:fixture",
+		EntityType: domain.CanonicalEntityTypeProvision, IdentityScope: "provision-exact:v1",
+		IdentityKey: strings.Repeat("c", 64), PayloadHash: strings.Repeat("d", 64)}
+	assignments, revision, err := repo.ResolveCanonicalIdentities(ctx, corpusID,
+		"identity:provision", 1, []domain.CanonicalIdentityClaim{claim})
+	if err != nil || len(assignments) != 1 || revision != 2 {
+		t.Fatalf("seed provision identity: assignments=%v revision=%d err=%v", assignments, revision, err)
+	}
+	entity := &pb.CanonicalEntity{Meta: &pb.RecordMeta{SchemaVersion: 1, CorpusId: corpusID,
+		RecordId: assignments[0].CanonicalID}, EntityType: "provision", Scope: "regulation:fixture",
+		PreferredLabel: "Pasal 1", RegistryRevision: revision,
+		ReviewState:  pb.ReviewState_REVIEW_STATE_UNREVIEWED,
+		IdentityKeys: []*pb.IdentityKey{{Namespace: claim.IdentityScope, Value: claim.IdentityKey}}}
+	alias := &pb.Alias{Meta: &pb.RecordMeta{SchemaVersion: 1, CorpusId: corpusID,
+		RecordId: "alias:provision-fixture"}, CanonicalId: entity.Meta.RecordId,
+		Surface: "Pasal 1", NormalizedLookup: "pasal 1", Language: "id",
+		Scope: entity.Scope, SupportRefs: []string{"mention:synthetic-provision"}}
+	registered, err := repo.RegisterCanonicalAliases(ctx, corpusID, "alias:provision-operation", revision,
+		[]AliasRegistration{{Entity: entity, Alias: alias}})
+	if err != nil || registered != 3 {
+		t.Fatalf("register provision alias: revision=%d err=%v", registered, err)
+	}
+	results, observed, err := repo.LookupCanonicalAliases(ctx, corpusID, []RegistryLookupScope{
+		{EntityType: "provision", CanonicalScope: "regulation:fixture", NormalizedLookup: "pasal 1"},
+		{EntityType: "provision", CanonicalScope: "regulation:other", NormalizedLookup: "pasal 1"},
+	}, 2, 2)
+	if err != nil || observed != registered || len(results) != 2 ||
+		len(results[0].Candidates) != 1 || results[0].Candidates[0].Meta.RecordId != entity.Meta.RecordId ||
+		len(results[0].Aliases) != 1 || results[0].Revision.EmptyResult ||
+		len(results[1].Candidates) != 0 || !results[1].Revision.EmptyResult {
+		t.Fatalf("provision scope leaked or lost: %+v revision=%d err=%v", results, observed, err)
+	}
+}
