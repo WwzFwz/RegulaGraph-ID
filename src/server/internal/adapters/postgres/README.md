@@ -22,6 +22,15 @@ builder artefak C01. Nol mention menghasilkan `ErrNoCandidateMentions` tanpa pem
 dapat melewati RESOLVE secara eksplisit. [registry_candidate_batch_test.go](registry_candidate_batch_test.go)
 memeriksa mapping dan hasil tidak mungkin dengan fixture; belum membuktikan transaksi PostgreSQL nyata.
 
+[registry_semantic.go](registry_semantic.go) menerima proposal LINK/DEFER terikat batch kandidat dan melakukan
+CAS revision dalam transaksi serializable. [registry_semantic_inputs.go](registry_semantic_inputs.go) memeriksa
+hash/metadata artefak terdaftar serta baris review LINK yang mengikat proposal/kandidat persis secara batch;
+[registry_semantic_replay.go](registry_semantic_replay.go) merekonstruksi receipt lama dengan pemeriksaan
+integritas row/payload. [registry_semantic_integration_test.go](registry_semantic_integration_test.go)
+menguji writer ini pada PostgreSQL disposable, termasuk retry, stale candidate, forgery, dan konkurensi.
+Caller tepercaya wajib mengambil byte lewat storage `ReadVerified` dengan otorisasi checkpoint/fence dan
+mengautentikasi review sebelum menulis baris review; adapter ini sendiri belum menjadi stage RESOLVE publik.
+
 ## Benchmark dan perhatian performa
 
 **STORAGE.** Ukur latency p50/p95/p99, throughput batch, pool saturation, retry, dan error rate pada concurrency serta volume data yang disebutkan. Gate: timeout terlapor, resource dilepas, dan operasi tulis idempotent sesuai kontrak; tidak ada asumsi transaksi atomik lintas layanan.
@@ -32,9 +41,12 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Producer kandidat untuk scope eksplisit tersedia sebagai adapter, tetapi belum dipanggil workflow
-RESOLVE dan belum menjalani uji artefak lengkap pada PostgreSQL aktual. Alias `support_refs`
-tetap memerlukan verifikasi provenance sebelum publikasi; helper tidak mengesahkan identitas semantik.
+Producer kandidat untuk scope eksplisit serta writer receipt LINK/DEFER sudah diuji pada PostgreSQL aktual,
+tetapi belum dipanggil workflow RESOLVE. Pengambilan artefak dari checkpoint tepercaya, producer review
+terautentikasi, dan alias `support_refs` tetap memerlukan integrasi/provenance sebelum publikasi;
+writer tidak mengesahkan kebenaran identitas semantik dari gold hukum. Keputusan ditulis dengan
+batch SQL untuk menekan perjalanan database di bawah lock corpus; latency dan throughput target masih
+REQUIRED_UNMEASURED dan harus diukur bersama antrean/pool pada workload referensi.
 
 Fondasi S01 untuk schema migration, artifact metadata/dependency, durable jobs, retry availability dan budget per stage, handoff PARSE→STRUCTURE→BIND→CHUNK→EXTRACT, publication ledger, active-snapshot pointer, dan read lease telah aktif. Exact allocator K01 mengunci revision corpus, menyimpan operation ledger, dan mendeteksi replay/corruption; serialization failure PostgreSQL `40001` dikembalikan agar caller mengulang dengan budget. Registry alias K01 menyimpan alias unreviewed pada canonical ID yang sudah ada, mengembalikan semua kandidat ambigu dalam batas caller, dan mencatat perubahan lookup kosong; replay/reuse dan read memeriksa payload/hash/kolom persisten. Executor BIND memakai adapter ini untuk registry batch idempotent, artefak immutable, fingerprint dependency, empty lookup, dan checkpoint fenced. Belum ada producer alias produksi atau callsite RESOLVE; `support_refs` baru divalidasi bentuknya dan harus dibuktikan merujuk artefak EXTRACT sebelum publikasi. Canonical resolution semantik/merge-split, dependency closure U01, backend mutation, retention/GC, dan benchmark performa masih mengikuti paket pemiliknya.
 
