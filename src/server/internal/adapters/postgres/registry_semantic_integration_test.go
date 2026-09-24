@@ -5,6 +5,7 @@
 package postgres
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -19,8 +20,31 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	pb "regulagraph.local/server/gen/regulagraph/v1"
+	"regulagraph.local/server/internal/adapters/storage"
 	"regulagraph.local/server/internal/domain"
+	"regulagraph.local/server/internal/workflows"
 )
+
+type semanticTransitionReader struct {
+	delegate    *storage.FileStore
+	afterSecond func(context.Context) error
+	reads       int
+}
+
+func (reader *semanticTransitionReader) ReadVerified(ctx context.Context,
+	ref *pb.ArtifactRef, maximum uint64) ([]byte, error) {
+	raw, err := reader.delegate.ReadVerified(ctx, ref, maximum)
+	if err != nil {
+		return nil, err
+	}
+	reader.reads++
+	if reader.reads == 2 && reader.afterSecond != nil {
+		if err = reader.afterSecond(ctx); err != nil {
+			return nil, err
+		}
+	}
+	return raw, nil
+}
 
 func TestSemanticRegistryAgainstPostgres(t *testing.T) {
 	dsn := os.Getenv("REGULAGRAPH_TEST_POSTGRES_DSN")
@@ -151,10 +175,10 @@ func TestSemanticRegistryAgainstPostgres(t *testing.T) {
 	request.Context.RequestId = "request:resolve-semantic"
 	approval := []ReviewedLink{{ProposalID: request.Proposals[0].Meta.RecordId, CanonicalID: canonicalID,
 		Actor: "reviewer:one", Reason: "verified source and legal scope", ReviewID: "review:one"}}
-	if _, err = repo.CommitSemanticResolutions(ctx, input, request, nil, 64, 8); err == nil {
+	if _, err = repo.commitSemanticResolutions(ctx, nil, input, request, nil, 64, 8); err == nil {
 		t.Fatal("unapproved LINK was committed")
 	}
-	if _, err = repo.CommitSemanticResolutions(ctx, input, request, approval, 64, 8); !errors.Is(err, ErrConflict) {
+	if _, err = repo.commitSemanticResolutions(ctx, nil, input, request, approval, 64, 8); !errors.Is(err, ErrConflict) {
 		t.Fatalf("unpersisted review authorized LINK: %v", err)
 	}
 	proposalBytes, err := (proto.MarshalOptions{Deterministic: true}).Marshal(request.Proposals[0])
@@ -191,12 +215,12 @@ func TestSemanticRegistryAgainstPostgres(t *testing.T) {
 		WHERE corpus_id=$1 AND review_id=$2`, corpusID, revokedApproval[0].ReviewID); err == nil {
 		t.Fatal("revoked review could be rewritten again")
 	}
-	if _, err = repo.CommitSemanticResolutions(ctx, input, request, revokedApproval, 64, 8); !errors.Is(err, ErrConflict) {
+	if _, err = repo.commitSemanticResolutions(ctx, nil, input, request, revokedApproval, 64, 8); !errors.Is(err, ErrConflict) {
 		t.Fatalf("revoked review authorized LINK: %v", err)
 	}
 	changedProposal := proto.Clone(request).(*pb.RegistryResolveRequest)
 	changedProposal.Proposals[0].Method = "changed_after_review"
-	if _, err = repo.CommitSemanticResolutions(ctx, input, changedProposal, approval, 64, 8); !errors.Is(err, ErrConflict) {
+	if _, err = repo.commitSemanticResolutions(ctx, nil, input, changedProposal, approval, 64, 8); !errors.Is(err, ErrConflict) {
 		t.Fatalf("review authorized changed proposal content: %v", err)
 	}
 	otherCandidateBatch := proto.Clone(candidates).(*pb.RegistryCandidateBatch)
@@ -216,7 +240,7 @@ func TestSemanticRegistryAgainstPostgres(t *testing.T) {
 	otherCandidateInput := input
 	otherCandidateInput.CandidateRef = otherCandidateRef
 	otherCandidateInput.CandidateBytes = otherCandidateBytes
-	if _, err = repo.CommitSemanticResolutions(ctx, otherCandidateInput, request, approval, 64, 8); !errors.Is(err, ErrConflict) {
+	if _, err = repo.commitSemanticResolutions(ctx, nil, otherCandidateInput, request, approval, 64, 8); !errors.Is(err, ErrConflict) {
 		t.Fatalf("review authorized a different candidate artifact: %v", err)
 	}
 	forgedArtifact := proto.Clone(candidates).(*pb.RegistryCandidateBatch)
@@ -235,10 +259,229 @@ func TestSemanticRegistryAgainstPostgres(t *testing.T) {
 	}
 	forgedRegistered := SemanticRegistryInputs{SourceRef: sourceRef, SourceBytes: sourceBytes,
 		CandidateRef: forgedRef, CandidateBytes: forgedBytes}
-	if _, err = repo.CommitSemanticResolutions(ctx, forgedRegistered, request, approval, 64, 8); !errors.Is(err, ErrConflict) {
+	if _, err = repo.commitSemanticResolutions(ctx, nil, forgedRegistered, request, approval, 64, 8); !errors.Is(err, ErrConflict) {
 		t.Fatalf("registered but forged candidate view was accepted: %v", err)
 	}
-	response, err := repo.CommitSemanticResolutions(ctx, input, request, approval, 64, 8)
+	jobID := "job:semantic-resolve"
+	checkpoint := &pb.Checkpoint{Meta: &pb.RecordMeta{SchemaVersion: 1, CorpusId: corpusID,
+		RecordId: "checkpoint:semantic-extract"}, JobId: jobID,
+		Stage: pb.JobStage_JOB_STAGE_EXTRACT, Fence: 1,
+		TerminalStatus:     pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED,
+		CompletedBatchKeys: []string{sourceRef.ArtifactId},
+		ArtifactHashes:     []*pb.ContentHash{proto.Clone(sourceRef.ContentHash).(*pb.ContentHash)},
+		Manifest:           proto.Clone(extractProducer).(*pb.ProducerManifest)}
+	checkpointBytes, err := (proto.MarshalOptions{Deterministic: true}).Marshal(checkpoint)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkpointDigest := sha256.Sum256(checkpointBytes)
+	jobPayload := []byte("semantic-job-fixture")
+	jobDigest := sha256.Sum256(jobPayload)
+	if _, err = repo.pool.Exec(ctx, `INSERT INTO jobs
+		(job_id,corpus_id,operation,state,stage,input_fingerprint,idempotency_key,
+		request_hash,request_payload,attempt,stage_attempt,lease_fence)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,1,1,1)`, jobID, corpusID,
+		int16(pb.JobOperation_JOB_OPERATION_INGEST), int16(pb.JobState_JOB_STATE_STAGED),
+		int16(pb.JobStage_JOB_STAGE_EXTRACT), strings.Repeat("f", 64),
+		"semantic-job-fixture", hex.EncodeToString(jobDigest[:]), jobPayload); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = repo.pool.Exec(ctx, `INSERT INTO job_checkpoints
+		(checkpoint_id,job_id,stage,fence,payload,payload_hash,terminal_status)
+		VALUES ($1,$2,$3,1,$4,$5,$6)`, checkpoint.Meta.RecordId, jobID,
+		int16(pb.JobStage_JOB_STAGE_EXTRACT), checkpointBytes,
+		hex.EncodeToString(checkpointDigest[:]),
+		int16(pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = repo.pool.Exec(ctx, `UPDATE jobs SET latest_checkpoint_id=$2 WHERE job_id=$1`,
+		jobID, checkpoint.Meta.RecordId); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = repo.pool.Exec(ctx, `UPDATE job_checkpoints SET terminal_status=NULL
+		WHERE checkpoint_id=$1`, checkpoint.Meta.RecordId); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = repo.ClaimResolveJob(ctx, "owner:semantic", time.Minute); !errors.Is(err, ErrLeaseUnavailable) {
+		t.Fatalf("RESOLVE claimed an EXTRACT checkpoint without a successful terminal outcome: %v", err)
+	}
+	if _, err = repo.pool.Exec(ctx, `UPDATE job_checkpoints SET terminal_status=$2
+		WHERE checkpoint_id=$1`, checkpoint.Meta.RecordId,
+		int16(pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED)); err != nil {
+		t.Fatal(err)
+	}
+	claimed, err := repo.ClaimResolveJob(ctx, "owner:semantic", time.Minute)
+	if err != nil || claimed.JobID != jobID || claimed.Stage != pb.JobStage_JOB_STAGE_RESOLVE ||
+		claimed.LeaseFence != 2 {
+		t.Fatalf("EXTRACT-to-RESOLVE handoff did not claim expected lease: job=%+v err=%v", claimed, err)
+	}
+	proof := SemanticJobFence{JobID: jobID, OwnerID: claimed.LeaseOwner,
+		SourceCheckpointID: checkpoint.Meta.RecordId, Fence: claimed.LeaseFence}
+	staleProof := proof
+	staleProof.Fence++
+	if _, err = repo.CommitSemanticResolutions(ctx, staleProof, input, request,
+		approval, 64, 8); !errors.Is(err, ErrStaleFence) {
+		t.Fatalf("stale RESOLVE fence authorized registry write: %v", err)
+	}
+	if _, err = repo.pool.Exec(ctx, `UPDATE job_checkpoints SET payload_hash=$2
+		WHERE checkpoint_id=$1`, checkpoint.Meta.RecordId, strings.Repeat("0", 64)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = repo.CommitSemanticResolutions(ctx, proof, input, request,
+		approval, 64, 8); !errors.Is(err, domain.ErrPersistentIntegrity) {
+		t.Fatalf("corrupt EXTRACT checkpoint authorized registry write: %v", err)
+	}
+	if _, err = repo.pool.Exec(ctx, `UPDATE job_checkpoints SET payload_hash=$2
+		WHERE checkpoint_id=$1`, checkpoint.Meta.RecordId,
+		hex.EncodeToString(checkpointDigest[:])); err != nil {
+		t.Fatal(err)
+	}
+	wrongManifest := proto.Clone(checkpoint).(*pb.Checkpoint)
+	wrongManifest.Manifest.Software = "different-extractor"
+	wrongManifestBytes, err := (proto.MarshalOptions{Deterministic: true}).Marshal(wrongManifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrongManifestDigest := sha256.Sum256(wrongManifestBytes)
+	if _, err = repo.pool.Exec(ctx, `UPDATE job_checkpoints SET payload=$2,payload_hash=$3
+		WHERE checkpoint_id=$1`, checkpoint.Meta.RecordId, wrongManifestBytes,
+		hex.EncodeToString(wrongManifestDigest[:])); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = repo.CommitSemanticResolutions(ctx, proof, input, request,
+		approval, 64, 8); !errors.Is(err, domain.ErrPersistentIntegrity) {
+		t.Fatalf("different EXTRACT producer authorized registry write: %v", err)
+	}
+	if _, err = repo.pool.Exec(ctx, `UPDATE job_checkpoints SET payload=$2,payload_hash=$3
+		WHERE checkpoint_id=$1`, checkpoint.Meta.RecordId, checkpointBytes,
+		hex.EncodeToString(checkpointDigest[:])); err != nil {
+		t.Fatal(err)
+	}
+	fileStore, err := storage.NewFileStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fileStore.Close()
+	for _, artifact := range []struct {
+		ref *pb.ArtifactRef
+		raw []byte
+	}{{sourceRef, sourceBytes}, {candidateRef, candidateBytes}} {
+		if _, err = fileStore.Put(ctx, artifact.ref, bytes.NewReader(artifact.raw)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, transition := range []struct {
+		name    string
+		change  string
+		restore string
+	}{
+		{"cancelled after artifact read", "UPDATE jobs SET cancellation_requested=true WHERE job_id=$1",
+			"UPDATE jobs SET cancellation_requested=false WHERE job_id=$1"},
+		{"expired after artifact read", "UPDATE jobs SET lease_expires_at=clock_timestamp()-interval '1 second' WHERE job_id=$1",
+			"UPDATE jobs SET lease_expires_at=clock_timestamp()+interval '1 minute' WHERE job_id=$1"},
+	} {
+		t.Run(transition.name, func(t *testing.T) {
+			reader := &semanticTransitionReader{delegate: fileStore,
+				afterSecond: func(ctx context.Context) error {
+					_, changeErr := repo.pool.Exec(ctx, transition.change, jobID)
+					return changeErr
+				}}
+			transitionHandoff, buildErr := workflows.NewSemanticResolutionHandoff(repo,
+				reader, uint64(len(sourceBytes)+len(candidateBytes)), 64, 8)
+			if buildErr != nil {
+				t.Fatal(buildErr)
+			}
+			if _, commitErr := transitionHandoff.Commit(ctx, claimed, candidateRef, request,
+				approval); !errors.Is(commitErr, ErrStaleFence) || reader.reads != 2 {
+				t.Fatalf("lease transition after verified reads authorized LINK: err=%v reads=%d",
+					commitErr, reader.reads)
+			}
+			var operations int
+			if scanErr := repo.pool.QueryRow(ctx, `SELECT count(*) FROM registry_semantic_operations
+				WHERE corpus_id=$1 AND operation_key=$2`, corpusID, request.OperationKey).
+				Scan(&operations); scanErr != nil || operations != 0 {
+				t.Fatalf("failed fenced write persisted an operation: count=%d err=%v", operations, scanErr)
+			}
+			if _, restoreErr := repo.pool.Exec(ctx, transition.restore, jobID); restoreErr != nil {
+				t.Fatal(restoreErr)
+			}
+		})
+	}
+	if _, err = repo.pool.Exec(ctx, `UPDATE jobs SET lease_expires_at=clock_timestamp()+interval '2 seconds'
+		WHERE job_id=$1`, jobID); err != nil {
+		t.Fatal(err)
+	}
+	reviewLock, err := repo.pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reviewLock.Rollback(ctx)
+	if _, err = reviewLock.Exec(ctx, `SELECT review_id FROM registry_semantic_reviews
+		WHERE corpus_id=$1 AND review_id=$2 FOR UPDATE`, corpusID, approval[0].ReviewID); err != nil {
+		t.Fatal(err)
+	}
+	expiredResult := make(chan error, 1)
+	go func() {
+		_, commitErr := repo.CommitSemanticResolutions(ctx, proof, input, request, approval, 64, 8)
+		expiredResult <- commitErr
+	}()
+	waitDeadline := time.Now().Add(time.Second)
+	blocked := false
+	for !blocked && time.Now().Before(waitDeadline) {
+		if err = repo.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM pg_stat_activity
+			WHERE datname=current_database() AND wait_event_type='Lock'
+			AND query LIKE '%FROM registry_semantic_reviews%' AND query LIKE '%FOR SHARE%')`).
+			Scan(&blocked); err != nil {
+			t.Fatal(err)
+		}
+		if !blocked {
+			select {
+			case commitErr := <-expiredResult:
+				t.Fatalf("writer exited before review lock wait: %v", commitErr)
+			default:
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	if !blocked {
+		t.Fatal("writer never reached the held review lock before lease expiry")
+	}
+	expiryDeadline := time.Now().Add(3 * time.Second)
+	expired := false
+	for !expired && time.Now().Before(expiryDeadline) {
+		if err = repo.pool.QueryRow(ctx, `SELECT lease_expires_at <= clock_timestamp()
+			FROM jobs WHERE job_id=$1`, jobID).Scan(&expired); err != nil {
+			t.Fatal(err)
+		}
+		if !expired {
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+	if !expired {
+		t.Fatal("test lease did not expire while writer was blocked")
+	}
+	if err = reviewLock.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if commitErr := <-expiredResult; !errors.Is(commitErr, ErrStaleFence) {
+		t.Fatalf("lease expired while registry transaction waited: %v", commitErr)
+	}
+	var expiredOperations int
+	if err = repo.pool.QueryRow(ctx, `SELECT count(*) FROM registry_semantic_operations
+		WHERE corpus_id=$1 AND operation_key=$2`, corpusID, request.OperationKey).
+		Scan(&expiredOperations); err != nil || expiredOperations != 0 {
+		t.Fatalf("expired transaction persisted an operation: count=%d err=%v", expiredOperations, err)
+	}
+	if _, err = repo.pool.Exec(ctx, `UPDATE jobs SET lease_expires_at=clock_timestamp()+interval '1 minute'
+		WHERE job_id=$1`, jobID); err != nil {
+		t.Fatal(err)
+	}
+	handoff, err := workflows.NewSemanticResolutionHandoff(repo, fileStore,
+		uint64(len(sourceBytes)+len(candidateBytes)), 64, 8)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := handoff.Commit(ctx, claimed, candidateRef, request, approval)
 	if err != nil || response.RegistryRevision != revision+1 || len(response.Assignments) != 2 ||
 		response.Assignments[0].GetDecision().AssignedCanonicalIds[0] != canonicalID ||
 		len(response.Assignments[1].GetDecision().AssignedCanonicalIds) != 0 {
@@ -260,11 +503,19 @@ func TestSemanticRegistryAgainstPostgres(t *testing.T) {
 	}
 	retry := proto.Clone(request).(*pb.RegistryResolveRequest)
 	retry.Context.RequestId = "request:retry-semantic"
-	replayed, err := repo.CommitSemanticResolutions(ctx, input, retry, approval, 64, 8)
+	replayed, err := repo.CommitSemanticResolutions(ctx, proof, input, retry, approval, 64, 8)
 	if err != nil || replayed.RegistryRevision != response.RegistryRevision ||
 		replayed.RequestId != retry.Context.RequestId ||
 		replayed.Assignments[0].GetDecision().Meta.RecordId != response.Assignments[0].GetDecision().Meta.RecordId {
 		t.Fatalf("semantic replay changed decision: replay=%v err=%v", replayed, err)
+	}
+	if _, err = repo.pool.Exec(ctx, `UPDATE jobs SET lease_owner='owner:successor',
+		lease_fence=lease_fence+1 WHERE job_id=$1`, jobID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = repo.CommitSemanticResolutions(ctx, proof, input, retry,
+		approval, 64, 8); !errors.Is(err, ErrStaleFence) {
+		t.Fatalf("superseded RESOLVE owner replayed a registry receipt: %v", err)
 	}
 	if _, err = repo.pool.Exec(ctx, `UPDATE registry_semantic_reviews SET reason='rewritten'
 		WHERE corpus_id=$1 AND review_id=$2`, corpusID, approval[0].ReviewID); err == nil {
@@ -294,13 +545,13 @@ func TestSemanticRegistryAgainstPostgres(t *testing.T) {
 	}
 	changedApproval := append([]ReviewedLink(nil), approval...)
 	changedApproval[0].Reason = "different review"
-	if _, err = repo.CommitSemanticResolutions(ctx, input, request,
+	if _, err = repo.commitSemanticResolutions(ctx, nil, input, request,
 		changedApproval, 64, 8); !errors.Is(err, ErrConflict) {
 		t.Fatalf("changed review reused operation key: %v", err)
 	}
 	stale := proto.Clone(request).(*pb.RegistryResolveRequest)
 	stale.OperationKey = "semantic:stale"
-	if _, err = repo.CommitSemanticResolutions(ctx, input, stale,
+	if _, err = repo.commitSemanticResolutions(ctx, nil, input, stale,
 		approval, 64, 8); !errors.Is(err, ErrConflict) {
 		t.Fatalf("stale candidate revision committed: %v", err)
 	}
@@ -329,7 +580,7 @@ func TestSemanticRegistryAgainstPostgres(t *testing.T) {
 	}
 	freshInput := SemanticRegistryInputs{SourceRef: sourceRef, SourceBytes: sourceBytes,
 		CandidateRef: freshRef, CandidateBytes: freshBytes}
-	if _, err = repo.CommitSemanticResolutions(ctx, freshInput,
+	if _, err = repo.commitSemanticResolutions(ctx, nil, freshInput,
 		redecision, approval, 64, 8); !errors.Is(err, ErrConflict) {
 		t.Fatalf("same proposal received a second decision: %v", err)
 	}
@@ -354,7 +605,7 @@ func TestSemanticRegistryAgainstPostgres(t *testing.T) {
 			defer raceWG.Done()
 			raceRequest := proto.Clone(raceBase).(*pb.RegistryResolveRequest)
 			raceRequest.OperationKey = "semantic:race:" + string(rune('a'+index))
-			_, raceResults[index] = repo.CommitSemanticResolutions(ctx, freshInput, raceRequest, nil, 64, 8)
+			_, raceResults[index] = repo.commitSemanticResolutions(ctx, nil, freshInput, raceRequest, nil, 64, 8)
 		}()
 	}
 	raceWG.Wait()
@@ -381,14 +632,14 @@ func TestSemanticRegistryAgainstPostgres(t *testing.T) {
 	forged := input
 	forged.CandidateBytes = append([]byte(nil), candidateBytes...)
 	forged.CandidateBytes[len(forged.CandidateBytes)-1] ^= 1
-	if _, err = repo.CommitSemanticResolutions(ctx, forged, request,
+	if _, err = repo.commitSemanticResolutions(ctx, nil, forged, request,
 		approval, 64, 8); err == nil {
 		t.Fatal("forged candidate bytes committed")
 	}
 	missingSource := input
 	missingSource.SourceRef = proto.Clone(sourceRef).(*pb.ArtifactRef)
 	missingSource.SourceRef.ArtifactId = "artifact:missing-source"
-	if _, err = repo.CommitSemanticResolutions(ctx, missingSource, request,
+	if _, err = repo.commitSemanticResolutions(ctx, nil, missingSource, request,
 		approval, 64, 8); err == nil {
 		t.Fatal("unregistered EXTRACT artifact committed")
 	}
@@ -413,7 +664,7 @@ func TestSemanticRegistryAgainstPostgres(t *testing.T) {
 	if err = corruptTx.Commit(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = repo.CommitSemanticResolutions(ctx, input, request,
+	if _, err = repo.commitSemanticResolutions(ctx, nil, input, request,
 		approval, 64, 8); !errors.Is(err, domain.ErrPersistentIntegrity) {
 		t.Fatalf("corrupt semantic decision replay accepted: %v", err)
 	}

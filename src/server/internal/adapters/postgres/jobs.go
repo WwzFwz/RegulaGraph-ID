@@ -107,7 +107,7 @@ func (r *Repository) ClaimJob(ctx context.Context, ownerID string, leaseDuration
 	}
 	row := r.pool.QueryRow(ctx, `WITH candidate AS (
         SELECT job_id FROM jobs
-		WHERE cancellation_requested=false AND stage NOT IN ($9,$10,$11,$12,$13) AND (
+		WHERE cancellation_requested=false AND stage NOT IN ($9,$10,$11,$12,$13,$14) AND (
 		  state=$1 OR (state=$2 AND next_attempt_at <= clock_timestamp() AND stage_attempt < max_attempts)
 		  OR (state IN ($3,$6,$7,$8) AND lease_expires_at < clock_timestamp()))
         ORDER BY created_at, job_id
@@ -125,7 +125,8 @@ func (r *Repository) ClaimJob(ctx context.Context, ownerID string, leaseDuration
 		int16(pb.JobState_JOB_STATE_STAGED), int16(pb.JobState_JOB_STATE_VALIDATING),
 		int16(pb.JobState_JOB_STATE_PUBLISHING), int16(pb.JobStage_JOB_STAGE_PARSE),
 		int16(pb.JobStage_JOB_STAGE_STRUCTURE), int16(pb.JobStage_JOB_STAGE_BIND),
-		int16(pb.JobStage_JOB_STAGE_CHUNK), int16(pb.JobStage_JOB_STAGE_EXTRACT))
+		int16(pb.JobStage_JOB_STAGE_CHUNK), int16(pb.JobStage_JOB_STAGE_EXTRACT),
+		int16(pb.JobStage_JOB_STAGE_RESOLVE))
 	record, err := scanJob(row)
 	if err == pgx.ErrNoRows {
 		return JobRecord{}, ErrLeaseUnavailable
@@ -155,6 +156,13 @@ func (r *Repository) ClaimChunkJob(ctx context.Context, ownerID string, leaseDur
 // ClaimExtractJob transfers a verified chunk DocumentBatch to the Rust-owned EXTRACT stage.
 func (r *Repository) ClaimExtractJob(ctx context.Context, ownerID string, leaseDuration time.Duration) (JobRecord, error) {
 	return r.claimHandoffJob(ctx, ownerID, leaseDuration, pb.JobStage_JOB_STAGE_CHUNK, pb.JobStage_JOB_STAGE_EXTRACT)
+}
+
+// ClaimResolveJob fences the Go-owned semantic resolution stage after a successful EXTRACT.
+// Its caller must verify the EXTRACT checkpoint and read its artifact before using the
+// registry writer; claim alone does not authorize a LINK or publish a graph.
+func (r *Repository) ClaimResolveJob(ctx context.Context, ownerID string, leaseDuration time.Duration) (JobRecord, error) {
+	return r.claimHandoffJob(ctx, ownerID, leaseDuration, pb.JobStage_JOB_STAGE_EXTRACT, pb.JobStage_JOB_STAGE_RESOLVE)
 }
 
 func (r *Repository) claimHandoffJob(
@@ -195,7 +203,11 @@ func (r *Repository) claimHandoffJob(
 		    AND c.terminal_status IS NOT NULL
 		) AS recovery_ready FROM jobs
 		WHERE cancellation_requested=false AND (
-		  (stage=$5 AND state=$6) OR
+		  (stage=$5 AND state=$6 AND ($8::boolean=false OR EXISTS (
+		    SELECT 1 FROM job_checkpoints source_checkpoint
+		    WHERE source_checkpoint.checkpoint_id=jobs.latest_checkpoint_id
+		      AND source_checkpoint.job_id=jobs.job_id AND source_checkpoint.stage=$5
+		      AND source_checkpoint.terminal_status=$9))) OR
 		  (stage=$7 AND ((state=$1 AND (stage_attempt < max_attempts OR EXISTS (
 		      SELECT 1 FROM job_checkpoints c WHERE c.checkpoint_id=jobs.latest_checkpoint_id AND c.stage=$7
 		        AND c.terminal_status IS NOT NULL))
@@ -215,7 +227,9 @@ func (r *Repository) claimHandoffJob(
 		j.lease_fence,j.lease_expires_at,j.cancellation_requested,j.created_at,j.updated_at`,
 		int16(pb.JobState_JOB_STATE_RETRY_WAIT), int16(pb.JobState_JOB_STATE_RUNNING),
 		ownerID, leaseDuration.String(), int16(previousStage),
-		int16(pb.JobState_JOB_STATE_STAGED), int16(targetStage))
+		int16(pb.JobState_JOB_STATE_STAGED), int16(targetStage),
+		targetStage == pb.JobStage_JOB_STAGE_RESOLVE,
+		int16(pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED))
 	record, err := scanJob(row)
 	if err == pgx.ErrNoRows {
 		return JobRecord{}, ErrLeaseUnavailable

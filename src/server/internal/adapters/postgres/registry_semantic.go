@@ -22,30 +22,27 @@ import (
 	"regulagraph.local/server/internal/domain"
 )
 
-// ReviewedLink is an authenticated workflow assertion about one exact proposal/candidate.
-// The adapter verifies its shape and binding; authentication and the durable review record
-// are owned by the calling review workflow, which is not yet wired to public routes.
-type ReviewedLink struct {
-	ProposalID  string
-	CanonicalID string
-	Actor       string
-	Reason      string
-	ReviewID    string
-}
+// These aliases retain the adapter API while the shared boundary types live in domain.
+type ReviewedLink = domain.ReviewedLink
+type SemanticRegistryInputs = domain.SemanticRegistryInputs
+type SemanticJobFence = domain.SemanticJobFence
 
-// SemanticRegistryInputs carries the exact protobuf bytes read from immutable artifact storage.
-// The writer verifies both refs against PostgreSQL metadata and recomputes their hashes before
-// decoding. The caller must still use ReadVerified/checkpoint authorization to fetch these bytes.
-type SemanticRegistryInputs struct {
-	SourceRef      *pb.ArtifactRef
-	SourceBytes    []byte
-	CandidateRef   *pb.ArtifactRef
-	CandidateBytes []byte
-}
-
-// CommitSemanticResolutions verifies the pinned registry candidate read and writes all
-// decisions or none. It returns the same decisions on replay even after later revisions.
+// CommitSemanticResolutions verifies the claimed RESOLVE lease and EXTRACT checkpoint in
+// the same transaction as the registry CAS. It writes all decisions or none and returns
+// the same decisions on a replay while the claimed lease remains valid.
 func (r *Repository) CommitSemanticResolutions(ctx context.Context,
+	proof SemanticJobFence, input SemanticRegistryInputs, request *pb.RegistryResolveRequest,
+	approvals []ReviewedLink, maximumReferences, maximumCandidatesPerMention int) (*pb.RegistryResolveResponse, error) {
+	if !storageIDPattern.MatchString(proof.JobID) || !storageIDPattern.MatchString(proof.OwnerID) ||
+		!storageIDPattern.MatchString(proof.SourceCheckpointID) || proof.Fence == 0 || proof.Fence > math.MaxInt64 {
+		return nil, errors.New("valid RESOLVE job fence and EXTRACT checkpoint are required")
+	}
+	return r.commitSemanticResolutions(ctx, &proof, input, request, approvals,
+		maximumReferences, maximumCandidatesPerMention)
+}
+
+// The unfenced core is private; fixture tests use it to isolate registry invariants.
+func (r *Repository) commitSemanticResolutions(ctx context.Context, proof *SemanticJobFence,
 	input SemanticRegistryInputs, request *pb.RegistryResolveRequest, approvals []ReviewedLink,
 	maximumReferences, maximumCandidatesPerMention int) (*pb.RegistryResolveResponse, error) {
 	if r == nil || r.pool == nil || ctx == nil || request == nil || request.Context == nil ||
@@ -109,6 +106,11 @@ func (r *Repository) CommitSemanticResolutions(ctx context.Context,
 		corpusID).Scan(&current); err != nil {
 		return nil, fmt.Errorf("lock semantic registry revision: %w", err)
 	}
+	if proof != nil {
+		if err = verifySemanticJobFence(ctx, tx, *proof, corpusID, sourceRef, source); err != nil {
+			return nil, err
+		}
+	}
 	response, found, err := loadSemanticOperation(ctx, tx, request, requestHash, current, approvalByID)
 	if err != nil {
 		return nil, err
@@ -117,6 +119,11 @@ func (r *Repository) CommitSemanticResolutions(ctx context.Context,
 		if err = domain.ValidateRegistryResolveReceipt(source, sourceRef, candidates, request,
 			response, maximumReferences, maximumCandidatesPerMention); err != nil {
 			return nil, fmt.Errorf("stored registry receipt is invalid: %w", domain.ErrPersistentIntegrity)
+		}
+		if proof != nil {
+			if err = verifySemanticLeaseStillLive(ctx, tx, *proof); err != nil {
+				return nil, err
+			}
 		}
 		if err = tx.Commit(ctx); err != nil {
 			return nil, fmt.Errorf("complete semantic replay: %w", err)
@@ -195,6 +202,11 @@ func (r *Repository) CommitSemanticResolutions(ctx context.Context,
 	}
 	if err = results.Close(); err != nil {
 		return nil, fmt.Errorf("finish semantic decision batch: %w", err)
+	}
+	if proof != nil {
+		if err = verifySemanticLeaseStillLive(ctx, tx, *proof); err != nil {
+			return nil, err
+		}
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("commit semantic registry operation: %w", err)
