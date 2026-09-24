@@ -14,7 +14,7 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
-[repository.go](repository.go) mengelola lifecycle pool dan error boundary. [migrate.go](migrate.go) menerapkan migration terurut dengan advisory lock serta checksum. [jobs.go](jobs.go) mengelola idempotency, claim PARSE/STRUCTURE/BIND/CHUNK/EXTRACT, attempt global dan budget retry per stage, lease/fence, polling cancellation, checkpoint, dan completion atomik yang memberi prioritas pada cancellation. [artifacts.go](artifacts.go) mengikat serta memuat metadata immutable untuk handoff checkpoint. [registry.go](registry.go) mengalokasikan exact canonical identity secara revisioned dan idempotent. [registry_aliases.go](registry_aliases.go) meregistrasikan profil/alias bersumber secara append-only dengan CAS revision, sedangkan [registry_candidates.go](registry_candidates.go) membaca kandidat ambigu dan revision lookup positif/negatif dalam satu snapshot. [publication.go](publication.go) merealisasikan reservation, backend receipt, snapshot CAS, outbox, abort, dan read lease. [repository_integration_test.go](repository_integration_test.go) dan [registry_aliases_integration_test.go](registry_aliases_integration_test.go) adalah suite PostgreSQL aktual dan akan skip jika DSN test tidak tersedia.
+[repository.go](repository.go) mengelola lifecycle pool dan error boundary. [migrate.go](migrate.go) menerapkan migration terurut dengan advisory lock serta checksum. [jobs.go](jobs.go) mengelola idempotency, claim PARSE/STRUCTURE/BIND/CHUNK/EXTRACT/RESOLVE, attempt global dan budget retry per stage, lease/fence, polling cancellation, checkpoint, dan completion atomik yang memberi prioritas pada cancellation. Klaim RESOLVE mensyaratkan checkpoint EXTRACT dengan terminal sukses dan tidak diambil claimant generik. [artifacts.go](artifacts.go) mengikat serta memuat metadata immutable untuk handoff checkpoint. [registry.go](registry.go) mengalokasikan exact canonical identity secara revisioned dan idempotent. [registry_aliases.go](registry_aliases.go) meregistrasikan profil/alias bersumber secara append-only dengan CAS revision, sedangkan [registry_candidates.go](registry_candidates.go) membaca kandidat ambigu dan revision lookup positif/negatif dalam satu snapshot. [publication.go](publication.go) merealisasikan reservation, backend receipt, snapshot CAS, outbox, abort, dan read lease. [repository_integration_test.go](repository_integration_test.go) dan [registry_aliases_integration_test.go](registry_aliases_integration_test.go) adalah suite PostgreSQL aktual dan akan skip jika DSN test tidak tersedia.
 
 [registry_candidate_batch.go](registry_candidate_batch.go) membaca scope yang dipilih eksplisit per mention
 dalam satu transaksi lookup, memeriksa key/revisi serta closure alias, kemudian meneruskan observasi ke
@@ -25,11 +25,14 @@ memeriksa mapping dan hasil tidak mungkin dengan fixture; belum membuktikan tran
 [registry_semantic.go](registry_semantic.go) menerima proposal LINK/DEFER terikat batch kandidat dan melakukan
 CAS revision dalam transaksi serializable. [registry_semantic_inputs.go](registry_semantic_inputs.go) memeriksa
 hash/metadata artefak terdaftar serta baris review LINK yang mengikat proposal/kandidat persis secara batch;
-[registry_semantic_replay.go](registry_semantic_replay.go) merekonstruksi receipt lama dengan pemeriksaan
+[registry_semantic_fence.go](registry_semantic_fence.go) mengunci job/checkpoint dan memeriksa corpus,
+owner, fence, cancellation, lease, manifest EXTRACT, dan hash sumber di transaksi yang sama dengan
+CAS. [registry_semantic_replay.go](registry_semantic_replay.go) merekonstruksi receipt lama dengan pemeriksaan
 integritas row/payload. [registry_semantic_integration_test.go](registry_semantic_integration_test.go)
-menguji writer ini pada PostgreSQL disposable, termasuk retry, stale candidate, forgery, dan konkurensi.
-Caller tepercaya wajib mengambil byte lewat storage `ReadVerified` dengan otorisasi checkpoint/fence dan
-mengautentikasi review sebelum menulis baris review; adapter ini sendiri belum menjadi stage RESOLVE publik.
+menguji writer ini pada PostgreSQL disposable, termasuk retry, stale candidate, forgery, konkurensi,
+handoff FileStore nyata, dan lease yang berubah di tengah pembacaan/transaksi. Caller wajib memakai
+`SemanticResolutionHandoff` agar byte berasal dari `ReadVerified`; producer review terautentikasi
+belum tersedia dan adapter ini belum menjadi stage RESOLVE publik.
 
 ## Benchmark dan perhatian performa
 
@@ -41,12 +44,14 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Producer kandidat untuk scope eksplisit serta writer receipt LINK/DEFER sudah diuji pada PostgreSQL aktual,
-tetapi belum dipanggil workflow RESOLVE. Pengambilan artefak dari checkpoint tepercaya, producer review
-terautentikasi, dan alias `support_refs` tetap memerlukan integrasi/provenance sebelum publikasi;
+Producer kandidat untuk scope eksplisit, writer receipt LINK/DEFER, dan handoff EXTRACT terfence
+sudah diuji pada PostgreSQL aktual, tetapi executor RESOLVE lengkap belum aktif. Producer review
+terautentikasi dan alias `support_refs` tetap memerlukan integrasi/provenance sebelum publikasi;
 writer tidak mengesahkan kebenaran identitas semantik dari gold hukum. Keputusan ditulis dengan
 batch SQL untuk menekan perjalanan database di bawah lock corpus; latency dan throughput target masih
-REQUIRED_UNMEASURED dan harus diukur bersama antrean/pool pada workload referensi.
+REQUIRED_UNMEASURED dan harus diukur bersama antrean/pool pada workload referensi. Verifikasi byte
+sekarang membaca dan meng-hash artefak berulang, sementara lock job menahan lease renewal sepanjang
+transaksi; profilkan I/O, lock wait, peak RSS, dan lama lease sebelum memberi klaim performa.
 
 Fondasi S01 untuk schema migration, artifact metadata/dependency, durable jobs, retry availability dan budget per stage, handoff PARSE→STRUCTURE→BIND→CHUNK→EXTRACT, publication ledger, active-snapshot pointer, dan read lease telah aktif. Exact allocator K01 mengunci revision corpus, menyimpan operation ledger, dan mendeteksi replay/corruption; serialization failure PostgreSQL `40001` dikembalikan agar caller mengulang dengan budget. Registry alias K01 menyimpan alias unreviewed pada canonical ID yang sudah ada, mengembalikan semua kandidat ambigu dalam batas caller, dan mencatat perubahan lookup kosong; replay/reuse dan read memeriksa payload/hash/kolom persisten. Executor BIND memakai adapter ini untuk registry batch idempotent, artefak immutable, fingerprint dependency, empty lookup, dan checkpoint fenced. Belum ada producer alias produksi atau callsite RESOLVE; `support_refs` baru divalidasi bentuknya dan harus dibuktikan merujuk artefak EXTRACT sebelum publikasi. Canonical resolution semantik/merge-split, dependency closure U01, backend mutation, retention/GC, dan benchmark performa masih mengikuti paket pemiliknya.
 

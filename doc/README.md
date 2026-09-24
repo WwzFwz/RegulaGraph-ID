@@ -44,6 +44,9 @@ autentikasi byte artefak dan transaksi registry masih milik workflow/adapter.
 [verification-report-k01-semantic-registry.md](verification-report-k01-semantic-registry.md)
 mencatat writer PostgreSQL LINK/DEFER, review terikat proposal/kandidat, CAS, replay, serta
 batas bahwa workflow RESOLVE dan penerimaan kualitas/performa belum aktif.
+[verification-report-k01-resolve-handoff.md](verification-report-k01-resolve-handoff.md)
+mencatat klaim EXTRACT→RESOLVE, byte `ReadVerified`, dan fencing transaksi registry yang diuji;
+producer review terautentikasi dan executor RESOLVE penuh masih terbuka.
 [verification-report-g01-review-packet.md](verification-report-g01-review-packet.md) mencatat triase enam PDF
 yang metadata antreannya dicocokkan ulang ke inventory dan byte PDF-nya diverifikasi; gold manusia belum tersedia.
 [verification-report-a01-citation-mapping.md](verification-report-a01-citation-mapping.md) mencatat helper

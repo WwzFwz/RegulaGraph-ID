@@ -45,6 +45,12 @@ memeriksa dependency, copy input, receipt parsial, dan benturan ID. Caller masih
 memverifikasi byte artefak kandidat dan transaksi PostgreSQL; builder tidak mengaktifkan
 workflow RESOLVE atau membuktikan kualitas LINK.
 
+[semantic_registry.go](semantic_registry.go) mendefinisikan input byte/ref, bukti lease/checkpoint,
+dan assertion review lintas workflow Go serta adapter PostgreSQL. Tipe ini tidak dengan sendirinya
+mengautentikasi aktor, mengesahkan isi hukum, atau membuka koneksi; writer yang memeriksa bukti
+lease dan review secara transaksional. Handoff memakai budget byte dan target performa dari
+konfigurasi serta `configs/benchmark-targets.yaml`.
+
 `VerifyCitationEvidence` pada [boundaries.go](boundaries.go) kini menolak ID klaim/sitasi duplikat,
 memerlukan sitasi untuk setiap pasangan klaim–evidence–source version pada klaim SUPPORTED,
 serta memakai satu lookup URL tepercaya per source/version selama validasi. Evidence multisumber
