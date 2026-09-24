@@ -6,3 +6,5 @@ Folder ini menampung schema structured-output yang dipin dan di-hash untuk bound
 
 Perubahan schema menghasilkan hash dan versi baru, memperbarui prompt/model manifest, serta memerlukan evaluasi ulang extraction pada split beku. Jangan mengganti file versi lama setelah dipakai artefak. Ukur schema-failure rate, token output, latency, dan precision/recall sesuai `configs/benchmark-targets.yaml`; status tetap **REQUIRED_UNMEASURED**.
 
+
+`resolution-output-v1.json` adalah schema provider untuk LINK/DEFER kontekstual. Gateway memeriksa field wajib/non-null, duplikat key, kandidat, dan konteks sebelum memproyeksikan ke ResolutionProposal. `rationale` serta `supporting_context_ids` disimpan untuk audit, bukan review approval.

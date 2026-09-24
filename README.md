@@ -394,3 +394,5 @@ Build Go memvalidasi package, collector, storage/control-plane, client Worker, c
 Prioritas adalah p95/p99 latency, waktu sampai token jawaban pertama, throughput ingestion, dan efisiensi memori. Target numerik wajib sudah ditetapkan pada profil referensi asumsi dalam [benchmark-targets.yaml](configs/benchmark-targets.yaml); status REQUIRED_UNMEASURED. Hardware deployment aktual belum ditentukan. [Panduan target](doc/benchmark-targets.md) dan [kebijakan benchmark](doc/benchmark-policy.md) menjelaskan beban uji serta aturan negosiasi: agent tidak boleh menurunkan target yang gagal tanpa persetujuan pengguna.
 
 Lihat [arsitektur](doc/architecture.md), [kontrak data](doc/data-model.md), dan [kajian bahasa](doc/runtime-language-review.md). Referensi pengguna di [doc/reference.md](doc/reference.md) dan PDF sumber dipertahankan.
+
+Gateway RESOLVE kontekstual dan workflow proposal audit/replay tersedia sebagai komponen callable. Dispatch otomatis serta acceptance model lokal belum selesai; lihat [integrasi resolusi](doc/semantic-resolution.md).

@@ -120,3 +120,7 @@ Jika required gate gagal, lakukan profiling, perbaikan dan uji ulang. Jangan men
 ## 7. Titik lanjut setelah document artifact boundary
 
 Kerja berikutnya berjalan pada tiga jalur yang saling memasok bukti: tuntaskan D01 inventory/audit sumber, bangun G01 gold structure/temporal/extraction, dan lanjutkan ontology EXTRACT terpin ke RESOLVE. Terminal outcome PARSE/STRUCTURE/BIND/CHUNK/EXTRACT sudah durable dan crash sesudah checkpoint dapat direkonsiliasi tanpa menganggap batch parsial sukses; scheduler selanjutnya memerlukan lease heartbeat sebelum batch panjang. OCR per halaman, tabel, exception linking, serta parity tokenizer BGE-M3 tetap perlu dibuktikan. M01 memilih OCR, embedding, reranker, tokenizer, serta backend native berdasarkan kualitas, latency, throughput, dan memori.
+
+## Kelanjutan K01: proposal model kontekstual
+
+Gateway RESOLVE dan workflow `ProposeWithModel` sekarang tersedia untuk input kandidat/claim terverifikasi, dengan hidrasi konteks, alasan berbukti, audit immutable, dan replay. Paket ini belum menyelesaikan K01: candidate planning lintas scope, bukti/deskripsi kandidat lintas dokumen, keputusan canonical baru/merge/split, dispatch daemon, serta gold/model acceptance masih perlu dikerjakan. Prioritas provider pengguna adalah lokal; nama/versi final belum dipin. Lihat [deskripsi implementasi](semantic-resolution.md) dan [verifikasi](verification-report-contextual-resolution.md).

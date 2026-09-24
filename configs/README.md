@@ -38,3 +38,5 @@ Collector PDF, kontrak/validator C01, loader/evaluator E01, pipeline dokumen sam
 Loader E01 menolak unknown key pada konfigurasi/profile, memvalidasi unit/workload saat evaluasi, dan
 menghasilkan fingerprint. Berikutnya loader Go untuk ingestion/retrieval harus menerapkan validation dan
 fingerprint yang setara. `benchmark-targets.yaml` tetap sumber tunggal angka dan tidak diubah untuk meluluskan tes.
+
+Prompt `resolution-v1.md` dikonsumsi mode RESOLVE gateway. Provider lokal menjadi prioritas, tetapi model/versi belum dipin; target benchmark tidak berubah.

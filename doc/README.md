@@ -104,3 +104,5 @@ Ringkasan milestone: [verification-report-c01.md](verification-report-c01.md),
 [verification-report-s01.md](verification-report-s01.md), serta
 [verification-report-semantic-extract.md](verification-report-semantic-extract.md). Laporan S01 mengikat implementasi
 storage/publication ke PostgreSQL aktual dan audit agent independen.
+
+[semantic-resolution.md](semantic-resolution.md) menjelaskan gateway model kontekstual, workflow audit/replay, setup endpoint lokal, dan batas dispatch/approval. [verification-report-contextual-resolution.md](verification-report-contextual-resolution.md) mencatat bukti correctness lintas runtime dan prasyarat kualitas yang belum diukur.

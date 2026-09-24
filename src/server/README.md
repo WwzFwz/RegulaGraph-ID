@@ -29,3 +29,5 @@ Ikuti [kebijakan benchmark](../../doc/benchmark-policy.md). Angka wajib mengikut
 ## Status
 
 Collector/audit D01, kontrak/validator C01, evaluator E01, adapter control-plane S01, jalur durable sampai EXTRACT, exact identity K01, worker EXTRACT, Semantic Gateway, dan ontology EXTRACT bersama sudah tersedia. Resolusi semantik/merge-split, graph assembly, index/retrieval, mutasi backend, serta provider/model produksi belum aktif. Test correctness tidak membuktikan target kualitas atau latency.
+
+Gateway RESOLVE kontekstual dan workflow proposal audit/replay tersedia sebagai komponen callable. Dispatch otomatis serta acceptance model lokal belum selesai; lihat [integrasi resolusi](../../doc/semantic-resolution.md).

@@ -40,3 +40,7 @@ Angka benchmark berasal satu kali dari configs/benchmark-targets.yaml. Jangan me
 ## Serah terima setiap paket
 
 Catat perubahan perilaku, file pemilik, perintah verifikasi, hasil/exit code, raw log, keterbatasan, serta pekerjaan selanjutnya. Sebutkan apakah schema, helper, adapter, atau layanan benar-benar sudah aktif. Jangan menjadikan komentar TODO yang banyak sebagai pengganti implementasi ataupun laporan keberhasilan.
+
+## Titik lanjut resolusi kontekstual
+
+Gateway `Semantic.ResolveBatch`, client reusable, dan workflow `ProposeWithModel` tersedia. Lihat [semantic-resolution.md](semantic-resolution.md): candidate planning, konteks dokumen kandidat, dispatch daemon, serta acceptance model lokal masih perlu diselesaikan. Proposal model bukan review tersimpan.

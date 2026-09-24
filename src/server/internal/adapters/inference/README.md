@@ -26,7 +26,7 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Semantic.ExtractBatch, gate vocabulary ontology, dan adapter provider sudah aktif secara fungsional serta diuji dengan provider deterministic. Embedding/reranking C++, provider/model produksi, benchmark kualitas/latency/biaya, ResolveBatch, SummarizeBatch, dan acceptance produksi belum aktif.
+Semantic.ExtractBatch, gate vocabulary ontology, dan adapter provider sudah aktif secara fungsional serta diuji dengan provider deterministic. Embedding/reranking C++, provider/model produksi, benchmark kualitas/latency/biaya, SummarizeBatch dan acceptance produksi belum aktif; ResolveBatch tersedia sebagai proposal kontekstual.
 
 ## Rekomendasi implementasi anak
 
@@ -38,3 +38,5 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | [embeddings.go](embeddings.go) | Reuse a native client; send purpose/model-bound batches and validate one-to-one results before retrieval/indexing. | Test reordered/duplicate/missing outputs, dimension drift and explicit per-item errors; trace queue vs compute time. |
 | [llm.go](llm.go) | Tambahkan provider-specific capability probe dan telemetry biaya sesudah provider produksi dipilih; pertahankan satu request per item serta tanpa retry tersembunyi. | Uji status provider, timeout, refusal, respons oversized/malformed, dan accounting pada sandbox provider. |
 | [semantic.go](semantic.go) | Terapkan ontology endpoint/predicate/qualifier allowlist dan cache durable; perluas RPC RESOLVE/SUMMARIZE pada milestone masing-masing. | Uji unknown ontology terms, replay lintas restart, collision operation-key, span multibyte, cancellation, serta evaluasi extraction pada gold split. |
+
+`semantic_resolution.go`, `semantic_resolution_cache.go`, dan `semantic_resolution_client.go` mengimplementasikan gateway/context projection, bounded replay cache, dan client gRPC RESOLVE. Satu gateway memakai task EXTRACT atau RESOLVE terpin; producer/model/schema/context/candidate identity divalidasi. Tes membuktikan projection, malformed input, provenance, cancellation, eviction/coalescing, dan RPC; kualitas model tetap belum diukur.

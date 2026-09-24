@@ -33,3 +33,5 @@ Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator 
 ## Penambahan C01 dan panduan verifikasi
 
 Berkas terkait: [CMakeLists.txt](CMakeLists.txt), [wire_validation.hpp](wire_validation.hpp), [wire_validation.cpp](wire_validation.cpp), [schema-lock.json](schema-lock.json). Dependency, cara menjalankan dan batas pembuktiannya mengikuti [implementasi C01](../../doc/contracts-implementation.md).
+
+Kontrak resolusi model menambahkan teks konteks dan alasan proposal secara aditif. Gateway/workflow tersedia, tetapi dispatch otomatis belum aktif; lihat [integrasi resolusi](../../doc/semantic-resolution.md).
