@@ -387,7 +387,7 @@ cmake -S src/inference -B .cache/inference-src
 cmake --build .cache/inference-src --config Release
 ```
 
-Build Go memvalidasi package, collector, storage/control-plane, client Worker, coordinator PARSE→STRUCTURE→BIND→CHUNK→EXTRACT, serta Semantic.ExtractBatch Gateway; entry point API query tetap scaffold. Rust menyediakan worker Tonic untuk PARSE, STRUCTURE, CHUNK, dan EXTRACT terkonfigurasi. Go BIND menyelesaikan exact identity dan coordinator memverifikasi bytes/dependency/checkpoint sampai EXTRACT, termasuk model/prompt pin dan exact source evidence. C++ masih static library tanpa ONNX runtime/model. C01 menyediakan 159 message, 31 enum, empat service descriptor, codegen dan validator. RESOLVE–INDEX, provider/model produksi, dan deployment produksi belum aktif. Packaging Python hanya mencakup evaluation dan tooling.
+Build Go memvalidasi package, collector, storage/control-plane, client Worker, coordinator PARSE→STRUCTURE→BIND→CHUNK→EXTRACT, serta Semantic.ExtractBatch Gateway; entry point API query tetap scaffold. Rust menyediakan worker Tonic untuk PARSE, STRUCTURE, CHUNK, dan EXTRACT terkonfigurasi. Go BIND menyelesaikan exact identity dan coordinator memverifikasi bytes/dependency/checkpoint sampai EXTRACT, termasuk model/prompt pin dan exact source evidence. C++ masih static library tanpa ONNX runtime/model. C01 menyediakan 163 message, 31 enum, empat service descriptor, codegen dan validator. RESOLVE–INDEX, provider/model produksi, dan deployment produksi belum aktif. Packaging Python hanya mencakup evaluation dan tooling.
 
 ## Performa dan benchmark
 
@@ -395,4 +395,4 @@ Prioritas adalah p95/p99 latency, waktu sampai token jawaban pertama, throughput
 
 Lihat [arsitektur](doc/architecture.md), [kontrak data](doc/data-model.md), dan [kajian bahasa](doc/runtime-language-review.md). Referensi pengguna di [doc/reference.md](doc/reference.md) dan PDF sumber dipertahankan.
 
-Gateway RESOLVE kontekstual dan workflow proposal audit/replay tersedia sebagai komponen callable. Dispatch otomatis serta acceptance model lokal belum selesai; lihat [integrasi resolusi](doc/semantic-resolution.md).
+Gateway RESOLVE kontekstual dan workflow proposal audit/replay tersedia sebagai komponen callable, termasuk katalog EXTRACT atomik serta bukti kandidat lintas dokumen dengan citation dua sisi. Smoke structured output Ollama lokal telah berhasil pada fixture sintetis; dispatch otomatis, model produksi, serta acceptance kualitas/performa belum selesai. Lihat [integrasi resolusi](doc/semantic-resolution.md).

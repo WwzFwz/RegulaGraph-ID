@@ -121,3 +121,9 @@ Source+dependency identik memakai artefak yang sama tanpa panggilan model ulang.
 | Restore storage tidak serasi | Readiness gagal; manifest mismatch tidak diluluskan |
 
 Setiap skenario harus mempunyai fixture dan expected state, lalu diuji terhadap adapter nyata sebelum release. Benchmark yang berkaitan mencakup UPDATE, GRAPH.COMMIT_THROUGHPUT, ISOLATION, dan seluruh INVARIANT pada YAML; protokol konsistensi tidak menjadi alasan mengubah target secara sepihak.
+
+## 11. Locator bukti untuk resolution
+
+Katalog `extraction_evidence_sources` pada migration 0011 mengikat mention ID, artefak, checkpoint EXTRACT sukses, corpus, fingerprint snapshot, dan auth scope. `SaveExtractionCheckpoint` menulis checkpoint serta seluruh locator dalam satu transaksi dengan lease/fence/cancellation check. Recovery mempertahankan locator checkpoint sukses pertama; duplikat hanya diterima jika set mention dan scope identik. Batch partial/failed tidak dikatalogkan. Tabel append-only ini bukan publication marker atau bukti identitas canonical.
+
+Lookup kandidat mengambil seluruh support yang diminta dalam satu query berbatas; support hilang, lintas scope, atau overflow tidak berubah menjadi sukses parsial. Workflow membaca ulang bytes berhash, document/text closure, dan alias support sebelum model menerima excerpt. Reuse lintas snapshot memerlukan membership proof tersendiri dan belum tersedia. Artefak sebelum migration perlu revalidasi; tidak ada backfill yang mengasumsikan input lama sah. Input/output model menyimpan dependency unik ke seluruh artefak pendukung untuk invalidation dan replay.

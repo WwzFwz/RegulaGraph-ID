@@ -1,6 +1,6 @@
 # Arsitektur RegulaGraph-ID
 
-Dokumen ini menjelaskan arsitektur monorepo Go/Rust/C++/Python yang telah disetujui pengguna dengan prioritas latency dan throughput. Struktur, storage/control-plane dasar, dan transport Worker PARSE sudah direalisasikan; pipeline stage lanjutan, query serving, serta model belum lengkap.
+Dokumen ini menjelaskan arsitektur monorepo Go/Rust/C++/Python yang telah disetujui pengguna dengan prioritas latency dan throughput. Storage/control-plane dan pipeline durable PARSE→STRUCTURE→BIND→CHUNK→EXTRACT tersedia. Gateway/workflow proposal RESOLVE sudah menghidrasi bukti mention dan kandidat lintas dokumen; dispatch otomatis RESOLVE, graph/index, query serving, serta acceptance model belum lengkap.
 
 Dokumen ini menjadi ringkasan pemilik komponen. Rancangan menyeluruh terdapat pada [system-design](system-design.md), [system-contracts](system-contracts.md), [storage-consistency](storage-consistency.md), dan [development-plan](development-plan.md), sesuai keputusan 0005. Bila ringkasan tidak memuat rincian failure/field, gunakan spesifikasi tersebut; jangan menganggap rincian itu di luar cakupan produk.
 
@@ -36,7 +36,7 @@ Perubahan isi maupun dependency fingerprint dapat menginvalidasi chunk, relasi, 
 
 PostgreSQL direncanakan untuk metadata/versi/manifest, Qdrant untuk indeks pencarian, Neo4j untuk graph dengan provenance, dan storage berkas untuk dokumen asli serta artefak batch. Tidak ada asumsi transaksi atomik lintas backend; staging/checkpoint/idempotensi dan publication marker menjaga pembacaan snapshot.
 
-Go-Rust dan Go/Rust-inference memakai gRPC berukuran job/batch, bukan RPC per edge atau token. Worker Go-Rust memiliki generated binding, implementasi PARSE berbasis referensi artefak, dan coordinator Go yang menyerahkan job durable serta menyimpan checkpoint. Semantic/inference C++ masih berupa target static library. Transport Worker hanya loopback sampai termination TLS deployment tersedia.
+Go-Rust dan Go/Rust-inference memakai gRPC berukuran job/batch, bukan RPC per edge atau token. Worker Go-Rust memiliki generated binding serta transform PARSE/STRUCTURE/CHUNK/EXTRACT; Go memiliki BIND, checkpoint, dan commit storage. Semantic Gateway Go menghubungkan EXTRACT/RESOLVE ke provider structured output; runtime embedding/reranker C++ masih static library tanpa backend model aktif. Katalog EXTRACT menyimpan locator bukti kandidat dalam transaksi checkpoint, lalu workflow memverifikasi ulang artefak sebelum inference. Transport Worker hanya loopback sampai termination TLS deployment tersedia.
 
 Offset wire menggunakan rencana byte UTF-8 start-inclusive/end-exclusive dengan identitas teks terkait. Parser mempertahankan mapping ke teks asli bila normalisasi mengubah posisi. Source/canonical/provision-version/snapshot ID diteruskan tanpa perubahan identitas berdasarkan nama tampilan.
 

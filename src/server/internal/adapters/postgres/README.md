@@ -60,6 +60,8 @@ Rollout harus menjaga migration 0004, worker Rust, dan coordinator Go dalam satu
 
 ## Rekomendasi implementasi anak
 
+[extraction_evidence.go](extraction_evidence.go) menyimpan locator mention EXTRACT bersama checkpoint sukses secara atomik melalui migration 0011. Lookup support alias memakai satu query berbatas pada corpus/snapshot/auth yang sama; missing support dan hasil berlebih menghasilkan error eksplisit. Katalog append-only tidak menggantikan verifikasi hash/closure di workflow dan tidak membackfill artefak lama secara otomatis. Integration test memeriksa replay, rollback, cancellation/fence, isolasi scope, serta limit pada PostgreSQL disposable. Ukur lookup/lock p95/p99 dan pertumbuhan indeks sebelum acceptance.
+
 Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan status aktif/scaffold; tabel bukan klaim fitur sudah tersedia. Integrasikan keluaran anak melalui kontrak induk dan jalankan [protokol verifikasi](../../../../../doc/verification.md) sebelum menyatakan paket selesai. Target angka tetap bersumber dari configs/benchmark-targets.yaml.
 
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |

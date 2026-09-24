@@ -26,6 +26,8 @@ Migration 0008 tidak menebak profil/alias historis dari canonical identity lama.
 
 ## Benchmark dan perhatian kualitas
 
+[0011_extraction_evidence_catalog.up.sql](0011_extraction_evidence_catalog.up.sql) menambah katalog locator support mention EXTRACT dengan foreign key artefak/checkpoint, indeks corpus/snapshot/auth/mention, dan trigger append-only. Writer baru mengisinya dalam transaksi checkpoint sukses; aplikasi lama dapat mengabaikan tabel, tetapi artefak lama memerlukan revalidasi sebelum menjadi bukti kandidat. Tidak ada backfill atau penghapusan sumber historis. Migration transaksional sudah diperiksa pada PostgreSQL disposable bersama replay/rollback writer; rehearsal lock dan pertumbuhan indeks pada corpus produksi masih diperlukan. Terapkan sebelum writer baru, dan jangan mengedit checksum revision yang sudah diterapkan.
+
 **STORAGE.** Ukur latency p50/p95/p99, throughput batch, pool saturation, retry, dan error rate pada concurrency serta volume data yang disebutkan. Gate: timeout terlapor, resource dilepas, dan operasi tulis idempotent sesuai kontrak; tidak ada asumsi transaksi atomik lintas layanan.
 
 Lihat [kebijakan benchmark](../doc/benchmark-policy.md) untuk protokol pengukuran dan penetapan angka target. Target numerik wajib berada di [target numerik wajib](../configs/benchmark-targets.yaml) dengan status **REQUIRED_UNMEASURED**; belum ada hasil yang diklaim tercapai. Gate deterministik berlaku pada data yang diterbitkan dan fixtures yang relevan; hasil semantik tetap memerlukan evaluasi.

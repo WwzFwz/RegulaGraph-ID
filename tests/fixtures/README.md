@@ -31,3 +31,5 @@ Status lintas repositori: collector PDF dan kontrak/validator C01 sudah tersedia
 Berkas terkait: [wire-cases.json](wire-cases.json). Dependency, cara menjalankan dan batas pembuktiannya mengikuti [implementasi C01](../../doc/contracts-implementation.md).
 
 Fixture `semantic-resolve-context-roundtrip` dan `resolution-rationale-context-roundtrip` memeriksa preservation field baru lintas Go/Rust/C++/Python. Fixture tanpa konteks tetap valid secara wire tetapi ditolak gateway RESOLVE karena tidak cukup untuk reasoning.
+
+`semantic-resolve-candidate-context-roundtrip` memeriksa bukti kandidat dari sumber berbeda. Fixture `candidate-context-missing-support` dan `candidate-context-empty-excerpts` harus ditolak keempat validator. Semua label/sumber fiktif; preservation wire tidak membuktikan LINK yang benar secara semantik.

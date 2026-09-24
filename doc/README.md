@@ -106,3 +106,5 @@ Ringkasan milestone: [verification-report-c01.md](verification-report-c01.md),
 storage/publication ke PostgreSQL aktual dan audit agent independen.
 
 [semantic-resolution.md](semantic-resolution.md) menjelaskan gateway model kontekstual, workflow audit/replay, setup endpoint lokal, dan batas dispatch/approval. [verification-report-contextual-resolution.md](verification-report-contextual-resolution.md) mencatat bukti correctness lintas runtime dan prasyarat kualitas yang belum diukur.
+
+[verification-report-candidate-evidence.md](verification-report-candidate-evidence.md) mencatat katalog checkpoint EXTRACT atomik, hidrasi bukti kandidat lintas dokumen, citation kedua sisi LINK, dan smoke protokol model lokal. Status tersebut belum menyelesaikan dispatch RESOLVE, K01, ataupun acceptance kualitas/performa.

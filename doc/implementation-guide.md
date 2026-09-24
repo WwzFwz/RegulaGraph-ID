@@ -43,4 +43,4 @@ Catat perubahan perilaku, file pemilik, perintah verifikasi, hasil/exit code, ra
 
 ## Titik lanjut resolusi kontekstual
 
-Gateway `Semantic.ResolveBatch`, client reusable, dan workflow `ProposeWithModel` tersedia. Lihat [semantic-resolution.md](semantic-resolution.md): candidate planning, konteks dokumen kandidat, dispatch daemon, serta acceptance model lokal masih perlu diselesaikan. Proposal model bukan review tersimpan.
+Gateway `Semantic.ResolveBatch`, client reusable, workflow `ProposeWithModel`, serta katalog/hidrasi bukti kandidat lintas dokumen tersedia. Lihat [semantic-resolution.md](semantic-resolution.md): candidate planning lintas scope, dispatch daemon, keputusan canonical baru/merge/split, serta acceptance model lokal masih perlu diselesaikan. Smoke Ollama menguji protokol pada fixture sintetis; proposal model bukan review tersimpan.
