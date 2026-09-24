@@ -42,8 +42,12 @@ func ValidateRegistryResolveReceipt(source *pb.ExtractionBatch, sourceRef *pb.Ar
 		request.Proposals, maximumReferences, maximumCandidatesPerMention); err != nil {
 		return fmt.Errorf("registry request proposals are invalid: %w", err)
 	}
+	// A successful registry write may keep the current revision (existing identity) or
+	// advance it once for a new decision. CAS at the trusted adapter rejects other writers
+	// between the candidate read and this operation; this validator cannot prove that CAS.
 	if response.RequestId != request.Context.RequestId ||
-		response.RegistryRevision != request.ExpectedRevision ||
+		response.RegistryRevision < request.ExpectedRevision ||
+		response.RegistryRevision-request.ExpectedRevision > 1 ||
 		len(response.Assignments) != len(request.Proposals) {
 		return errors.New("registry receipt request, revision, or assignment count differs")
 	}

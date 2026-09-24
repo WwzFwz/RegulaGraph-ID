@@ -9,18 +9,21 @@ yang terikat ke proposal, konteks, revision, canonical ID, dan correlation ID ya
 ## Bukti dan hasil
 
 Base revision: `1a6630a`. Fingerprint implementasi `resolution_receipts.go`:
-`7fdd301bfda0b569448fa4d29f95811b6818bb76`; fingerprint tes:
-`255b4df34e29ecc8f525539175dd79a1553c405e` (`git hash-object`).
+`a2a6f18b2854fd42fee53081de35698309046f88`; fingerprint tes:
+`269874e47a2b3b8e75b6d34beb5f04a45cc62872` (`git hash-object`).
 Toolchain dicatat di `artifacts/verification/k01-registry-receipts-20260924/go-version.txt`.
-Raw hasil akhir ada pada `go-test.log` dan `go-vet.log` di folder yang sama.
+Raw hasil akhir setelah koreksi revision ada pada `go-test-revision.log` dan
+`go-vet-revision.log` di folder yang sama.
+Setelah satu regresi tambahan untuk receipt yang maju tanpa keputusan yang ikut maju,
+tes terarah dijalankan ulang dengan exit 0 di `go-test-final.log`.
 
 | Pemeriksaan | Hasil | Bukti dan batas |
 | --- | --- | --- |
-| Receipt LINK dan DEFER terikat proposal/kandidat | PASS | Tes terarah menerima keputusan valid dan menolak target, revisi, corpus, konteks, request, correlation, dan action yang bergeser. |
+| Receipt LINK dan DEFER terikat proposal/kandidat | PASS | Tes terarah menerima revision tetap atau maju satu langkah dari CAS dan menolak target, revisi stale/loncatan, corpus, konteks, request, correlation, dan action yang bergeser. |
 | Kelengkapan dan ID unik | PASS | Respons kosong/item error dan collision ID decision dengan proposal, mention, atau kandidat ditolak. |
-| `go test ./...` pada `src/server` | PASS | Exit 0, raw `go-test.log`; seluruh paket Go yang tersedia diuji. |
-| `go vet ./...` pada `src/server` | PASS | Exit 0, raw `go-vet.log`. |
-| Review agent independen | PASS untuk scope validator | `verify_k01_receipts` menemukan collision ID, diperbaiki, lalu memeriksa ulang diff dan menjalankan tes terarah. |
+| `go test ./...` pada `src/server` | PASS | Exit 0, raw `go-test-revision.log`; seluruh paket Go yang tersedia diuji. |
+| `go vet ./...` pada `src/server` | PASS | Exit 0, raw `go-vet-revision.log`. |
+| Review agent independen | PASS untuk scope validator | `verify_k01_receipts` menemukan collision ID, diperbaiki, lalu memeriksa ulang diff/revisi dan menjalankan tes terarah. |
 | Autentikasi receipt PostgreSQL dan CAS revision | NOT_MEASURED | Adapter/writer semantic registry dan workflow durable RESOLVE belum tersambung. |
 | Kualitas resolusi hukum dan benchmark required | NOT_MEASURED | Belum ada gold reviewed, model produksi, atau acceptance run. |
 
@@ -38,3 +41,6 @@ Validator bersifat murni dan mengasumsikan response datang dari adapter registry
 Ia tidak membuktikan bahwa baris keputusan telah di-commit, revision belum berubah saat
 publication, ataupun LINK benar secara hukum. Stage RESOLVE tetap belum aktif. Angka pada
 `configs/benchmark-targets.yaml` tetap **REQUIRED_UNMEASURED** dan tidak diubah.
+Saat writer diimplementasikan, CAS wajib membuktikan bahwa revision yang diterima sama dengan
+revision kandidat dan kenaikan satu langkah berasal dari operasi tersebut; LINK/DEFER boleh
+tetap pada revision awal hanya bila semantik transaksi writer memang tidak memajukan state.

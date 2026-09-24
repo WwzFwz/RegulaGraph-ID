@@ -43,6 +43,11 @@ func TestValidateRegistryResolveReceiptAcceptsBoundDecisions(t *testing.T) {
 	if err := ValidateRegistryResolveReceipt(source, ref, candidates, request, response, 16, 3); err != nil {
 		t.Fatal("valid LINK receipt rejected:", err)
 	}
+	response.RegistryRevision++
+	response.Assignments[0].GetDecision().RegistryRevision++
+	if err := ValidateRegistryResolveReceipt(source, ref, candidates, request, response, 16, 3); err != nil {
+		t.Fatal("valid one-step registry commit receipt rejected:", err)
+	}
 	request.Proposals[0].Action = pb.ResolutionAction_RESOLUTION_ACTION_DEFER
 	response.Assignments[0].GetDecision().Action = pb.ResolutionAction_RESOLUTION_ACTION_DEFER
 	response.Assignments[0].GetDecision().AssignedCanonicalIds = nil
@@ -60,8 +65,8 @@ func TestValidateRegistryResolveReceiptRejectsForgedAndPartialResults(t *testing
 		"stale request": func(request *pb.RegistryResolveRequest, _ *pb.RegistryResolveResponse) {
 			request.ExpectedRevision--
 		},
-		"future receipt revision": func(_ *pb.RegistryResolveRequest, response *pb.RegistryResolveResponse) {
-			response.RegistryRevision++
+		"unexplained receipt revision jump": func(_ *pb.RegistryResolveRequest, response *pb.RegistryResolveResponse) {
+			response.RegistryRevision += 2
 		},
 		"foreign context": func(request *pb.RegistryResolveRequest, _ *pb.RegistryResolveResponse) {
 			request.Context.AuthScopeRef = "scope:foreign"
@@ -83,6 +88,9 @@ func TestValidateRegistryResolveReceiptRejectsForgedAndPartialResults(t *testing
 		},
 		"decision revision drift": func(_ *pb.RegistryResolveRequest, response *pb.RegistryResolveResponse) {
 			response.Assignments[0].GetDecision().RegistryRevision--
+		},
+		"receipt advanced without decision": func(_ *pb.RegistryResolveRequest, response *pb.RegistryResolveResponse) {
+			response.RegistryRevision++
 		},
 		"decision corpus drift": func(_ *pb.RegistryResolveRequest, response *pb.RegistryResolveResponse) {
 			response.Assignments[0].GetDecision().Meta.CorpusId = "corpus:foreign"
