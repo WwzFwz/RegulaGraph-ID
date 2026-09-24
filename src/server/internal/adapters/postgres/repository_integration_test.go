@@ -235,7 +235,7 @@ func TestStorageFoundationAgainstPostgres(t *testing.T) {
 		go func(worker int) {
 			defer group.Done()
 			<-start
-			record, claimErr := repo.ClaimJob(ctx, "worker-"+string(rune('a'+worker)), 200*time.Millisecond)
+			record, claimErr := repo.ClaimJob(ctx, "worker-"+string(rune('a'+worker)), time.Minute)
 			if claimErr == nil {
 				successes.Add(1)
 				lock.Lock()
@@ -275,7 +275,12 @@ func TestStorageFoundationAgainstPostgres(t *testing.T) {
 	if err = repo.SaveCheckpoint(ctx, regressedCheckpoint, claimed.LeaseOwner); !errors.Is(err, ErrConflict) {
 		t.Fatalf("expected checkpoint stage regression rejection, got %v", err)
 	}
-	time.Sleep(250 * time.Millisecond)
+	// Expire the winning lease explicitly so slow CI cannot let a second concurrent
+	// claimant acquire the same job before the first assertion completes.
+	if _, err = repo.pool.Exec(ctx, `UPDATE jobs SET lease_expires_at=clock_timestamp()-interval '1 second'
+		WHERE job_id=$1`, jobID); err != nil {
+		t.Fatal(err)
+	}
 	reclaimed, err := repo.ClaimParseJob(ctx, "worker-recovery", time.Minute)
 	if err != nil || reclaimed.LeaseFence <= claimed.LeaseFence {
 		t.Fatalf("reclaim=%+v err=%v", reclaimed, err)
