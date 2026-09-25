@@ -241,6 +241,19 @@ impl Ontology {
         }
     }
 
+    /// Recheck self-edge policy after mention IDs become canonical IDs.
+    /// Extraction validation alone cannot catch two mentions linked to one entity.
+    pub fn permits_canonical_endpoints(
+        &self,
+        predicate_id: &str,
+        subject_id: &str,
+        object_id: &str,
+    ) -> bool {
+        self.predicates
+            .get(predicate_id)
+            .is_some_and(|rule| rule.allow_self || subject_id != object_id)
+    }
+
     pub fn validate_extraction_batch(&self, batch: &graph::ExtractionBatch) -> Result<(), String> {
         if batch.ontology_version != self.version {
             return Err("extraction ontology version differs".into());

@@ -16,6 +16,14 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 Berkas: [builder.rs](builder.rs), [mod.rs](mod.rs).
 
+`builder.rs` kini menyediakan fungsi prapublikasi yang mengganti endpoint mention
+berdasarkan keputusan LINK/CREATE RESOLVE terikat EXTRACT, memeriksa canonical yang
+disediakan pembaca registry terverifikasi, dan mempertahankan seluruh support asli.
+Keluaran masih membawa ID assertion/support dari ekstraksi dan belum boleh menjadi
+`GraphDelta` siap publikasi: deduplikasi assertion canonical, remap support, closure,
+dependency manifest, validasi keseluruhan delta/span terhadap byte teks sumber, dan
+writer Neo4j belum aktif. Validasi ontology serta bentuk span EXTRACT/RESOLVE sudah aktif.
+
 ## Benchmark dan perhatian performa
 
 **GRAPH.** Ukur validitas endpoint dan provenance, ketepatan predicate/arah, kelengkapan jalur bukti, waktu assembly/traversal, dan penggunaan memori. Gate: graph yang dipublikasikan tidak memiliki endpoint/bukti wajib yang hilang. Connectivity adalah diagnosis, bukan target memaksa satu komponen.
@@ -26,7 +34,10 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. Pipeline parsing/graph/retrieval, mutasi backend, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan target kualitas atau latency.
+Status subkomponen ini hanya prapublikasi endpoint graph dan tes deterministik kecil;
+ASSEMBLE worker, GraphDelta, mutasi backend, retrieval graph, gold dataset, dan
+acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing;
+tes library tidak membuktikan kebenaran semantik atau target latency.
 
 ## Rekomendasi implementasi anak
 
@@ -34,4 +45,4 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
-| [builder.rs](builder.rs) | Build idempotent graph deltas with canonical endpoints, assertion/support separation and dependency manifests. | Test duplicate extraction and withdrawing one of several sources; no dangling edges or deletion of shared support. |
+| [builder.rs](builder.rs) | Lanjutkan endpoint prapublikasi menjadi GraphDelta idempotent dengan canonical assertion key, remap support, closure, dan dependency manifest. | Uji duplikasi extraction, dua support satu assertion, penarikan satu support, dangling edge, dan full-rebuild equivalence. |
