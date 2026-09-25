@@ -8,13 +8,13 @@ Fungsi di luar cakupan ini mengikuti komponen pemiliknya. Jika fungsi baru tidak
 
 ## Peran dan integrasi anak
 
-Library dapat dikompilasi tanpa model/ONNX SDK. Scheduler batch bounded sudah aktif dan diuji; session model, tokenization, scoring, serta transport akan ditambahkan kemudian. Generator LLM tetap adapter provider/engine terpisah.
+Build default menyediakan scheduler tanpa SDK. Opsi REGULAGRAPH_MODEL_RUNTIME mengaktifkan executable C01, session ONNX, serta tokenizer Rust melalui C ABI. Generator LLM tetap adapter provider/engine terpisah. Bundle dan endpoint dimuat eksplisit; tidak ada model load per request.
 
 Pertahankan source/canonical/provision-version/snapshot ID dan schema version lintas anak. Boundary runtime mengikuti [src/contracts](../contracts/README.md), dengan pekerjaan batch atau inference yang jelas. Perubahan bentuk data, error/status, serta offset sumber harus didokumentasikan bersama konsumennya; jangan menggandakan kebijakan publikasi di beberapa runtime.
 
 ## Isi saat ini
 
-Subfolder: [include/](include/README.md), [src/](src/README.md).
+Subfolder: [include/](include/README.md), [src/](src/README.md), [tokenizer/](tokenizer/README.md).
 
 Berkas: [CMakeLists.txt](CMakeLists.txt).
 
@@ -26,4 +26,4 @@ Ikuti [kebijakan benchmark](../../doc/benchmark-policy.md). Angka wajib mengikut
 
 ## Status
 
-Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. Pipeline parsing/graph/retrieval, mutasi backend, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan target kualitas atau latency.
+Runtime C01 embedding/reranking ONNX tersedia dengan session warm, manifest/hash verification, tokenizer native, batch query/bulk, cancellation, serta client Go/Rust. Acceptance kualitas dan performa pada workload referensi tetap NOT_MEASURED; lihat [panduan native](../../doc/native-inference.md).

@@ -9,7 +9,7 @@
 // Benchmark dan gate penerimaan:
 // Ukur p50/p95/p99, throughput, waktu antre, serta RSS/VRAM sesuai workload. Ambang wajib ada di configs/benchmark-targets.yaml (REQUIRED_UNMEASURED); ukur cold/warm terpisah dan pertahankan kualitas sumber/versi.
 //
-// Status: scheduler bounded berbasis event loop aktif; transport/model belum tersambung.
+// Status: scheduler bounded terhubung ke service C01 dan session ONNX warm.
 // Rekomendasi implementasi berikutnya:
 // Hubungkan NextWakeup, item errors, dan telemetry antrean ke runtime model warm.
 // Bukti verifikasi: Test overload, fairness, starvation and cancelled items; measure p95/p99 queue wait, utilization and RSS/VRAM.

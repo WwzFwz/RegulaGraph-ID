@@ -8,7 +8,7 @@ Fungsi di luar cakupan ini mengikuti komponen pemiliknya. Jika fungsi baru tidak
 
 ## Peran dan integrasi anak
 
-`batching.hpp` kini mendefinisikan ownership metadata antrean, batas item/token, deadline, cancellation, dan prioritas query/bulk untuk satu event-loop thread. Header model lain masih scaffold; kelak definisikan ownership buffer, model identity, dan panjang input. Scheduler tidak memuat model saat header di-include.
+`batching.hpp` kini mendefinisikan ownership metadata antrean, batas item/token, deadline, cancellation, dan prioritas query/bulk untuk satu event-loop thread. Header model mendefinisikan ownership buffer, model identity, dan panjang input; service.hpp menjadi boundary C01 dan model_integrity.hpp memverifikasi sidecar. Scheduler tidak memuat model saat header di-include.
 
 Pertahankan source/canonical/provision-version/snapshot ID dan schema version lintas anak. Boundary runtime mengikuti [src/contracts](../../../../contracts/README.md), dengan pekerjaan batch atau inference yang jelas. Perubahan bentuk data, error/status, serta offset sumber harus didokumentasikan bersama konsumennya; jangan menggandakan kebijakan publikasi di beberapa runtime.
 
@@ -24,7 +24,7 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. Pipeline parsing/graph/retrieval, mutasi backend, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan target kualitas atau latency.
+Runtime C01 embedding/reranking ONNX tersedia dengan session warm, manifest/hash verification, tokenizer native, batch query/bulk, cancellation, serta client Go/Rust. Acceptance kualitas dan performa pada workload referensi tetap NOT_MEASURED; lihat [panduan native](../../../../../doc/native-inference.md).
 
 ## Rekomendasi implementasi anak
 

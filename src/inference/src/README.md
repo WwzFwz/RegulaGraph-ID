@@ -8,7 +8,7 @@ Fungsi di luar cakupan ini mengikuti komponen pemiliknya. Jika fungsi baru tidak
 
 ## Peran dan integrasi anak
 
-Tidak mengatur fusion atau citation. `batching.cpp` sekarang menjadwalkan antrean query/bulk berbatas, deadline, cancellation, dan fairness lewat event loop satu thread. Kegagalan alokasi atau indeks mengakhiri proses worker; supervisor dan retry klien merupakan kewajiban integrasi runtime yang belum tersedia. Model dan transport masih scaffold.
+Tidak mengatur fusion atau citation. `batching.cpp` sekarang menjadwalkan antrean query/bulk berbatas, deadline, cancellation, dan fairness lewat event loop satu thread. Kegagalan alokasi atau indeks mengakhiri proses worker; supervisor dan retry klien merupakan kewajiban integrasi runtime yang belum tersedia. ModelRuntime memiliki session/tokenizer; InferenceService mengatur admission dan pemetaan hasil C01; main membuka listener loopback setelah warmup.
 
 Pertahankan source/canonical/provision-version/snapshot ID dan schema version lintas anak. Boundary runtime mengikuti [src/contracts](../../contracts/README.md), dengan pekerjaan batch atau inference yang jelas. Perubahan bentuk data, error/status, serta offset sumber harus didokumentasikan bersama konsumennya; jangan menggandakan kebijakan publikasi di beberapa runtime.
 
@@ -24,7 +24,7 @@ Ikuti [kebijakan benchmark](../../../doc/benchmark-policy.md). Angka wajib mengi
 
 ## Status
 
-Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. Pipeline parsing/graph/retrieval, mutasi backend, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan target kualitas atau latency.
+Runtime C01 embedding/reranking ONNX tersedia dengan session warm, manifest/hash verification, tokenizer native, batch query/bulk, cancellation, serta client Go/Rust. Acceptance kualitas dan performa pada workload referensi tetap NOT_MEASURED; lihat [panduan native](../../../doc/native-inference.md).
 
 ## Rekomendasi implementasi anak
 
@@ -32,7 +32,9 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
-| [batching.cpp](batching.cpp) | Hubungkan scheduler yang sudah aktif ke session warm, mapping typed error, supervisor/retry, dan telemetry antrean. | CTest memeriksa overload, fairness, deadline, serta cancel; p95/p99 queue wait, utilization, RSS/VRAM tetap NOT_MEASURED. |
-| [cross_encoder.cpp](cross_encoder.cpp) | Implement batched pair tokenization/scoring with stable pair IDs, calibrated score interpretation and explicit truncation. | Check Python/native score/rank parity including long legal clauses; measure reranking quality, batch wait and throughput. |
-| [embeddings.cpp](embeddings.cpp) | Implement exact tokenization, pooling and normalization for the selected export; return item-correlated vectors and truncation metadata. | Check Python/native numeric and retrieval parity, dimensions/non-finite values, multilingual long inputs and queue-inclusive latency. |
-| [runtime.cpp](runtime.cpp) | Own long-lived model sessions, tokenizer/config manifests, resource pools and explicit startup/shutdown; connect the C01 wire library during N01. | Measure cold start separately; test load failure cleanup, concurrent reuse and cancellation without per-request reload. |
+| [batching.cpp](batching.cpp) | Profilkan scheduler/session aktif di workload gabungan; lanjutkan supervisor/recovery dalam O01. | CTest memeriksa overload, fairness, deadline, serta cancel; p95/p99 queue wait, utilization, RSS/VRAM tetap NOT_MEASURED. |
+| [cross_encoder.cpp](cross_encoder.cpp) | Pertahankan pair/token correlation dan raw logits; ukur downstream ranking serta long-input behavior pada gold. | Check Python/native score/rank parity including long legal clauses; measure reranking quality, batch wait and throughput. |
+| [embeddings.cpp](embeddings.cpp) | Ukur retrieval parity untuk CLS/L2 export aktif, dengan token/provenance terpin dan tanpa truncation tersembunyi. | Check Python/native numeric and retrieval parity, dimensions/non-finite values, multilingual long inputs and queue-inclusive latency. |
+| [runtime.cpp](runtime.cpp) | Profilkan lifecycle session/bundle/C01 aktif, cold startup, memory peaks, dan mixed workload. | Measure cold start separately; test load failure cleanup, concurrent reuse and cancellation without per-request reload. |
+
+`service.cpp` menghubungkan scheduler dengan C01; `main.cpp` mem-pin bundle dan listener; `model_integrity.cpp` memindai sidecar; `token_probe.cpp` menghasilkan bukti token IDs memakai jalur serving.
