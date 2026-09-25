@@ -14,10 +14,13 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
-Berkas: [classifier.go](classifier.go), [entity_linker.go](entity_linker.go), [lexical.go](lexical.go), [normalizer.go](normalizer.go).
+Berkas: [classifier.go](classifier.go), [entity_linker.go](entity_linker.go), [lexical.go](lexical.go), [normalizer.go](normalizer.go), [sparse.go](sparse.go), dan tesnya.
 
 `lexical.go` menyediakan analyzer query BM25 v1 dengan aturan yang sama seperti Rust
-indexing. Library ini belum memanggil dictionary/statistics terpin atau backend.
+indexing. `sparse.go` membangun encoder query dari proyeksi dictionary/statistik BM25
+yang telah diverifikasi, memeriksa digest/lineage lokal saat load, lalu menghasilkan
+vektor query tanpa mutasi vocabulary. Pembuktian hash artefak, ancestry registry
+PostgreSQL, binding snapshot dan pencarian backend belum tersambung.
 Fixture [lexical-analyzer-v1.json](../../../../../tests/fixtures/lexical-analyzer-v1.json)
 memeriksa nomor hukum, negasi, Unicode NFC, dan kesesuaian keluaran kedua bahasa.
 Kategori huruf dan properti stream-safe NFC Rust memakai tabel Unicode 15 yang
@@ -36,7 +39,10 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Analyzer lexical query aktif sebagai library dan menolak input/term/term-count yang melewati batas. Query planner, snapshot-pinned entity linking, dictionary lookup, retrieval backend, gold dataset, serta acceptance belum aktif. Fixture parity tidak membuktikan kualitas pencarian.
+Analyzer lexical query dan encoder sparse frozen BM25 aktif sebagai library dengan
+batas input/term/term-count. Loader artefak verified, pembuktian dictionary ancestor
+tepercaya, query planner, snapshot-pinned entity linking, retrieval backend, gold
+dataset, serta acceptance belum aktif. Fixture parity tidak membuktikan kualitas pencarian.
 
 ## Rekomendasi implementasi anak
 
