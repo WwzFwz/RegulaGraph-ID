@@ -45,6 +45,9 @@ pembuktiannya sebelum publication seluruh snapshot.
 [verification-report-x01-index-batch.md](verification-report-x01-index-batch.md)
 mencatat gate closure lokal IndexBatch dan prasyarat checksum, prior state,
 serta fence sebelum mutation dan publication.
+[verification-report-x01-dense-payload.md](verification-report-x01-dense-payload.md)
+mencatat builder dense Rust berbatas dan gate indeks payload Qdrant bagi
+filter snapshot; integrasi worker/publication dan benchmark belum dibuktikan.
 [verification-report-k01-candidate-batch.md](verification-report-k01-candidate-batch.md) mencatat
 builder kandidat deterministik dan validasi alias-to-scope; autentikasi PostgreSQL serta stage RESOLVE
 masih pekerjaan lanjutan.
@@ -88,7 +91,7 @@ Lihat [kebijakan benchmark](benchmark-policy.md) untuk protokol pengukuran dan p
 
 Collector dan audit inventory D01, kontrak/validator C01, evaluator offline E01, fondasi control-plane
 storage/publication S01, source provenance, parser PDFium, normalizer teks, parser struktur hukum, parent-aware chunk builder, boundary artefak dokumen, incremental planner, selector timeline, serta worker/coordinator PARSE -> STRUCTURE -> BIND -> CHUNK -> EXTRACT I01 sudah aktif. Planner exact regulation identity, allocator canonical PostgreSQL, materializer `Regulation`/`ProvisionVersion`, workflow/persistence BIND, dan binding chunk per-node K01 juga aktif. Profiler M01 telah membandingkan tiga
-engine PDF. Worker EXTRACT, Semantic Gateway, commit/recovery durable EXTRACT, serta ontology EXTRACT terpin bersama sudah aktif secara deterministik. Proposal resolusi kontekstual, planner kandidat terpin, dan CLI submit blob tersedia; keputusan canonical baru/merge-split serta dispatch RESOLVE produksi belum aktif. Stage ASSEMBLE-INDEX, graph/retrieval, mutasi backend Qdrant/Neo4j,
+engine PDF. Worker EXTRACT, Semantic Gateway, commit/recovery durable EXTRACT, serta ontology EXTRACT terpin bersama sudah aktif secara deterministik. Proposal resolusi kontekstual, planner kandidat terpin, dan CLI submit blob tersedia; keputusan canonical baru/merge-split serta dispatch RESOLVE produksi belum aktif. Stage ASSEMBLE-INDEX, graph/retrieval, writer publikasi Qdrant/Neo4j,
 provider/model produksi, gold dataset, serta acceptance run produksi belum aktif. Primitive fusion, korelasi reranker,
 statistik BM25 lokal, packing konteks, dan validasi struktural sitasi telah diuji, tetapi belum membentuk pipeline query produksi. Status anak dijelaskan pada header
 masing-masing; profil parser, audit integrity, test correctness S01, dan evaluator sintetis tidak membuktikan

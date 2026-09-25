@@ -28,7 +28,11 @@ Kemajuan kontrak saat ini: `IndexFilterFormat.PAIRED_PROVISION_V1` pada
 `IndexGeneration` dan `IndexProvisionFilter` pada `FilterMetadata` sudah dibuat
 secara aditif. Gate Go memeriksa pasangan filter dan memproyeksikan fakta
 regulasi/versi/interval/status/blob dari satu `DocumentBatch` tervalidasi.
-Generator, writer, pembaca backend, dan publication masih belum aktif. Generation
+Rust kini membentuk satu batch dense lewat native inference dan menolak respons
+parsial/model drift. Go memiliki validasi closure lokal `IndexBatch`, transport
+Qdrant upsert/query/readback exact-ID, serta gate payload index bagi filter
+snapshot. Artefak generation/build plan bertipe, allocator PostgreSQL, writer
+terkoordinasi, closure/recovery, bukti replica, dan publication masih belum aktif. Generation
 paired **tidak boleh diterbitkan** sebelum setiap pembaca yang bisa menerima
 route query memahami format tersebut; pembaca binary lama mengabaikan field
 baru dan dapat kehilangan filter hukum walau decode berhasil. Binding fisik
