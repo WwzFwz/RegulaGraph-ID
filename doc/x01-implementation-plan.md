@@ -35,8 +35,10 @@ vektor yang mengikat corpus/input/policy/model. Tag 8 `embedding_input_policy`
 sekarang dipin pada generation, diperiksa Go/Rust dan metadata collection Qdrant;
 loader kini menyiapkan `TextItem` native dengan provenance source/version/page
 yang sama dengan EXTRACT dan key reuse generation-bound; pemeriksaan itu masih
-library, belum merupakan dispatch INDEX.
-stage INDEX serta rollout semua reader belum tersambung. Go memiliki validasi closure lokal `IndexBatch`, transport
+library, belum merupakan dispatch INDEX. Policy/model generation yang tidak
+didukung kini ditolak sebelum pembacaan TextArtifact, sementara cancellation
+tetap diprioritaskan. Stage INDEX serta rollout semua reader belum tersambung.
+Go memiliki validasi closure lokal `IndexBatch`, transport
 Qdrant upsert/query/readback exact-ID, serta gate payload index bagi filter
 snapshot. Artefak generation/build plan bertipe, allocator PostgreSQL, writer
 terkoordinasi, closure/recovery, bukti replica, dan publication masih belum aktif. Generation

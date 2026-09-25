@@ -34,3 +34,22 @@ masih wajib mengautentikasi byte batch, mem-pin corpus/job dan membership
 snapshot. Keberhasilan suite ini tidak membuktikan kualitas hukum, akurasi
 embedding, Recall@k, latency p95/p99, atau kesiapan publikasi. Target numerik
 tetap **REQUIRED_UNMEASURED** menurut `configs/benchmark-targets.yaml`.
+
+## Preflight generation sebelum pembacaan artefak
+
+Perubahan susulan pada commit `d2d0c4d` memisahkan validasi corpus, policy input, dan seluruh field
+model pada `reuse.rs` agar `prepare_selected` dapat menolaknya sebelum
+`ReadVerified`/normalisasi TextArtifact. Cancellation yang sudah aktif tetap
+memiliki prioritas pertama. Key reuse dari byte/model yang valid tidak berubah;
+validasi hash byte render tetap berjalan per item setelah I/O. Fixture
+menyuntik normalizer yang salah untuk membuktikan generation/policy dan model
+yang salah gagal lebih dulu, serta menguji cancellation. Log implementer ada
+di `artifacts/verification/20260926-x01-generation-preflight/cargo-test.log`:
+`cargo test -p regulagraph-ingestion --offline`, exit 0, 156 unit dan 1
+integrasi PDF lulus, 2 opt-in ignored. `rustfmt --edition 2021 --check`
+pada file terdampak dan `git diff --check` exit 0. Review independen menguji
+key before/after pada 32 input valid serta enam lokasi unknown field;
+empat tes reuse dan fixture cancellation/urutan error juga lulus. Lognya ada
+di `artifacts/verification/20260926-x01-provenance-items/reviewer-preflight.log`
+dengan fingerprint stabil dan exit 0. Hasil fixture tidak mengukur
+penghematan I/O atau latency corpus nyata.
