@@ -33,6 +33,9 @@ review independen, dan batas bahwa backend serta benchmark X01 belum aktif.
 mencatat validasi endpoint canonical K01 prapublikasi, encoder sparse query BM25,
 dan gate cakupan teks A01. Ketiganya adalah library lokal; jalur produksi penuh,
 gold, dan benchmark release belum dibuktikan.
+[verification-report-x01-paired-filters.md](verification-report-x01-paired-filters.md)
+mencatat kontrak filter legal per versi, fixture lintas bahasa, gate sumber
+terverifikasi, dan prasyarat rollout pembaca sebelum publication.
 [verification-report-k01-candidate-batch.md](verification-report-k01-candidate-batch.md) mencatat
 builder kandidat deterministik dan validasi alias-to-scope; autentikasi PostgreSQL serta stage RESOLVE
 masih pekerjaan lanjutan.
