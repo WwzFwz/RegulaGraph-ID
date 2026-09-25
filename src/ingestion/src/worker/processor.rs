@@ -1,8 +1,12 @@
-//! PARSE/STRUCTURE/CHUNK processor backed by pinned native and tokenizer dependencies.
+//! PARSE/STRUCTURE/CHUNK/EXTRACT processor backed by pinned native, tokenizer,
+//! and semantic-model dependencies.
 //!
 //! STRUCTURE emits hierarchy, while CHUNK consumes a registry-bound immutable `DocumentBatch` and
 //! emits source-mapped, parent-aware chunks. The processor never fabricates legal identities or
 //! publication state; every node-to-version binding must already be explicit and unambiguous.
+//! EXTRACT and the INDEX input helper share source/version/page projection.
+//! Measure stage throughput, p95/p99, queue delay, and peak RSS against
+//! configs/benchmark-targets.yaml (REQUIRED_UNMEASURED).
 
 use super::service::{BatchProcessor, ProcessError};
 use crate::adapters::document_batches::{load_document_batch, persist_document_batch};
@@ -1332,6 +1336,13 @@ fn build_extraction_items(
     processor_config: &ParseBatchProcessorConfig,
     cancelled: &AtomicBool,
 ) -> Result<Vec<inference::TextItem>, ProcessError> {
+    let provenance_index = crate::domain::chunk_provenance::ChunkProvenanceIndex::new(input)
+        .map_err(|error| {
+            ProcessError::new(
+                Code::FailedPrecondition,
+                format!("EXTRACT source closure: {error:?}"),
+            )
+        })?;
     let mut normalized_texts = HashMap::with_capacity(input.text_artifacts.len());
     for artifact in &input.text_artifacts {
         if cancelled.load(Ordering::Acquire) {
@@ -1344,31 +1355,6 @@ fn build_extraction_items(
             .map_err(|error| ProcessError::new(Code::FailedPrecondition, error.to_string()))?;
         normalized_texts.insert(artifact.meta.record_id.clone(), normalized.text);
     }
-    let version_by_id: HashMap<_, _> = input
-        .versions
-        .iter()
-        .map(|version| (version.meta.record_id.as_str(), version))
-        .collect();
-    let provision_by_id: HashMap<_, _> = input
-        .provisions
-        .iter()
-        .map(|provision| (provision.meta.record_id.as_str(), provision))
-        .collect();
-    let source_by_text: HashMap<_, _> = input
-        .text_artifacts
-        .iter()
-        .map(|artifact| {
-            (
-                artifact.meta.record_id.as_str(),
-                artifact.source_blob_id.as_str(),
-            )
-        })
-        .collect();
-    let structure_by_id: HashMap<_, _> = input
-        .structures
-        .iter()
-        .map(|structure| (structure.meta.record_id.as_str(), structure))
-        .collect();
     let mut items = Vec::with_capacity(input.chunks.len());
     for chunk in &input.chunks {
         let span = chunk.text_span.as_ref().ok_or_else(|| {
@@ -1391,72 +1377,18 @@ fn build_extraction_items(
             ));
         }
         let text = normalized[span.start_byte as usize..span.end_byte as usize].to_owned();
-        let mut sources = Vec::new();
-        let mut source_keys = HashSet::new();
-        for version_id in &chunk.provision_version_refs {
-            let version = version_by_id.get(version_id.as_str()).ok_or_else(|| {
+        let provenance = provenance_index
+            .project(&chunk.meta.record_id)
+            .map_err(|error| {
                 ProcessError::new(
                     Code::FailedPrecondition,
-                    "chunk provision version is unavailable",
+                    format!("EXTRACT source evidence: {error:?}"),
                 )
             })?;
-            let provision = provision_by_id
-                .get(version.provision_id.as_str())
-                .ok_or_else(|| {
-                    ProcessError::new(Code::FailedPrecondition, "chunk provision is unavailable")
-                })?;
-            let source_blob_id = version
-                .spans
-                .iter()
-                .find(|version_span| {
-                    version_span.text_artifact_id == span.text_artifact_id
-                        && version_span.start_byte <= span.start_byte
-                        && version_span.end_byte >= span.end_byte
-                })
-                .and_then(|version_span| {
-                    source_by_text
-                        .get(version_span.text_artifact_id.as_str())
-                        .copied()
-                })
-                .ok_or_else(|| {
-                    ProcessError::new(
-                        Code::FailedPrecondition,
-                        "chunk span is not covered by its provision version",
-                    )
-                })?;
-            let key = (
-                source_blob_id.to_owned(),
-                version_id.clone(),
-                provision.regulation_id.clone(),
-            );
-            if source_keys.insert(key.clone()) {
-                sources.push(common::SourceVersionRef {
-                    source_blob_id: key.0,
-                    provision_version_id: key.1,
-                    regulation_id: key.2,
-                    ..Default::default()
-                });
-            }
-        }
-        let mut locators = Vec::new();
-        for structure_id in &chunk.structure_node_refs {
-            let structure = structure_by_id.get(structure_id.as_str()).ok_or_else(|| {
-                ProcessError::new(
-                    Code::FailedPrecondition,
-                    "chunk structure node is unavailable",
-                )
-            })?;
-            locators.extend(structure.page_locators.iter().cloned());
-        }
         items.push(inference::TextItem {
             item_id: chunk.meta.record_id.clone(),
             text,
-            provenance: MessageField::some(common::Provenance {
-                sources,
-                spans: vec![span.clone()],
-                locators,
-                ..Default::default()
-            }),
+            provenance: MessageField::some(provenance),
             ..Default::default()
         });
     }
@@ -2473,6 +2405,172 @@ mod tests {
                 &wrong_normalizer,
                 &selected,
                 1024,
+                &AtomicBool::new(false),
+            )
+            .is_err());
+
+        let index_generation = crate::wire::evidence::IndexGeneration {
+            meta: MessageField::some(meta("corpus:fixture", "generation:fixture")),
+            dense_manifest: MessageField::some(common::ModelManifest {
+                model_id: "model:embed-fixture".to_owned(),
+                version: "v1".to_owned(),
+                weights_hash: MessageField::some(hash('8')),
+                tokenizer_hash: MessageField::some(hash('9')),
+                task: EnumOrUnknown::new(common::ModelTask::MODEL_TASK_EMBED),
+                dimensions: Some(2),
+                max_tokens: 4096,
+                precision: "fp32".to_owned(),
+                backend: "fixture".to_owned(),
+                ..Default::default()
+            }),
+            filter_format: EnumOrUnknown::new(
+                crate::wire::evidence::IndexFilterFormat::INDEX_FILTER_FORMAT_PAIRED_PROVISION_V1,
+            ),
+            embedding_input_policy: crate::indexing::inputs::RENDER_POLICY_VERSION.to_owned(),
+            ..Default::default()
+        };
+        let prepared = index_inputs
+            .prepare_selected(
+                &processor.store,
+                &normalizer,
+                &selected,
+                1024,
+                &index_generation,
+                &AtomicBool::new(false),
+            )
+            .expect("index native item keeps source/version evidence");
+        assert_eq!(prepared.len(), 1);
+        assert_eq!(prepared[0].native_item.item_id, selected[0]);
+        assert_eq!(prepared[0].reuse_key.len(), 64);
+        assert_eq!(prepared[0].input_sha256, rendered[0].sha256);
+        let source = &prepared[0].native_item.provenance.sources[0];
+        assert_eq!(source.source_blob_id, source_id);
+        assert_eq!(source.regulation_id, "regulation:fixture");
+        assert_eq!(
+            source.provision_version_id,
+            output.chunks[0].provision_version_refs[0]
+        );
+        let extraction_items = build_extraction_items(
+            &processor.store,
+            &output,
+            &processor.config,
+            &AtomicBool::new(false),
+        )
+        .expect("EXTRACT projects the same source evidence");
+        assert_eq!(
+            extraction_items[0].provenance,
+            prepared[0].native_item.provenance
+        );
+        let mut uncovered = output.clone();
+        let chunk_end = uncovered.chunks[0].text_span.end_byte;
+        let version_id = uncovered.chunks[0].provision_version_refs[0].clone();
+        let version = uncovered
+            .versions
+            .iter_mut()
+            .find(|version| version.meta.record_id == version_id)
+            .unwrap();
+        let version_span = version
+            .spans
+            .iter_mut()
+            .find(|span| span.text_artifact_id == uncovered.chunks[0].text_span.text_artifact_id)
+            .unwrap();
+        assert!(chunk_end < version_span.end_byte);
+        version_span.start_byte = chunk_end;
+        let uncovered_index =
+            crate::domain::chunk_provenance::ChunkProvenanceIndex::new(&uncovered)
+                .expect("batch reference closure alone does not prove version coverage");
+        assert!(matches!(
+            uncovered_index.project(&selected[0]),
+            Err(crate::domain::chunk_provenance::ChunkProvenanceError::UncoveredVersion)
+        ));
+        let mut wrong_text_ref = output.clone();
+        let artifact_id = wrong_text_ref.chunks[0].text_span.text_artifact_id.clone();
+        let raw_ref = wrong_text_ref
+            .text_artifacts
+            .iter()
+            .find(|artifact| artifact.meta.record_id == artifact_id)
+            .unwrap()
+            .raw_text_ref
+            .clone();
+        wrong_text_ref
+            .versions
+            .iter_mut()
+            .find(|version| version.meta.record_id == version_id)
+            .unwrap()
+            .text_ref = raw_ref;
+        let wrong_text_index =
+            crate::domain::chunk_provenance::ChunkProvenanceIndex::new(&wrong_text_ref)
+                .expect("known artifact reference is not a normalized-text binding");
+        assert!(matches!(
+            wrong_text_index.project(&selected[0]),
+            Err(crate::domain::chunk_provenance::ChunkProvenanceError::VersionTextMismatch)
+        ));
+        let mut mixed_version = output.clone();
+        let mut other_artifact = mixed_version.text_artifacts[0].clone();
+        other_artifact.meta.as_mut().unwrap().record_id = "text:other-source".to_owned();
+        for page in &mut other_artifact.page_results {
+            for span in &mut page.spans {
+                span.text_artifact_id = other_artifact.meta.record_id.clone();
+            }
+        }
+        mixed_version.text_artifacts.push(other_artifact);
+        let version = mixed_version
+            .versions
+            .iter_mut()
+            .find(|version| version.meta.record_id == version_id)
+            .unwrap();
+        let mut foreign_span = version.spans[0].clone();
+        foreign_span.text_artifact_id = "text:other-source".to_owned();
+        version.spans.insert(0, foreign_span);
+        let mixed_index =
+            crate::domain::chunk_provenance::ChunkProvenanceIndex::new(&mixed_version)
+                .expect("reference closure alone permits a mixed-artifact version span");
+        assert!(matches!(
+            mixed_index.project(&selected[0]),
+            Err(crate::domain::chunk_provenance::ChunkProvenanceError::ForeignVersionSpan)
+        ));
+        let mut wrong_structure = output.clone();
+        let structure_id = wrong_structure.chunks[0].structure_node_refs[0].clone();
+        let owner = wrong_structure
+            .structures
+            .iter_mut()
+            .find(|node| node.meta.record_id == structure_id)
+            .unwrap();
+        owner.source_spans[0].start_byte = chunk_end;
+        let wrong_structure_index =
+            crate::domain::chunk_provenance::ChunkProvenanceIndex::new(&wrong_structure)
+                .expect("reference closure does not prove owning-node coverage");
+        assert!(matches!(
+            wrong_structure_index.project(&selected[0]),
+            Err(crate::domain::chunk_provenance::ChunkProvenanceError::ForeignStructure)
+        ));
+        let mut wrong_page = output.clone();
+        let owner = wrong_page
+            .structures
+            .iter_mut()
+            .find(|node| node.meta.record_id == structure_id)
+            .unwrap();
+        owner.page_locators.push(common::PageLocator {
+            source_blob_id: source_id.to_owned(),
+            page_number: 9999,
+            ..Default::default()
+        });
+        let wrong_page_index =
+            crate::domain::chunk_provenance::ChunkProvenanceIndex::new(&wrong_page)
+                .expect("reference closure does not prove locator page membership");
+        assert!(matches!(
+            wrong_page_index.project(&selected[0]),
+            Err(crate::domain::chunk_provenance::ChunkProvenanceError::ForeignLocator)
+        ));
+        let mut old_generation = index_generation.clone();
+        old_generation.embedding_input_policy = "parent-labels-v1".to_owned();
+        assert!(index_inputs
+            .prepare_selected(
+                &processor.store,
+                &normalizer,
+                &selected,
+                1024,
+                &old_generation,
                 &AtomicBool::new(false),
             )
             .is_err());

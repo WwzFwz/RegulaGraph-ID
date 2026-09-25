@@ -4,9 +4,10 @@
 //! authenticate the batch bytes with `load_document_batch` and pin its corpus/job.
 //! Each bounded selection reads
 //! only referenced normalized text through the artifact store's verified path,
-//! then renders exact UTF-8 spans and parent labels. Source/version metadata is
-//! not inferred from embedding text; later IndexRecord assembly must project it
-//! from this same batch. Measure verified I/O, normalization, RSS, and per-batch
+//! then renders exact UTF-8 spans and parent labels. `prepare_selected` projects
+//! source/version/page evidence from the same batch into native TextItems and
+//! pins vector reuse to the requested IndexGeneration; it does not create an
+//! IndexRecord or prove snapshot membership. Measure verified I/O, normalization, RSS, and per-batch
 //! throughput against configs/benchmark-targets.yaml (REQUIRED_UNMEASURED).
 //! Cancellation is checked around, but cannot interrupt, one artifact read and
 //! renormalization; the 2 MiB output cap is not a cap on verified I/O/RSS.
@@ -14,11 +15,11 @@
 use crate::adapters::storage::ArtifactStore;
 use crate::adapters::text_artifacts::{load_normalized_text, PersistTextArtifactError};
 use crate::document::normalization::text::TextNormalizerConfig;
-use crate::domain::document_batch::{
-    validate_document_batch, DocumentBatchConfig, DocumentBatchError,
-};
+use crate::domain::chunk_provenance::{ChunkProvenanceError, ChunkProvenanceIndex};
 use crate::indexing::inputs::{EmbeddingInputRenderer, RenderError, RenderedEmbeddingInput};
-use crate::wire::{common, documents};
+use crate::indexing::reuse::{embedding_reuse_key, ReuseKeyError};
+use crate::wire::{documents, evidence, inference};
+use protobuf::MessageField;
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -28,10 +29,10 @@ const MAX_BATCH_BYTES: usize = 2 * 1024 * 1024;
 
 #[derive(Debug)]
 pub enum LoadIndexInputsError {
-    Batch(DocumentBatchError),
+    Provenance(ChunkProvenanceError),
     Artifact(PersistTextArtifactError),
     Render(RenderError),
-    IncompleteBatch,
+    Reuse(ReuseKeyError),
     InvalidSelection,
     MissingChunk,
     MissingTextArtifact,
@@ -45,17 +46,22 @@ pub struct VerifiedIndexInputs<'a> {
     batch: &'a documents::DocumentBatch,
     chunks: HashMap<&'a str, &'a documents::Chunk>,
     renderer: EmbeddingInputRenderer<'a>,
+    provenance: ChunkProvenanceIndex<'a>,
+}
+
+/// Keeps one owned native text item and hashes needed for immutable vector
+/// reuse. Legal filters and visibility are not copied from cache entries.
+pub struct PreparedIndexItem {
+    pub native_item: inference::TextItem,
+    pub input_sha256: String,
+    pub reuse_key: String,
+    pub policy_version: &'static str,
 }
 
 impl<'a> VerifiedIndexInputs<'a> {
     pub fn new(batch: &'a documents::DocumentBatch) -> Result<Self, LoadIndexInputsError> {
-        validate_document_batch(batch, &DocumentBatchConfig::default())
-            .map_err(LoadIndexInputsError::Batch)?;
-        if batch.completeness.enum_value() != Ok(common::Completeness::COMPLETENESS_COMPLETE)
-            || batch.chunks.is_empty()
-        {
-            return Err(LoadIndexInputsError::IncompleteBatch);
-        }
+        let provenance =
+            ChunkProvenanceIndex::new(batch).map_err(LoadIndexInputsError::Provenance)?;
         let renderer =
             EmbeddingInputRenderer::new(&batch.structures).map_err(LoadIndexInputsError::Render)?;
         let chunks = batch
@@ -67,6 +73,7 @@ impl<'a> VerifiedIndexInputs<'a> {
             batch,
             chunks,
             renderer,
+            provenance,
         })
     }
 
@@ -149,5 +156,44 @@ impl<'a> VerifiedIndexInputs<'a> {
             .into_iter()
             .map(|item| item.ok_or(LoadIndexInputsError::MissingChunk))
             .collect()
+    }
+
+    /// Resolves the exact source/version evidence for each selected chunk and
+    /// returns one native DOCUMENT input plus its generation-bound reuse key.
+    pub fn prepare_selected(
+        &self,
+        store: &ArtifactStore,
+        normalizer: &TextNormalizerConfig,
+        chunk_ids: &[String],
+        maximum_item_bytes: usize,
+        generation: &evidence::IndexGeneration,
+        cancelled: &AtomicBool,
+    ) -> Result<Vec<PreparedIndexItem>, LoadIndexInputsError> {
+        let rendered =
+            self.load_selected(store, normalizer, chunk_ids, maximum_item_bytes, cancelled)?;
+        let mut prepared = Vec::with_capacity(rendered.len());
+        for input in rendered {
+            if cancelled.load(Ordering::Acquire) {
+                return Err(LoadIndexInputsError::Cancelled);
+            }
+            let provenance = self
+                .provenance
+                .project(&input.chunk_id)
+                .map_err(LoadIndexInputsError::Provenance)?;
+            let reuse_key = embedding_reuse_key(&self.batch.context.corpus_id, &input, generation)
+                .map_err(LoadIndexInputsError::Reuse)?;
+            prepared.push(PreparedIndexItem {
+                native_item: inference::TextItem {
+                    item_id: input.chunk_id,
+                    text: input.text,
+                    provenance: MessageField::some(provenance),
+                    ..Default::default()
+                },
+                input_sha256: input.sha256,
+                reuse_key,
+                policy_version: input.policy_version,
+            });
+        }
+        Ok(prepared)
     }
 }

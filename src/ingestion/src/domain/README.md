@@ -14,7 +14,7 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
-Berkas: [chunks.rs](chunks.rs), [document_batch.rs](document_batch.rs), [documents.rs](documents.rs), [document_wire.rs](document_wire.rs), [entities.rs](entities.rs), [evidence.rs](evidence.rs), [mod.rs](mod.rs), [relations.rs](relations.rs), [text_artifact_wire.rs](text_artifact_wire.rs), dan [wire.rs](wire.rs).
+Berkas: [chunks.rs](chunks.rs), [chunk_provenance.rs](chunk_provenance.rs), [document_batch.rs](document_batch.rs), [documents.rs](documents.rs), [document_wire.rs](document_wire.rs), [entities.rs](entities.rs), [evidence.rs](evidence.rs), [mod.rs](mod.rs), [relations.rs](relations.rs), [text_artifact_wire.rs](text_artifact_wire.rs), dan [wire.rs](wire.rs).
 
 ## Benchmark dan perhatian performa
 
@@ -23,6 +23,8 @@ Berkas: [chunks.rs](chunks.rs), [document_batch.rs](document_batch.rs), [documen
 Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib mengikuti [target numerik wajib](../../../../configs/benchmark-targets.yaml) dengan profil asumsi yang dinyatakan; statusnya **REQUIRED_UNMEASURED** sampai diuji. Ukur waktu antre serta p95/p99 selain throughput; validitas source/version dan ketepatan bukti tetap menjadi syarat optimasi.
 
 ## Status
+
+`chunk_provenance.rs` memproyeksikan source blob, versi pasal, span, dan halaman yang sama untuk EXTRACT serta persiapan INDEX. Ia memeriksa ikatan `version.text_ref` ke teks normalisasi, seluruh span versi pada artefak yang sama, cakupan node pemilik/versi, rantai parent, dan halaman sumber yang benar. Hanya halaman sukses yang overlap chunk diteruskan; bila node tidak punya locator, proyeksi menambahkan locator halaman tanpa kotak koordinat dari `PageResult`. Ukur p95 proyeksi dan peak RSS pada PDF panjang; target required tetap belum diukur.
 
 `chunks.rs` menyediakan record lokal dan validator provenance/source mapping/token count. `document_wire.rs` memproyeksikan structure/chunk dan mempertahankan provision-version berbeda per structure node; `text_artifact_wire.rs` memproyeksikan mapping/page/parser dan normalizer manifest; `document_batch.rs` merakit serta memvalidasi ulang batch dengan typed reference closure. Wire validator C01 dan assembler dipakai executable worker PARSE/STRUCTURE/CHUNK. Reconstruction versioning lanjutan, graph, dan index belum diimplementasikan.
 
@@ -33,6 +35,7 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
 | [chunks.rs](chunks.rs) | Pertahankan invariant record lokal ketika tokenizer atau kebijakan overlap berkembang; hindari menambahkan schema wire paralel. | Uji boundary Unicode, overlap, overflow, dan alokasi batch besar terhadap konfigurasi produksi. |
+| [chunk_provenance.rs](chunk_provenance.rs) | Jadikan proyeksi bukti bersama untuk EXTRACT dan INDEX; perubahan aturan coverage harus diuji pada keduanya. | Uji versi bercampur artefak, raw-vs-normalized ref, struktur asing, halaman palsu, serta p95 dan peak RSS pada PDF panjang. |
 | [document_batch.rs](document_batch.rs) | Hubungkan hasil reconstruction versioning dan metadata sumber nyata, lalu ukur assembly batch besar. | Uji dependency external/incremental, adversarial reference graph, cross-language decode, batas record/edge, p95/p99, dan peak RSS. |
 | [document_wire.rs](document_wire.rs) | Hubungkan tokenizer/model manifest produksi dan locator halaman ke structure/chunk projection. | Uji golden wire lintas bahasa, missing refs, overflow, dan alokasi batch besar. |
 | [documents.rs](documents.rs) | Construct validated document/source/provision views over generated types; keep observation time separate from legal dates. | Test stable IDs, raw/normalized mappings and historical version ambiguity; avoid redundant conversion/allocation across batches. |

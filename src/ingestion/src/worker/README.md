@@ -4,6 +4,8 @@ Pada EXTRACT, request dan manifest Semantic Gateway harus membawa hash ontology 
 
 Boundary transport gRPC dan orkestrasi proses batch Rust. Folder ini menerima message C01, memvalidasi deadline serta attempt/fence, menjalankan transformasi melalui processor terbatas, dan hanya mengembalikan referensi artefak immutable. Go tetap memiliki status durable, retry policy, dan publication.
 
+EXTRACT memakai `ChunkProvenanceIndex` yang sama dengan persiapan INDEX untuk source blob, versi pasal, span, dan locator halaman. Mutasi silang artefak/struktur/halaman ditolak sebelum panggilan model; perubahan ini belum mengaktifkan stage INDEX.
+
 Anak folder tidak boleh menambahkan schema transport sendiri atau melakukan publication backend. Konversi Tonic dan rust-protobuf harus melalui byte Protobuf dari schema yang sama. Proses besar berjalan per batch, dibatasi ukuran pesan dan concurrency, serta memeriksa cancellation di antara item. Perubahan kontrak harus dimulai dari `src/contracts/proto`.
 
 Ukur waktu antre, latency p50/p95/p99, throughput dokumen/byte, peak RSS, cancellation lag, serta retry/dedup. Target tetap berasal dari `configs/benchmark-targets.yaml` dan berstatus **REQUIRED_UNMEASURED** sampai benchmark corpus resmi dijalankan.
