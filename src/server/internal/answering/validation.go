@@ -11,8 +11,8 @@
 // Target numerik required: configs/benchmark-targets.yaml; status REQUIRED_UNMEASURED.
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
-// Status: gate struktur jawaban terhadap konteks terpilih dan URL sumber tepercaya aktif;
-// pemeriksaan dukungan semantik dan kalibrasi model masih belum aktif.
+// Status: gate struktur jawaban, cakupan seluruh teks jawaban substantif oleh claim,
+// konteks terpilih dan URL sumber tepercaya aktif; dukungan semantik belum aktif.
 // Rekomendasi implementasi berikutnya:
 // Hubungkan generation/streaming dan uji dukungan semantik pada gold; jangan menafsirkan gate
 // struktur sebagai bukti faithfulness isi klaim.
@@ -25,6 +25,9 @@ package answering
 import (
 	"errors"
 	"fmt"
+	"sort"
+	"unicode"
+	"unicode/utf8"
 
 	"google.golang.org/protobuf/proto"
 	pb "regulagraph.local/server/gen/regulagraph/v1"
@@ -43,6 +46,9 @@ func ValidateGroundedAnswer(answer *pb.Answer, context *pb.ContextBundle,
 	}
 	if err := domain.VerifyCitationEvidence(answer, evidence, trustedURLs); err != nil {
 		return fmt.Errorf("untrusted answer citation: %w", err)
+	}
+	if err := validateClaimTextCoverage(answer); err != nil {
+		return err
 	}
 	if !proto.Equal(answer.Snapshot, context.Snapshot) ||
 		!proto.Equal(context.Snapshot, evidence.Snapshot) ||
@@ -192,4 +198,62 @@ func ValidateGroundedAnswer(answer *pb.Answer, context *pb.ContextBundle,
 		return errors.New("conflict status requires explicit conflict evidence")
 	}
 	return nil
+}
+
+// These fixed claimless messages are rendered by the application, not by a model.
+// A dynamic clarification renderer requires its own audited text contract.
+const AbstainText = "Bukti yang tersedia belum cukup untuk menjawab pertanyaan ini."
+const NeedsClarificationText = "Pertanyaan ini memerlukan informasi tambahan sebelum dapat dijawab."
+
+// validateClaimTextCoverage rejects provider prose outside claim spans. In
+// answered states every non-whitespace byte must be covered exactly once;
+// structural coverage does not establish semantic entailment.
+func validateClaimTextCoverage(answer *pb.Answer) error {
+	if answer.SemanticStatus == pb.SemanticStatus_SEMANTIC_STATUS_ABSTAIN {
+		if answer.Text != AbstainText {
+			return errors.New("abstention must use the application text template")
+		}
+		return nil
+	}
+	if answer.SemanticStatus == pb.SemanticStatus_SEMANTIC_STATUS_NEEDS_CLARIFICATION {
+		if answer.Text != NeedsClarificationText || len(answer.Claims) != 0 ||
+			len(answer.Citations) != 0 || len(answer.Conflicts) != 0 || len(answer.Paths) != 0 {
+			return errors.New("clarification must use the claimless application text template")
+		}
+		return nil
+	}
+	if answer.SemanticStatus != pb.SemanticStatus_SEMANTIC_STATUS_COMPLETE &&
+		answer.SemanticStatus != pb.SemanticStatus_SEMANTIC_STATUS_PARTIAL &&
+		answer.SemanticStatus != pb.SemanticStatus_SEMANTIC_STATUS_CONFLICT {
+		return nil
+	}
+	claims := append([]*pb.Claim(nil), answer.Claims...)
+	sort.Slice(claims, func(i, j int) bool {
+		return claims[i].AnswerTextSpan.StartByte < claims[j].AnswerTextSpan.StartByte
+	})
+	var cursor uint64
+	for _, claim := range claims {
+		span := claim.AnswerTextSpan
+		if span == nil || span.StartByte >= span.EndByte || span.StartByte < cursor ||
+			span.EndByte > uint64(len(answer.Text)) ||
+			!utf8.ValidString(answer.Text[span.StartByte:span.EndByte]) ||
+			onlyWhitespace(answer.Text[span.StartByte:span.EndByte]) ||
+			!onlyWhitespace(answer.Text[cursor:span.StartByte]) {
+			return errors.New("answer has overlapping claims or unclaimed text")
+		}
+		cursor = span.EndByte
+	}
+	if !onlyWhitespace(answer.Text[cursor:]) {
+		return errors.New("answer contains unclaimed text")
+	}
+	return nil
+}
+
+func onlyWhitespace(text string) bool {
+	for _, char := range text {
+		if !unicode.IsSpace(char) {
+			return false
+		}
+	}
+	return true
 }

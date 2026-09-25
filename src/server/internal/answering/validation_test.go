@@ -86,14 +86,23 @@ func TestValidateGroundedAnswerRejectsFabricationAndOmission(t *testing.T) {
 		},
 		"fabricated path": func(a *pb.Answer, _ *pb.ContextBundle, b *pb.EvidenceBundle) {
 			a.Paths = []*pb.GraphPath{{PathId: "path:invented",
-				OrderedNodeIds: []string{"node:one", "node:two"},
+				OrderedNodeIds:      []string{"node:one", "node:two"},
 				OrderedAssertionIds: []string{"assertion:one"},
-				SelectedSupportIds: []string{"support:one"},
-				Coverage: pb.Completeness_COMPLETENESS_COMPLETE,
-				Snapshot: proto.Clone(b.Snapshot).(*pb.SnapshotRef)}}
+				SelectedSupportIds:  []string{"support:one"},
+				Coverage:            pb.Completeness_COMPLETENESS_COMPLETE,
+				Snapshot:            proto.Clone(b.Snapshot).(*pb.SnapshotRef)}}
 		},
 		"empty supported claim span": func(a *pb.Answer, _ *pb.ContextBundle, _ *pb.EvidenceBundle) {
 			a.Claims[0].AnswerTextSpan.EndByte = 0
+		},
+		"unclaimed factual sentence": func(a *pb.Answer, _ *pb.ContextBundle, _ *pb.EvidenceBundle) {
+			a.Text += " Pasal lain telah dicabut."
+		},
+		"overlapping claim spans": func(a *pb.Answer, _ *pb.ContextBundle, _ *pb.EvidenceBundle) {
+			second := proto.Clone(a.Claims[0]).(*pb.Claim)
+			second.ClaimId = "claim:two"
+			a.Claims = append(a.Claims, second)
+			a.Citations[0].ClaimIds = append(a.Citations[0].ClaimIds, second.ClaimId)
 		},
 		"fabricated conflict evidence": func(a *pb.Answer, _ *pb.ContextBundle, _ *pb.EvidenceBundle) {
 			a.SemanticStatus = pb.SemanticStatus_SEMANTIC_STATUS_CONFLICT
@@ -128,6 +137,29 @@ func TestValidateGroundedAnswerRejectsFabricationAndOmission(t *testing.T) {
 	}
 }
 
+func TestClaimlessStatusesUseOnlyApplicationTemplates(t *testing.T) {
+	for _, testCase := range []struct {
+		status pb.SemanticStatus
+		text   string
+	}{
+		{pb.SemanticStatus_SEMANTIC_STATUS_ABSTAIN, AbstainText},
+		{pb.SemanticStatus_SEMANTIC_STATUS_NEEDS_CLARIFICATION, NeedsClarificationText},
+	} {
+		answer, rendered, bundle := groundedFixture(t)
+		answer.SemanticStatus = testCase.status
+		answer.Claims = nil
+		answer.Citations = nil
+		answer.Text = testCase.text
+		if err := ValidateGroundedAnswer(answer, rendered, bundle, trustedURL); err != nil {
+			t.Fatalf("trusted status template rejected: %v", err)
+		}
+		answer.Text = "Pasal lain telah dicabut."
+		if err := ValidateGroundedAnswer(answer, rendered, bundle, trustedURL); err == nil {
+			t.Fatal("provider-controlled claimless factual text accepted")
+		}
+	}
+}
+
 func TestValidateGroundedAnswerRequiresDisclosureOfOmissions(t *testing.T) {
 	answer, rendered, bundle := groundedFixture(t)
 	bundle.MissingDependencies = []string{"path:required"}
@@ -147,7 +179,7 @@ func TestValidateGroundedAnswerRequiresDisclosureOfOmissions(t *testing.T) {
 func TestValidateGroundedAnswerRejectsHiddenParentAndPath(t *testing.T) {
 	for _, testCase := range []struct {
 		name string
-		add func(*pb.EvidenceBundle)
+		add  func(*pb.EvidenceBundle)
 	}{
 		{"parent", func(b *pb.EvidenceBundle) { b.Items[0].ParentRefs = []string{"parent:one"} }},
 		{"required path", func(b *pb.EvidenceBundle) {
