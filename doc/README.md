@@ -42,6 +42,9 @@ readiness, backend hidup, dan benchmark yang masih terbuka.
 [verification-report-x01-qdrant-readback.md](verification-report-x01-qdrant-readback.md)
 mencatat perbandingan exact-ID atas payload serta vector Qdrant dan batas
 pembuktiannya sebelum publication seluruh snapshot.
+[verification-report-x01-index-batch.md](verification-report-x01-index-batch.md)
+mencatat gate closure lokal IndexBatch dan prasyarat checksum, prior state,
+serta fence sebelum mutation dan publication.
 [verification-report-k01-candidate-batch.md](verification-report-k01-candidate-batch.md) mencatat
 builder kandidat deterministik dan validasi alias-to-scope; autentikasi PostgreSQL serta stage RESOLVE
 masih pekerjaan lanjutan.
