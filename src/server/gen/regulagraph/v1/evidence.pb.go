@@ -132,6 +132,52 @@ func (RetrieverKind) EnumDescriptor() ([]byte, []int) {
 	return file_regulagraph_v1_evidence_proto_rawDescGZIP(), []int{1}
 }
 
+type IndexFilterFormat int32
+
+const (
+	IndexFilterFormat_INDEX_FILTER_FORMAT_UNSPECIFIED         IndexFilterFormat = 0
+	IndexFilterFormat_INDEX_FILTER_FORMAT_PAIRED_PROVISION_V1 IndexFilterFormat = 1
+)
+
+// Enum value maps for IndexFilterFormat.
+var (
+	IndexFilterFormat_name = map[int32]string{
+		0: "INDEX_FILTER_FORMAT_UNSPECIFIED",
+		1: "INDEX_FILTER_FORMAT_PAIRED_PROVISION_V1",
+	}
+	IndexFilterFormat_value = map[string]int32{
+		"INDEX_FILTER_FORMAT_UNSPECIFIED":         0,
+		"INDEX_FILTER_FORMAT_PAIRED_PROVISION_V1": 1,
+	}
+)
+
+func (x IndexFilterFormat) Enum() *IndexFilterFormat {
+	p := new(IndexFilterFormat)
+	*p = x
+	return p
+}
+
+func (x IndexFilterFormat) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (IndexFilterFormat) Descriptor() protoreflect.EnumDescriptor {
+	return file_regulagraph_v1_evidence_proto_enumTypes[2].Descriptor()
+}
+
+func (IndexFilterFormat) Type() protoreflect.EnumType {
+	return &file_regulagraph_v1_evidence_proto_enumTypes[2]
+}
+
+func (x IndexFilterFormat) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use IndexFilterFormat.Descriptor instead.
+func (IndexFilterFormat) EnumDescriptor() ([]byte, []int) {
+	return file_regulagraph_v1_evidence_proto_rawDescGZIP(), []int{2}
+}
+
 type IndexGeneration struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
 	Meta              *RecordMeta            `protobuf:"bytes,1,opt,name=meta,proto3" json:"meta,omitempty"`
@@ -140,8 +186,10 @@ type IndexGeneration struct {
 	LexicalDictionary *ArtifactRef           `protobuf:"bytes,4,opt,name=lexical_dictionary,json=lexicalDictionary,proto3" json:"lexical_dictionary,omitempty"`
 	LexicalStatistics *ArtifactRef           `protobuf:"bytes,5,opt,name=lexical_statistics,json=lexicalStatistics,proto3" json:"lexical_statistics,omitempty"`
 	OntologyVersion   string                 `protobuf:"bytes,6,opt,name=ontology_version,json=ontologyVersion,proto3" json:"ontology_version,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// New readers must require the format they can interpret before serving this generation.
+	FilterFormat  IndexFilterFormat `protobuf:"varint,7,opt,name=filter_format,json=filterFormat,proto3,enum=regulagraph.v1.IndexFilterFormat" json:"filter_format,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *IndexGeneration) Reset() {
@@ -214,6 +262,13 @@ func (x *IndexGeneration) GetOntologyVersion() string {
 		return x.OntologyVersion
 	}
 	return ""
+}
+
+func (x *IndexGeneration) GetFilterFormat() IndexFilterFormat {
+	if x != nil {
+		return x.FilterFormat
+	}
+	return IndexFilterFormat_INDEX_FILTER_FORMAT_UNSPECIFIED
 }
 
 type DenseVector struct {
@@ -336,8 +391,11 @@ type FilterMetadata struct {
 	LegalStatuses  []LegalStatus          `protobuf:"varint,4,rep,packed,name=legal_statuses,json=legalStatuses,proto3,enum=regulagraph.v1.LegalStatus" json:"legal_statuses,omitempty"`
 	Jurisdictions  []string               `protobuf:"bytes,5,rep,name=jurisdictions,proto3" json:"jurisdictions,omitempty"`
 	Visibility     *Visibility            `protobuf:"bytes,6,opt,name=visibility,proto3" json:"visibility,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// New X01 writers bind status/interval to exactly one source and provision version.
+	// The legacy parallel arrays remain readable but cannot prove this association.
+	ProvisionFilters []*IndexProvisionFilter `protobuf:"bytes,7,rep,name=provision_filters,json=provisionFilters,proto3" json:"provision_filters,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *FilterMetadata) Reset() {
@@ -412,6 +470,97 @@ func (x *FilterMetadata) GetVisibility() *Visibility {
 	return nil
 }
 
+func (x *FilterMetadata) GetProvisionFilters() []*IndexProvisionFilter {
+	if x != nil {
+		return x.ProvisionFilters
+	}
+	return nil
+}
+
+type IndexProvisionFilter struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	ProvisionVersionId string                 `protobuf:"bytes,1,opt,name=provision_version_id,json=provisionVersionId,proto3" json:"provision_version_id,omitempty"`
+	RegulationId       string                 `protobuf:"bytes,2,opt,name=regulation_id,json=regulationId,proto3" json:"regulation_id,omitempty"`
+	SourceBlobId       string                 `protobuf:"bytes,3,opt,name=source_blob_id,json=sourceBlobId,proto3" json:"source_blob_id,omitempty"`
+	LegalInterval      *LegalInterval         `protobuf:"bytes,4,opt,name=legal_interval,json=legalInterval,proto3" json:"legal_interval,omitempty"`
+	LegalStatus        LegalStatus            `protobuf:"varint,5,opt,name=legal_status,json=legalStatus,proto3,enum=regulagraph.v1.LegalStatus" json:"legal_status,omitempty"`
+	Jurisdiction       string                 `protobuf:"bytes,6,opt,name=jurisdiction,proto3" json:"jurisdiction,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *IndexProvisionFilter) Reset() {
+	*x = IndexProvisionFilter{}
+	mi := &file_regulagraph_v1_evidence_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IndexProvisionFilter) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IndexProvisionFilter) ProtoMessage() {}
+
+func (x *IndexProvisionFilter) ProtoReflect() protoreflect.Message {
+	mi := &file_regulagraph_v1_evidence_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IndexProvisionFilter.ProtoReflect.Descriptor instead.
+func (*IndexProvisionFilter) Descriptor() ([]byte, []int) {
+	return file_regulagraph_v1_evidence_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *IndexProvisionFilter) GetProvisionVersionId() string {
+	if x != nil {
+		return x.ProvisionVersionId
+	}
+	return ""
+}
+
+func (x *IndexProvisionFilter) GetRegulationId() string {
+	if x != nil {
+		return x.RegulationId
+	}
+	return ""
+}
+
+func (x *IndexProvisionFilter) GetSourceBlobId() string {
+	if x != nil {
+		return x.SourceBlobId
+	}
+	return ""
+}
+
+func (x *IndexProvisionFilter) GetLegalInterval() *LegalInterval {
+	if x != nil {
+		return x.LegalInterval
+	}
+	return nil
+}
+
+func (x *IndexProvisionFilter) GetLegalStatus() LegalStatus {
+	if x != nil {
+		return x.LegalStatus
+	}
+	return LegalStatus_LEGAL_STATUS_UNSPECIFIED
+}
+
+func (x *IndexProvisionFilter) GetJurisdiction() string {
+	if x != nil {
+		return x.Jurisdiction
+	}
+	return ""
+}
+
 type IndexRecord struct {
 	state                protoimpl.MessageState `protogen:"open.v1"`
 	Meta                 *RecordMeta            `protobuf:"bytes,1,opt,name=meta,proto3" json:"meta,omitempty"`
@@ -428,7 +577,7 @@ type IndexRecord struct {
 
 func (x *IndexRecord) Reset() {
 	*x = IndexRecord{}
-	mi := &file_regulagraph_v1_evidence_proto_msgTypes[4]
+	mi := &file_regulagraph_v1_evidence_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -440,7 +589,7 @@ func (x *IndexRecord) String() string {
 func (*IndexRecord) ProtoMessage() {}
 
 func (x *IndexRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_regulagraph_v1_evidence_proto_msgTypes[4]
+	mi := &file_regulagraph_v1_evidence_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -453,7 +602,7 @@ func (x *IndexRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IndexRecord.ProtoReflect.Descriptor instead.
 func (*IndexRecord) Descriptor() ([]byte, []int) {
-	return file_regulagraph_v1_evidence_proto_rawDescGZIP(), []int{4}
+	return file_regulagraph_v1_evidence_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *IndexRecord) GetMeta() *RecordMeta {
@@ -528,7 +677,7 @@ type IndexBatch struct {
 
 func (x *IndexBatch) Reset() {
 	*x = IndexBatch{}
-	mi := &file_regulagraph_v1_evidence_proto_msgTypes[5]
+	mi := &file_regulagraph_v1_evidence_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -540,7 +689,7 @@ func (x *IndexBatch) String() string {
 func (*IndexBatch) ProtoMessage() {}
 
 func (x *IndexBatch) ProtoReflect() protoreflect.Message {
-	mi := &file_regulagraph_v1_evidence_proto_msgTypes[5]
+	mi := &file_regulagraph_v1_evidence_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -553,7 +702,7 @@ func (x *IndexBatch) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IndexBatch.ProtoReflect.Descriptor instead.
 func (*IndexBatch) Descriptor() ([]byte, []int) {
-	return file_regulagraph_v1_evidence_proto_rawDescGZIP(), []int{5}
+	return file_regulagraph_v1_evidence_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *IndexBatch) GetMeta() *RecordMeta {
@@ -625,7 +774,7 @@ type StageBudget struct {
 
 func (x *StageBudget) Reset() {
 	*x = StageBudget{}
-	mi := &file_regulagraph_v1_evidence_proto_msgTypes[6]
+	mi := &file_regulagraph_v1_evidence_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -637,7 +786,7 @@ func (x *StageBudget) String() string {
 func (*StageBudget) ProtoMessage() {}
 
 func (x *StageBudget) ProtoReflect() protoreflect.Message {
-	mi := &file_regulagraph_v1_evidence_proto_msgTypes[6]
+	mi := &file_regulagraph_v1_evidence_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -650,7 +799,7 @@ func (x *StageBudget) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StageBudget.ProtoReflect.Descriptor instead.
 func (*StageBudget) Descriptor() ([]byte, []int) {
-	return file_regulagraph_v1_evidence_proto_rawDescGZIP(), []int{6}
+	return file_regulagraph_v1_evidence_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *StageBudget) GetStage() string {
@@ -703,7 +852,7 @@ type RetrievalPlan struct {
 
 func (x *RetrievalPlan) Reset() {
 	*x = RetrievalPlan{}
-	mi := &file_regulagraph_v1_evidence_proto_msgTypes[7]
+	mi := &file_regulagraph_v1_evidence_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -715,7 +864,7 @@ func (x *RetrievalPlan) String() string {
 func (*RetrievalPlan) ProtoMessage() {}
 
 func (x *RetrievalPlan) ProtoReflect() protoreflect.Message {
-	mi := &file_regulagraph_v1_evidence_proto_msgTypes[7]
+	mi := &file_regulagraph_v1_evidence_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -728,7 +877,7 @@ func (x *RetrievalPlan) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RetrievalPlan.ProtoReflect.Descriptor instead.
 func (*RetrievalPlan) Descriptor() ([]byte, []int) {
-	return file_regulagraph_v1_evidence_proto_rawDescGZIP(), []int{7}
+	return file_regulagraph_v1_evidence_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *RetrievalPlan) GetQueryOriginal() string {
@@ -791,7 +940,7 @@ type FilterDecision struct {
 
 func (x *FilterDecision) Reset() {
 	*x = FilterDecision{}
-	mi := &file_regulagraph_v1_evidence_proto_msgTypes[8]
+	mi := &file_regulagraph_v1_evidence_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -803,7 +952,7 @@ func (x *FilterDecision) String() string {
 func (*FilterDecision) ProtoMessage() {}
 
 func (x *FilterDecision) ProtoReflect() protoreflect.Message {
-	mi := &file_regulagraph_v1_evidence_proto_msgTypes[8]
+	mi := &file_regulagraph_v1_evidence_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -816,7 +965,7 @@ func (x *FilterDecision) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FilterDecision.ProtoReflect.Descriptor instead.
 func (*FilterDecision) Descriptor() ([]byte, []int) {
-	return file_regulagraph_v1_evidence_proto_rawDescGZIP(), []int{8}
+	return file_regulagraph_v1_evidence_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *FilterDecision) GetRule() string {
@@ -855,7 +1004,7 @@ type Candidate struct {
 
 func (x *Candidate) Reset() {
 	*x = Candidate{}
-	mi := &file_regulagraph_v1_evidence_proto_msgTypes[9]
+	mi := &file_regulagraph_v1_evidence_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -867,7 +1016,7 @@ func (x *Candidate) String() string {
 func (*Candidate) ProtoMessage() {}
 
 func (x *Candidate) ProtoReflect() protoreflect.Message {
-	mi := &file_regulagraph_v1_evidence_proto_msgTypes[9]
+	mi := &file_regulagraph_v1_evidence_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -880,7 +1029,7 @@ func (x *Candidate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Candidate.ProtoReflect.Descriptor instead.
 func (*Candidate) Descriptor() ([]byte, []int) {
-	return file_regulagraph_v1_evidence_proto_rawDescGZIP(), []int{9}
+	return file_regulagraph_v1_evidence_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *Candidate) GetEvidenceKey() string {
@@ -950,7 +1099,7 @@ type Evidence struct {
 
 func (x *Evidence) Reset() {
 	*x = Evidence{}
-	mi := &file_regulagraph_v1_evidence_proto_msgTypes[10]
+	mi := &file_regulagraph_v1_evidence_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -962,7 +1111,7 @@ func (x *Evidence) String() string {
 func (*Evidence) ProtoMessage() {}
 
 func (x *Evidence) ProtoReflect() protoreflect.Message {
-	mi := &file_regulagraph_v1_evidence_proto_msgTypes[10]
+	mi := &file_regulagraph_v1_evidence_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -975,7 +1124,7 @@ func (x *Evidence) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Evidence.ProtoReflect.Descriptor instead.
 func (*Evidence) Descriptor() ([]byte, []int) {
-	return file_regulagraph_v1_evidence_proto_rawDescGZIP(), []int{10}
+	return file_regulagraph_v1_evidence_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *Evidence) GetMeta() *RecordMeta {
@@ -1057,7 +1206,7 @@ type RequiredPathSet struct {
 
 func (x *RequiredPathSet) Reset() {
 	*x = RequiredPathSet{}
-	mi := &file_regulagraph_v1_evidence_proto_msgTypes[11]
+	mi := &file_regulagraph_v1_evidence_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1069,7 +1218,7 @@ func (x *RequiredPathSet) String() string {
 func (*RequiredPathSet) ProtoMessage() {}
 
 func (x *RequiredPathSet) ProtoReflect() protoreflect.Message {
-	mi := &file_regulagraph_v1_evidence_proto_msgTypes[11]
+	mi := &file_regulagraph_v1_evidence_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1082,7 +1231,7 @@ func (x *RequiredPathSet) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RequiredPathSet.ProtoReflect.Descriptor instead.
 func (*RequiredPathSet) Descriptor() ([]byte, []int) {
-	return file_regulagraph_v1_evidence_proto_rawDescGZIP(), []int{11}
+	return file_regulagraph_v1_evidence_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *RequiredPathSet) GetPathIds() []string {
@@ -1109,7 +1258,7 @@ type EvidenceBundle struct {
 
 func (x *EvidenceBundle) Reset() {
 	*x = EvidenceBundle{}
-	mi := &file_regulagraph_v1_evidence_proto_msgTypes[12]
+	mi := &file_regulagraph_v1_evidence_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1121,7 +1270,7 @@ func (x *EvidenceBundle) String() string {
 func (*EvidenceBundle) ProtoMessage() {}
 
 func (x *EvidenceBundle) ProtoReflect() protoreflect.Message {
-	mi := &file_regulagraph_v1_evidence_proto_msgTypes[12]
+	mi := &file_regulagraph_v1_evidence_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1134,7 +1283,7 @@ func (x *EvidenceBundle) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EvidenceBundle.ProtoReflect.Descriptor instead.
 func (*EvidenceBundle) Descriptor() ([]byte, []int) {
-	return file_regulagraph_v1_evidence_proto_rawDescGZIP(), []int{12}
+	return file_regulagraph_v1_evidence_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *EvidenceBundle) GetMeta() *RecordMeta {
@@ -1213,7 +1362,7 @@ type RerankResult struct {
 
 func (x *RerankResult) Reset() {
 	*x = RerankResult{}
-	mi := &file_regulagraph_v1_evidence_proto_msgTypes[13]
+	mi := &file_regulagraph_v1_evidence_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1225,7 +1374,7 @@ func (x *RerankResult) String() string {
 func (*RerankResult) ProtoMessage() {}
 
 func (x *RerankResult) ProtoReflect() protoreflect.Message {
-	mi := &file_regulagraph_v1_evidence_proto_msgTypes[13]
+	mi := &file_regulagraph_v1_evidence_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1238,7 +1387,7 @@ func (x *RerankResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RerankResult.ProtoReflect.Descriptor instead.
 func (*RerankResult) Descriptor() ([]byte, []int) {
-	return file_regulagraph_v1_evidence_proto_rawDescGZIP(), []int{13}
+	return file_regulagraph_v1_evidence_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *RerankResult) GetPairId() string {
@@ -1286,7 +1435,7 @@ type ContextBlock struct {
 
 func (x *ContextBlock) Reset() {
 	*x = ContextBlock{}
-	mi := &file_regulagraph_v1_evidence_proto_msgTypes[14]
+	mi := &file_regulagraph_v1_evidence_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1298,7 +1447,7 @@ func (x *ContextBlock) String() string {
 func (*ContextBlock) ProtoMessage() {}
 
 func (x *ContextBlock) ProtoReflect() protoreflect.Message {
-	mi := &file_regulagraph_v1_evidence_proto_msgTypes[14]
+	mi := &file_regulagraph_v1_evidence_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1311,7 +1460,7 @@ func (x *ContextBlock) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContextBlock.ProtoReflect.Descriptor instead.
 func (*ContextBlock) Descriptor() ([]byte, []int) {
-	return file_regulagraph_v1_evidence_proto_rawDescGZIP(), []int{14}
+	return file_regulagraph_v1_evidence_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ContextBlock) GetEvidenceId() string {
@@ -1344,7 +1493,7 @@ type ContextBundle struct {
 
 func (x *ContextBundle) Reset() {
 	*x = ContextBundle{}
-	mi := &file_regulagraph_v1_evidence_proto_msgTypes[15]
+	mi := &file_regulagraph_v1_evidence_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1356,7 +1505,7 @@ func (x *ContextBundle) String() string {
 func (*ContextBundle) ProtoMessage() {}
 
 func (x *ContextBundle) ProtoReflect() protoreflect.Message {
-	mi := &file_regulagraph_v1_evidence_proto_msgTypes[15]
+	mi := &file_regulagraph_v1_evidence_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1369,7 +1518,7 @@ func (x *ContextBundle) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContextBundle.ProtoReflect.Descriptor instead.
 func (*ContextBundle) Descriptor() ([]byte, []int) {
-	return file_regulagraph_v1_evidence_proto_rawDescGZIP(), []int{15}
+	return file_regulagraph_v1_evidence_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ContextBundle) GetMeta() *RecordMeta {
@@ -1440,7 +1589,7 @@ type EvidenceSearchRequest struct {
 
 func (x *EvidenceSearchRequest) Reset() {
 	*x = EvidenceSearchRequest{}
-	mi := &file_regulagraph_v1_evidence_proto_msgTypes[16]
+	mi := &file_regulagraph_v1_evidence_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1452,7 +1601,7 @@ func (x *EvidenceSearchRequest) String() string {
 func (*EvidenceSearchRequest) ProtoMessage() {}
 
 func (x *EvidenceSearchRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_regulagraph_v1_evidence_proto_msgTypes[16]
+	mi := &file_regulagraph_v1_evidence_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1465,7 +1614,7 @@ func (x *EvidenceSearchRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EvidenceSearchRequest.ProtoReflect.Descriptor instead.
 func (*EvidenceSearchRequest) Descriptor() ([]byte, []int) {
-	return file_regulagraph_v1_evidence_proto_rawDescGZIP(), []int{16}
+	return file_regulagraph_v1_evidence_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *EvidenceSearchRequest) GetContext() *RequestContext {
@@ -1507,7 +1656,7 @@ type EvidenceSearchResponse struct {
 
 func (x *EvidenceSearchResponse) Reset() {
 	*x = EvidenceSearchResponse{}
-	mi := &file_regulagraph_v1_evidence_proto_msgTypes[17]
+	mi := &file_regulagraph_v1_evidence_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1519,7 +1668,7 @@ func (x *EvidenceSearchResponse) String() string {
 func (*EvidenceSearchResponse) ProtoMessage() {}
 
 func (x *EvidenceSearchResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_regulagraph_v1_evidence_proto_msgTypes[17]
+	mi := &file_regulagraph_v1_evidence_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1532,7 +1681,7 @@ func (x *EvidenceSearchResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EvidenceSearchResponse.ProtoReflect.Descriptor instead.
 func (*EvidenceSearchResponse) Descriptor() ([]byte, []int) {
-	return file_regulagraph_v1_evidence_proto_rawDescGZIP(), []int{17}
+	return file_regulagraph_v1_evidence_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *EvidenceSearchResponse) GetEvidence() *EvidenceBundle {
@@ -1560,14 +1709,15 @@ var File_regulagraph_v1_evidence_proto protoreflect.FileDescriptor
 
 const file_regulagraph_v1_evidence_proto_rawDesc = "" +
 	"\n" +
-	"\x1dregulagraph/v1/evidence.proto\x12\x0eregulagraph.v1\x1a\x1bregulagraph/v1/common.proto\x1a\x1eregulagraph/v1/documents.proto\x1a\x1aregulagraph/v1/graph.proto\"\xc2\x03\n" +
+	"\x1dregulagraph/v1/evidence.proto\x12\x0eregulagraph.v1\x1a\x1bregulagraph/v1/common.proto\x1a\x1eregulagraph/v1/documents.proto\x1a\x1aregulagraph/v1/graph.proto\"\x8a\x04\n" +
 	"\x0fIndexGeneration\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\x1a.regulagraph.v1.RecordMetaB\x06\x8a\xb5\x18\x02\b\x01R\x04meta\x12L\n" +
 	"\x0edense_manifest\x18\x02 \x01(\v2\x1d.regulagraph.v1.ModelManifestB\x06\x8a\xb5\x18\x02\b\x01R\rdenseManifest\x12N\n" +
 	"\x10lexical_analyzer\x18\x03 \x01(\v2\x1b.regulagraph.v1.ArtifactRefB\x06\x8a\xb5\x18\x02\b\x01R\x0flexicalAnalyzer\x12R\n" +
 	"\x12lexical_dictionary\x18\x04 \x01(\v2\x1b.regulagraph.v1.ArtifactRefB\x06\x8a\xb5\x18\x02\b\x01R\x11lexicalDictionary\x12R\n" +
 	"\x12lexical_statistics\x18\x05 \x01(\v2\x1b.regulagraph.v1.ArtifactRefB\x06\x8a\xb5\x18\x02\b\x01R\x11lexicalStatistics\x121\n" +
-	"\x10ontology_version\x18\x06 \x01(\tB\x06\x8a\xb5\x18\x02\b\x01R\x0fontologyVersion\"|\n" +
+	"\x10ontology_version\x18\x06 \x01(\tB\x06\x8a\xb5\x18\x02\b\x01R\x0fontologyVersion\x12F\n" +
+	"\rfilter_format\x18\a \x01(\x0e2!.regulagraph.v1.IndexFilterFormatR\ffilterFormat\"|\n" +
 	"\vDenseVector\x12 \n" +
 	"\x06values\x18\x01 \x03(\x02B\b\x8a\xb5\x18\x04(\x01@\x01R\x06values\x12&\n" +
 	"\n" +
@@ -1576,7 +1726,7 @@ const file_regulagraph_v1_evidence_proto_rawDesc = "" +
 	"\bmodel_id\x18\x03 \x01(\tB\b\x8a\xb5\x18\x04\b\x01\x10\x01R\amodelId\"P\n" +
 	"\fSparseVector\x12 \n" +
 	"\aindices\x18\x01 \x03(\rB\x06\x8a\xb5\x18\x028\x01R\aindices\x12\x1e\n" +
-	"\x06values\x18\x02 \x03(\x02B\x06\x8a\xb5\x18\x02(\x01R\x06values\"\xe5\x02\n" +
+	"\x06values\x18\x02 \x03(\x02B\x06\x8a\xb5\x18\x02(\x01R\x06values\"\xb8\x03\n" +
 	"\x0eFilterMetadata\x12-\n" +
 	"\x0eregulation_ids\x18\x01 \x03(\tB\x06\x8a\xb5\x18\x02\x10\x01R\rregulationIds\x12.\n" +
 	"\x0fsource_blob_ids\x18\x02 \x03(\tB\x06\x8a\xb5\x18\x02\x10\x01R\rsourceBlobIds\x12F\n" +
@@ -1585,7 +1735,15 @@ const file_regulagraph_v1_evidence_proto_rawDesc = "" +
 	"\rjurisdictions\x18\x05 \x03(\tR\rjurisdictions\x12B\n" +
 	"\n" +
 	"visibility\x18\x06 \x01(\v2\x1a.regulagraph.v1.VisibilityB\x06\x8a\xb5\x18\x02\b\x01R\n" +
-	"visibility\"\xff\x03\n" +
+	"visibility\x12Q\n" +
+	"\x11provision_filters\x18\a \x03(\v2$.regulagraph.v1.IndexProvisionFilterR\x10provisionFilters\"\xf3\x02\n" +
+	"\x14IndexProvisionFilter\x12:\n" +
+	"\x14provision_version_id\x18\x01 \x01(\tB\b\x8a\xb5\x18\x04\b\x01\x10\x01R\x12provisionVersionId\x12-\n" +
+	"\rregulation_id\x18\x02 \x01(\tB\b\x8a\xb5\x18\x04\b\x01\x10\x01R\fregulationId\x12.\n" +
+	"\x0esource_blob_id\x18\x03 \x01(\tB\b\x8a\xb5\x18\x04\b\x01\x10\x01R\fsourceBlobId\x12L\n" +
+	"\x0elegal_interval\x18\x04 \x01(\v2\x1d.regulagraph.v1.LegalIntervalB\x06\x8a\xb5\x18\x02\b\x01R\rlegalInterval\x12F\n" +
+	"\flegal_status\x18\x05 \x01(\x0e2\x1b.regulagraph.v1.LegalStatusB\x06\x8a\xb5\x18\x02\b\x01R\vlegalStatus\x12*\n" +
+	"\fjurisdiction\x18\x06 \x01(\tB\x06\x8a\xb5\x18\x02\b\x01R\fjurisdiction\"\xff\x03\n" +
 	"\vIndexRecord\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\x1a.regulagraph.v1.RecordMetaB\x06\x8a\xb5\x18\x02\b\x01R\x04meta\x12-\n" +
 	"\rgeneration_id\x18\x02 \x01(\tB\b\x8a\xb5\x18\x04\b\x01\x10\x01R\fgenerationId\x12#\n" +
@@ -1708,7 +1866,10 @@ const file_regulagraph_v1_evidence_proto_rawDesc = "" +
 	"\x1aRETRIEVER_KIND_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14RETRIEVER_KIND_DENSE\x10\x01\x12\x17\n" +
 	"\x13RETRIEVER_KIND_BM25\x10\x02\x12\x18\n" +
-	"\x14RETRIEVER_KIND_GRAPH\x10\x03B;Z9regulagraph.local/server/gen/regulagraph/v1;regulagraphv1b\x06proto3"
+	"\x14RETRIEVER_KIND_GRAPH\x10\x03*e\n" +
+	"\x11IndexFilterFormat\x12#\n" +
+	"\x1fINDEX_FILTER_FORMAT_UNSPECIFIED\x10\x00\x12+\n" +
+	"'INDEX_FILTER_FORMAT_PAIRED_PROVISION_V1\x10\x01B;Z9regulagraph.local/server/gen/regulagraph/v1;regulagraphv1b\x06proto3"
 
 var (
 	file_regulagraph_v1_evidence_proto_rawDescOnce sync.Once
@@ -1722,114 +1883,120 @@ func file_regulagraph_v1_evidence_proto_rawDescGZIP() []byte {
 	return file_regulagraph_v1_evidence_proto_rawDescData
 }
 
-var file_regulagraph_v1_evidence_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_regulagraph_v1_evidence_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
+var file_regulagraph_v1_evidence_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_regulagraph_v1_evidence_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
 var file_regulagraph_v1_evidence_proto_goTypes = []any{
 	(RetrievalProfile)(0),          // 0: regulagraph.v1.RetrievalProfile
 	(RetrieverKind)(0),             // 1: regulagraph.v1.RetrieverKind
-	(*IndexGeneration)(nil),        // 2: regulagraph.v1.IndexGeneration
-	(*DenseVector)(nil),            // 3: regulagraph.v1.DenseVector
-	(*SparseVector)(nil),           // 4: regulagraph.v1.SparseVector
-	(*FilterMetadata)(nil),         // 5: regulagraph.v1.FilterMetadata
-	(*IndexRecord)(nil),            // 6: regulagraph.v1.IndexRecord
-	(*IndexBatch)(nil),             // 7: regulagraph.v1.IndexBatch
-	(*StageBudget)(nil),            // 8: regulagraph.v1.StageBudget
-	(*RetrievalPlan)(nil),          // 9: regulagraph.v1.RetrievalPlan
-	(*FilterDecision)(nil),         // 10: regulagraph.v1.FilterDecision
-	(*Candidate)(nil),              // 11: regulagraph.v1.Candidate
-	(*Evidence)(nil),               // 12: regulagraph.v1.Evidence
-	(*RequiredPathSet)(nil),        // 13: regulagraph.v1.RequiredPathSet
-	(*EvidenceBundle)(nil),         // 14: regulagraph.v1.EvidenceBundle
-	(*RerankResult)(nil),           // 15: regulagraph.v1.RerankResult
-	(*ContextBlock)(nil),           // 16: regulagraph.v1.ContextBlock
-	(*ContextBundle)(nil),          // 17: regulagraph.v1.ContextBundle
-	(*EvidenceSearchRequest)(nil),  // 18: regulagraph.v1.EvidenceSearchRequest
-	(*EvidenceSearchResponse)(nil), // 19: regulagraph.v1.EvidenceSearchResponse
-	(*RecordMeta)(nil),             // 20: regulagraph.v1.RecordMeta
-	(*ModelManifest)(nil),          // 21: regulagraph.v1.ModelManifest
-	(*ArtifactRef)(nil),            // 22: regulagraph.v1.ArtifactRef
-	(*LegalInterval)(nil),          // 23: regulagraph.v1.LegalInterval
-	(LegalStatus)(0),               // 24: regulagraph.v1.LegalStatus
-	(*Visibility)(nil),             // 25: regulagraph.v1.Visibility
-	(*DependencyManifest)(nil),     // 26: regulagraph.v1.DependencyManifest
-	(*RequestContext)(nil),         // 27: regulagraph.v1.RequestContext
-	(*VisibilityClosure)(nil),      // 28: regulagraph.v1.VisibilityClosure
-	(*Counts)(nil),                 // 29: regulagraph.v1.Counts
-	(*ContentHash)(nil),            // 30: regulagraph.v1.ContentHash
-	(*TemporalScope)(nil),          // 31: regulagraph.v1.TemporalScope
-	(*SourceVersionRef)(nil),       // 32: regulagraph.v1.SourceVersionRef
-	(*TextSpan)(nil),               // 33: regulagraph.v1.TextSpan
-	(*PageLocator)(nil),            // 34: regulagraph.v1.PageLocator
-	(*SnapshotRef)(nil),            // 35: regulagraph.v1.SnapshotRef
-	(*GraphPath)(nil),              // 36: regulagraph.v1.GraphPath
-	(Completeness)(0),              // 37: regulagraph.v1.Completeness
-	(*ProducerManifest)(nil),       // 38: regulagraph.v1.ProducerManifest
-	(CompletionStatus)(0),          // 39: regulagraph.v1.CompletionStatus
-	(*OperationError)(nil),         // 40: regulagraph.v1.OperationError
-	(*TruncationInfo)(nil),         // 41: regulagraph.v1.TruncationInfo
-	(*StageDuration)(nil),          // 42: regulagraph.v1.StageDuration
+	(IndexFilterFormat)(0),         // 2: regulagraph.v1.IndexFilterFormat
+	(*IndexGeneration)(nil),        // 3: regulagraph.v1.IndexGeneration
+	(*DenseVector)(nil),            // 4: regulagraph.v1.DenseVector
+	(*SparseVector)(nil),           // 5: regulagraph.v1.SparseVector
+	(*FilterMetadata)(nil),         // 6: regulagraph.v1.FilterMetadata
+	(*IndexProvisionFilter)(nil),   // 7: regulagraph.v1.IndexProvisionFilter
+	(*IndexRecord)(nil),            // 8: regulagraph.v1.IndexRecord
+	(*IndexBatch)(nil),             // 9: regulagraph.v1.IndexBatch
+	(*StageBudget)(nil),            // 10: regulagraph.v1.StageBudget
+	(*RetrievalPlan)(nil),          // 11: regulagraph.v1.RetrievalPlan
+	(*FilterDecision)(nil),         // 12: regulagraph.v1.FilterDecision
+	(*Candidate)(nil),              // 13: regulagraph.v1.Candidate
+	(*Evidence)(nil),               // 14: regulagraph.v1.Evidence
+	(*RequiredPathSet)(nil),        // 15: regulagraph.v1.RequiredPathSet
+	(*EvidenceBundle)(nil),         // 16: regulagraph.v1.EvidenceBundle
+	(*RerankResult)(nil),           // 17: regulagraph.v1.RerankResult
+	(*ContextBlock)(nil),           // 18: regulagraph.v1.ContextBlock
+	(*ContextBundle)(nil),          // 19: regulagraph.v1.ContextBundle
+	(*EvidenceSearchRequest)(nil),  // 20: regulagraph.v1.EvidenceSearchRequest
+	(*EvidenceSearchResponse)(nil), // 21: regulagraph.v1.EvidenceSearchResponse
+	(*RecordMeta)(nil),             // 22: regulagraph.v1.RecordMeta
+	(*ModelManifest)(nil),          // 23: regulagraph.v1.ModelManifest
+	(*ArtifactRef)(nil),            // 24: regulagraph.v1.ArtifactRef
+	(*LegalInterval)(nil),          // 25: regulagraph.v1.LegalInterval
+	(LegalStatus)(0),               // 26: regulagraph.v1.LegalStatus
+	(*Visibility)(nil),             // 27: regulagraph.v1.Visibility
+	(*DependencyManifest)(nil),     // 28: regulagraph.v1.DependencyManifest
+	(*RequestContext)(nil),         // 29: regulagraph.v1.RequestContext
+	(*VisibilityClosure)(nil),      // 30: regulagraph.v1.VisibilityClosure
+	(*Counts)(nil),                 // 31: regulagraph.v1.Counts
+	(*ContentHash)(nil),            // 32: regulagraph.v1.ContentHash
+	(*TemporalScope)(nil),          // 33: regulagraph.v1.TemporalScope
+	(*SourceVersionRef)(nil),       // 34: regulagraph.v1.SourceVersionRef
+	(*TextSpan)(nil),               // 35: regulagraph.v1.TextSpan
+	(*PageLocator)(nil),            // 36: regulagraph.v1.PageLocator
+	(*SnapshotRef)(nil),            // 37: regulagraph.v1.SnapshotRef
+	(*GraphPath)(nil),              // 38: regulagraph.v1.GraphPath
+	(Completeness)(0),              // 39: regulagraph.v1.Completeness
+	(*ProducerManifest)(nil),       // 40: regulagraph.v1.ProducerManifest
+	(CompletionStatus)(0),          // 41: regulagraph.v1.CompletionStatus
+	(*OperationError)(nil),         // 42: regulagraph.v1.OperationError
+	(*TruncationInfo)(nil),         // 43: regulagraph.v1.TruncationInfo
+	(*StageDuration)(nil),          // 44: regulagraph.v1.StageDuration
 }
 var file_regulagraph_v1_evidence_proto_depIdxs = []int32{
-	20, // 0: regulagraph.v1.IndexGeneration.meta:type_name -> regulagraph.v1.RecordMeta
-	21, // 1: regulagraph.v1.IndexGeneration.dense_manifest:type_name -> regulagraph.v1.ModelManifest
-	22, // 2: regulagraph.v1.IndexGeneration.lexical_analyzer:type_name -> regulagraph.v1.ArtifactRef
-	22, // 3: regulagraph.v1.IndexGeneration.lexical_dictionary:type_name -> regulagraph.v1.ArtifactRef
-	22, // 4: regulagraph.v1.IndexGeneration.lexical_statistics:type_name -> regulagraph.v1.ArtifactRef
-	23, // 5: regulagraph.v1.FilterMetadata.legal_intervals:type_name -> regulagraph.v1.LegalInterval
-	24, // 6: regulagraph.v1.FilterMetadata.legal_statuses:type_name -> regulagraph.v1.LegalStatus
-	25, // 7: regulagraph.v1.FilterMetadata.visibility:type_name -> regulagraph.v1.Visibility
-	20, // 8: regulagraph.v1.IndexRecord.meta:type_name -> regulagraph.v1.RecordMeta
-	3,  // 9: regulagraph.v1.IndexRecord.dense_vector:type_name -> regulagraph.v1.DenseVector
-	4,  // 10: regulagraph.v1.IndexRecord.sparse_vector:type_name -> regulagraph.v1.SparseVector
-	5,  // 11: regulagraph.v1.IndexRecord.filter_metadata:type_name -> regulagraph.v1.FilterMetadata
-	26, // 12: regulagraph.v1.IndexRecord.dependencies:type_name -> regulagraph.v1.DependencyManifest
-	20, // 13: regulagraph.v1.IndexBatch.meta:type_name -> regulagraph.v1.RecordMeta
-	27, // 14: regulagraph.v1.IndexBatch.context:type_name -> regulagraph.v1.RequestContext
-	2,  // 15: regulagraph.v1.IndexBatch.generation:type_name -> regulagraph.v1.IndexGeneration
-	6,  // 16: regulagraph.v1.IndexBatch.records:type_name -> regulagraph.v1.IndexRecord
-	28, // 17: regulagraph.v1.IndexBatch.closures:type_name -> regulagraph.v1.VisibilityClosure
-	29, // 18: regulagraph.v1.IndexBatch.counts:type_name -> regulagraph.v1.Counts
-	30, // 19: regulagraph.v1.IndexBatch.operations_checksum:type_name -> regulagraph.v1.ContentHash
-	26, // 20: regulagraph.v1.IndexBatch.dependencies:type_name -> regulagraph.v1.DependencyManifest
-	31, // 21: regulagraph.v1.RetrievalPlan.temporal_scope:type_name -> regulagraph.v1.TemporalScope
-	0,  // 22: regulagraph.v1.RetrievalPlan.requested_profile:type_name -> regulagraph.v1.RetrievalProfile
-	8,  // 23: regulagraph.v1.RetrievalPlan.stage_budgets:type_name -> regulagraph.v1.StageBudget
-	1,  // 24: regulagraph.v1.Candidate.retriever:type_name -> regulagraph.v1.RetrieverKind
-	10, // 25: regulagraph.v1.Candidate.filter_decisions:type_name -> regulagraph.v1.FilterDecision
-	20, // 26: regulagraph.v1.Evidence.meta:type_name -> regulagraph.v1.RecordMeta
-	32, // 27: regulagraph.v1.Evidence.source_refs:type_name -> regulagraph.v1.SourceVersionRef
-	33, // 28: regulagraph.v1.Evidence.source_spans:type_name -> regulagraph.v1.TextSpan
-	34, // 29: regulagraph.v1.Evidence.locators:type_name -> regulagraph.v1.PageLocator
-	35, // 30: regulagraph.v1.Evidence.snapshot_ref:type_name -> regulagraph.v1.SnapshotRef
-	11, // 31: regulagraph.v1.Evidence.candidate_provenance:type_name -> regulagraph.v1.Candidate
-	36, // 32: regulagraph.v1.Evidence.graph_paths:type_name -> regulagraph.v1.GraphPath
-	24, // 33: regulagraph.v1.Evidence.legal_status:type_name -> regulagraph.v1.LegalStatus
-	20, // 34: regulagraph.v1.EvidenceBundle.meta:type_name -> regulagraph.v1.RecordMeta
-	12, // 35: regulagraph.v1.EvidenceBundle.items:type_name -> regulagraph.v1.Evidence
-	13, // 36: regulagraph.v1.EvidenceBundle.required_path_sets:type_name -> regulagraph.v1.RequiredPathSet
-	37, // 37: regulagraph.v1.EvidenceBundle.completeness:type_name -> regulagraph.v1.Completeness
-	38, // 38: regulagraph.v1.EvidenceBundle.retrieval_manifest:type_name -> regulagraph.v1.ProducerManifest
-	35, // 39: regulagraph.v1.EvidenceBundle.snapshot:type_name -> regulagraph.v1.SnapshotRef
-	39, // 40: regulagraph.v1.EvidenceBundle.completion_status:type_name -> regulagraph.v1.CompletionStatus
-	40, // 41: regulagraph.v1.EvidenceBundle.errors:type_name -> regulagraph.v1.OperationError
-	21, // 42: regulagraph.v1.RerankResult.model_manifest:type_name -> regulagraph.v1.ModelManifest
-	41, // 43: regulagraph.v1.RerankResult.truncation:type_name -> regulagraph.v1.TruncationInfo
-	20, // 44: regulagraph.v1.ContextBundle.meta:type_name -> regulagraph.v1.RecordMeta
-	16, // 45: regulagraph.v1.ContextBundle.rendered_blocks:type_name -> regulagraph.v1.ContextBlock
-	30, // 46: regulagraph.v1.ContextBundle.tokenizer_hash:type_name -> regulagraph.v1.ContentHash
-	37, // 47: regulagraph.v1.ContextBundle.completeness:type_name -> regulagraph.v1.Completeness
-	35, // 48: regulagraph.v1.ContextBundle.snapshot:type_name -> regulagraph.v1.SnapshotRef
-	27, // 49: regulagraph.v1.EvidenceSearchRequest.context:type_name -> regulagraph.v1.RequestContext
-	31, // 50: regulagraph.v1.EvidenceSearchRequest.temporal_scope:type_name -> regulagraph.v1.TemporalScope
-	0,  // 51: regulagraph.v1.EvidenceSearchRequest.profile:type_name -> regulagraph.v1.RetrievalProfile
-	14, // 52: regulagraph.v1.EvidenceSearchResponse.evidence:type_name -> regulagraph.v1.EvidenceBundle
-	9,  // 53: regulagraph.v1.EvidenceSearchResponse.plan:type_name -> regulagraph.v1.RetrievalPlan
-	42, // 54: regulagraph.v1.EvidenceSearchResponse.durations:type_name -> regulagraph.v1.StageDuration
-	55, // [55:55] is the sub-list for method output_type
-	55, // [55:55] is the sub-list for method input_type
-	55, // [55:55] is the sub-list for extension type_name
-	55, // [55:55] is the sub-list for extension extendee
-	0,  // [0:55] is the sub-list for field type_name
+	22, // 0: regulagraph.v1.IndexGeneration.meta:type_name -> regulagraph.v1.RecordMeta
+	23, // 1: regulagraph.v1.IndexGeneration.dense_manifest:type_name -> regulagraph.v1.ModelManifest
+	24, // 2: regulagraph.v1.IndexGeneration.lexical_analyzer:type_name -> regulagraph.v1.ArtifactRef
+	24, // 3: regulagraph.v1.IndexGeneration.lexical_dictionary:type_name -> regulagraph.v1.ArtifactRef
+	24, // 4: regulagraph.v1.IndexGeneration.lexical_statistics:type_name -> regulagraph.v1.ArtifactRef
+	2,  // 5: regulagraph.v1.IndexGeneration.filter_format:type_name -> regulagraph.v1.IndexFilterFormat
+	25, // 6: regulagraph.v1.FilterMetadata.legal_intervals:type_name -> regulagraph.v1.LegalInterval
+	26, // 7: regulagraph.v1.FilterMetadata.legal_statuses:type_name -> regulagraph.v1.LegalStatus
+	27, // 8: regulagraph.v1.FilterMetadata.visibility:type_name -> regulagraph.v1.Visibility
+	7,  // 9: regulagraph.v1.FilterMetadata.provision_filters:type_name -> regulagraph.v1.IndexProvisionFilter
+	25, // 10: regulagraph.v1.IndexProvisionFilter.legal_interval:type_name -> regulagraph.v1.LegalInterval
+	26, // 11: regulagraph.v1.IndexProvisionFilter.legal_status:type_name -> regulagraph.v1.LegalStatus
+	22, // 12: regulagraph.v1.IndexRecord.meta:type_name -> regulagraph.v1.RecordMeta
+	4,  // 13: regulagraph.v1.IndexRecord.dense_vector:type_name -> regulagraph.v1.DenseVector
+	5,  // 14: regulagraph.v1.IndexRecord.sparse_vector:type_name -> regulagraph.v1.SparseVector
+	6,  // 15: regulagraph.v1.IndexRecord.filter_metadata:type_name -> regulagraph.v1.FilterMetadata
+	28, // 16: regulagraph.v1.IndexRecord.dependencies:type_name -> regulagraph.v1.DependencyManifest
+	22, // 17: regulagraph.v1.IndexBatch.meta:type_name -> regulagraph.v1.RecordMeta
+	29, // 18: regulagraph.v1.IndexBatch.context:type_name -> regulagraph.v1.RequestContext
+	3,  // 19: regulagraph.v1.IndexBatch.generation:type_name -> regulagraph.v1.IndexGeneration
+	8,  // 20: regulagraph.v1.IndexBatch.records:type_name -> regulagraph.v1.IndexRecord
+	30, // 21: regulagraph.v1.IndexBatch.closures:type_name -> regulagraph.v1.VisibilityClosure
+	31, // 22: regulagraph.v1.IndexBatch.counts:type_name -> regulagraph.v1.Counts
+	32, // 23: regulagraph.v1.IndexBatch.operations_checksum:type_name -> regulagraph.v1.ContentHash
+	28, // 24: regulagraph.v1.IndexBatch.dependencies:type_name -> regulagraph.v1.DependencyManifest
+	33, // 25: regulagraph.v1.RetrievalPlan.temporal_scope:type_name -> regulagraph.v1.TemporalScope
+	0,  // 26: regulagraph.v1.RetrievalPlan.requested_profile:type_name -> regulagraph.v1.RetrievalProfile
+	10, // 27: regulagraph.v1.RetrievalPlan.stage_budgets:type_name -> regulagraph.v1.StageBudget
+	1,  // 28: regulagraph.v1.Candidate.retriever:type_name -> regulagraph.v1.RetrieverKind
+	12, // 29: regulagraph.v1.Candidate.filter_decisions:type_name -> regulagraph.v1.FilterDecision
+	22, // 30: regulagraph.v1.Evidence.meta:type_name -> regulagraph.v1.RecordMeta
+	34, // 31: regulagraph.v1.Evidence.source_refs:type_name -> regulagraph.v1.SourceVersionRef
+	35, // 32: regulagraph.v1.Evidence.source_spans:type_name -> regulagraph.v1.TextSpan
+	36, // 33: regulagraph.v1.Evidence.locators:type_name -> regulagraph.v1.PageLocator
+	37, // 34: regulagraph.v1.Evidence.snapshot_ref:type_name -> regulagraph.v1.SnapshotRef
+	13, // 35: regulagraph.v1.Evidence.candidate_provenance:type_name -> regulagraph.v1.Candidate
+	38, // 36: regulagraph.v1.Evidence.graph_paths:type_name -> regulagraph.v1.GraphPath
+	26, // 37: regulagraph.v1.Evidence.legal_status:type_name -> regulagraph.v1.LegalStatus
+	22, // 38: regulagraph.v1.EvidenceBundle.meta:type_name -> regulagraph.v1.RecordMeta
+	14, // 39: regulagraph.v1.EvidenceBundle.items:type_name -> regulagraph.v1.Evidence
+	15, // 40: regulagraph.v1.EvidenceBundle.required_path_sets:type_name -> regulagraph.v1.RequiredPathSet
+	39, // 41: regulagraph.v1.EvidenceBundle.completeness:type_name -> regulagraph.v1.Completeness
+	40, // 42: regulagraph.v1.EvidenceBundle.retrieval_manifest:type_name -> regulagraph.v1.ProducerManifest
+	37, // 43: regulagraph.v1.EvidenceBundle.snapshot:type_name -> regulagraph.v1.SnapshotRef
+	41, // 44: regulagraph.v1.EvidenceBundle.completion_status:type_name -> regulagraph.v1.CompletionStatus
+	42, // 45: regulagraph.v1.EvidenceBundle.errors:type_name -> regulagraph.v1.OperationError
+	23, // 46: regulagraph.v1.RerankResult.model_manifest:type_name -> regulagraph.v1.ModelManifest
+	43, // 47: regulagraph.v1.RerankResult.truncation:type_name -> regulagraph.v1.TruncationInfo
+	22, // 48: regulagraph.v1.ContextBundle.meta:type_name -> regulagraph.v1.RecordMeta
+	18, // 49: regulagraph.v1.ContextBundle.rendered_blocks:type_name -> regulagraph.v1.ContextBlock
+	32, // 50: regulagraph.v1.ContextBundle.tokenizer_hash:type_name -> regulagraph.v1.ContentHash
+	39, // 51: regulagraph.v1.ContextBundle.completeness:type_name -> regulagraph.v1.Completeness
+	37, // 52: regulagraph.v1.ContextBundle.snapshot:type_name -> regulagraph.v1.SnapshotRef
+	29, // 53: regulagraph.v1.EvidenceSearchRequest.context:type_name -> regulagraph.v1.RequestContext
+	33, // 54: regulagraph.v1.EvidenceSearchRequest.temporal_scope:type_name -> regulagraph.v1.TemporalScope
+	0,  // 55: regulagraph.v1.EvidenceSearchRequest.profile:type_name -> regulagraph.v1.RetrievalProfile
+	16, // 56: regulagraph.v1.EvidenceSearchResponse.evidence:type_name -> regulagraph.v1.EvidenceBundle
+	11, // 57: regulagraph.v1.EvidenceSearchResponse.plan:type_name -> regulagraph.v1.RetrievalPlan
+	44, // 58: regulagraph.v1.EvidenceSearchResponse.durations:type_name -> regulagraph.v1.StageDuration
+	59, // [59:59] is the sub-list for method output_type
+	59, // [59:59] is the sub-list for method input_type
+	59, // [59:59] is the sub-list for extension type_name
+	59, // [59:59] is the sub-list for extension extendee
+	0,  // [0:59] is the sub-list for field type_name
 }
 
 func init() { file_regulagraph_v1_evidence_proto_init() }
@@ -1840,14 +2007,14 @@ func file_regulagraph_v1_evidence_proto_init() {
 	file_regulagraph_v1_common_proto_init()
 	file_regulagraph_v1_documents_proto_init()
 	file_regulagraph_v1_graph_proto_init()
-	file_regulagraph_v1_evidence_proto_msgTypes[6].OneofWrappers = []any{}
+	file_regulagraph_v1_evidence_proto_msgTypes[7].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_regulagraph_v1_evidence_proto_rawDesc), len(file_regulagraph_v1_evidence_proto_rawDesc)),
-			NumEnums:      2,
-			NumMessages:   18,
+			NumEnums:      3,
+			NumMessages:   19,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

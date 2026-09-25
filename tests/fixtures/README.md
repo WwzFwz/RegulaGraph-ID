@@ -34,6 +34,12 @@ Fixture `semantic-resolve-context-roundtrip` dan `resolution-rationale-context-r
 
 `semantic-resolve-candidate-context-roundtrip` memeriksa bukti kandidat dari sumber berbeda. Fixture `candidate-context-missing-support` dan `candidate-context-empty-excerpts` harus ditolak keempat validator. Semua label/sumber fiktif; preservation wire tidak membuktikan LINK yang benar secara semantik.
 
+Fixture `paired-index-filter-*` dan `paired-filter-metadata` menguji kontrak
+aditif X01: status/interval UNKNOWN sah, versi pasal wajib, dan field binary
+asing tetap dipertahankan saat forwarding lintas bahasa. Ini tidak membuktikan
+keaslian hubungan versi/sumber atau keamanan pembaca lama; gate writer dan
+reader generation tetap diperlukan sebelum publikasi.
+
 [lexical-analyzer-v1.json](lexical-analyzer-v1.json) adalah fixture sintetis bersama
 Rust dan Go untuk token BM25: nomor regulasi, negasi, tanda hubung, NFC Unicode 15,
 code-switch, dan dua karakter yang membedakan `is_alphabetic` Rust dari kategori

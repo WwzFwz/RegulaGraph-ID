@@ -24,6 +24,19 @@ artifact `ReadVerified`/content-addressed storage, job/checkpoint/fence S01,
 `PublicationCoordinator.Reserve/Stage/Acknowledge/Publish/Abort`, serta snapshot read pin.
 Runtime C++ tidak diberi tanggung jawab indexing, dan Rust tidak menulis Qdrant/PostgreSQL.
 
+Kemajuan kontrak saat ini: `IndexFilterFormat.PAIRED_PROVISION_V1` pada
+`IndexGeneration` dan `IndexProvisionFilter` pada `FilterMetadata` sudah dibuat
+secara aditif. Gate Go memeriksa pasangan filter dan memproyeksikan fakta
+regulasi/versi/interval/status/blob dari satu `DocumentBatch` tervalidasi.
+Generator, writer, pembaca backend, dan publication masih belum aktif. Generation
+paired **tidak boleh diterbitkan** sebelum setiap pembaca yang bisa menerima
+route query memahami format tersebut; pembaca binary lama mengabaikan field
+baru dan dapat kehilangan filter hukum walau decode berhasil. Binding fisik
+generation serta rollout pembaca harus menolak format tidak dikenal sebelum
+melayani traffic. Array legacy hanya boleh dibaca pada generation lama dengan
+semantik yang dibuktikan; writer paired baru menolaknya agar tidak menggabungkan
+interval dan status dari versi yang berbeda.
+
 ## 1. Audit kontrak dan identitas representasi
 
 `IndexGeneration`, `IndexRecord`, `IndexBatch`, `BackendReceipt`, dan worker output

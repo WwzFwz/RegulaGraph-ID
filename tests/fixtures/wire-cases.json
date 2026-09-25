@@ -1116,6 +1116,73 @@
       }
     },
     {
+      "name": "paired-index-filter-unknown-date",
+      "type": "IndexProvisionFilter",
+      "valid": true,
+      "value": {
+        "provision_version_id": "version-1",
+        "regulation_id": "regulation-1",
+        "source_blob_id": "blob-1",
+        "legal_interval": {
+          "start": {"knowledge": "DATE_KNOWLEDGE_UNKNOWN"},
+          "end": {"knowledge": "DATE_KNOWLEDGE_UNKNOWN"}
+        },
+        "legal_status": "LEGAL_STATUS_UNKNOWN",
+        "jurisdiction": "ID"
+      }
+    },
+    {
+      "name": "paired-index-filter-missing-version",
+      "type": "IndexProvisionFilter",
+      "valid": false,
+      "value": {
+        "regulation_id": "regulation-1",
+        "source_blob_id": "blob-1",
+        "legal_interval": {
+          "start": {"knowledge": "DATE_KNOWLEDGE_UNKNOWN"},
+          "end": {"knowledge": "DATE_KNOWLEDGE_UNKNOWN"}
+        },
+        "legal_status": "LEGAL_STATUS_UNKNOWN",
+        "jurisdiction": "ID"
+      }
+    },
+    {
+      "name": "paired-index-filter-unknown-field",
+      "type": "IndexProvisionFilter",
+      "valid": true,
+      "append_hex": "a00601",
+      "value": {
+        "provision_version_id": "version-1",
+        "regulation_id": "regulation-1",
+        "source_blob_id": "blob-1",
+        "legal_interval": {
+          "start": {"knowledge": "DATE_KNOWLEDGE_UNKNOWN"},
+          "end": {"knowledge": "DATE_KNOWLEDGE_UNKNOWN"}
+        },
+        "legal_status": "LEGAL_STATUS_UNKNOWN",
+        "jurisdiction": "ID"
+      }
+    },
+    {
+      "name": "paired-filter-metadata",
+      "type": "FilterMetadata",
+      "valid": true,
+      "value": {
+        "visibility": {"from_seq": "7"},
+        "provision_filters": [{
+          "provision_version_id": "version-1",
+          "regulation_id": "regulation-1",
+          "source_blob_id": "blob-1",
+          "legal_interval": {
+            "start": {"knowledge": "DATE_KNOWLEDGE_UNKNOWN"},
+            "end": {"knowledge": "DATE_KNOWLEDGE_UNKNOWN"}
+          },
+          "legal_status": "LEGAL_STATUS_UNKNOWN",
+          "jurisdiction": "ID"
+        }]
+      }
+    },
+    {
       "name": "candidate-context-empty-excerpts",
       "type": "ResolutionCandidateContext",
       "valid": false,

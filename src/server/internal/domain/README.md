@@ -23,6 +23,14 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 Berkas: [answers.go](answers.go), [chunks.go](chunks.go), [documents.go](documents.go), [document_validation.go](document_validation.go), [extraction_validation.go](extraction_validation.go), [entities.go](entities.go), [evidence.go](evidence.go), [relations.go](relations.go), [registry.go](registry.go), serta [operations.go](operations.go) untuk boundary job/publication S01. Validator dokumen dan ekstraksi memeriksa closure referensi, accounting, provenance source/version, identitas model/prompt, qualifier provisional, serta containment span sebelum artefak diregistrasi. [registry_test.go](registry_test.go) memverifikasi exact-key planning, sedangkan [documents_test.go](documents_test.go) memverifikasi binding regulation/provision, provenance, completeness, dan structural closure. Validator wire dan boundary lintas record dijelaskan pada bagian C01 di bawah.
 
 Validator `RegistryCandidateBatch` memeriksa coverage mention, konteks/sumber, hasil dan revisi per scope, scope ID length-prefixed yang sama dengan adapter PostgreSQL/Rust, alias bersumber untuk setiap kandidat positif, tipe/scope kandidat, serta batas referensi bersarang. Producer tetap harus memakai snapshot registry tepercaya; input eksternal harus dibatasi dengan `DecodeWire` sebelum persist atau kerja mahal. Hasil lookup PostgreSQL dan akurasi kandidat belum dibuktikan oleh validator struktural ini.
+[index_filters.go](index_filters.go) mewajibkan format paired pada generation baru,
+kesamaan visibility, penutupan setiap ID versi dalam record, dan menolak pencampuran
+array legacy. [index_source_view.go](index_source_view.go) memvalidasi satu
+DocumentBatch lengkap, menyalin fakta versi/chunk, lalu membandingkan setiap
+filter record dengan interval/status/regulasi/blob/yurisdiksi sumber. Hash
+artefak, membership snapshot, pembaca lama, dan writer Qdrant tetap tanggung
+jawab X01/S01; fungsi lokal ini belum menerbitkan generation.
+
 [candidate_batch.go](candidate_batch.go) membentuk batch kandidat deterministik dari observasi lookup yang
 telah diambil pada satu revisi. Ia mengikat dependency EXTRACT, menurunkan revisi scope termasuk hasil
 kosong, membatasi jumlah/byte sebelum clone, serta memvalidasi closure dan wire output. Pemilihan

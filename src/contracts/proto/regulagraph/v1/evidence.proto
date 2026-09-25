@@ -20,6 +20,10 @@ enum RetrieverKind {
   RETRIEVER_KIND_BM25=2;
   RETRIEVER_KIND_GRAPH=3;
 }
+enum IndexFilterFormat {
+  INDEX_FILTER_FORMAT_UNSPECIFIED=0;
+  INDEX_FILTER_FORMAT_PAIRED_PROVISION_V1=1;
+}
 message IndexGeneration {
   RecordMeta meta=1 [(rules).required=true];
   ModelManifest dense_manifest=2 [(rules).required=true];
@@ -27,6 +31,8 @@ message IndexGeneration {
   ArtifactRef lexical_dictionary=4 [(rules).required=true];
   ArtifactRef lexical_statistics=5 [(rules).required=true];
   string ontology_version=6 [(rules).required=true];
+  // New readers must require the format they can interpret before serving this generation.
+  IndexFilterFormat filter_format=7;
 }
 message DenseVector {
   repeated float values=1 [(rules)={finite:true min_items:1}];
@@ -44,6 +50,17 @@ message FilterMetadata {
   repeated LegalStatus legal_statuses=4;
   repeated string jurisdictions=5;
   Visibility visibility=6 [(rules).required=true];
+  // New X01 writers bind status/interval to exactly one source and provision version.
+  // The legacy parallel arrays remain readable but cannot prove this association.
+  repeated IndexProvisionFilter provision_filters=7;
+}
+message IndexProvisionFilter {
+  string provision_version_id=1 [(rules)={required:true ascii_id:true}];
+  string regulation_id=2 [(rules)={required:true ascii_id:true}];
+  string source_blob_id=3 [(rules)={required:true ascii_id:true}];
+  LegalInterval legal_interval=4 [(rules).required=true];
+  LegalStatus legal_status=5 [(rules).required=true];
+  string jurisdiction=6 [(rules).required=true];
 }
 message IndexRecord {
   RecordMeta meta=1 [(rules).required=true];

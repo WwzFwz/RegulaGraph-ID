@@ -18,6 +18,15 @@ Berkas: [answers.proto](answers.proto), [common.proto](common.proto), [documents
 
 `RegistryCandidateBatch` adalah kontrak handoff read-only antara EXTRACT dan RESOLVE: hasil kandidat serta lookup kosong dicatat per scope bersama revisi, tipe, canonical scope, dan key normalisasi. Kontrak aditif masuk schema lock setelah review independen. Pembaca registry dan konsumen RESOLVE produksi belum tersedia; validasi struktur tidak membuktikan kebenaran hasil query database.
 
+`FilterMetadata.provision_filters` menambahkan `IndexProvisionFilter` secara aditif
+untuk mengikat ID versi pasal, regulasi, blob sumber, interval, status hukum, dan
+yurisdiksi pada satu record. Array filter lama tetap dapat dibaca demi kompatibilitas,
+tetapi tidak membuktikan pasangan versi/status; writer X01 baru harus memakai record
+berpasangan. `IndexGeneration.filter_format` mem-pin bentuk itu pada generation baru.
+Publisher harus menahan generation baru sampai semua pembaca yang dapat dirutekan
+memahami `PAIRED_PROVISION_V1`; parser binary lama mengabaikan field baru sehingga
+kompatibilitas decode saja tidak cukup. Writer dan reader backend belum aktif.
+
 ## Benchmark dan perhatian performa
 
 Ukur p50/p95/p99, throughput, waktu antre, serta RSS/VRAM sesuai workload. Ambang wajib ada di [target numerik wajib](../../../../../configs/benchmark-targets.yaml) (REQUIRED_UNMEASURED); ukur cold/warm terpisah dan pertahankan kualitas sumber/versi.
