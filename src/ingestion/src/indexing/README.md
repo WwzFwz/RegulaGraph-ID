@@ -30,7 +30,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-Analyzer, dictionary reader dengan pemeriksaan lineage lokal, statistik BM25 incremental/frozen, dan encoder sparse tersedia sebagai library untuk initial build serta dictionary append descendant yang tervalidasi. Bukti lineage tepercaya dari registry Go, artefak typed, dan pengujian backend masih diperlukan sebelum update dapat dipublikasikan. Fixture bersama Rust–Go membuktikan kasus tokenisasi terpilih; parity skor pada corpus kecil diuji. IndexBatch, allocator, Qdrant writer/search, dan acceptance kualitas/latency belum tersedia. Fixture tidak membuktikan Recall@k atau target required.
+Analyzer, dictionary reader dengan pemeriksaan lineage lokal, statistik BM25 incremental/frozen, encoder sparse, dan pembentuk satu batch dense melalui native inference tersedia sebagai library. Dense batch memerlukan chunk text dengan source/span provenance, batas 128 item dan 2 MiB teks; respons parsial, drift model, truncation, serta vektor tidak valid ditolak tanpa output parsial. Bukti lineage tepercaya dari registry Go, artefak typed, dan pengujian backend masih diperlukan sebelum update dapat dipublikasikan. Fixture bersama Rust–Go membuktikan kasus tokenisasi terpilih; parity skor pada corpus kecil diuji. IndexBatch, allocator, writer terkoordinasi, dan acceptance kualitas/latency belum tersedia. Fixture tidak membuktikan Recall@k atau target required.
 
 ## Rekomendasi implementasi anak
 
@@ -38,7 +38,7 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
-| [dense.rs](dense.rs) | Build model-bound dense records via batch embedding with deterministic IDs, dimensions and representation generation. | Test model drift, partial embeddings and retry idempotency; measure batch throughput/RSS and downstream recall. |
+| [dense.rs](dense.rs) | Hubungkan hasil satu batch dense yang telah divalidasi ke record IndexBatch dengan ID/reuse key deterministik dan generation terpin. | Uji input tanpa provenance, drift model, partial embeddings dan retry idempotency; ukur throughput/RSS batch dan downstream recall. |
 | [analyzer.rs](analyzer.rs) | Analyzer v1 aktif; lanjutkan corpus-scale profiling dan pin artifact identity pada IndexGeneration. | Go/Rust memakai fixture sama; versi Unicode diuji, namun seluruh vocabulary corpus belum diaudit. |
 | [dictionary.rs](dictionary.rs) | Reader term-ID dan cek descendant lokal aktif; sambungkan allocator/binding revision PostgreSQL, bukti lineage tepercaya dan artefak typed. | Tolak duplicate ID/term, reassignment, future/sibling dan digest revision yang bertentangan sebelum reuse backend. |
 | [lexical.rs](lexical.rs) dan [statistics.rs](statistics.rs) | Statistik incremental, frozen DF dan bobot sparse termasuk term append aktif sebagai library; tambah serialisasi dan build batch dua pass. | Dot product parity vs skor referensi lulus pada fixture; full corpus, throughput/RSS, dan Recall@k tetap NOT_MEASURED. |
