@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"regexp"
 	"strings"
@@ -118,6 +119,13 @@ func (store *Store) projectPoint(point Point) (qdrantPoint, error) {
 	if record.Meta.Visibility.FromSeq == 0 || record.Meta.Visibility.FromSeq > maxExactFilterSequence ||
 		record.Meta.Visibility.ToSeq != nil && *record.Meta.Visibility.ToSeq > maxExactFilterSequence {
 		return qdrantPoint{}, errors.New("qdrant visibility exceeds exact numeric filter range")
+	}
+	norm := 0.0
+	for _, value := range record.DenseVector.Values {
+		norm += float64(value) * float64(value)
+	}
+	if norm <= 0 || math.IsInf(norm, 0) {
+		return qdrantPoint{}, errors.New("qdrant cosine vector has zero or invalid norm")
 	}
 	for i, value := range record.SparseVector.Values {
 		if record.SparseVector.Indices[i] == 0 || value <= 0 {
