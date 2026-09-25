@@ -58,6 +58,9 @@ embedding, dan batas bahwa worker INDEX maupun benchmark belum aktif.
 [verification-report-x01-input-policy.md](verification-report-x01-input-policy.md)
 mencatat tag policy generation aditif, binding lintas bahasa, admission
 Go/Rust/Qdrant, refresh schema lock setelah review, serta syarat upgrade reader.
+[verification-report-x01-provenance-items.md](verification-report-x01-provenance-items.md)
+mencatat proyeksi source/version/page bersama EXTRACT dan input native INDEX,
+uji adversarial, review independen, serta batas bahwa worker INDEX belum aktif.
 [verification-report-k01-candidate-batch.md](verification-report-k01-candidate-batch.md) mencatat
 builder kandidat deterministik dan validasi alias-to-scope; autentikasi PostgreSQL serta stage RESOLVE
 masih pekerjaan lanjutan.
