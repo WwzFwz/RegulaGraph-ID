@@ -2,5 +2,5 @@
 # Peran: menyatukan crate worker dan konfigurasi build yang dapat direproduksi.
 # Integrasi: target build/benchmark berada di .cache; worker Rust memakai Tonic gRPC dari schema C01.
 [workspace]
-members = ["src/ingestion"]
+members = ["src/ingestion", "src/inference/tokenizer"]
 resolver = "2"

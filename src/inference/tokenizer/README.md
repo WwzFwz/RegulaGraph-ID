@@ -1,0 +1,5 @@
+# Native tokenizer bridge
+
+This crate supplies the C++ inference runtime with Hugging Face tokenizer execution through a narrow C ABI. It owns tokenizer and encoding allocations, UTF-8 decoding, and SHA-256 artifact verification. It does not serve RPCs, execute model tensors, or define an alternative wire schema. Tokenizer JSON is loaded once from operator-pinned model bundles; encoding uses that file's normalizer and special-token postprocessor without implicit padding or truncation. C++ owns admission limits, tensor padding, and request cancellation.
+
+Every returned encoding must be freed with the matching ABI function and every tokenizer must outlive its encodings' creation. Panics are contained at the ABI; allocation failure remains process-fatal. The same tokenizers version is pinned in offline tooling for reference comparison. Test exact IDs/masks for Unicode and text pairs, malformed UTF-8, and artifact drift; measure tokenization within the end-to-end MODEL gates in configs/benchmark-targets.yaml. A library build does not prove model parity or performance.
