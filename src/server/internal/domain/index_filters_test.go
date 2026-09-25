@@ -147,6 +147,49 @@ func TestIndexSourceViewBindsLegalFiltersToVerifiedChunk(t *testing.T) {
 	if err := view.ValidateRecord(record); err != nil {
 		t.Fatal(err)
 	}
+	wrongPage := proto.Clone(bound).(*pb.DocumentBatch)
+	for _, node := range wrongPage.Structures {
+		if node.Meta.RecordId == wrongPage.Chunks[0].StructureNodeRefs[0] {
+			node.PageLocators = append(node.PageLocators, &pb.PageLocator{
+				SourceBlobId: "source-blob:a", PageNumber: 9999,
+			})
+		}
+	}
+	if err := ValidateDocumentBatchClosure(wrongPage, 1000); err != nil {
+		t.Fatalf("generic reference closure should leave page membership to index preflight: %v", err)
+	}
+	if _, err := NewIndexSourceView(wrongPage, 1000); err == nil {
+		t.Fatal("index source accepted a nonexistent page locator")
+	}
+	gapPage := proto.Clone(bound).(*pb.DocumentBatch)
+	versionSpan := gapPage.Versions[0].Spans[0]
+	length := versionSpan.EndByte - versionSpan.StartByte
+	if length < 6 {
+		t.Fatal("fixture version span is too short for a page-gap probe")
+	}
+	gapPage.Chunks[0].TextSpan.StartByte = versionSpan.StartByte + length/3
+	gapPage.Chunks[0].TextSpan.EndByte = versionSpan.StartByte + 2*length/3
+	artifact := gapPage.TextArtifacts[0]
+	textID := artifact.Meta.RecordId
+	textSize := artifact.NormalizedTextRef.ByteSize
+	artifact.PageResults[0].Spans = []*pb.TextSpan{
+		{TextArtifactId: textID, StartByte: 0, EndByte: gapPage.Chunks[0].TextSpan.StartByte},
+		{TextArtifactId: textID, StartByte: gapPage.Chunks[0].TextSpan.EndByte, EndByte: textSize},
+	}
+	for _, node := range gapPage.Structures {
+		if node.Meta.RecordId == gapPage.Chunks[0].StructureNodeRefs[0] {
+			node.SourceSpans = []*pb.TextSpan{proto.Clone(gapPage.Chunks[0].TextSpan).(*pb.TextSpan)}
+			node.PageLocators = append(node.PageLocators, &pb.PageLocator{
+				SourceBlobId: "source-blob:a", PageNumber: 1,
+			})
+		}
+	}
+	if err := ValidateDocumentBatchClosure(gapPage, 1000); err != nil {
+		t.Fatalf("generic reference closure should leave page overlap to index preflight: %v", err)
+	}
+	if _, err := NewIndexSourceView(gapPage, 1000); err == nil {
+		t.Fatal("index source accepted a locator whose page has no overlapping text")
+	}
 	// The view owns its legal facts after construction.
 	bound.Versions[0].LegalStatus = pb.LegalStatus_LEGAL_STATUS_ACTIVE
 	if err := view.ValidateRecord(record); err != nil {

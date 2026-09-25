@@ -31,6 +31,13 @@ DocumentBatch lengkap, menyalin fakta versi/chunk, lalu membandingkan setiap
 filter record dengan interval/status/regulasi/blob/yurisdiksi sumber. Hash
 artefak, membership snapshot, pembaca lama, dan writer Qdrant tetap tanggung
 jawab X01/S01; fungsi lokal ini belum menerbitkan generation.
+Preflight INDEX juga memeriksa bahwa locator halaman node pemilik menunjuk
+source blob TextArtifact chunk dan PageResult nyata yang sukses; generic
+reference closure hanya membuktikan ID blob, bukan keberadaan halaman.
+Rentang span node pemilik digabung sekali per pasangan node/artefak; locator
+harus overlap span halaman nyata melalui binary search. Rentang halaman
+di-cache per artefak/halaman agar banyak node pada halaman sama tidak
+mengulang scan atau sort semua span halaman.
 [index_batch.go](index_batch.go) kini memeriksa closure batch lokal: corpus,
 generation, hitungan tanpa reject tersembunyi, identitas record/chunk unik,
 setiap record terhadap sumber, target sequence tunggal, kecocokan model/vector,
