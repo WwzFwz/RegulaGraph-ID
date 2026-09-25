@@ -22,6 +22,8 @@ CLI discover/collect/audit sudah menjalankan acquisition D01. Scheduler/job dan 
 
 ## Benchmark dan perhatian performa
 
+CLI `submit` kini membuat job durable dengan hash ontology dan candidate policy corpus yang terpin untuk source blob yang sudah terdaftar. Daemon belum mengerjakan ACQUIRE maupun dispatch RESOLVE; status queued bukan completion pipeline.
+
 Prioritas: p95/p99 latency query, waktu antre dan time-to-first-answer-token; untuk job ukur throughput serta peak RSS. Target numerik wajib ada di [target numerik wajib](../../configs/benchmark-targets.yaml); profil referensi dan status REQUIRED_UNMEASURED berlaku. Pemrosesan berjalan tanpa loading model per request dan tanpa RPC per tahap kecil fusion/filter/context.
 
 Ikuti [kebijakan benchmark](../../doc/benchmark-policy.md). Angka wajib mengikuti [target numerik wajib](../../configs/benchmark-targets.yaml) dengan profil asumsi yang dinyatakan; statusnya **REQUIRED_UNMEASURED** sampai diuji. Ukur waktu antre serta p95/p99 selain throughput; validitas source/version dan ketepatan bukti tetap menjadi syarat optimasi.

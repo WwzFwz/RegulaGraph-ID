@@ -14,7 +14,7 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
-Berkas: [config.go](config.go).
+Berkas: [config.go](config.go) dan [candidate_planning.go](candidate_planning.go). Loader candidate policy membaca JSON versi 1 paling banyak 1 MiB, memverifikasi SHA-256 byte persis, menolak field/duplikat/case variant yang tidak dikenal, serta memvalidasi tipe, scope, dan budget. Tidak ada nilai scope produksi yang disimpulkan dari portal; pemilik corpus memasok file policy terpin. [candidate_planning_test.go](candidate_planning_test.go) menguji tampering dan konfigurasi mustahil sebelum job disubmit.
 
 ## Benchmark dan perhatian performa
 
@@ -24,7 +24,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-`config.go` memuat ontology JSONC berbatas 1 MiB saat startup dan menolak hash sumber yang berbeda dari pin environment. Loader konfigurasi ingestion/retrieval lain masih bertahap. Collector/audit D01, kontrak/validator C01, evaluator E01, storage/publication S01, dan pipeline sampai EXTRACT tersedia; graph/retrieval, gold dataset, serta acceptance produksi belum aktif. Build dan fixture tidak membuktikan target kualitas atau latency.
+`config.go` memuat ontology JSONC berbatas 1 MiB saat startup dan menolak hash sumber yang berbeda dari pin environment. Loader candidate policy tersedia untuk CLI submit; loader konfigurasi retrieval lain masih bertahap. Collector/audit D01, kontrak/validator C01, evaluator E01, storage/publication S01, dan pipeline sampai EXTRACT tersedia; graph/retrieval, gold dataset, serta acceptance produksi belum aktif. Build dan fixture tidak membuktikan target kualitas atau latency.
 
 ## Rekomendasi implementasi anak
 

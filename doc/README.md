@@ -67,7 +67,7 @@ Lihat [kebijakan benchmark](benchmark-policy.md) untuk protokol pengukuran dan p
 
 Collector dan audit inventory D01, kontrak/validator C01, evaluator offline E01, fondasi control-plane
 storage/publication S01, source provenance, parser PDFium, normalizer teks, parser struktur hukum, parent-aware chunk builder, boundary artefak dokumen, incremental planner, selector timeline, serta worker/coordinator PARSE -> STRUCTURE -> BIND -> CHUNK -> EXTRACT I01 sudah aktif. Planner exact regulation identity, allocator canonical PostgreSQL, materializer `Regulation`/`ProvisionVersion`, workflow/persistence BIND, dan binding chunk per-node K01 juga aktif. Profiler M01 telah membandingkan tiga
-engine PDF. Worker EXTRACT, Semantic Gateway, commit/recovery durable EXTRACT, serta ontology EXTRACT terpin bersama sudah aktif secara deterministik. Resolusi semantik/merge-split, stage ASSEMBLE-INDEX, graph/retrieval, mutasi backend Qdrant/Neo4j,
+engine PDF. Worker EXTRACT, Semantic Gateway, commit/recovery durable EXTRACT, serta ontology EXTRACT terpin bersama sudah aktif secara deterministik. Proposal resolusi kontekstual, planner kandidat terpin, dan CLI submit blob tersedia; keputusan canonical baru/merge-split serta dispatch RESOLVE produksi belum aktif. Stage ASSEMBLE-INDEX, graph/retrieval, mutasi backend Qdrant/Neo4j,
 provider/model produksi, gold dataset, serta acceptance run produksi belum aktif. Primitive fusion, korelasi reranker,
 statistik BM25 lokal, packing konteks, dan validasi struktural sitasi telah diuji, tetapi belum membentuk pipeline query produksi. Status anak dijelaskan pada header
 masing-masing; profil parser, audit integrity, test correctness S01, dan evaluator sintetis tidak membuktikan
@@ -109,4 +109,4 @@ storage/publication ke PostgreSQL aktual dan audit agent independen.
 
 [verification-report-candidate-evidence.md](verification-report-candidate-evidence.md) mencatat katalog checkpoint EXTRACT atomik, hidrasi bukti kandidat lintas dokumen, citation kedua sisi LINK, dan smoke protokol model lokal. Status tersebut belum menyelesaikan dispatch RESOLVE, K01, ataupun acceptance kualitas/performa.
 
-[verification-report-candidate-planner.md](verification-report-candidate-planner.md) mencatat policy kandidat terpin pada request ingest, parity normalisasi Go/Rust, cakupan tipe ontology, isolasi scope pasal pada PostgreSQL, dan batas pengukuran kualitas/performa yang masih terbuka.
+[verification-report-candidate-planner.md](verification-report-candidate-planner.md) mencatat policy kandidat terpin pada request ingest, parity normalisasi Go/Rust, cakupan tipe ontology, isolasi scope pasal pada PostgreSQL, dan batas pengukuran kualitas/performa yang masih terbuka. [verification-report-policy-submit.md](verification-report-policy-submit.md) mencatat loader policy, CLI submit idempotent, verifikasi pin terhadap request durable, dan hasil PostgreSQL nyata; dispatch RESOLVE serta kualitas model masih terbuka.

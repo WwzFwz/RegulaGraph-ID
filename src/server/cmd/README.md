@@ -8,7 +8,7 @@ Logika di luar cakupan ini ditempatkan pada komponen pemiliknya. Jika fungsi bar
 
 ## Peran dan integrasi anak
 
-CLI collect memanggil internal/workflows untuk acquisition PDF/metadata; `ingestion-worker` menyusun coordinator durable; `semantic-gateway` menyusun boundary model EXTRACT yang dibatasi loopback. API tetap entry point scaffold yang keluar dengan kode 2. Entry point tidak menggandakan algoritma domain, parser, atau proyeksi output model.
+CLI collect memanggil internal/workflows untuk acquisition PDF/metadata; CLI submit memanggil scheduler durable dengan ontology dan candidate policy terpin. `ingestion-worker` menyusun coordinator durable; `semantic-gateway` menyusun boundary model EXTRACT yang dibatasi loopback. API tetap entry point scaffold yang keluar dengan kode 2. Entry point tidak menggandakan algoritma domain, parser, atau proyeksi output model.
 
 Pertahankan source/canonical/provision-version/snapshot ID dan schema version lintas anak. Boundary runtime mengikuti [src/contracts](../../contracts/README.md), dengan pekerjaan batch atau inference yang jelas. Perubahan bentuk data, error/status, serta offset sumber harus didokumentasikan bersama konsumennya; jangan menggandakan kebijakan publikasi di beberapa runtime.
 
@@ -16,7 +16,7 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 Subfolder: [api/](api/README.md), [cli/](cli/README.md), [ingestion-worker/](ingestion-worker/README.md), [semantic-gateway/](semantic-gateway/README.md).
 
-Akuisisi sumber D01 sudah aktif melalui CLI collect, workflow batch, dan adapter sources. Daemon ingestion-worker menjalankan PARSE -> STRUCTURE -> BIND -> CHUNK -> EXTRACT dan worker Rust memanggil Semantic Gateway untuk EXTRACT. Gateway memverifikasi model/prompt/schema/ontology yang dipin, membatasi concurrency/byte, serta memproyeksikan output menjadi kontrak C01. Coordinator membaca ulang source/evidence, memvalidasi closure, dan meng-commit output EXTRACT secara durable; stage setelahnya belum aktif.
+Akuisisi sumber D01 sudah aktif melalui CLI collect, workflow batch, dan adapter sources. CLI submit membuat job dengan manifest policy terverifikasi untuk source blob yang telah terdaftar. Daemon ingestion-worker menjalankan PARSE -> STRUCTURE -> BIND -> CHUNK -> EXTRACT dan worker Rust memanggil Semantic Gateway untuk EXTRACT. Gateway memverifikasi model/prompt/schema/ontology yang dipin, membatasi concurrency/byte, serta memproyeksikan output menjadi kontrak C01. Coordinator membaca ulang source/evidence, memvalidasi closure, dan meng-commit output EXTRACT secara durable; stage setelahnya belum aktif.
 
 ## Benchmark dan perhatian performa
 
