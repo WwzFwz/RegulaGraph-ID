@@ -184,6 +184,32 @@ func TestStoreRejectsUnobservedPayloadIndexCompletion(t *testing.T) {
 	}
 }
 
+func TestStoreRefusesLatePayloadIndexCreationOnPopulatedCollection(t *testing.T) {
+	writes := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method != http.MethodGet {
+			writes++
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		body := strings.Replace(collectionReply(),
+			`"payload_schema":{"corpus_id":{"data_type":"keyword"},"generation_id":{"data_type":"keyword"},"from_seq":{"data_type":"integer"},"to_seq":{"data_type":"integer"},"provision_filters[].provision_version_id":{"data_type":"keyword"}}`,
+			`"payload_schema":{}`, 1)
+		body = strings.Replace(body, `"result":{`, `"result":{"points_count":1,`, 1)
+		_, _ = w.Write([]byte(body))
+	}))
+	defer server.Close()
+	binding, _ := qdrantFixture()
+	store, err := New(server.URL, "", server.Client(), binding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.EnsureCollection(context.Background()); err == nil || store.ready.Load() || writes != 0 {
+		t.Fatalf("late payload indexing admitted: err=%v ready=%v writes=%d", err, store.ready.Load(), writes)
+	}
+}
+
 func TestStoreCreateUpsertAndSnapshotQuery(t *testing.T) {
 	created, wrote, queried := false, false, false
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

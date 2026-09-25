@@ -13,7 +13,8 @@ import (
 )
 
 type collectionDetails struct {
-	Config struct {
+	PointsCount uint64 `json:"points_count"`
+	Config      struct {
 		Params struct {
 			Vectors map[string]struct {
 				Size     uint32 `json:"size"`
@@ -102,6 +103,12 @@ func (store *Store) EnsureCollection(ctx context.Context) error {
 		} else {
 			missing = append(missing, index)
 		}
+	}
+	// Qdrant builds filter-aware HNSW edges when payload indexes precede data.
+	// Repairing an already-populated collection requires an explicit rebuild
+	// workflow rather than silently admitting degraded query latency.
+	if len(missing) > 0 && details.PointsCount != 0 {
+		return errors.New("qdrant populated collection lacks required payload indexes")
 	}
 	for _, index := range missing {
 		var result struct {
