@@ -28,6 +28,9 @@ func ValidatePairedIndexGeneration(generation *pb.IndexGeneration) error {
 	if generation.FilterFormat != pb.IndexFilterFormat_INDEX_FILTER_FORMAT_PAIRED_PROVISION_V1 {
 		return errors.New("index generation legal filter format is unsupported")
 	}
+	if generation.EmbeddingInputPolicy != "structure-labels-v1" {
+		return errors.New("index generation embedding input policy is unsupported")
+	}
 	return nil
 }
 

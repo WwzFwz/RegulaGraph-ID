@@ -43,11 +43,12 @@ func TestValidatePairedIndexGenerationRequiresKnownFilterFormat(t *testing.T) {
 		DenseManifest: &pb.ModelManifest{ModelId: "model:one", Version: "1", WeightsHash: hash,
 			TokenizerHash: hash, Task: pb.ModelTask_MODEL_TASK_EMBED, Dimensions: proto.Uint32(768), MaxTokens: 512,
 			Precision: "fp32", Backend: "fixture"},
-		LexicalAnalyzer:   proto.Clone(artifact).(*pb.ArtifactRef),
-		LexicalDictionary: proto.Clone(artifact).(*pb.ArtifactRef),
-		LexicalStatistics: proto.Clone(artifact).(*pb.ArtifactRef),
-		OntologyVersion:   "ontology:v1",
-		FilterFormat:      pb.IndexFilterFormat_INDEX_FILTER_FORMAT_PAIRED_PROVISION_V1,
+		LexicalAnalyzer:      proto.Clone(artifact).(*pb.ArtifactRef),
+		LexicalDictionary:    proto.Clone(artifact).(*pb.ArtifactRef),
+		LexicalStatistics:    proto.Clone(artifact).(*pb.ArtifactRef),
+		OntologyVersion:      "ontology:v1",
+		FilterFormat:         pb.IndexFilterFormat_INDEX_FILTER_FORMAT_PAIRED_PROVISION_V1,
+		EmbeddingInputPolicy: "structure-labels-v1",
 	}
 	if err := ValidatePairedIndexGeneration(generation); err != nil {
 		t.Fatal(err)
@@ -59,6 +60,11 @@ func TestValidatePairedIndexGenerationRequiresKnownFilterFormat(t *testing.T) {
 	generation.FilterFormat = 99
 	if err := ValidatePairedIndexGeneration(generation); err == nil {
 		t.Fatal("unknown future filter format accepted")
+	}
+	generation.FilterFormat = pb.IndexFilterFormat_INDEX_FILTER_FORMAT_PAIRED_PROVISION_V1
+	generation.EmbeddingInputPolicy = "parent-labels-v1"
+	if err := ValidatePairedIndexGeneration(generation); err == nil {
+		t.Fatal("unsupported embedding input policy accepted")
 	}
 }
 

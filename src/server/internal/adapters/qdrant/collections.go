@@ -72,6 +72,7 @@ func (store *Store) EnsureCollection(ctx context.Context) error {
 				"regulagraph_corpus_id":     store.binding.CorpusID,
 				"regulagraph_generation_id": store.binding.Generation.Meta.RecordId,
 				"regulagraph_filter_format": "PAIRED_PROVISION_V1",
+				"regulagraph_input_policy":  store.binding.Generation.EmbeddingInputPolicy,
 			},
 		}
 		var created bool
@@ -95,7 +96,8 @@ func (store *Store) EnsureCollection(ctx context.Context) error {
 		dense.Distance != "Cosine" || (sparse.Modifier != "" && sparse.Modifier != "none") ||
 		meta["regulagraph_corpus_id"] != store.binding.CorpusID ||
 		meta["regulagraph_generation_id"] != store.binding.Generation.Meta.RecordId ||
-		meta["regulagraph_filter_format"] != "PAIRED_PROVISION_V1" {
+		meta["regulagraph_filter_format"] != "PAIRED_PROVISION_V1" ||
+		meta["regulagraph_input_policy"] != store.binding.Generation.EmbeddingInputPolicy {
 		return fmt.Errorf("qdrant collection %q representation binding mismatch", store.collection)
 	}
 	missing := make([]struct{ field, kind string }, 0, len(requiredPayloadIndexes))

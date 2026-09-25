@@ -9,6 +9,7 @@
 
 use crate::indexing::inputs::{RenderedEmbeddingInput, RENDER_POLICY_VERSION};
 use crate::wire::common::{self, ModelManifest};
+use crate::wire::evidence;
 use sha2::{Digest, Sha256};
 
 const KEY_DOMAIN: &[u8] = b"regulagraph-embedding-reuse-v1\0";
@@ -17,15 +18,52 @@ const KEY_DOMAIN: &[u8] = b"regulagraph-embedding-reuse-v1\0";
 pub enum ReuseKeyError {
     InvalidCorpus,
     InvalidRenderedInput,
+    InvalidGeneration,
     InvalidModel,
     UnknownModelField,
     FieldTooLarge,
 }
 
+/// Requires the generation to declare the same supported rendering policy.
+/// The key omits generation ID and lexical statistics so identical dense
+/// vectors can survive a compatible dictionary/statistics refresh.
+pub fn embedding_reuse_key(
+    corpus_id: &str,
+    rendered: &RenderedEmbeddingInput,
+    generation: &evidence::IndexGeneration,
+) -> Result<String, ReuseKeyError> {
+    if generation.meta.corpus_id != corpus_id
+        || generation.embedding_input_policy != rendered.policy_version
+        || generation.embedding_input_policy != RENDER_POLICY_VERSION
+        || generation.filter_format.enum_value()
+            != Ok(evidence::IndexFilterFormat::INDEX_FILTER_FORMAT_PAIRED_PROVISION_V1)
+        || generation
+            .special_fields
+            .unknown_fields()
+            .iter()
+            .next()
+            .is_some()
+        || generation
+            .meta
+            .special_fields
+            .unknown_fields()
+            .iter()
+            .next()
+            .is_some()
+    {
+        return Err(ReuseKeyError::InvalidGeneration);
+    }
+    let model = generation
+        .dense_manifest
+        .as_ref()
+        .ok_or(ReuseKeyError::InvalidGeneration)?;
+    reuse_key_from_model(corpus_id, rendered, model)
+}
+
 /// Returns a stable SHA-256 hex digest; it is not an IndexRecord ID or proof of
 /// authenticated source text. The caller first verifies the TextArtifact and
-/// complete DocumentBatch and pins the matching manifest in IndexGeneration.
-pub fn embedding_reuse_key(
+/// complete DocumentBatch.
+fn reuse_key_from_model(
     corpus_id: &str,
     rendered: &RenderedEmbeddingInput,
     model: &ModelManifest,
@@ -164,30 +202,66 @@ mod tests {
     #[test]
     fn identical_input_and_manifest_reuse_across_chunk_metadata() {
         let (input, model) = fixture();
-        let first = embedding_reuse_key("corpus:one", &input, &model).unwrap();
+        let first = reuse_key_from_model("corpus:one", &input, &model).unwrap();
         let mut same_bytes = input.clone();
         same_bytes.chunk_id = "chunk:other".into();
         same_bytes.text_artifact_id = "text:other".into();
         assert_eq!(
-            embedding_reuse_key("corpus:one", &same_bytes, &model).unwrap(),
+            reuse_key_from_model("corpus:one", &same_bytes, &model).unwrap(),
             first
         );
         assert_eq!(first.len(), 64);
     }
 
     #[test]
+    fn generation_policy_is_required_without_binding_lexical_refresh_to_dense_key() {
+        let (input, model) = fixture();
+        let mut generation = evidence::IndexGeneration {
+            meta: MessageField::some(common::RecordMeta {
+                schema_version: 1,
+                corpus_id: "corpus:one".into(),
+                record_id: "generation:one".into(),
+                ..Default::default()
+            }),
+            dense_manifest: MessageField::some(model),
+            filter_format: EnumOrUnknown::new(
+                evidence::IndexFilterFormat::INDEX_FILTER_FORMAT_PAIRED_PROVISION_V1,
+            ),
+            embedding_input_policy: RENDER_POLICY_VERSION.into(),
+            ..Default::default()
+        };
+        let base = embedding_reuse_key("corpus:one", &input, &generation).unwrap();
+        generation.meta.as_mut().unwrap().record_id = "generation:lexical-refresh".into();
+        assert_eq!(
+            embedding_reuse_key("corpus:one", &input, &generation).unwrap(),
+            base
+        );
+        generation.embedding_input_policy = "parent-labels-v1".into();
+        assert_eq!(
+            embedding_reuse_key("corpus:one", &input, &generation),
+            Err(ReuseKeyError::InvalidGeneration)
+        );
+        generation.embedding_input_policy = RENDER_POLICY_VERSION.into();
+        generation.meta.as_mut().unwrap().corpus_id = "corpus:other".into();
+        assert_eq!(
+            embedding_reuse_key("corpus:one", &input, &generation),
+            Err(ReuseKeyError::InvalidGeneration)
+        );
+    }
+
+    #[test]
     fn corpus_text_and_every_model_dimension_invalidate() {
         let (input, model) = fixture();
-        let base = embedding_reuse_key("corpus:one", &input, &model).unwrap();
+        let base = reuse_key_from_model("corpus:one", &input, &model).unwrap();
         assert_ne!(
-            embedding_reuse_key("corpus:two", &input, &model).unwrap(),
+            reuse_key_from_model("corpus:two", &input, &model).unwrap(),
             base
         );
         let mut changed_text = input.clone();
         changed_text.text.push('!');
         changed_text.sha256 = hex_sha256(changed_text.text.as_bytes());
         assert_ne!(
-            embedding_reuse_key("corpus:one", &changed_text, &model).unwrap(),
+            reuse_key_from_model("corpus:one", &changed_text, &model).unwrap(),
             base
         );
         let mut variants = Vec::new();
@@ -229,7 +303,7 @@ mod tests {
         variants.push(change);
         for variant in variants {
             assert_ne!(
-                embedding_reuse_key("corpus:one", &input, &variant).unwrap(),
+                reuse_key_from_model("corpus:one", &input, &variant).unwrap(),
                 base
             );
         }
@@ -241,19 +315,19 @@ mod tests {
         let mut tampered = input.clone();
         tampered.text.push('!');
         assert_eq!(
-            embedding_reuse_key("corpus:one", &tampered, &model),
+            reuse_key_from_model("corpus:one", &tampered, &model),
             Err(ReuseKeyError::InvalidRenderedInput)
         );
         let mut wrong_policy = input.clone();
         wrong_policy.policy_version = "other";
         assert_eq!(
-            embedding_reuse_key("corpus:one", &wrong_policy, &model),
+            reuse_key_from_model("corpus:one", &wrong_policy, &model),
             Err(ReuseKeyError::InvalidRenderedInput)
         );
         let mut wrong_task = model.clone();
         wrong_task.task = EnumOrUnknown::new(common::ModelTask::MODEL_TASK_RERANK);
         assert_eq!(
-            embedding_reuse_key("corpus:one", &input, &wrong_task),
+            reuse_key_from_model("corpus:one", &input, &wrong_task),
             Err(ReuseKeyError::InvalidModel)
         );
 
@@ -263,7 +337,7 @@ mod tests {
             .mut_unknown_fields()
             .add_varint(100, 1);
         assert_eq!(
-            embedding_reuse_key("corpus:one", &input, &future_model),
+            reuse_key_from_model("corpus:one", &input, &future_model),
             Err(ReuseKeyError::UnknownModelField)
         );
         let mut future_hash = model;
@@ -275,7 +349,7 @@ mod tests {
             .mut_unknown_fields()
             .add_varint(100, 1);
         assert_eq!(
-            embedding_reuse_key("corpus:one", &input, &future_hash),
+            reuse_key_from_model("corpus:one", &input, &future_hash),
             Err(ReuseKeyError::UnknownModelField)
         );
     }

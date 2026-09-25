@@ -46,6 +46,10 @@ untuk satu instance `Store`. Bila bootstrap gagal di tengah jalan, pemanggilan
 `EnsureCollection` berikutnya melihat collection lama dan menolak index yang
 kurang; recovery/rebuild eksplisit diperlukan. Ini mengikuti
 [panduan indeks Qdrant](https://qdrant.tech/documentation/manage-data/indexing/).
+Metadata collection juga mengikat `embedding_input_policy` generation dan
+menolak layout lama dengan policy berbeda. Reader Go baru hanya menerima
+`structure-labels-v1`; binary reader lama dapat mengabaikan tag protobuf baru,
+sehingga publication menunggu upgrade/isolasi seluruh route pembaca.
 Ack `wait=true` belum merupakan bukti seluruh point terlihat di semua
 route. Tes HTTP lokal memeriksa shape dan fail-closed response. Kebijakan field
 terindeks mengikuti [API payload index Qdrant v1.18](https://api.qdrant.tech/v-1-18-x/api-reference/indexes/create-field-index)

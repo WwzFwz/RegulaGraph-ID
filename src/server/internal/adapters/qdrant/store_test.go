@@ -26,11 +26,12 @@ func qdrantFixture() (Binding, Point) {
 		DenseManifest: &pb.ModelManifest{ModelId: "model:one", Version: "1", WeightsHash: hash,
 			TokenizerHash: hash, Task: pb.ModelTask_MODEL_TASK_EMBED, Dimensions: proto.Uint32(2),
 			MaxTokens: 512, Precision: "fp32", Backend: "fixture"},
-		LexicalAnalyzer:   proto.Clone(artifact).(*pb.ArtifactRef),
-		LexicalDictionary: proto.Clone(artifact).(*pb.ArtifactRef),
-		LexicalStatistics: proto.Clone(artifact).(*pb.ArtifactRef),
-		OntologyVersion:   "ontology:v1",
-		FilterFormat:      pb.IndexFilterFormat_INDEX_FILTER_FORMAT_PAIRED_PROVISION_V1,
+		LexicalAnalyzer:      proto.Clone(artifact).(*pb.ArtifactRef),
+		LexicalDictionary:    proto.Clone(artifact).(*pb.ArtifactRef),
+		LexicalStatistics:    proto.Clone(artifact).(*pb.ArtifactRef),
+		OntologyVersion:      "ontology:v1",
+		FilterFormat:         pb.IndexFilterFormat_INDEX_FILTER_FORMAT_PAIRED_PROVISION_V1,
+		EmbeddingInputPolicy: "structure-labels-v1",
 	}
 	visibility := &pb.Visibility{FromSeq: 7}
 	interval := &pb.LegalInterval{Start: &pb.DateAssertion{Knowledge: pb.DateKnowledge_DATE_KNOWLEDGE_UNKNOWN},
@@ -62,7 +63,7 @@ func TestPointProjectionRejectsUnsortedSparseTerms(t *testing.T) {
 }
 
 func collectionReply() string {
-	return `{"status":"ok","result":{"config":{"params":{"vectors":{"dense":{"size":2,"distance":"Cosine"}},"sparse_vectors":{"bm25":{}}},"metadata":{"regulagraph_corpus_id":"corpus:one","regulagraph_generation_id":"generation:one","regulagraph_filter_format":"PAIRED_PROVISION_V1"}},"payload_schema":{"corpus_id":{"data_type":"keyword"},"generation_id":{"data_type":"keyword"},"from_seq":{"data_type":"integer"},"to_seq":{"data_type":"integer"},"provision_filters[].provision_version_id":{"data_type":"keyword"}}}}`
+	return `{"status":"ok","result":{"config":{"params":{"vectors":{"dense":{"size":2,"distance":"Cosine"}},"sparse_vectors":{"bm25":{}}},"metadata":{"regulagraph_corpus_id":"corpus:one","regulagraph_generation_id":"generation:one","regulagraph_filter_format":"PAIRED_PROVISION_V1","regulagraph_input_policy":"structure-labels-v1"}},"payload_schema":{"corpus_id":{"data_type":"keyword"},"generation_id":{"data_type":"keyword"},"from_seq":{"data_type":"integer"},"to_seq":{"data_type":"integer"},"provision_filters[].provision_version_id":{"data_type":"keyword"}}}}`
 }
 
 func TestStoreCreatesMissingPayloadIndexesBeforeReadiness(t *testing.T) {
@@ -343,6 +344,24 @@ func TestStoreRejectsMismatchedCollection(t *testing.T) {
 	}
 	if _, err := store.SearchDense(context.Background(), []float32{1, 0}, SearchScope{SnapshotSeq: 7, Limit: 1}); err == nil {
 		t.Fatal("search against unverified collection admitted")
+	}
+}
+
+func TestStoreRejectsCollectionWithOldEmbeddingInputPolicy(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(strings.Replace(collectionReply(),
+			`"regulagraph_input_policy":"structure-labels-v1"`,
+			`"regulagraph_input_policy":"parent-labels-v1"`, 1)))
+	}))
+	defer server.Close()
+	binding, _ := qdrantFixture()
+	store, err := New(server.URL, "", server.Client(), binding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.EnsureCollection(context.Background()); err == nil {
+		t.Fatal("collection with stale embedding policy admitted")
 	}
 }
 
