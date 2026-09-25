@@ -30,6 +30,12 @@ DocumentBatch lengkap, menyalin fakta versi/chunk, lalu membandingkan setiap
 filter record dengan interval/status/regulasi/blob/yurisdiksi sumber. Hash
 artefak, membership snapshot, pembaca lama, dan writer Qdrant tetap tanggung
 jawab X01/S01; fungsi lokal ini belum menerbitkan generation.
+[index_batch.go](index_batch.go) kini memeriksa closure batch lokal: corpus,
+generation, hitungan tanpa reject tersembunyi, identitas record/chunk unik,
+setiap record terhadap sumber, target sequence tunggal, kecocokan model/vector,
+dan konflik upsert-closure. Ia tidak
+mengautentikasi checksum operasi, prior state closure, hash artefak, atau fence;
+coordinator wajib memeriksa semua itu sebelum mutation/publication.
 
 [candidate_batch.go](candidate_batch.go) membentuk batch kandidat deterministik dari observasi lookup yang
 telah diambil pada satu revisi. Ia mengikat dependency EXTRACT, menurunkan revisi scope termasuk hasil
