@@ -14,7 +14,8 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
-Berkas: [store.go](store.go).
+Berkas: [client.go](client.go), [collections.go](collections.go),
+[points.go](points.go), [search.go](search.go), dan [store_test.go](store_test.go).
 
 ## Benchmark dan perhatian performa
 
@@ -26,7 +27,27 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. Pipeline parsing/graph/retrieval, mutasi backend, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan target kualitas atau latency.
+Transport HTTP Qdrant v1.18 untuk membuat/memeriksa collection khusus generation,
+upsert bernama `dense` dan `bm25`, serta query dengan filter corpus, generation,
+snapshot, dan versi pasal kini tersedia. Input upsert memerlukan ID point yang
+dialokasikan katalog tepercaya, record yang sudah dibuktikan dari sumber, dan
+fence operasi yang masih hidup. `EnsureCollection` memeriksa bentuk vector dan
+metadata generation; ack `wait=true` belum merupakan bukti seluruh point terlihat
+di semua route. Tes HTTP lokal memeriksa shape dan fail-closed response.
+
+Payload index, closure/recovery, bukti readback seluruh point dan replica,
+PostgreSQL binding, writer coordinator, query hydration, Qdrant nyata, gold,
+serta acceptance performa tetap belum tersedia. Tanggal berlaku dan kecukupan
+multi-versi diperiksa setelah hydration oleh retrieval owner, bukan diasumsikan
+dari filter kandidat backend.
+
+Collection metadata memerlukan Qdrant minimal 1.16; bentuk API yang dipakai
+ditargetkan pada [referensi resmi v1.18](https://api.qdrant.tech/v-1-18-x/api-reference/collections/create-collection).
+Visibilitas snapshot dibatasi sampai `2^53-1` agar operator range numerik tidak
+kehilangan presisi; nilai lebih besar gagal sebelum I/O dan memerlukan encoding
+baru sebelum dapat dilayani. Filter pasangan menggunakan
+[nested object](https://qdrant.tech/documentation/search/filtering/) agar satu
+versi tidak tercampur dengan status/interval versi lain.
 
 ## Rekomendasi implementasi anak
 
@@ -34,4 +55,6 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
-| [store.go](store.go) | Implement generation-specific dense/sparse upsert/search with model dimensions, payload indexes and snapshot filters. | Test delayed indexing visibility, replay and model/generation mismatch; measure filtered recall and batch memory on real Qdrant. |
+| [client.go](client.go), [collections.go](collections.go) | Ikat konfigurasi fisik ke katalog generation dan periksa capability/read route sesudah perubahan koleksi. | Uji server Qdrant terpin, salah dimensi/modifier/metadata, restart dan route berubah. |
+| [points.go](points.go) | Sambungkan allocator ID, ledger operasi, closure dan pemeriksaan readback berbatas sebelum publication. | Uji replay, partial write, stale fence dan point yang hilang pada Qdrant nyata. |
+| [search.go](search.go) | Hidrasi kandidat dan terapkan kebijakan temporal/versi final dengan budget overfetch eksplisit. | Ukur recall/latency per cabang dan kasus tanggal unknown/konflik. |
