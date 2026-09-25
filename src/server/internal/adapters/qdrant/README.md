@@ -40,7 +40,11 @@ memerlukan range. Collection lama yang kehilangan index ditolak, karena
 `points_count` Qdrant bersifat perkiraan dan tidak membuktikan kekosongan.
 Pemasangan indeks yang hilang hanya dilakukan pada collection yang baru dibuat
 oleh pemanggilan ini; perbaikan collection lama memerlukan alur rebuild HNSW
-eksplisit, sesuai
+eksplisit. Pemanggil tepercaya harus menguasai bootstrap collection secara
+eksklusif sampai index dan baca ulang selesai; mutex adapter hanya berlaku
+untuk satu instance `Store`. Bila bootstrap gagal di tengah jalan, pemanggilan
+`EnsureCollection` berikutnya melihat collection lama dan menolak index yang
+kurang; recovery/rebuild eksplisit diperlukan. Ini mengikuti
 [panduan indeks Qdrant](https://qdrant.tech/documentation/manage-data/indexing/).
 Ack `wait=true` belum merupakan bukti seluruh point terlihat di semua
 route. Tes HTTP lokal memeriksa shape dan fail-closed response. Kebijakan field

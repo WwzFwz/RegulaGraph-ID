@@ -45,6 +45,10 @@ var requiredPayloadIndexes = []struct{ field, kind string }{
 
 // EnsureCollection creates a fresh physical family or verifies an existing
 // one. A different generation cannot silently reuse the same collection.
+// The trusted caller must exclusively own bootstrap of this physical
+// collection until indexes and the second read complete; ensureMu only
+// serializes this Store instance. A failed partial bootstrap requires an
+// explicit repair/rebuild, since a later call sees an existing collection.
 func (store *Store) EnsureCollection(ctx context.Context) error {
 	if store == nil {
 		return errors.New("qdrant store is required")
