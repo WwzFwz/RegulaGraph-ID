@@ -12,7 +12,7 @@ Anak harus mempertahankan batas tanggung jawab tersebut. Routing dan kebijakan j
 
 [go.work](../go.work) dan [Cargo.toml](../Cargo.toml) di root menghubungkan workspace komponen. CMake milik inference berada di komponennya sendiri. Folder src di dalam ingestion dan inference memisahkan implementasi komponen dari manifest build dan header. Nama module Go, crate Rust, namespace C++, dan package Protobuf tetap sama setelah pemindahan lokasi.
 
-[deployment](../deployment/README.md) mengatur packaging dan wiring deployment. Lokasi dalam src tidak berarti semua source harus disalin ke image runtime: build menghasilkan binary, library, serta binding yang relevan. Rust memiliki executable worker PARSE berbasis Tonic/PDFium dan Go memiliki daemon dispatch durable; stage lanjutan serta layanan inference C++ masih bertahap.
+[deployment](../deployment/README.md) mengatur packaging dan wiring deployment. Lokasi dalam src tidak berarti semua source harus disalin ke image runtime: build menghasilkan binary, library, serta binding yang relevan. Rust memiliki executable worker PARSE berbasis Tonic/PDFium, Go memiliki daemon dispatch durable, dan C++ memiliki executable inference ONNX; penyambungan stage graph/index/query menyeluruh masih bertahap.
 
 ## Benchmark dan batas cakupan
 
@@ -21,3 +21,5 @@ Semua anak mengikuti [target required](../configs/benchmark-targets.yaml) dan [k
 Setiap anak wajib mendokumentasikan cakupan dan kontrak integrasinya dalam README serta fungsi file pada komentar pembuka. Ikuti [AGENTS.md](../AGENTS.md). Acquisition PDF/metadata, transformasi dokumen sampai CHUNK, worker EXTRACT, Semantic Gateway, commit durable EXTRACT, ontology EXTRACT bersama, blocking kandidat, dan helper alias LINK sourced tersedia. Stage RESOLVE, graph/index, retrieval/answering, serta provider/model produksi belum aktif.
 
 Gateway dan workflow proposal RESOLVE kontekstual tersedia pada server. Dispatch RESOLVE opt-in sampai proposal WAITING_REVIEW kini tersedia; status stage belum aktif di atas merujuk keputusan dan ingestion end-to-end; lihat [integrasi resolusi](../doc/semantic-resolution.md).
+
+Native inference sekarang juga memiliki executable C01 dengan session embedding/reranker warm, tokenizer Rust C ABI, serta client Go/Rust. Lihat [panduan runtime](../doc/native-inference.md) untuk batas integrasi dan status acceptance.

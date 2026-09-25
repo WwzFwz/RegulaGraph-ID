@@ -27,3 +27,5 @@ Ikuti [kebijakan benchmark](../doc/benchmark-policy.md). Angka wajib mengikuti [
 ## Status
 
 Collector/audit D01, kontrak C01, evaluator E01, serta control-plane S01 tersedia. Profiler corpus baseline M01 aktif di tooling/corpus; pemilihan parser/OCR/model native dan benchmark produksi belum selesai. Status anak dijelaskan pada header masing-masing; heuristic profile tidak membuktikan kualitas parsing atau target latency.
+
+`models` sekarang menjalankan export, reference/parity, dan load diagnostic untuk runtime C++ nyata. Python tetap offline; raw evidence disimpan dalam artifacts dan tidak digunakan untuk mengarang quality/benchmark PASS.

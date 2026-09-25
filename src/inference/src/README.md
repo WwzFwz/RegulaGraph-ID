@@ -8,7 +8,7 @@ Fungsi di luar cakupan ini mengikuti komponen pemiliknya. Jika fungsi baru tidak
 
 ## Peran dan integrasi anak
 
-Tidak mengatur fusion atau citation. `batching.cpp` sekarang menjadwalkan antrean query/bulk berbatas, deadline, cancellation, dan fairness lewat event loop satu thread. Kegagalan alokasi atau indeks mengakhiri proses worker; supervisor dan retry klien merupakan kewajiban integrasi runtime yang belum tersedia. ModelRuntime memiliki session/tokenizer; InferenceService mengatur admission dan pemetaan hasil C01; main membuka listener loopback setelah warmup.
+Tidak mengatur fusion atau citation. `batching.cpp` sekarang menjadwalkan antrean query/bulk berbatas, deadline, cancellation, dan fairness lewat event loop satu thread. Kegagalan alokasi/invariant scheduler dapat mengakhiri proses; supervisor berada pada O01 dan client tidak melakukan retry tersembunyi. Kegagalan eksekusi/validasi model menonaktifkan readiness kedua lane sampai restart, sedangkan cancellation terkonfirmasi tidak. ModelRuntime memiliki session/tokenizer; InferenceService mengatur admission dan pemetaan hasil C01; main membuka listener loopback setelah warmup.
 
 Pertahankan source/canonical/provision-version/snapshot ID dan schema version lintas anak. Boundary runtime mengikuti [src/contracts](../../contracts/README.md), dengan pekerjaan batch atau inference yang jelas. Perubahan bentuk data, error/status, serta offset sumber harus didokumentasikan bersama konsumennya; jangan menggandakan kebijakan publikasi di beberapa runtime.
 
@@ -38,3 +38,5 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | [runtime.cpp](runtime.cpp) | Profilkan lifecycle session/bundle/C01 aktif, cold startup, memory peaks, dan mixed workload. | Measure cold start separately; test load failure cleanup, concurrent reuse and cancellation without per-request reload. |
 
 `service.cpp` menghubungkan scheduler dengan C01; `main.cpp` mem-pin bundle dan listener; `model_integrity.cpp` memindai sidecar; `token_probe.cpp` menghasilkan bukti token IDs memakai jalur serving.
+
+[runtime_errors.hpp](runtime_errors.hpp) membedakan termination ONNX terkonfirmasi dari fault backend; [runtime_errors_test.cpp](runtime_errors_test.cpp) menjaga agar cancellation bersamaan dengan OOM tidak menyembunyikan kegagalan. Arena CUDA memakai pertumbuhan sebesar kebutuhan alokasi agar perubahan panjang input tidak menggandakan kapasitas yang ditahan setiap session; efek peak memory tetap perlu diukur pada workload referensi.

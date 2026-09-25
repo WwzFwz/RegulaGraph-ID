@@ -28,9 +28,10 @@ Lihat [kebijakan benchmark](../../doc/benchmark-policy.md) untuk protokol penguk
 
 ## Status implementasi
 
-E01 runner offline serta C01 contract round-trip aktif dan diuji. Pipeline parsing/graph/retrieval, adapter
-storage, layanan model, gold dataset, dan acceptance run produksi belum aktif; target numerik tetap
-**REQUIRED_UNMEASURED**.
+E01 runner offline, C01 contract round-trip, serta pengujian layanan native ONNX aktif. Adapter
+storage dan pipeline memiliki bukti pada laporan komponen masing-masing; tersedianya tes tidak
+berarti integrasi GraphRAG menyeluruh selesai. Gold dataset dan acceptance run produksi masih
+terbuka; target numerik tetap **REQUIRED_UNMEASURED**.
 
 ## Penambahan C01 dan panduan verifikasi
 

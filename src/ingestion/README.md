@@ -33,3 +33,5 @@ Boundary parser PDFium, normalizer, structural chunking, proyeksi/persistence C0
 ## Penambahan C01 dan panduan verifikasi
 
 Berkas terkait: [build.rs](build.rs). Dependency, cara menjalankan dan batas pembuktiannya mengikuti [implementasi C01](../../doc/contracts-implementation.md).
+
+Adapter `NativeEmbeddingClient` menyediakan batch embedding async melalui C++ C01 untuk integrasi indexing. Client ini sudah diuji pada transport nyata; publikasi dense index tetap pekerjaan X01.

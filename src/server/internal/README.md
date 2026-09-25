@@ -33,3 +33,5 @@ EXTRACT memakai ontology JSONC bersama: gateway menolak proposal di luar vocabul
 Collector/audit D01, kontrak/validator C01, evaluator E01, storage/publication S01, durable pipeline sampai EXTRACT, exact identity BIND K01, worker EXTRACT, dan Semantic Gateway sudah tersedia. Graph/index/retrieval, mutasi backend, serta provider/model produksi belum aktif; target kualitas dan latency belum diukur.
 
 Adapter inference menyediakan RESOLVE kontekstual; workflow menghydrate input terverifikasi dan menyimpan proposal untuk replay. Dispatch proposal daemon tersedia secara opt-in; review/resume terautentikasi serta acceptance model lokal belum selesai.
+
+Adapter native embedding/reranking kini memiliki implementasi gRPC dan tes C++ nyata; provenance/ranking workflow tetap berada pada domain/retrieval pemiliknya.

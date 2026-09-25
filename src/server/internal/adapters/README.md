@@ -29,3 +29,5 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 Collector/audit D01, kontrak/validator C01, evaluator E01, storage/publication S01, serta client Worker gRPC tersedia. Worker Rust dan coordinator Go menjalankan handoff PARSE durable; pipeline graph/retrieval, mutasi search backend, layanan model, gold dataset, dan acceptance produksi belum aktif.
 
 Gateway inference menyediakan RESOLVE kontekstual dan client reusable. Adapter memproyeksikan hasil model ke proposal; keputusan registry tetap melewati workflow/domain/storage.
+
+Adapter inference menghubungkan layanan C++ melalui model terpin dan validasi hasil batch. Connection bootstrap eksplisit; per-request reload atau retry tersembunyi tidak digunakan.

@@ -28,7 +28,7 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Semantic.ExtractBatch, gate vocabulary ontology, dan adapter provider sudah aktif secara fungsional serta diuji dengan provider deterministic. Embedding/reranking C++, provider/model produksi, benchmark kualitas/latency/biaya, SummarizeBatch dan acceptance produksi belum aktif; ResolveBatch tersedia sebagai proposal kontekstual.
+Semantic.ExtractBatch, gate vocabulary ontology, dan adapter provider sudah aktif secara fungsional serta diuji dengan provider deterministic. Client native embedding/reranking tersedia melalui `native.go`, `embeddings.go`, dan `cross_encoder.go`, dengan manifest exact, bounded payload, deadline, finite/L2 checks, dan korelasi one-to-one. Benchmark kualitas/latency/biaya, SummarizeBatch dan acceptance produksi belum aktif; ResolveBatch tersedia sebagai proposal kontekstual.
 
 ## Rekomendasi implementasi anak
 

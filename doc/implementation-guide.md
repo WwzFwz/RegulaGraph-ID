@@ -44,3 +44,7 @@ Catat perubahan perilaku, file pemilik, perintah verifikasi, hasil/exit code, ra
 ## Titik lanjut resolusi kontekstual
 
 Gateway `Semantic.ResolveBatch`, client reusable, workflow `ProposeWithModel`, planner kandidat lintas scope, loader policy terpin, CLI submit durable, serta katalog/hidrasi bukti kandidat lintas dokumen tersedia. Lihat [semantic-resolution.md](semantic-resolution.md): dispatch RESOLVE opt-in sampai antrean proposal tersedia; nilai scope produksi, review/resume terautentikasi, keputusan canonical baru/merge/split, serta acceptance model lokal masih perlu diselesaikan. Smoke Ollama menguji protokol pada fixture sintetis; proposal model bukan review tersimpan.
+
+## Handoff native model
+
+Embedding/reranker native sudah memiliki runtime/model bundle dan client Go/Rust; gunakan [panduan native](native-inference.md), lalu integrasikan ke indexing/retrieval tanpa menduplikasi tokenization, pooling, atau normalization. Pemeriksaan native tidak menggantikan acceptance gold/workload lengkap; [laporan native](verification-report-native-models.md) menjelaskan prasyarat yang masih terbuka.
