@@ -29,3 +29,5 @@ Status lintas repositori: collector PDF dan kontrak/validator C01 sudah tersedia
 ## Penambahan C01 dan panduan verifikasi
 
 Berkas terkait: [generate_contracts.py](generate_contracts.py), [check_contracts.py](check_contracts.py). Dependency, cara menjalankan dan batas pembuktiannya mengikuti [implementasi C01](../doc/contracts-implementation.md).
+
+[build_native.ps1](build_native.ps1) menjalankan build tokenizer Rust, CMake service C++, dan CTest pada SDK lokal terpin. Script tidak mengunduh model atau membuka endpoint; prasyarat ada pada [panduan native](../doc/native-inference.md).
