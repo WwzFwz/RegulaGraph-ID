@@ -39,6 +39,9 @@ terverifikasi, dan prasyarat rollout pembaca sebelum publication.
 [verification-report-x01-qdrant-transport.md](verification-report-x01-qdrant-transport.md)
 mencatat transport Qdrant v1.18 yang diuji via HTTP sintetis serta batas
 readiness, backend hidup, dan benchmark yang masih terbuka.
+[verification-report-x01-qdrant-readback.md](verification-report-x01-qdrant-readback.md)
+mencatat perbandingan exact-ID atas payload serta vector Qdrant dan batas
+pembuktiannya sebelum publication seluruh snapshot.
 [verification-report-k01-candidate-batch.md](verification-report-k01-candidate-batch.md) mencatat
 builder kandidat deterministik dan validasi alias-to-scope; autentikasi PostgreSQL serta stage RESOLVE
 masih pekerjaan lanjutan.
