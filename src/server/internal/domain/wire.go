@@ -389,10 +389,16 @@ func CheckUTF8Span(text []byte, start, end uint64) error {
 
 // VerifyEmbeddingResults rejects missing/extra/duplicate IDs and model changes across a batch.
 func VerifyEmbeddingResults(req *pb.EmbedBatchRequest, res *pb.EmbedBatchResponse) error {
+	return VerifyEmbeddingResultsWithLimits(req, res, DefaultWireLimits)
+}
+
+// VerifyEmbeddingResultsWithLimits lets native callers account for every vector scalar
+// within their explicit byte/item budget without duplicating correlation rules.
+func VerifyEmbeddingResultsWithLimits(req *pb.EmbedBatchRequest, res *pb.EmbedBatchResponse, limits WireLimits) error {
 	if err := ValidateWire(req, DefaultWireLimits); err != nil {
 		return err
 	}
-	if err := ValidateWire(res, DefaultWireLimits); err != nil {
+	if err := ValidateWire(res, limits); err != nil {
 		return err
 	}
 	if req.Context.RequestId != res.RequestId || !proto.Equal(req.Model, res.Model) {
