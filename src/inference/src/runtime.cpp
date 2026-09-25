@@ -21,6 +21,7 @@
 #include "regulagraph/inference/model_integrity.hpp"
 #define ORT_API_MANUAL_INIT
 #include <onnxruntime_cxx_api.h>
+#include "runtime_errors.hpp"
 #include <google/protobuf/util/json_util.h>
 #include <google/protobuf/struct.pb.h>
 #include <algorithm>
@@ -134,6 +135,8 @@ ModelRuntime::ModelRuntime(const std::filesystem::path& bundle,const std::string
         OrtCUDAProviderOptions config{}; config.device_id=0;
         config.cudnn_conv_algo_search=OrtCudnnConvAlgoSearchHeuristic;
         config.gpu_mem_limit=std::numeric_limits<std::size_t>::max();
+        // Dynamic lengths must not double each session's retained CUDA arena capacity.
+        config.arena_extend_strategy=1; // kSameAsRequested, ORT 1.22 CUDA provider.
         config.do_copy_in_default_stream=1;
         options.AppendExecutionProvider_CUDA(config);
     }
@@ -179,7 +182,7 @@ TensorResults ModelRuntime::Run(const std::vector<Tokens>& inputs,const std::ato
     std::size_t length=0;
     for(const auto& item:inputs) {Need(!item.ids.empty() && item.ids.size()<=impl_->manifest.max_tokens(),"invalid token count"); length=std::max(length,item.ids.size());}
     Need(inputs.size()<=impl_->maximum_padded_tokens/length,"padded batch exceeds token budget");
-    Need(!cancel.load(),"inference cancelled");
+    if(cancel.load()) throw InferenceCancelled();
     std::vector<std::int64_t> ids(inputs.size()*length,impl_->padding),mask(ids.size(),0);
     for(std::size_t i=0;i<inputs.size();++i) {
         std::copy(inputs[i].ids.begin(),inputs[i].ids.end(),ids.begin()+i*length);
@@ -200,8 +203,14 @@ TensorResults ModelRuntime::Run(const std::vector<Tokens>& inputs,const std::ato
         }});
     auto join=[&]{ {std::lock_guard<std::mutex> lock(mutex);finished=true;} cv.notify_one();monitor.join();};
     std::vector<Ort::Value> values;
-    try {values=impl_->session.Run(run,names,tensors.data(),2,&output,1);} catch(...) {join();throw;}
-    join(); Need(!cancel.load(),"inference cancelled");
+    try {values=impl_->session.Run(run,names,tensors.data(),2,&output,1);}
+    catch(const Ort::Exception& error) {
+        join();
+        if(ConfirmedTermination(error.GetOrtErrorCode(),error.what(),cancel.load())) throw InferenceCancelled();
+        throw; // A device fault remains a fault even if the caller cancelled concurrently.
+    } catch(...) {join();throw;}
+    join();
+    if(cancel.load()) throw InferenceCancelled();
     const auto info=values[0].GetTensorTypeAndShapeInfo(); const auto dimensions=info.GetShape();
     const bool embed=impl_->manifest.task()==v1::MODEL_TASK_EMBED;
     const auto columns=embed?impl_->manifest.dimensions():1;

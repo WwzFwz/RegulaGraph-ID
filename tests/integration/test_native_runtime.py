@@ -37,11 +37,20 @@ def command(bundle,port):
 
 
 @pytest.fixture
-def session(tmp_path):
+def session(tmp_path,request):
     import grpc
     from google.protobuf.json_format import Parse
     from regulagraph.v1 import common_pb2 as common,inference_pb2 as wire
     binary();bundle=Path(create(tmp_path,'embed','1.22.0')['bundle'])
+    if getattr(request,'param',None)=='zero_on_izin':
+        import onnx
+        from onnx import helper as h,TensorProto as t
+        model=onnx.load(str(bundle/'model.onnx'))
+        model.graph.node[-1].output[0]='raw_embedding'
+        model.graph.initializer.extend([h.make_tensor('eleven',t.FLOAT,[],[11]),h.make_tensor('zero',t.FLOAT,[],[0]),h.make_tensor('one',t.FLOAT,[],[1])])
+        model.graph.node.extend([h.make_node('Equal',['sum','eleven'],['bad']),h.make_node('Where',['bad','zero','one'],['factor']),
+            h.make_node('Unsqueeze',['factor','axes'],['factor_column']),h.make_node('Mul',['raw_embedding','factor_column'],['embedding'])])
+        onnx.save(model,str(bundle/'model.onnx'));repin(bundle,False)
     with socket.socket() as sock:sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
     log=(tmp_path/'server.log').open('w')
     process=subprocess.Popen(command(bundle,port),stdout=log,stderr=log,
@@ -52,11 +61,13 @@ def session(tmp_path):
         model=Parse((bundle/'model.pbjson').read_text(),common.ModelManifest())
         rpc=channel.unary_unary('/regulagraph.v1.Inference/EmbedBatch',
             request_serializer=wire.EmbedBatchRequest.SerializeToString,response_deserializer=wire.EmbedBatchResponse.FromString)
+        caps=channel.unary_unary('/regulagraph.v1.Inference/GetCapabilities',
+            request_serializer=wire.CapabilitiesRequest.SerializeToString,response_deserializer=wire.CapabilitiesResponse.FromString)
         def request(bulk=False,count=1):
             value=wire.EmbedBatchRequest(context=context(),model=model,operation_key='test:embed',purpose=2 if bulk else 1)
             for i in range(count):value.items.add(item_id='item:'+str(i),text='izin usaha' if not bulk else 'izin '*4096)
             return value
-        yield rpc,request,process
+        yield rpc,request,process,caps
     finally:
         channel.close()
         if process.poll() is None:process.terminate()
@@ -65,7 +76,7 @@ def session(tmp_path):
 
 def test_ancient_deadline_and_expired_request_are_rejected(session):
     import grpc
-    rpc,request,_=session
+    rpc,request,_,_=session
     for seconds in (-11644473600,int(time.time())-1):
         value=request();value.context.deadline.seconds=seconds;value.context.deadline.nanos=0
         with pytest.raises(grpc.RpcError) as error:rpc(value,timeout=2)
@@ -75,7 +86,7 @@ def test_ancient_deadline_and_expired_request_are_rejected(session):
 
 def test_bulk_saturation_keeps_online_admission_available(session):
     import grpc
-    rpc,request,process=session;start=threading.Barrier(9)
+    rpc,request,process,_=session;start=threading.Barrier(9)
     def bulk(_):
         start.wait();codes=[]
         for _ in range(5):
@@ -91,9 +102,24 @@ def test_bulk_saturation_keeps_online_admission_available(session):
 
 
 def test_cancelled_bulk_does_not_poison_shared_session(session):
-    rpc,request,process=session
+    rpc,request,process,_=session
     pending=rpc.future(request(True,96),timeout=30);time.sleep(0.01);assert pending.cancel()
     assert rpc(request(),timeout=5).results[0].HasField('embedding') and process.poll() is None
+
+
+@pytest.mark.parametrize('session',['zero_on_izin'],indirect=True)
+def test_model_execution_failure_clears_readiness_and_stops_new_work(session):
+    import grpc
+    from regulagraph.v1 import inference_pb2 as wire
+    rpc,request,_,caps=session
+    assert caps(wire.CapabilitiesRequest(context=context()),timeout=2).ready
+    broken=request();broken.items[0].text='izin'
+    result=rpc(broken,timeout=2)
+    assert result.results[0].HasField('error')
+    readiness=caps(wire.CapabilitiesRequest(context=context()),timeout=2)
+    assert not readiness.ready and all(not m.ready for m in readiness.models)
+    with pytest.raises(grpc.RpcError) as error:rpc(request(),timeout=2)
+    assert error.value.code()==grpc.StatusCode.UNAVAILABLE
 
 
 def external_bundle(tmp_path):

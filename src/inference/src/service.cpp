@@ -9,6 +9,7 @@
 #include "regulagraph/inference/embeddings.hpp"
 #include "regulagraph/inference/cross_encoder.hpp"
 #include "wire_validation.hpp"
+#include "runtime_errors.hpp"
 #include <google/protobuf/util/message_differencer.h>
 #include <algorithm>
 #include <condition_variable>
@@ -62,6 +63,7 @@ struct InferenceService::Impl {
     std::mutex mutex; std::condition_variable cv; bool stopping=false;
     std::thread worker; std::size_t pending_bytes=0,rotation=0;std::uint64_t ticket=0;
     std::atomic<unsigned> calls{0}, bulk_calls{0};
+    std::atomic<bool> healthy{true};
     explicit Impl(std::vector<std::unique_ptr<ModelRuntime>> models) {
         if(models.empty() || models.size()>2) throw std::runtime_error("one or two model sessions required");
         for(auto& model:models) {
@@ -145,6 +147,10 @@ struct InferenceService::Impl {
         }
     }
     void Execute(Lane& lane,const std::vector<std::shared_ptr<Work>>& chosen,std::size_t first,std::size_t end) {
+        if(!healthy.load()) {
+            for(auto i=first;i<end;++i) chosen[i]->promise.set_value(Error(v1::ERROR_CODE_UNAVAILABLE,"native runtime requires restart",chosen[i]->id));
+            return;
+        }
         std::vector<std::shared_ptr<Work>> active;std::vector<Tokens> inputs;
         for(auto i=first;i<end;++i) {
             auto w=chosen[i];
@@ -167,8 +173,13 @@ struct InferenceService::Impl {
                 else if(lane.model->Manifest().task()==v1::MODEL_TASK_EMBED) results[i].embedding=CheckedEmbedding(tensor,i,lane.model->Manifest(),inputs[i].ids.size());
                 else results[i].score=CheckedScore(tensor,i,lane.model->Manifest(),inputs[i].ids.size());
             }
+        } catch(const InferenceCancelled&) {
+            for(std::size_t i=0;i<active.size();++i) results[i]=Error(v1::ERROR_CODE_CANCELLED,"native execution cancelled",active[i]->id);
         } catch(const std::exception&) {
-            for(std::size_t i=0;i<active.size();++i) results[i]=Error(cancel?v1::ERROR_CODE_CANCELLED:v1::ERROR_CODE_INTERNAL,"native model execution failed",active[i]->id);
+            // A failed CUDA run can poison its shared device context; stop both lanes.
+            // Concurrent cancellation cannot turn an engine fault into expected cancellation.
+            healthy.store(false);
+            for(std::size_t i=0;i<active.size();++i) results[i]=Error(v1::ERROR_CODE_INTERNAL,"native model execution failed",active[i]->id);
         }
         {std::lock_guard<std::mutex> lock(done_mutex);done=true;}done_cv.notify_one();monitor.join();
         for(std::size_t i=0;i<active.size();++i) {
@@ -186,6 +197,7 @@ template<class Request,class Response,class Impl,class Texts,class Project>
 grpc::Status Process(Impl& impl,grpc::ServerContext* ctx,const Request& request,Response& response,
                      Texts texts,Project project,WorkClass kind) {
     const auto started=BatchClock::now();
+    if(!impl.healthy.load()) return {grpc::StatusCode::UNAVAILABLE,"native runtime requires restart"};
     // Keep at least six of eight RPC slots available for query/rerank traffic.
     const bool bulk=kind==WorkClass::bulk;
     if(bulk && impl.bulk_calls.fetch_add(1)>=2) {
@@ -239,8 +251,8 @@ grpc::Status InferenceService::RerankBatch(grpc::ServerContext* ctx,const v1::Re
 grpc::Status InferenceService::GetCapabilities(grpc::ServerContext* ctx,const v1::CapabilitiesRequest* req,v1::CapabilitiesResponse* out) {
     try {contracts::validate(*req);} catch(...) {return {grpc::StatusCode::INVALID_ARGUMENT,"invalid capability context"};}
     BatchTime deadline;auto status=Context(req->context(),ctx,deadline);if(!status.ok()) return status;
-    out->set_ready(true);
-    for(const auto& lane:impl_->lanes) {auto* cap=out->add_models();*cap->mutable_model()=lane->model->Manifest();cap->set_ready(true);
+    const bool ready=impl_->healthy.load();out->set_ready(ready);
+    for(const auto& lane:impl_->lanes) {auto* cap=out->add_models();*cap->mutable_model()=lane->model->Manifest();cap->set_ready(ready);
         cap->mutable_limits()->set_max_items(MaxItems);cap->mutable_limits()->set_max_bytes(MaxBytes);
         cap->mutable_limits()->set_max_tokens(lane->model->Manifest().max_tokens());out->add_supported_tasks(lane->model->Manifest().task());}
     return grpc::Status::OK;
