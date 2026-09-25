@@ -53,7 +53,135 @@ func qdrantFixture() (Binding, Point) {
 }
 
 func collectionReply() string {
-	return `{"status":"ok","result":{"config":{"params":{"vectors":{"dense":{"size":2,"distance":"Cosine"}},"sparse_vectors":{"bm25":{}}},"metadata":{"regulagraph_corpus_id":"corpus:one","regulagraph_generation_id":"generation:one","regulagraph_filter_format":"PAIRED_PROVISION_V1"}}}}`
+	return `{"status":"ok","result":{"config":{"params":{"vectors":{"dense":{"size":2,"distance":"Cosine"}},"sparse_vectors":{"bm25":{}}},"metadata":{"regulagraph_corpus_id":"corpus:one","regulagraph_generation_id":"generation:one","regulagraph_filter_format":"PAIRED_PROVISION_V1"}},"payload_schema":{"corpus_id":{"data_type":"keyword"},"generation_id":{"data_type":"keyword"},"from_seq":{"data_type":"integer"},"to_seq":{"data_type":"integer"},"provision_filters[].provision_version_id":{"data_type":"keyword"}}}}`
+}
+
+func TestStoreCreatesMissingPayloadIndexesBeforeReadiness(t *testing.T) {
+	indexed := map[string]string{}
+	reads := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/collections/index_one":
+			reads++
+			if reads == 1 {
+				_, _ = w.Write([]byte(strings.Replace(collectionReply(), `"payload_schema":{"corpus_id":{"data_type":"keyword"},"generation_id":{"data_type":"keyword"},"from_seq":{"data_type":"integer"},"to_seq":{"data_type":"integer"},"provision_filters[].provision_version_id":{"data_type":"keyword"}}`, `"payload_schema":{}`, 1)))
+			} else {
+				_, _ = w.Write([]byte(collectionReply()))
+			}
+		case r.Method == http.MethodPut && r.URL.Path == "/collections/index_one/index":
+			if r.URL.Query().Get("wait") != "true" || r.URL.Query().Get("ordering") != "strong" {
+				t.Error("payload index creation lacks completion/ordering")
+			}
+			var body struct {
+				FieldName   string `json:"field_name"`
+				FieldSchema string `json:"field_schema"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Error(err)
+			}
+			indexed[body.FieldName] = body.FieldSchema
+			_, _ = w.Write([]byte(`{"status":"ok","result":{"status":"completed","operation_id":1}}`))
+		default:
+			t.Errorf("unexpected request %s %s", r.Method, r.URL.String())
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+	binding, _ := qdrantFixture()
+	store, err := New(server.URL, "", server.Client(), binding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.EnsureCollection(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !store.ready.Load() || reads != 2 || len(indexed) != len(requiredPayloadIndexes) {
+		t.Fatalf("indexes=%v reads=%d ready=%v", indexed, reads, store.ready.Load())
+	}
+	for _, index := range requiredPayloadIndexes {
+		if indexed[index.field] != index.kind {
+			t.Fatalf("missing index %q", index.field)
+		}
+	}
+}
+
+func TestStoreRejectsWrongPayloadIndexType(t *testing.T) {
+	writes := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method != http.MethodGet {
+			writes++
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		_, _ = w.Write([]byte(strings.Replace(collectionReply(), `"from_seq":{"data_type":"integer"}`, `"from_seq":{"data_type":"keyword"}`, 1)))
+	}))
+	defer server.Close()
+	binding, _ := qdrantFixture()
+	store, err := New(server.URL, "", server.Client(), binding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.EnsureCollection(context.Background()); err == nil || store.ready.Load() || writes != 0 {
+		t.Fatalf("incompatible index admitted: err=%v ready=%v writes=%d", err, store.ready.Load(), writes)
+	}
+}
+
+func TestStoreRejectsIntegerIndexWithoutRangeSupport(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(strings.Replace(collectionReply(),
+			`"from_seq":{"data_type":"integer"}`,
+			`"from_seq":{"data_type":"integer","params":{"type":"integer","lookup":true,"range":false}}`, 1)))
+	}))
+	defer server.Close()
+	binding, _ := qdrantFixture()
+	store, err := New(server.URL, "", server.Client(), binding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.EnsureCollection(context.Background()); err == nil || store.ready.Load() {
+		t.Fatalf("range-disabled snapshot index admitted: err=%v ready=%v", err, store.ready.Load())
+	}
+}
+
+func TestStoreAcceptsIntegerIndexWithImplicitRangeDefault(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(strings.Replace(collectionReply(),
+			`"from_seq":{"data_type":"integer"}`,
+			`"from_seq":{"data_type":"integer","params":{"type":"integer"}}`, 1)))
+	}))
+	defer server.Close()
+	binding, _ := qdrantFixture()
+	store, err := New(server.URL, "", server.Client(), binding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.EnsureCollection(context.Background()); err != nil || !store.ready.Load() {
+		t.Fatalf("default range-capable index rejected: err=%v ready=%v", err, store.ready.Load())
+	}
+}
+
+func TestStoreRejectsUnobservedPayloadIndexCompletion(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodGet {
+			_, _ = w.Write([]byte(strings.Replace(collectionReply(), `"payload_schema":{"corpus_id":{"data_type":"keyword"},"generation_id":{"data_type":"keyword"},"from_seq":{"data_type":"integer"},"to_seq":{"data_type":"integer"},"provision_filters[].provision_version_id":{"data_type":"keyword"}}`, `"payload_schema":{}`, 1)))
+			return
+		}
+		_, _ = w.Write([]byte(`{"status":"ok","result":{"status":"completed","operation_id":1}}`))
+	}))
+	defer server.Close()
+	binding, _ := qdrantFixture()
+	store, err := New(server.URL, "", server.Client(), binding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.EnsureCollection(context.Background()); err == nil || store.ready.Load() {
+		t.Fatalf("missing index incorrectly admitted: err=%v ready=%v", err, store.ready.Load())
+	}
 }
 
 func TestStoreCreateUpsertAndSnapshotQuery(t *testing.T) {

@@ -1,7 +1,7 @@
 // Collection admission checks the physical named-vector layout before any X01
-// upsert or query. It does not prove payload indexes, replica visibility, or a
-// complete snapshot; those remain publication/readiness gates. Measure cold
-// ensure time separately from warm query latency.
+// upsert or query. It also admits the snapshot filter's payload indexes before
+// serving this store; replica visibility and complete snapshot remain separate
+// publication gates. Measure cold ensure time separately from warm query latency.
 package qdrant
 
 import (
@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
 )
 
 type collectionDetails struct {
@@ -24,6 +25,22 @@ type collectionDetails struct {
 		} `json:"params"`
 		Metadata map[string]string `json:"metadata"`
 	} `json:"config"`
+	PayloadSchema map[string]struct {
+		DataType string `json:"data_type"`
+		Params   *struct {
+			Range *bool `json:"range"`
+		} `json:"params"`
+	} `json:"payload_schema"`
+}
+
+// Index only fields used by the production snapshot filter. In particular,
+// nested provision IDs must retain Qdrant's array path syntax.
+var requiredPayloadIndexes = []struct{ field, kind string }{
+	{"corpus_id", "keyword"},
+	{"generation_id", "keyword"},
+	{"from_seq", "integer"},
+	{"to_seq", "integer"},
+	{"provision_filters[].provision_version_id", "keyword"},
 }
 
 // EnsureCollection creates a fresh physical family or verifies an existing
@@ -74,6 +91,47 @@ func (store *Store) EnsureCollection(ctx context.Context) error {
 		meta["regulagraph_generation_id"] != store.binding.Generation.Meta.RecordId ||
 		meta["regulagraph_filter_format"] != "PAIRED_PROVISION_V1" {
 		return fmt.Errorf("qdrant collection %q representation binding mismatch", store.collection)
+	}
+	missing := make([]struct{ field, kind string }, 0, len(requiredPayloadIndexes))
+	for _, index := range requiredPayloadIndexes {
+		if actual, ok := details.PayloadSchema[index.field]; ok {
+			if actual.DataType != index.kind || index.kind == "integer" &&
+				actual.Params != nil && actual.Params.Range != nil && !*actual.Params.Range {
+				return fmt.Errorf("qdrant payload index %q has incompatible type", index.field)
+			}
+		} else {
+			missing = append(missing, index)
+		}
+	}
+	for _, index := range missing {
+		var result struct {
+			Status string `json:"status"`
+		}
+		_, err := store.call(ctx, http.MethodPut, path+"/index?wait=true&ordering=strong",
+			map[string]string{"field_name": index.field, "field_schema": index.kind}, &result)
+		if err != nil {
+			return fmt.Errorf("qdrant payload index %q failed: %w", index.field, err)
+		}
+		if result.Status != "completed" {
+			return fmt.Errorf("qdrant payload index %q was not completed", index.field)
+		}
+	}
+	if len(missing) > 0 {
+		verifiedLayout := details.Config
+		details = collectionDetails{}
+		if _, err := store.call(ctx, http.MethodGet, path, nil, &details); err != nil {
+			return err
+		}
+		if !reflect.DeepEqual(details.Config, verifiedLayout) {
+			return errors.New("qdrant collection layout changed during payload indexing")
+		}
+		for _, index := range requiredPayloadIndexes {
+			actual, ok := details.PayloadSchema[index.field]
+			if !ok || actual.DataType != index.kind || index.kind == "integer" &&
+				actual.Params != nil && actual.Params.Range != nil && !*actual.Params.Range {
+				return fmt.Errorf("qdrant payload index %q is not visible after completion", index.field)
+			}
+		}
 	}
 	store.ready.Store(true)
 	return nil

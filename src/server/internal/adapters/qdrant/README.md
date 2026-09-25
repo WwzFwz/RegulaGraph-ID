@@ -33,8 +33,13 @@ upsert bernama `dense` dan `bm25`, serta query dengan filter corpus, generation,
 snapshot, dan versi pasal kini tersedia. Input upsert memerlukan ID point yang
 dialokasikan katalog tepercaya, record yang sudah dibuktikan dari sumber, dan
 fence operasi yang masih hidup. `EnsureCollection` memeriksa bentuk vector dan
-metadata generation; ack `wait=true` belum merupakan bukti seluruh point terlihat
-di semua route. Tes HTTP lokal memeriksa shape dan fail-closed response.
+metadata generation, memasang indeks payload pada field filter produksi sebelum
+upsert, lalu membaca ulang schema indeks. Index yang sudah ada dengan tipe salah
+atau integer index dengan dukungan `range=false` ditolak karena filter snapshot
+memerlukan range. Ack `wait=true` belum merupakan bukti seluruh point terlihat di semua
+route. Tes HTTP lokal memeriksa shape dan fail-closed response. Kebijakan field
+terindeks mengikuti [API payload index Qdrant v1.18](https://api.qdrant.tech/v-1-18-x/api-reference/indexes/create-field-index)
+dan [panduan indeks Qdrant](https://qdrant.tech/documentation/manage-data/indexing/).
 
 `VerifyPoints` kini membaca ID point dalam batch berbatas dan membandingkan
 payload penuh, dense yang dinormalisasi untuk Cosine, serta sparse BM25.
@@ -42,7 +47,7 @@ Ia dapat menemukan point hilang atau berubah pada route ber-`consistency=all`,
 tetapi pemanggil masih harus memaginasi semua expected ID dan membuktikan
 route/replica yang boleh melayani query.
 
-Payload index, closure/recovery, bukti readback seluruh point dan replica,
+Closure/recovery, bukti readback seluruh point dan replica,
 PostgreSQL binding, writer coordinator, query hydration, Qdrant nyata, gold,
 serta acceptance performa tetap belum tersedia. Tanggal berlaku dan kecukupan
 multi-versi diperiksa setelah hydration oleh retrieval owner, bukan diasumsikan
@@ -62,6 +67,6 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
-| [client.go](client.go), [collections.go](collections.go) | Ikat konfigurasi fisik ke katalog generation dan periksa capability/read route sesudah perubahan koleksi. | Uji server Qdrant terpin, salah dimensi/modifier/metadata, restart dan route berubah. |
+| [client.go](client.go), [collections.go](collections.go) | Ikat konfigurasi fisik ke katalog generation dan periksa capability/read route sesudah perubahan koleksi. | Uji server Qdrant terpin, salah dimensi/modifier/metadata/payload index, restart dan route berubah. |
 | [points.go](points.go), [readback.go](readback.go) | Sambungkan allocator ID, ledger operasi, closure dan paginasi pemeriksaan readback penuh sebelum publication. | Uji replay, partial write, stale fence, point hilang, dan replica tertinggal pada Qdrant nyata. |
 | [search.go](search.go) | Hidrasi kandidat dan terapkan kebijakan temporal/versi final dengan budget overfetch eksplisit. | Ukur recall/latency per cabang dan kasus tanggal unknown/konflik. |
