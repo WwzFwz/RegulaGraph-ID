@@ -22,7 +22,7 @@ CLI discover/collect/audit sudah menjalankan acquisition D01. Scheduler/job dan 
 
 ## Benchmark dan perhatian performa
 
-CLI `submit` kini membuat job durable dengan hash ontology dan candidate policy corpus yang terpin untuk source blob yang sudah terdaftar. Daemon belum mengerjakan ACQUIRE maupun dispatch RESOLVE; status queued bukan completion pipeline.
+CLI `submit` kini membuat job durable dengan hash ontology dan candidate policy corpus yang terpin untuk source blob yang sudah terdaftar. Daemon belum mengerjakan ACQUIRE. Dispatch RESOLVE opt-in menghasilkan proposal WAITING_REVIEW; status queued atau proposal bukan completion pipeline.
 
 Prioritas: p95/p99 latency query, waktu antre dan time-to-first-answer-token; untuk job ukur throughput serta peak RSS. Target numerik wajib ada di [target numerik wajib](../../configs/benchmark-targets.yaml); profil referensi dan status REQUIRED_UNMEASURED berlaku. Pemrosesan berjalan tanpa loading model per request dan tanpa RPC per tahap kecil fusion/filter/context.
 
@@ -32,4 +32,4 @@ Ikuti [kebijakan benchmark](../../doc/benchmark-policy.md). Angka wajib mengikut
 
 Collector/audit D01, kontrak/validator C01, evaluator E01, adapter control-plane S01, jalur durable sampai EXTRACT, exact identity K01, worker EXTRACT, Semantic Gateway, dan ontology EXTRACT bersama sudah tersedia. Resolusi semantik/merge-split, graph assembly, index/retrieval, mutasi backend, serta provider/model produksi belum aktif. Test correctness tidak membuktikan target kualitas atau latency.
 
-Gateway RESOLVE kontekstual dan workflow proposal audit/replay tersedia sebagai komponen callable, termasuk katalog EXTRACT atomik dan bukti kandidat lintas dokumen. LINK wajib mengutip konteks mention serta kandidat terpilih. Dispatch otomatis serta acceptance model lokal belum selesai; lihat [integrasi resolusi](../../doc/semantic-resolution.md).
+Gateway RESOLVE kontekstual dan workflow proposal audit/replay tersedia sebagai komponen callable, termasuk katalog EXTRACT atomik dan bukti kandidat lintas dokumen. LINK wajib mengutip konteks mention serta kandidat terpilih. Dispatch proposal otomatis opt-in tersedia; review/resume dan acceptance model lokal belum selesai; lihat [integrasi resolusi](../../doc/semantic-resolution.md).

@@ -14,6 +14,8 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+[resolution.go](resolution.go) memuat producer ProtoJSON dan schema RESOLVE dengan SHA-256 byte persis, paling banyak 1 MiB per file. Manifest memakai kontrak wire bersama dan wajib memuat tepat satu model RESOLVE. [resolution_test.go](resolution_test.go) menolak drift hash, field duplikat/asing, task lain dan ukuran berlebih. Kesamaan model/prompt/schema/ontology serta budget policy diperiksa lagi oleh constructor executor; file konfigurasi tidak membuktikan model siap atau berkualitas.
+
 Berkas: [config.go](config.go) dan [candidate_planning.go](candidate_planning.go). Loader candidate policy membaca JSON versi 1 paling banyak 1 MiB, memverifikasi SHA-256 byte persis, menolak field/duplikat/case variant yang tidak dikenal, serta memvalidasi tipe, scope, dan budget. Tidak ada nilai scope produksi yang disimpulkan dari portal; pemilik corpus memasok file policy terpin. [candidate_planning_test.go](candidate_planning_test.go) menguji tampering dan konfigurasi mustahil sebelum job disubmit.
 
 ## Benchmark dan perhatian performa

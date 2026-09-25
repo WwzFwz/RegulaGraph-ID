@@ -20,4 +20,4 @@ Semua anak mengikuti [target required](../configs/benchmark-targets.yaml) dan [k
 
 Setiap anak wajib mendokumentasikan cakupan dan kontrak integrasinya dalam README serta fungsi file pada komentar pembuka. Ikuti [AGENTS.md](../AGENTS.md). Acquisition PDF/metadata, transformasi dokumen sampai CHUNK, worker EXTRACT, Semantic Gateway, commit durable EXTRACT, ontology EXTRACT bersama, blocking kandidat, dan helper alias LINK sourced tersedia. Stage RESOLVE, graph/index, retrieval/answering, serta provider/model produksi belum aktif.
 
-Gateway dan workflow proposal RESOLVE kontekstual tersedia pada server. Status stage belum aktif di atas merujuk dispatch ingestion end-to-end; lihat [integrasi resolusi](../doc/semantic-resolution.md).
+Gateway dan workflow proposal RESOLVE kontekstual tersedia pada server. Dispatch RESOLVE opt-in sampai proposal WAITING_REVIEW kini tersedia; status stage belum aktif di atas merujuk keputusan dan ingestion end-to-end; lihat [integrasi resolusi](../doc/semantic-resolution.md).

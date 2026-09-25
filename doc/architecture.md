@@ -1,6 +1,6 @@
 # Arsitektur RegulaGraph-ID
 
-Dokumen ini menjelaskan arsitektur monorepo Go/Rust/C++/Python yang telah disetujui pengguna dengan prioritas latency dan throughput. Storage/control-plane dan pipeline durable PARSE→STRUCTURE→BIND→CHUNK→EXTRACT tersedia. Gateway/workflow proposal RESOLVE sudah menghidrasi bukti mention dan kandidat lintas dokumen; dispatch otomatis RESOLVE, graph/index, query serving, serta acceptance model belum lengkap.
+Dokumen ini menjelaskan arsitektur monorepo Go/Rust/C++/Python yang telah disetujui pengguna dengan prioritas latency dan throughput. Storage/control-plane dan pipeline durable PARSE→STRUCTURE→BIND→CHUNK→EXTRACT tersedia. Gateway/workflow proposal RESOLVE sudah menghidrasi bukti mention dan kandidat lintas dokumen; dispatch RESOLVE kini tersedia secara opt-in sampai proposal durable WAITING_REVIEW dan recovery output tanpa mention. Review/resume, graph/index, query serving, serta acceptance model belum lengkap.
 
 Dokumen ini menjadi ringkasan pemilik komponen. Rancangan menyeluruh terdapat pada [system-design](system-design.md), [system-contracts](system-contracts.md), [storage-consistency](storage-consistency.md), dan [development-plan](development-plan.md), sesuai keputusan 0005. Bila ringkasan tidak memuat rincian failure/field, gunakan spesifikasi tersebut; jangan menganggap rincian itu di luar cakupan produk.
 

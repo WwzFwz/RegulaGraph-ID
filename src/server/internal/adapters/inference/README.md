@@ -14,6 +14,8 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+`SemanticService.ProducerManifest()` mengembalikan salinan manifest konfigurasi tanpa provider call. Gateway memakainya untuk ekspor pin operator; perubahan pada hasil ekspor tidak mengubah konfigurasi layanan yang sedang berjalan. Tes memeriksa isolasi salinan tersebut.
+
 Berkas: [cross_encoder.go](cross_encoder.go), [embeddings.go](embeddings.go), [llm.go](llm.go), [semantic.go](semantic.go). Test boundary berada pada file `_test.go` pendamping.
 
 `llm.go` menyediakan adapter HTTP structured output OpenAI-compatible tanpa retry implisit. `semantic.go` mengimplementasikan `Semantic.ExtractBatch`: validasi request/model/schema/ontology, concurrency terbatas, cache operation-key dalam proses, proyeksi ID deterministik, exact UTF-8 span, provenance, support closure, manifest termasuk hash ontology, accounting token, dan error eksplisit per item. Replay durable lintas restart tetap milik coordinator.

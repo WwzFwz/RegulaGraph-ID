@@ -26,6 +26,8 @@ Migration 0008 tidak menebak profil/alias historis dari canonical identity lama.
 
 ## Benchmark dan perhatian kualitas
 
+[0012_semantic_proposal_queue.up.sql](0012_semantic_proposal_queue.up.sql) menambah locator queue advisory RESOLVE, foreign key job/checkpoint/artefak, indeks corpus/waktu, dan trigger append-only. Tidak ada backfill atau perubahan keputusan lama. Terapkan sebelum mengaktifkan executor proposal; aplikasi lama dapat mengabaikan tabel. Adapter memasukkan locator dan state WAITING_REVIEW atomik. Rehearsal lock/indeks pada corpus produksi belum dilakukan; migration bersifat transaksional dan kegagalan dipulihkan dengan replay checksum identik, bukan mengubah file revision yang telah diterapkan.
+
 [0011_extraction_evidence_catalog.up.sql](0011_extraction_evidence_catalog.up.sql) menambah katalog locator support mention EXTRACT dengan foreign key artefak/checkpoint, indeks corpus/snapshot/auth/mention, dan trigger append-only. Writer baru mengisinya dalam transaksi checkpoint sukses; aplikasi lama dapat mengabaikan tabel, tetapi artefak lama memerlukan revalidasi sebelum menjadi bukti kandidat. Tidak ada backfill atau penghapusan sumber historis. Migration transaksional sudah diperiksa pada PostgreSQL disposable bersama replay/rollback writer; rehearsal lock dan pertumbuhan indeks pada corpus produksi masih diperlukan. Terapkan sebelum writer baru, dan jangan mengedit checksum revision yang sudah diterapkan.
 
 **STORAGE.** Ukur latency p50/p95/p99, throughput batch, pool saturation, retry, dan error rate pada concurrency serta volume data yang disebutkan. Gate: timeout terlapor, resource dilepas, dan operasi tulis idempotent sesuai kontrak; tidak ada asumsi transaksi atomik lintas layanan.

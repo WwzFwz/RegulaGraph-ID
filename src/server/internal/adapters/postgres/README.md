@@ -1,5 +1,7 @@
 # src/server/internal/adapters/postgres
 
+[semantic_proposal_queue.go](semantic_proposal_queue.go) menyimpan locator artefak advisory RESOLVE dan transisi `WAITING_REVIEW` atomik, dengan fence/checkpoint/corpus, cancellation priority, serta lease release. Migration 0012 wajib tersedia. Queue tidak memberi approval LINK; [semantic_proposal_queue_integration_test.go](semantic_proposal_queue_integration_test.go) memeriksa park/cancel, stale fence, foreign corpus, metadata drift, dan rollback nyata. Reader mengembalikan locator response per corpus/job; workflow review berikutnya wajib memvalidasi ulang bytes/dependency sebelum keputusan.
+
 Adapter penyimpanan metadata dokumen, versi, manifest ingestion, dan status workflow pada PostgreSQL. Adapter Go memakai koneksi yang dipakai ulang. Dokumen ini mendefinisikan superset tanggung jawab folder dan kontrak integrasi anaknya.
 
 ## Batas tanggung jawab

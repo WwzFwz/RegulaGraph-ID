@@ -22,6 +22,8 @@ Perintah discover menerima seed katalog dan memanggil workflows.DiscoverSources 
 
 ## Benchmark dan perhatian performa
 
+Bila `REGULAGRAPH_RESOLUTION_PRODUCER_PATH` atau `REGULAGRAPH_RESOLUTION_PRODUCER_SHA256` diisi, `submit` memerlukan keduanya, memvalidasi file producer RESOLVE, dan menambahkan hash byte file ke request durable tanpa duplikasi. Ini memungkinkan daemon menolak pergantian model/config pada job lama. File dapat diekspor dari gateway sesuai [panduan RESOLVE](../../../../doc/semantic-resolution.md); request tanpa pin ini tetap dapat melalui dokumen/EXTRACT tetapi ditolak executor RESOLVE opt-in.
+
 Prioritas: p95/p99 latency query, waktu antre dan time-to-first-answer-token; untuk job ukur throughput serta peak RSS. Target numerik wajib ada di [target numerik wajib](../../../../configs/benchmark-targets.yaml); profil referensi dan status REQUIRED_UNMEASURED berlaku. Pemrosesan berjalan tanpa loading model per request dan tanpa RPC per tahap kecil fusion/filter/context.
 
 Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib mengikuti [target numerik wajib](../../../../configs/benchmark-targets.yaml) dengan profil asumsi yang dinyatakan; statusnya **REQUIRED_UNMEASURED** sampai diuji. Ukur waktu antre serta p95/p99 selain throughput; validitas source/version dan ketepatan bukti tetap menjadi syarat optimasi.
