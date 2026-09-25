@@ -13,8 +13,7 @@ import (
 )
 
 type collectionDetails struct {
-	PointsCount uint64 `json:"points_count"`
-	Config      struct {
+	Config struct {
 		Params struct {
 			Vectors map[string]struct {
 				Size     uint32 `json:"size"`
@@ -54,6 +53,7 @@ func (store *Store) EnsureCollection(ctx context.Context) error {
 	defer store.ensureMu.Unlock()
 	store.ready.Store(false)
 	path := "/collections/" + store.collection
+	createdFresh := false
 	var details collectionDetails
 	status, err := store.call(ctx, http.MethodGet, path, nil, &details)
 	if err != nil {
@@ -77,6 +77,7 @@ func (store *Store) EnsureCollection(ctx context.Context) error {
 		if !created {
 			return errors.New("qdrant collection create was not acknowledged")
 		}
+		createdFresh = true
 		if _, err := store.call(ctx, http.MethodGet, path, nil, &details); err != nil {
 			return err
 		}
@@ -104,11 +105,12 @@ func (store *Store) EnsureCollection(ctx context.Context) error {
 			missing = append(missing, index)
 		}
 	}
-	// Qdrant builds filter-aware HNSW edges when payload indexes precede data.
-	// Repairing an already-populated collection requires an explicit rebuild
-	// workflow rather than silently admitting degraded query latency.
-	if len(missing) > 0 && details.PointsCount != 0 {
-		return errors.New("qdrant populated collection lacks required payload indexes")
+	// Qdrant's points_count is approximate. A pre-existing collection with
+	// missing indexes cannot be proved empty by this metadata and may already
+	// have filter-unaware HNSW edges. Only the collection just created by this
+	// call can be initialized here; older collections need explicit rebuild.
+	if len(missing) > 0 && !createdFresh {
+		return errors.New("qdrant existing collection lacks required payload indexes")
 	}
 	for _, index := range missing {
 		var result struct {

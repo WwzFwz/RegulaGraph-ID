@@ -36,8 +36,11 @@ fence operasi yang masih hidup. `EnsureCollection` memeriksa bentuk vector dan
 metadata generation, memasang indeks payload pada field filter produksi sebelum
 upsert, lalu membaca ulang schema indeks. Index yang sudah ada dengan tipe salah
 atau integer index dengan dukungan `range=false` ditolak karena filter snapshot
-memerlukan range. Collection yang sudah berisi point tetapi kehilangan index
-ditolak agar perbaikan lewat rebuild HNSW dilakukan eksplisit, sesuai
+memerlukan range. Collection lama yang kehilangan index ditolak, karena
+`points_count` Qdrant bersifat perkiraan dan tidak membuktikan kekosongan.
+Pemasangan indeks yang hilang hanya dilakukan pada collection yang baru dibuat
+oleh pemanggilan ini; perbaikan collection lama memerlukan alur rebuild HNSW
+eksplisit, sesuai
 [panduan indeks Qdrant](https://qdrant.tech/documentation/manage-data/indexing/).
 Ack `wait=true` belum merupakan bukti seluruh point terlihat di semua
 route. Tes HTTP lokal memeriksa shape dan fail-closed response. Kebijakan field

@@ -59,16 +59,24 @@ func collectionReply() string {
 func TestStoreCreatesMissingPayloadIndexesBeforeReadiness(t *testing.T) {
 	indexed := map[string]string{}
 	reads := 0
+	created := false
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/collections/index_one":
+			if !created {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
 			reads++
 			if reads == 1 {
 				_, _ = w.Write([]byte(strings.Replace(collectionReply(), `"payload_schema":{"corpus_id":{"data_type":"keyword"},"generation_id":{"data_type":"keyword"},"from_seq":{"data_type":"integer"},"to_seq":{"data_type":"integer"},"provision_filters[].provision_version_id":{"data_type":"keyword"}}`, `"payload_schema":{}`, 1)))
 			} else {
 				_, _ = w.Write([]byte(collectionReply()))
 			}
+		case r.Method == http.MethodPut && r.URL.Path == "/collections/index_one":
+			created = true
+			_, _ = w.Write([]byte(`{"status":"ok","result":true}`))
 		case r.Method == http.MethodPut && r.URL.Path == "/collections/index_one/index":
 			if r.URL.Query().Get("wait") != "true" || r.URL.Query().Get("ordering") != "strong" {
 				t.Error("payload index creation lacks completion/ordering")
@@ -165,10 +173,20 @@ func TestStoreAcceptsIntegerIndexWithImplicitRangeDefault(t *testing.T) {
 }
 
 func TestStoreRejectsUnobservedPayloadIndexCompletion(t *testing.T) {
+	created := false
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if r.Method == http.MethodGet {
+			if !created {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
 			_, _ = w.Write([]byte(strings.Replace(collectionReply(), `"payload_schema":{"corpus_id":{"data_type":"keyword"},"generation_id":{"data_type":"keyword"},"from_seq":{"data_type":"integer"},"to_seq":{"data_type":"integer"},"provision_filters[].provision_version_id":{"data_type":"keyword"}}`, `"payload_schema":{}`, 1)))
+			return
+		}
+		if r.URL.Path == "/collections/index_one" {
+			created = true
+			_, _ = w.Write([]byte(`{"status":"ok","result":true}`))
 			return
 		}
 		_, _ = w.Write([]byte(`{"status":"ok","result":{"status":"completed","operation_id":1}}`))
@@ -184,7 +202,7 @@ func TestStoreRejectsUnobservedPayloadIndexCompletion(t *testing.T) {
 	}
 }
 
-func TestStoreRefusesLatePayloadIndexCreationOnPopulatedCollection(t *testing.T) {
+func TestStoreRefusesPayloadIndexRepairOnExistingCollection(t *testing.T) {
 	writes := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -196,7 +214,6 @@ func TestStoreRefusesLatePayloadIndexCreationOnPopulatedCollection(t *testing.T)
 		body := strings.Replace(collectionReply(),
 			`"payload_schema":{"corpus_id":{"data_type":"keyword"},"generation_id":{"data_type":"keyword"},"from_seq":{"data_type":"integer"},"to_seq":{"data_type":"integer"},"provision_filters[].provision_version_id":{"data_type":"keyword"}}`,
 			`"payload_schema":{}`, 1)
-		body = strings.Replace(body, `"result":{`, `"result":{"points_count":1,`, 1)
 		_, _ = w.Write([]byte(body))
 	}))
 	defer server.Close()
