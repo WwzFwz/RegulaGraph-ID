@@ -2564,16 +2564,46 @@ mod tests {
         ));
         let mut old_generation = index_generation.clone();
         old_generation.embedding_input_policy = "parent-labels-v1".to_owned();
-        assert!(index_inputs
-            .prepare_selected(
+        assert!(matches!(
+            index_inputs.prepare_selected(
                 &processor.store,
                 &normalizer,
                 &selected,
                 1024,
                 &old_generation,
+                &AtomicBool::new(true),
+            ),
+            Err(crate::indexing::loading::LoadIndexInputsError::Cancelled)
+        ));
+        assert!(matches!(
+            index_inputs.prepare_selected(
+                &processor.store,
+                &wrong_normalizer,
+                &selected,
+                1024,
+                &old_generation,
                 &AtomicBool::new(false),
-            )
-            .is_err());
+            ),
+            Err(crate::indexing::loading::LoadIndexInputsError::Reuse(
+                crate::indexing::reuse::ReuseKeyError::InvalidGeneration
+            ))
+        ));
+        let mut wrong_model = index_generation.clone();
+        wrong_model.dense_manifest.as_mut().unwrap().task =
+            EnumOrUnknown::new(common::ModelTask::MODEL_TASK_RERANK);
+        assert!(matches!(
+            index_inputs.prepare_selected(
+                &processor.store,
+                &wrong_normalizer,
+                &selected,
+                1024,
+                &wrong_model,
+                &AtomicBool::new(false),
+            ),
+            Err(crate::indexing::loading::LoadIndexInputsError::Reuse(
+                crate::indexing::reuse::ReuseKeyError::InvalidModel
+            ))
+        ));
 
         let calls = Arc::new(AtomicUsize::new(0));
         let prompt_hash = hash('d');

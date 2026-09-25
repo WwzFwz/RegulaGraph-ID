@@ -17,7 +17,7 @@ use crate::adapters::text_artifacts::{load_normalized_text, PersistTextArtifactE
 use crate::document::normalization::text::TextNormalizerConfig;
 use crate::domain::chunk_provenance::{ChunkProvenanceError, ChunkProvenanceIndex};
 use crate::indexing::inputs::{EmbeddingInputRenderer, RenderError, RenderedEmbeddingInput};
-use crate::indexing::reuse::{embedding_reuse_key, ReuseKeyError};
+use crate::indexing::reuse::{embedding_reuse_key, validate_embedding_generation, ReuseKeyError};
 use crate::wire::{documents, evidence, inference};
 use protobuf::MessageField;
 use std::collections::{HashMap, HashSet};
@@ -169,6 +169,11 @@ impl<'a> VerifiedIndexInputs<'a> {
         generation: &evidence::IndexGeneration,
         cancelled: &AtomicBool,
     ) -> Result<Vec<PreparedIndexItem>, LoadIndexInputsError> {
+        if cancelled.load(Ordering::Acquire) {
+            return Err(LoadIndexInputsError::Cancelled);
+        }
+        validate_embedding_generation(&self.batch.context.corpus_id, generation)
+            .map_err(LoadIndexInputsError::Reuse)?;
         let rendered =
             self.load_selected(store, normalizer, chunk_ids, maximum_item_bytes, cancelled)?;
         let mut prepared = Vec::with_capacity(rendered.len());

@@ -4,7 +4,9 @@
 //! field that can change the vector. It allows vector reuse only; source refs,
 //! legal filters, visibility and snapshot membership must be rebuilt and checked
 //! for each IndexRecord. Unknown manifest fields fail closed until the key format
-//! is reviewed. Measure reuse hit/miss and invalidation after model/policy updates;
+//! is reviewed. Generation/model admission is also available before artifact I/O
+//! so malformed requests do not spend verified-read or normalization work.
+//! Measure reuse hit/miss and invalidation after model/policy updates;
 //! required targets remain in configs/benchmark-targets.yaml (UNMEASURED).
 
 use crate::indexing::inputs::{RenderedEmbeddingInput, RENDER_POLICY_VERSION};
@@ -32,8 +34,25 @@ pub fn embedding_reuse_key(
     rendered: &RenderedEmbeddingInput,
     generation: &evidence::IndexGeneration,
 ) -> Result<String, ReuseKeyError> {
+    let model = validated_generation_model(corpus_id, generation)?;
+    hash_reuse_key(corpus_id, rendered, model)
+}
+
+/// Checks generation, corpus, policy and model before any TextArtifact I/O.
+/// Callers still verify the rendered bytes when computing each reuse key.
+pub fn validate_embedding_generation(
+    corpus_id: &str,
+    generation: &evidence::IndexGeneration,
+) -> Result<(), ReuseKeyError> {
+    validated_generation_model(corpus_id, generation).map(|_| ())
+}
+
+fn validated_generation_model<'a>(
+    corpus_id: &str,
+    generation: &'a evidence::IndexGeneration,
+) -> Result<&'a ModelManifest, ReuseKeyError> {
+    validate_corpus(corpus_id)?;
     if generation.meta.corpus_id != corpus_id
-        || generation.embedding_input_policy != rendered.policy_version
         || generation.embedding_input_policy != RENDER_POLICY_VERSION
         || generation.filter_format.enum_value()
             != Ok(evidence::IndexFilterFormat::INDEX_FILTER_FORMAT_PAIRED_PROVISION_V1)
@@ -57,23 +76,39 @@ pub fn embedding_reuse_key(
         .dense_manifest
         .as_ref()
         .ok_or(ReuseKeyError::InvalidGeneration)?;
-    reuse_key_from_model(corpus_id, rendered, model)
+    validate_model(model)?;
+    Ok(model)
 }
 
 /// Returns a stable SHA-256 hex digest; it is not an IndexRecord ID or proof of
 /// authenticated source text. The caller first verifies the TextArtifact and
 /// complete DocumentBatch.
+#[cfg(test)]
 fn reuse_key_from_model(
     corpus_id: &str,
     rendered: &RenderedEmbeddingInput,
     model: &ModelManifest,
 ) -> Result<String, ReuseKeyError> {
+    validate_corpus(corpus_id)?;
+    validate_model(model)?;
+    hash_reuse_key(corpus_id, rendered, model)
+}
+
+fn validate_corpus(corpus_id: &str) -> Result<(), ReuseKeyError> {
     if corpus_id.is_empty()
         || corpus_id.len() > 256
         || !corpus_id.bytes().all(|byte| (33..=126).contains(&byte))
     {
         return Err(ReuseKeyError::InvalidCorpus);
     }
+    Ok(())
+}
+
+fn hash_reuse_key(
+    corpus_id: &str,
+    rendered: &RenderedEmbeddingInput,
+    model: &ModelManifest,
+) -> Result<String, ReuseKeyError> {
     if rendered.chunk_id.is_empty()
         || rendered.text_artifact_id.is_empty()
         || rendered.text.is_empty()
@@ -82,6 +117,32 @@ fn reuse_key_from_model(
     {
         return Err(ReuseKeyError::InvalidRenderedInput);
     }
+    let mut hasher = Sha256::new();
+    hasher.update(KEY_DOMAIN);
+    add_field(&mut hasher, corpus_id.as_bytes())?;
+    add_field(&mut hasher, rendered.policy_version.as_bytes())?;
+    add_field(&mut hasher, rendered.text.as_bytes())?;
+    add_field(&mut hasher, model.model_id.as_bytes())?;
+    add_field(&mut hasher, model.version.as_bytes())?;
+    add_field(&mut hasher, model.weights_hash.sha256.as_bytes())?;
+    add_field(&mut hasher, model.tokenizer_hash.sha256.as_bytes())?;
+    hasher.update(model.task.value().to_be_bytes());
+    add_field(&mut hasher, model.pooling.as_bytes())?;
+    add_field(&mut hasher, model.normalization.as_bytes())?;
+    hasher.update(model.dimensions.unwrap().to_be_bytes());
+    hasher.update(model.max_tokens.to_be_bytes());
+    add_field(&mut hasher, model.precision.as_bytes())?;
+    add_field(&mut hasher, model.backend.as_bytes())?;
+    if let Some(hash) = model.prompt_hash.as_ref() {
+        hasher.update([1]);
+        add_field(&mut hasher, hash.sha256.as_bytes())?;
+    } else {
+        hasher.update([0]);
+    }
+    Ok(format!("{:x}", hasher.finalize()))
+}
+
+fn validate_model(model: &ModelManifest) -> Result<(), ReuseKeyError> {
     if model
         .special_fields
         .unknown_fields()
@@ -119,29 +180,7 @@ fn reuse_key_from_model(
     {
         return Err(ReuseKeyError::InvalidModel);
     }
-    let mut hasher = Sha256::new();
-    hasher.update(KEY_DOMAIN);
-    add_field(&mut hasher, corpus_id.as_bytes())?;
-    add_field(&mut hasher, rendered.policy_version.as_bytes())?;
-    add_field(&mut hasher, rendered.text.as_bytes())?;
-    add_field(&mut hasher, model.model_id.as_bytes())?;
-    add_field(&mut hasher, model.version.as_bytes())?;
-    add_field(&mut hasher, model.weights_hash.sha256.as_bytes())?;
-    add_field(&mut hasher, model.tokenizer_hash.sha256.as_bytes())?;
-    hasher.update(model.task.value().to_be_bytes());
-    add_field(&mut hasher, model.pooling.as_bytes())?;
-    add_field(&mut hasher, model.normalization.as_bytes())?;
-    hasher.update(model.dimensions.unwrap().to_be_bytes());
-    hasher.update(model.max_tokens.to_be_bytes());
-    add_field(&mut hasher, model.precision.as_bytes())?;
-    add_field(&mut hasher, model.backend.as_bytes())?;
-    if let Some(hash) = model.prompt_hash.as_ref() {
-        hasher.update([1]);
-        add_field(&mut hasher, hash.sha256.as_bytes())?;
-    } else {
-        hasher.update([0]);
-    }
-    Ok(format!("{:x}", hasher.finalize()))
+    Ok(())
 }
 
 fn add_field(hasher: &mut Sha256, value: &[u8]) -> Result<(), ReuseKeyError> {
