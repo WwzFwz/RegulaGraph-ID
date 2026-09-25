@@ -114,3 +114,18 @@ storage/publication ke PostgreSQL aktual dan audit agent independen.
 [verification-report-resolve-executor.md](verification-report-resolve-executor.md) melanjutkan paket tersebut dengan dispatch RESOLVE opt-in, pin producer, dan park proposal atomik ke WAITING_REVIEW. Review/resume terautentikasi, keputusan identitas baru, serta acceptance kualitas/performa tetap terbuka; paket ini belum menyelesaikan K01.
 
 [native-inference.md](native-inference.md) menjelaskan bundle/model/runtime serta reproduksi lokal; [verification-report-native-models.md](verification-report-native-models.md) mencatat tes lintas bahasa, parity model nyata dan batas penerimaan M01/N01.
+
+[x01-implementation-plan.md](x01-implementation-plan.md) merencanakan komponen/fungsi indeks dense dan BM25, kontrak generation, publication/recovery, serta validasi sebelum gold lengkap. Dokumen ini menjadi handoff implementasi berikutnya dan tidak mengklaim fungsi yang direncanakan telah aktif.
+
+[k01-implementation-plan.md](k01-implementation-plan.md) memecah review/resume resolusi,
+identitas canonical, assembly graph, dan publication Neo4j.
+[q01-implementation-plan.md](q01-implementation-plan.md) menyambungkan query planning,
+pencarian dense/BM25/graph, reranking, dan hidrasi bukti pada satu snapshot.
+[a01-implementation-plan.md](a01-implementation-plan.md) merencanakan konteks bersumber,
+generator, validasi klaim/citation, dan streaming. Ketiganya menjelaskan fungsi usulan,
+kontrak, validasi serta batas penerimaan; status implementasi tidak berubah hanya
+karena rencana ini tersedia.
+
+[verification-report-implementation-plans.md](verification-report-implementation-plans.md)
+mencatat temuan audit independen pada batas indeks, graph, retrieval dan jawaban,
+perbaikannya, serta status pemeriksaan dokumentasi tanpa mengklaim acceptance kode.

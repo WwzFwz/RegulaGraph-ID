@@ -48,3 +48,15 @@ Gateway `Semantic.ResolveBatch`, client reusable, workflow `ProposeWithModel`, p
 ## Handoff native model
 
 Embedding/reranker native sudah memiliki runtime/model bundle dan client Go/Rust; gunakan [panduan native](native-inference.md), lalu integrasikan ke indexing/retrieval tanpa menduplikasi tokenization, pooling, atau normalization. Pemeriksaan native tidak menggantikan acceptance gold/workload lengkap; [laporan native](verification-report-native-models.md) menjelaskan prasyarat yang masih terbuka.
+
+Pengguna memilih fokus implementasi kode sebelum anotasi gold lengkap. Ikuti [rencana X01](x01-implementation-plan.md) untuk pembagian komponen, fungsi, dan matriks validasi. Lanjutkan implementasi dengan fixture/integration test serta dokumen nyata; persiapkan provenance dan telemetry sejak awal. G01 lengkap lalu evaluasi/optimasi kualitas dijalankan setelah pipeline tersambung, dengan benchmark required tetap berlaku dan tanpa meluluskan kualitas dari tes sintetis.
+
+Handoff lanjutan tersedia pada [rencana K01](k01-implementation-plan.md),
+[rencana Q01](q01-implementation-plan.md), dan [rencana A01](a01-implementation-plan.md).
+Implementasikan sesuai dependency: X01 menyediakan indeks, K01 menyediakan graph
+berbukti; keduanya bertemu di Q01 sebelum A01 menyusun jawaban. Fungsi/library yang
+independen dapat dikerjakan lebih awal, tetapi integrasi tidak dianggap selesai dari
+mock. Audit bersama kontrak required evidence/path sets, temporal clarification,
+support assessment, dan snapshot readiness sebelum menambah validator yang berbeda
+di tiap komponen. Pertahankan header file dan perbarui README induk sekali pada akhir
+paket koheren, kecuali perubahan kontrak/integrasi yang harus dijelaskan bersama kode.
