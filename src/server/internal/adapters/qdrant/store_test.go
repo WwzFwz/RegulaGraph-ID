@@ -52,6 +52,15 @@ func qdrantFixture() (Binding, Point) {
 	return Binding{Collection: "index_one", CorpusID: "corpus:one", Generation: generation}, Point{ID: testPointID, Record: record}
 }
 
+func TestPointProjectionRejectsUnsortedSparseTerms(t *testing.T) {
+	binding, point := qdrantFixture()
+	point.Record.SparseVector = &pb.SparseVector{Indices: []uint32{3, 2}, Values: []float32{1, 1}}
+	store := &Store{binding: binding}
+	if _, err := store.projectPoint(point); err == nil {
+		t.Fatal("unsorted sparse terms accepted by direct Qdrant projection")
+	}
+}
+
 func collectionReply() string {
 	return `{"status":"ok","result":{"config":{"params":{"vectors":{"dense":{"size":2,"distance":"Cosine"}},"sparse_vectors":{"bm25":{}}},"metadata":{"regulagraph_corpus_id":"corpus:one","regulagraph_generation_id":"generation:one","regulagraph_filter_format":"PAIRED_PROVISION_V1"}},"payload_schema":{"corpus_id":{"data_type":"keyword"},"generation_id":{"data_type":"keyword"},"from_seq":{"data_type":"integer"},"to_seq":{"data_type":"integer"},"provision_filters[].provision_version_id":{"data_type":"keyword"}}}}`
 }

@@ -128,8 +128,8 @@ func (store *Store) projectPoint(point Point) (qdrantPoint, error) {
 		return qdrantPoint{}, errors.New("qdrant cosine vector has zero or invalid norm")
 	}
 	for i, value := range record.SparseVector.Values {
-		if record.SparseVector.Indices[i] == 0 || value <= 0 {
-			return qdrantPoint{}, errors.New("qdrant BM25 sparse weights require positive term IDs and values")
+		if record.SparseVector.Indices[i] == 0 || i > 0 && record.SparseVector.Indices[i] <= record.SparseVector.Indices[i-1] || value <= 0 {
+			return qdrantPoint{}, errors.New("qdrant BM25 sparse vector requires sorted unique positive term IDs and weights")
 		}
 	}
 	filters := make([]pairedPayload, 0, len(record.FilterMetadata.ProvisionFilters))

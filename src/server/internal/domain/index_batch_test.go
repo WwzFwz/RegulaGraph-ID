@@ -73,7 +73,10 @@ func TestValidateIndexBatchLocalClosure(t *testing.T) {
 		"foreign corpus":    func(b *pb.IndexBatch) { b.Context.CorpusId = "corpus:other" },
 		"wrong dense model": func(b *pb.IndexBatch) { b.Records[0].DenseVector.ModelId = "model:other" },
 		"missing sparse":    func(b *pb.IndexBatch) { b.Records[0].SparseVector = nil },
-		"wrong model task":  func(b *pb.IndexBatch) { b.Generation.DenseManifest.Task = pb.ModelTask_MODEL_TASK_RERANK },
+		"unsorted sparse terms": func(b *pb.IndexBatch) {
+			b.Records[0].SparseVector = &pb.SparseVector{Indices: []uint32{3, 2}, Values: []float32{1, 1}}
+		},
+		"wrong model task": func(b *pb.IndexBatch) { b.Generation.DenseManifest.Task = pb.ModelTask_MODEL_TASK_RERANK },
 		"wrong target": func(b *pb.IndexBatch) {
 			b.Records[0].Meta.Visibility.FromSeq = 8
 			b.Records[0].FilterMetadata.Visibility.FromSeq = 8

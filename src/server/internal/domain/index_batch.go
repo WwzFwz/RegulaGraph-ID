@@ -71,8 +71,8 @@ func ValidateIndexBatchLocalClosure(batch *pb.IndexBatch, source *IndexSourceVie
 			return errors.New("index record dense vector has invalid norm")
 		}
 		for i, index := range record.SparseVector.Indices {
-			if index == 0 || record.SparseVector.Values[i] <= 0 {
-				return errors.New("index record BM25 vector has invalid term or weight")
+			if index == 0 || i > 0 && index <= record.SparseVector.Indices[i-1] || record.SparseVector.Values[i] <= 0 {
+				return errors.New("index record BM25 vector requires sorted unique positive terms and weights")
 			}
 		}
 		if err := source.ValidateRecord(record); err != nil {
