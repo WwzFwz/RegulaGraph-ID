@@ -48,6 +48,10 @@ serta fence sebelum mutation dan publication.
 [verification-report-x01-dense-payload.md](verification-report-x01-dense-payload.md)
 mencatat builder dense Rust berbatas dan gate indeks payload Qdrant bagi
 filter snapshot; integrasi worker/publication dan benchmark belum dibuktikan.
+[verification-report-x01-rendering-sparse.md](verification-report-x01-rendering-sparse.md)
+mencatat renderer teks chunk dengan konteks induk dan penolakan urutan term
+sparse yang tidak sah pada batch/Qdrant; pengikatan worker dan backend hidup
+masih terbuka.
 [verification-report-k01-candidate-batch.md](verification-report-k01-candidate-batch.md) mencatat
 builder kandidat deterministik dan validasi alias-to-scope; autentikasi PostgreSQL serta stage RESOLVE
 masih pekerjaan lanjutan.

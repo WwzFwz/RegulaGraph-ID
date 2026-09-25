@@ -137,13 +137,15 @@ Jika required gate gagal, lakukan profiling, perbaikan dan uji ulang. Jangan men
 
 Prioritas terbaru adalah implementasi X01 menggunakan native model yang sudah aktif, lalu penyelesaian K01 dan integrasi Q01/A01/U01. Inventory/audit D01 serta pencatatan bukti tetap menyertai pekerjaan; anotasi gold G01 lengkap dikerjakan sesudah alur kode tersambung sesuai arahan pengguna. Terminal outcome PARSE/STRUCTURE/BIND/CHUNK/EXTRACT sudah durable dan crash sesudah checkpoint dapat direkonsiliasi tanpa menganggap batch parsial sukses; scheduler selanjutnya memerlukan lease heartbeat sebelum batch panjang. OCR per halaman, tabel, exception linking, serta parity kualitas retrieval BGE-M3 tetap perlu dibuktikan. Tokenizer native telah cocok dengan reference pada kasus diagnostik dan boundary 8192 token; ini belum membuktikan kualitas gold. M01 memilih OCR, embedding, reranker, tokenizer, serta backend native berdasarkan kualitas, latency, throughput, dan memori.
 
-Kemajuan X01: Rust kini memvalidasi satu batch dense native secara all-or-nothing;
+Kemajuan X01: Rust kini merender span chunk dengan label induk secara berbatas
+dan memvalidasi satu batch dense native secara all-or-nothing;
 Go memvalidasi closure lokal `IndexBatch`, menyediakan transport Qdrant dan
 readback exact-ID, serta mensyaratkan payload index filter snapshot pada
-collection yang di-bootstrap eksklusif. Artefak build terpin, allocator,
+collection yang di-bootstrap eksklusif. Batch dan Qdrant menolak ID term sparse
+yang tidak terurut. Artefak build terpin, allocator,
 worker INDEX, ledger mutasi, closure/recovery, readiness replica, dan
 publication tetap terbuka. Lihat [rencana X01](x01-implementation-plan.md)
-dan [verifikasi boundary terbaru](verification-report-x01-dense-payload.md).
+serta [verifikasi renderer/sparse](verification-report-x01-rendering-sparse.md).
 
 ## Kelanjutan K01: proposal model kontekstual
 
