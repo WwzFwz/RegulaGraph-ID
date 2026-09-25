@@ -40,6 +40,11 @@ asing tetap dipertahankan saat forwarding lintas bahasa. Ini tidak membuktikan
 keaslian hubungan versi/sumber atau keamanan pembaca lama; gate writer dan
 reader generation tetap diperlukan sebelum publikasi.
 
+Fixture `index-generation-input-policy-roundtrip` memastikan field policy
+render embedding baru dipertahankan lintas binding Go, Rust, C++, dan Python.
+Validasi wire tetap mengizinkan field kosong pada generation historis;
+validator admission X01 menolak policy kosong/tidak dikenal sebelum read/write.
+
 [lexical-analyzer-v1.json](lexical-analyzer-v1.json) adalah fixture sintetis bersama
 Rust dan Go untuk token BM25: nomor regulasi, negasi, tanda hubung, NFC Unicode 15,
 code-switch, dan dua karakter yang membedakan `is_alphabetic` Rust dari kategori

@@ -33,6 +33,8 @@ message IndexGeneration {
   string ontology_version=6 [(rules).required=true];
   // New readers must require the format they can interpret before serving this generation.
   IndexFilterFormat filter_format=7;
+  // Rendering changes the dense vector space; paired X01 readers must reject unknown policy.
+  string embedding_input_policy=8;
 }
 message DenseVector {
   repeated float values=1 [(rules)={finite:true min_items:1}];

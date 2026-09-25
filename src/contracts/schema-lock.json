@@ -95,6 +95,10 @@
       "2": "IDENTITY_STATUS_VERIFIED",
       "3": "IDENTITY_STATUS_CONFLICT"
     },
+    "regulagraph.v1.IndexFilterFormat": {
+      "0": "INDEX_FILTER_FORMAT_UNSPECIFIED",
+      "1": "INDEX_FILTER_FORMAT_PAIRED_PROVISION_V1"
+    },
     "regulagraph.v1.JobOperation": {
       "0": "JOB_OPERATION_UNSPECIFIED",
       "1": "JOB_OPERATION_INGEST",
@@ -413,6 +417,24 @@
         "rules": {},
         "type": 4,
         "type_name": ""
+      },
+      "6": {
+        "label": 3,
+        "name": "context_items",
+        "oneof": null,
+        "optional": false,
+        "rules": {},
+        "type": 11,
+        "type_name": ".regulagraph.v1.TextItem"
+      },
+      "7": {
+        "label": 3,
+        "name": "candidate_contexts",
+        "oneof": null,
+        "optional": false,
+        "rules": {},
+        "type": 11,
+        "type_name": ".regulagraph.v1.ResolutionCandidateContext"
       }
     },
     "regulagraph.v1.Answer": {
@@ -3350,6 +3372,15 @@
         },
         "type": 11,
         "type_name": ".regulagraph.v1.Visibility"
+      },
+      "7": {
+        "label": 3,
+        "name": "provision_filters",
+        "oneof": null,
+        "optional": false,
+        "rules": {},
+        "type": 11,
+        "type_name": ".regulagraph.v1.IndexProvisionFilter"
       }
     },
     "regulagraph.v1.GateResult": {
@@ -4289,6 +4320,95 @@
       "6": {
         "label": 1,
         "name": "ontology_version",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 9,
+        "type_name": ""
+      },
+      "7": {
+        "label": 1,
+        "name": "filter_format",
+        "oneof": null,
+        "optional": false,
+        "rules": {},
+        "type": 14,
+        "type_name": ".regulagraph.v1.IndexFilterFormat"
+      },
+      "8": {
+        "label": 1,
+        "name": "embedding_input_policy",
+        "oneof": null,
+        "optional": false,
+        "rules": {},
+        "type": 9,
+        "type_name": ""
+      }
+    },
+    "regulagraph.v1.IndexProvisionFilter": {
+      "1": {
+        "label": 1,
+        "name": "provision_version_id",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "ascii_id": true,
+          "required": true
+        },
+        "type": 9,
+        "type_name": ""
+      },
+      "2": {
+        "label": 1,
+        "name": "regulation_id",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "ascii_id": true,
+          "required": true
+        },
+        "type": 9,
+        "type_name": ""
+      },
+      "3": {
+        "label": 1,
+        "name": "source_blob_id",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "ascii_id": true,
+          "required": true
+        },
+        "type": 9,
+        "type_name": ""
+      },
+      "4": {
+        "label": 1,
+        "name": "legal_interval",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 11,
+        "type_name": ".regulagraph.v1.LegalInterval"
+      },
+      "5": {
+        "label": 1,
+        "name": "legal_status",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 14,
+        "type_name": ".regulagraph.v1.LegalStatus"
+      },
+      "6": {
+        "label": 1,
+        "name": "jurisdiction",
         "oneof": null,
         "optional": false,
         "rules": {
@@ -7306,6 +7426,54 @@
         "type_name": ""
       }
     },
+    "regulagraph.v1.ResolutionCandidateContext": {
+      "1": {
+        "label": 1,
+        "name": "canonical_id",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "ascii_id": true,
+          "required": true
+        },
+        "type": 9,
+        "type_name": ""
+      },
+      "2": {
+        "label": 1,
+        "name": "alias_id",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "ascii_id": true,
+          "required": true
+        },
+        "type": 9,
+        "type_name": ""
+      },
+      "3": {
+        "label": 1,
+        "name": "support_mention",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 11,
+        "type_name": ".regulagraph.v1.Mention"
+      },
+      "4": {
+        "label": 3,
+        "name": "context_items",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "min_items": 1
+        },
+        "type": 11,
+        "type_name": ".regulagraph.v1.TextItem"
+      }
+    },
     "regulagraph.v1.ResolutionDecision": {
       "1": {
         "label": 1,
@@ -7418,6 +7586,27 @@
         "rules": {},
         "type": 11,
         "type_name": ".regulagraph.v1.IdentityKey"
+      },
+      "11": {
+        "label": 1,
+        "name": "rationale",
+        "oneof": "_rationale",
+        "optional": true,
+        "rules": {},
+        "type": 9,
+        "type_name": ""
+      },
+      "12": {
+        "label": 3,
+        "name": "supporting_context_ids",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "ascii_id": true,
+          "unique": true
+        },
+        "type": 9,
+        "type_name": ""
       },
       "2": {
         "label": 3,

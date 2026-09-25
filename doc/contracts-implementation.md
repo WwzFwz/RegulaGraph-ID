@@ -10,6 +10,13 @@ Tujuh proto produksi pada [v1](../src/contracts/proto/regulagraph/v1/README.md) 
 
 Baseline pertama ada di [schema-lock.json](../src/contracts/schema-lock.json), turunan descriptor, bukan schema lain untuk diedit. `check_contracts.py` menolak perubahan/penghapusan tag, tipe, presence, aturan field, nilai enum dan signature RPC yang sudah tercatat; penambahan masih memerlukan review semantik. BIND dan CHUNK memakai nilai enum append-only 8/9 untuk kompatibilitas; rank domain menetapkannya setelah STRUCTURE dan sebelum EXTRACT. Jangan menjalankan `--write-baseline` untuk menyembunyikan perubahan tidak kompatibel. Baseline ini belum merupakan matriks kompatibilitas dua versi rilis historis; tambahkan producer/consumer lama-baru ketika ada revisi kedua.
 
+Refresh baseline X01 setelah review kompatibilitas mencatat penambahan paired
+filter, konteks resolusi K01, dan `IndexGeneration.embedding_input_policy` tag 8.
+Descriptor baru tidak mengubah tag/tipe/presence lama. Reader binary lama tetap
+dapat mengabaikan tag baru; publication generation baru mensyaratkan upgrade
+atau isolasi semua route pembaca. Bukti dan daftar addition ada di
+[laporan policy X01](verification-report-x01-input-policy.md).
+
 ## Pembagian validator
 
 Go, Rust, C++ dan Python memiliki validator aturan descriptor serta invariant dasar bersama. Fixture lintas bahasa menguji hasil valid/invalid, unknown binary fields, optional presence, uint64, tanggal, offset Unicode, vector, ukuran, graph path dan corpus scope. Validasi tidak berarti semua aturan bisnis identik diterapkan di setiap runtime.

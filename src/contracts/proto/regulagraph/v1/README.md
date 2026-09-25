@@ -22,10 +22,16 @@ Berkas: [answers.proto](answers.proto), [common.proto](common.proto), [documents
 untuk mengikat ID versi pasal, regulasi, blob sumber, interval, status hukum, dan
 yurisdiksi pada satu record. Array filter lama tetap dapat dibaca demi kompatibilitas,
 tetapi tidak membuktikan pasangan versi/status; writer X01 baru harus memakai record
-berpasangan. `IndexGeneration.filter_format` mem-pin bentuk itu pada generation baru.
+berpasangan. `IndexGeneration.filter_format` mem-pin bentuk itu pada generation baru;
+`embedding_input_policy` (tag 8 aditif) mem-pin policy render teks dense. X01
+baru menerima `structure-labels-v1` dan menolak field kosong/tidak dikenal pada
+admission reader/writer. Field opsional secara wire menjaga decode generasi lama;
+validasi stage-specific menentukan apakah generation boleh dilayani.
 Publisher harus menahan generation baru sampai semua pembaca yang dapat dirutekan
-memahami `PAIRED_PROVISION_V1`; parser binary lama mengabaikan field baru sehingga
-kompatibilitas decode saja tidak cukup. Writer dan reader backend belum aktif.
+memahami `PAIRED_PROVISION_V1` dan `embedding_input_policy`; parser binary lama
+dapat mengabaikan tag 8 dan tetap melayani hasil yang salah. Upgrade seluruh
+route atau isolasi route lama harus dibuktikan sebelum publication. Writer dan
+reader backend belum aktif sebagai pipeline publikasi.
 
 ## Benchmark dan perhatian performa
 

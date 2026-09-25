@@ -187,9 +187,11 @@ type IndexGeneration struct {
 	LexicalStatistics *ArtifactRef           `protobuf:"bytes,5,opt,name=lexical_statistics,json=lexicalStatistics,proto3" json:"lexical_statistics,omitempty"`
 	OntologyVersion   string                 `protobuf:"bytes,6,opt,name=ontology_version,json=ontologyVersion,proto3" json:"ontology_version,omitempty"`
 	// New readers must require the format they can interpret before serving this generation.
-	FilterFormat  IndexFilterFormat `protobuf:"varint,7,opt,name=filter_format,json=filterFormat,proto3,enum=regulagraph.v1.IndexFilterFormat" json:"filter_format,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	FilterFormat IndexFilterFormat `protobuf:"varint,7,opt,name=filter_format,json=filterFormat,proto3,enum=regulagraph.v1.IndexFilterFormat" json:"filter_format,omitempty"`
+	// Rendering changes the dense vector space; paired X01 readers must reject unknown policy.
+	EmbeddingInputPolicy string `protobuf:"bytes,8,opt,name=embedding_input_policy,json=embeddingInputPolicy,proto3" json:"embedding_input_policy,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *IndexGeneration) Reset() {
@@ -269,6 +271,13 @@ func (x *IndexGeneration) GetFilterFormat() IndexFilterFormat {
 		return x.FilterFormat
 	}
 	return IndexFilterFormat_INDEX_FILTER_FORMAT_UNSPECIFIED
+}
+
+func (x *IndexGeneration) GetEmbeddingInputPolicy() string {
+	if x != nil {
+		return x.EmbeddingInputPolicy
+	}
+	return ""
 }
 
 type DenseVector struct {
@@ -1709,7 +1718,7 @@ var File_regulagraph_v1_evidence_proto protoreflect.FileDescriptor
 
 const file_regulagraph_v1_evidence_proto_rawDesc = "" +
 	"\n" +
-	"\x1dregulagraph/v1/evidence.proto\x12\x0eregulagraph.v1\x1a\x1bregulagraph/v1/common.proto\x1a\x1eregulagraph/v1/documents.proto\x1a\x1aregulagraph/v1/graph.proto\"\x8a\x04\n" +
+	"\x1dregulagraph/v1/evidence.proto\x12\x0eregulagraph.v1\x1a\x1bregulagraph/v1/common.proto\x1a\x1eregulagraph/v1/documents.proto\x1a\x1aregulagraph/v1/graph.proto\"\xc0\x04\n" +
 	"\x0fIndexGeneration\x126\n" +
 	"\x04meta\x18\x01 \x01(\v2\x1a.regulagraph.v1.RecordMetaB\x06\x8a\xb5\x18\x02\b\x01R\x04meta\x12L\n" +
 	"\x0edense_manifest\x18\x02 \x01(\v2\x1d.regulagraph.v1.ModelManifestB\x06\x8a\xb5\x18\x02\b\x01R\rdenseManifest\x12N\n" +
@@ -1717,7 +1726,8 @@ const file_regulagraph_v1_evidence_proto_rawDesc = "" +
 	"\x12lexical_dictionary\x18\x04 \x01(\v2\x1b.regulagraph.v1.ArtifactRefB\x06\x8a\xb5\x18\x02\b\x01R\x11lexicalDictionary\x12R\n" +
 	"\x12lexical_statistics\x18\x05 \x01(\v2\x1b.regulagraph.v1.ArtifactRefB\x06\x8a\xb5\x18\x02\b\x01R\x11lexicalStatistics\x121\n" +
 	"\x10ontology_version\x18\x06 \x01(\tB\x06\x8a\xb5\x18\x02\b\x01R\x0fontologyVersion\x12F\n" +
-	"\rfilter_format\x18\a \x01(\x0e2!.regulagraph.v1.IndexFilterFormatR\ffilterFormat\"|\n" +
+	"\rfilter_format\x18\a \x01(\x0e2!.regulagraph.v1.IndexFilterFormatR\ffilterFormat\x124\n" +
+	"\x16embedding_input_policy\x18\b \x01(\tR\x14embeddingInputPolicy\"|\n" +
 	"\vDenseVector\x12 \n" +
 	"\x06values\x18\x01 \x03(\x02B\b\x8a\xb5\x18\x04(\x01@\x01R\x06values\x12&\n" +
 	"\n" +

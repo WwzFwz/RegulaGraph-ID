@@ -1183,6 +1183,27 @@
       }
     },
     {
+      "name": "index-generation-input-policy-roundtrip",
+      "type": "IndexGeneration",
+      "valid": true,
+      "value": {
+        "meta": {"schema_version": 1, "corpus_id": "corpus-1", "record_id": "generation-1"},
+        "dense_manifest": {
+          "model_id": "model-1", "version": "v1",
+          "weights_hash": {"sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+          "tokenizer_hash": {"sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
+          "task": "MODEL_TASK_EMBED", "pooling": "cls", "normalization": "l2",
+          "dimensions": 2, "max_tokens": 512, "precision": "fp32", "backend": "fixture"
+        },
+        "lexical_analyzer": {"artifact_id": "analyzer-1", "content_hash": {"sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}, "storage_key": "objects/analyzer", "media_type": "application/x-protobuf", "schema_version": 1},
+        "lexical_dictionary": {"artifact_id": "dictionary-1", "content_hash": {"sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}, "storage_key": "objects/dictionary", "media_type": "application/x-protobuf", "schema_version": 1},
+        "lexical_statistics": {"artifact_id": "statistics-1", "content_hash": {"sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}, "storage_key": "objects/statistics", "media_type": "application/x-protobuf", "schema_version": 1},
+        "ontology_version": "ontology-v1",
+        "filter_format": "INDEX_FILTER_FORMAT_PAIRED_PROVISION_V1",
+        "embedding_input_policy": "structure-labels-v1"
+      }
+    },
+    {
       "name": "candidate-context-empty-excerpts",
       "type": "ResolutionCandidateContext",
       "valid": false,
