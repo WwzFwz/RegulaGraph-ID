@@ -32,6 +32,10 @@ type CandidatePlanningPolicy struct {
 	MaximumTotalScopes          int
 }
 
+// MaximumRegistryLookupAliases is the aggregate admission budget shared by the executor
+// and registry adapter. Overflow fails explicitly; it never silently truncates aliases.
+const MaximumRegistryLookupAliases = 100_000
+
 // Fingerprint pins all legal scope choices and resource limits in the producer manifest.
 // Go's JSON encoder sorts map keys, so equivalent policy maps have identical hashes.
 func (policy CandidatePlanningPolicy) Fingerprint() (*pb.ContentHash, error) {

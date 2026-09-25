@@ -40,7 +40,7 @@ func (r *Repository) LookupCanonicalAliases(ctx context.Context, corpusID string
 	scopes []RegistryLookupScope, maximumScopes, maximumAliasesPerScope int) ([]RegistryLookupResult, uint64, error) {
 	if !storageIDPattern.MatchString(corpusID) || maximumScopes <= 0 || maximumAliasesPerScope <= 0 ||
 		len(scopes) == 0 || len(scopes) > maximumScopes || maximumAliasesPerScope >= math.MaxInt32 ||
-		len(scopes) > 100_000/maximumAliasesPerScope {
+		len(scopes) > domain.MaximumRegistryLookupAliases/maximumAliasesPerScope {
 		return nil, 0, errors.New("bounded registry lookup scopes are required")
 	}
 	types := make([]string, len(scopes))
