@@ -23,6 +23,10 @@ Berkas langsung: [acquisition.md](acquisition.md), [system-design.md](system-des
 [verification-report-q01-a01-core.md](verification-report-q01-a01-core.md) mencatat fungsi fusion dan packing konteks yang diuji, beserta batas bahwa retrieval, generation, dan benchmark end-to-end belum aktif.
 
 [verification-report-n01-a01-boundaries.md](verification-report-n01-a01-boundaries.md) mencatat scheduler native serta validasi struktural jawaban/sitasi. [verification-report-x01-bm25-statistics.md](verification-report-x01-bm25-statistics.md) mencatat statistik BM25 lokal dari token yang sudah dianalisis. [verification-report-q01-rerank-correlation.md](verification-report-q01-rerank-correlation.md) mencatat korelasi hasil reranker. Ketiga laporan membatasi PASS pada fixture fungsi terkait, bukan milestone atau benchmark end-to-end. [verification-report-g01-annotation-queue.md](verification-report-g01-annotation-queue.md) mencatat antrean PDF kandidat yang terikat inventory; G01 gold manusia belum selesai.
+
+[verification-report-x01-lexical-library.md](verification-report-x01-lexical-library.md)
+mencatat analyzer Rust–Go terpin, dictionary descendant lokal, bobot sparse BM25 frozen,
+review independen, dan batas bahwa backend serta benchmark X01 belum aktif.
 [verification-report-k01-sourced-alias.md](verification-report-k01-sourced-alias.md) mencatat materialisasi alias dari keputusan LINK registry yang terverifikasi sebagai helper lokal; stage RESOLVE belum selesai.
 [verification-report-k01-candidate-batch.md](verification-report-k01-candidate-batch.md) mencatat
 builder kandidat deterministik dan validasi alias-to-scope; autentikasi PostgreSQL serta stage RESOLVE
