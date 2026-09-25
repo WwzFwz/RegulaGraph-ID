@@ -55,6 +55,9 @@ masih terbuka.
 [verification-report-x01-verified-inputs.md](verification-report-x01-verified-inputs.md)
 mencatat policy label node pemilik, loader TextArtifact terverifikasi, key reuse
 embedding, dan batas bahwa worker INDEX maupun benchmark belum aktif.
+[verification-report-x01-input-policy.md](verification-report-x01-input-policy.md)
+mencatat tag policy generation aditif, binding lintas bahasa, admission
+Go/Rust/Qdrant, refresh schema lock setelah review, serta syarat upgrade reader.
 [verification-report-k01-candidate-batch.md](verification-report-k01-candidate-batch.md) mencatat
 builder kandidat deterministik dan validasi alias-to-scope; autentikasi PostgreSQL serta stage RESOLVE
 masih pekerjaan lanjutan.

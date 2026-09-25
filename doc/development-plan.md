@@ -144,10 +144,13 @@ satu batch dense native secara all-or-nothing.
 Go memvalidasi closure lokal `IndexBatch`, menyediakan transport Qdrant dan
 readback exact-ID, serta mensyaratkan payload index filter snapshot pada
 collection yang di-bootstrap eksklusif. Batch dan Qdrant menolak ID term sparse
-yang tidak terurut. Artefak build terpin, allocator,
+yang tidak terurut. `IndexGeneration.embedding_input_policy` kini dipin pada
+schema, divalidasi Go/Rust, dan dicocokkan ke metadata collection; upgrade
+semua route reader sebelum publication masih perlu dibuktikan. Artefak build
+terpin, allocator,
 worker INDEX, ledger mutasi, closure/recovery, readiness replica, dan
 publication tetap terbuka. Lihat [rencana X01](x01-implementation-plan.md)
-serta [verifikasi input terikat sumber](verification-report-x01-verified-inputs.md).
+serta [verifikasi policy generation](verification-report-x01-input-policy.md).
 
 ## Kelanjutan K01: proposal model kontekstual
 

@@ -31,8 +31,9 @@ regulasi/versi/interval/status/blob dari satu `DocumentBatch` tervalidasi.
 Rust kini membentuk satu batch dense lewat native inference dan menolak respons
 parsial/model drift. Renderer `structure-labels-v1` dan loader pilihan chunk yang
 membaca TextArtifact `ReadVerified` tersedia sebagai library, bersama key reuse
-vektor yang mengikat corpus/input/policy/model; policy generation dan stage INDEX
-belum tersambung. Go memiliki validasi closure lokal `IndexBatch`, transport
+vektor yang mengikat corpus/input/policy/model. Tag 8 `embedding_input_policy`
+sekarang dipin pada generation, diperiksa Go/Rust dan metadata collection Qdrant;
+stage INDEX serta rollout semua reader belum tersambung. Go memiliki validasi closure lokal `IndexBatch`, transport
 Qdrant upsert/query/readback exact-ID, serta gate payload index bagi filter
 snapshot. Artefak generation/build plan bertipe, allocator PostgreSQL, writer
 terkoordinasi, closure/recovery, bukti replica, dan publication masih belum aktif. Generation
