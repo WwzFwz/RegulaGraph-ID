@@ -5,7 +5,8 @@
 // Benchmark: worker, per-host interval, timeout, batas bytes, dan concurrency audit dikonfigurasi; hasil akuisisi
 // bukan bukti target retrieval/model dan angka required tidak berubah.
 // Target numerik required: configs/benchmark-targets.yaml; status REQUIRED_UNMEASURED.
-// Status: discover/collect/audit D01 aktif; job status/update/query ditambahkan saat workflow pemiliknya aktif.
+// Status: discover/collect/audit D01 dan submit job durable dengan policy terpin aktif;
+// job status/update/query ditambahkan saat workflow pemiliknya aktif.
 // Bukti verifikasi: test exit code, output JSON, cancellation, dan budget deferral; ikuti doc/verification.md.
 // Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
 
@@ -34,9 +35,12 @@ func (v *urlFlags) String() string     { return strings.Join(*v, ",") }
 func (v *urlFlags) Set(s string) error { *v = append(*v, s); return nil }
 
 func run(ctx context.Context, args []string, out, errOut io.Writer) int {
-	if len(args) == 0 || (args[0] != "collect" && args[0] != "discover" && args[0] != "audit") {
-		fmt.Fprintln(errOut, "Usage: regulagraph {collect|discover|audit}; use command -help for options.")
+	if len(args) == 0 || (args[0] != "collect" && args[0] != "discover" && args[0] != "audit" && args[0] != "submit") {
+		fmt.Fprintln(errOut, "Usage: regulagraph {collect|discover|audit|submit}; use command -help for options.")
 		return 2
+	}
+	if args[0] == "submit" {
+		return runSubmit(ctx, args[1:], out, errOut)
 	}
 	if args[0] == "audit" {
 		return runAudit(ctx, args[1:], out, errOut)
