@@ -28,6 +28,11 @@ Berkas langsung: [acquisition.md](acquisition.md), [system-design.md](system-des
 mencatat analyzer Rust–Go terpin, dictionary descendant lokal, bobot sparse BM25 frozen,
 review independen, dan batas bahwa backend serta benchmark X01 belum aktif.
 [verification-report-k01-sourced-alias.md](verification-report-k01-sourced-alias.md) mencatat materialisasi alias dari keputusan LINK registry yang terverifikasi sebagai helper lokal; stage RESOLVE belum selesai.
+
+[verification-report-k01-q01-a01-library.md](verification-report-k01-q01-a01-library.md)
+mencatat validasi endpoint canonical K01 prapublikasi, encoder sparse query BM25,
+dan gate cakupan teks A01. Ketiganya adalah library lokal; jalur produksi penuh,
+gold, dan benchmark release belum dibuktikan.
 [verification-report-k01-candidate-batch.md](verification-report-k01-candidate-batch.md) mencatat
 builder kandidat deterministik dan validasi alias-to-scope; autentikasi PostgreSQL serta stage RESOLVE
 masih pekerjaan lanjutan.
