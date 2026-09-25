@@ -53,3 +53,29 @@ empat tes reuse dan fixture cancellation/urutan error juga lulus. Lognya ada
 di `artifacts/verification/20260926-x01-provenance-items/reviewer-preflight.log`
 dengan fingerprint stabil dan exit 0. Hasil fixture tidak mengukur
 penghematan I/O atau latency corpus nyata.
+
+## Gate halaman sumber pada preflight Go
+
+Commit `36ce974` membuat `NewIndexSourceView` memeriksa locator node pemilik untuk setiap
+chunk yang akan diindeks: source blob harus milik TextArtifact chunk,
+nomor halaman harus ada dan sukses, serta rentang teks halaman nyata harus
+overlap rentang node pemilik. Generic `ValidateDocumentBatchClosure` sudah
+menolak `version.text_ref` yang bukan teks normalisasi dan versi lintas
+artefak; audit membuktikan validasi Go itu tidak perlu diduplikasi.
+
+Kasus nomor halaman 9999 dan halaman dengan dua span yang memiliki gap
+ditambahkan sebagai regresi. Rentang node serta halaman diurutkan dan
+digabung sekali per identitasnya; pasangan rentang dicek dengan binary
+search sambil mengiterasi slice yang lebih pendek. Ini menghindari scan
+halaman berulang per chunk atau per node, tetapi biaya p95/peak RSS tetap
+harus diukur pada PDF besar. Log `go test -count=1 ./...` dan
+`go vet ./internal/domain` berada di
+`artifacts/verification/20260926-x01-go-page-locators/`, keduanya exit 0.
+Review independen berstatus PASS tanpa blocker: 13 probe boundary,
+512 kasus oracle interval termasuk simetri, 166 leaf tests domain, dan
+`go vet` lulus. Raw output, fingerprint, perintah, serta exit code ada di
+`artifacts/verification/20260926-x01-go-page-locators/reviewer.log`.
+Probe mencakup locator multi-halaman, halaman tidak ada/gagal,
+source asing, span bergap/kosong, serta batas end-exclusive. Ini masih
+preflight library; snapshot membership, publication Qdrant, kualitas
+retrieval, dan benchmark required **NOT_MEASURED**.

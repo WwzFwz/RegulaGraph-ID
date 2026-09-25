@@ -40,7 +40,9 @@ didukung kini ditolak sebelum pembacaan TextArtifact, sementara cancellation
 tetap diprioritaskan. Stage INDEX serta rollout semua reader belum tersambung.
 Go memiliki validasi closure lokal `IndexBatch`, transport
 Qdrant upsert/query/readback exact-ID, serta gate payload index bagi filter
-snapshot. Artefak generation/build plan bertipe, allocator PostgreSQL, writer
+snapshot. Preflight Go kini mengikat locator node pemilik ke halaman nyata
+yang overlap; generic closure sudah mengikat span versi ke teks normalisasi.
+Artefak generation/build plan bertipe, allocator PostgreSQL, writer
 terkoordinasi, closure/recovery, bukti replica, dan publication masih belum aktif. Generation
 paired **tidak boleh diterbitkan** sebelum setiap pembaca yang bisa menerima
 route query memahami format tersebut; pembaca binary lama mengabaikan field
