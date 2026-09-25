@@ -36,3 +36,5 @@ overwrite, dan penolakan inventory records yang berubah; fixture tidak berisi la
 [test_g01_review_packet.py](test_g01_review_packet.py) memeriksa pemilihan PDF deterministik, integritas byte,
 penolakan metadata/path yang tidak sesuai inventory, escaping judul, dan larangan overwrite; fixture juga bukan gold.
 PASS test tersebut membuktikan perilaku deterministik evaluator, bukan target benchmark.
+
+[test_model_provenance.py](test_model_provenance.py) menguji revision receipts, input/reference drift, empty/nonfinite/zero tensors, duplicate results, dan accounting seluruh arrival diagnostic. Fixture bukan bukti kualitas model.

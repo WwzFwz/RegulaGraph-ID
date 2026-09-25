@@ -30,3 +30,5 @@ Lihat [kebijakan benchmark](../doc/benchmark-policy.md) untuk protokol pengukura
 Collector PDF, kontrak/validator C01, dan evaluator offline E01 sudah memiliki test perilaku. Pipeline
 parsing/graph/retrieval, storage, model, gold dataset, dan benchmark produksi belum aktif. Test fixture
 E01 tidak membuktikan pencapaian kualitas atau latency.
+
+Integrasi native ONNX/C01 memiliki fixture tensor nyata dan pengujian client Go/Rust; model-quality dan benchmark produksi tetap memakai data serta workload terpisah.

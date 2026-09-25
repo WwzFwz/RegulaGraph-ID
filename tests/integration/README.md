@@ -35,3 +35,5 @@ storage, layanan model, gold dataset, dan acceptance run produksi belum aktif; t
 ## Penambahan C01 dan panduan verifikasi
 
 Berkas terkait: [wire_roundtrip.py](wire_roundtrip.py), [wire_cpp.cpp](wire_cpp.cpp). Dependency, cara menjalankan dan batas pembuktiannya mengikuti [implementasi C01](../../doc/contracts-implementation.md).
+
+[native_fixture.py](native_fixture.py) menghasilkan model ONNX sintetis; [test_model_export.py](test_model_export.py) membandingkan tiny Transformers/ORT; [test_native_runtime.py](test_native_runtime.py) menguji executable nyata untuk admission, cancellation, deadline, serta bobot eksternal. Prasyarat dan opt-in environment ada pada [panduan native](../../doc/native-inference.md).
