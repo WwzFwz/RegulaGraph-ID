@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/encoding/protojson"
 	pb "regulagraph.local/server/gen/regulagraph/v1"
 	"regulagraph.local/server/internal/adapters/inference"
 	serverconfig "regulagraph.local/server/internal/config"
@@ -87,6 +88,18 @@ func run(ctx context.Context) error {
 	})
 	if err != nil {
 		return fmt.Errorf("configure semantic service: %w", err)
+	}
+	printProducer := os.Getenv("REGULAGRAPH_SEMANTIC_PRINT_PRODUCER")
+	if printProducer != "" && printProducer != "true" && printProducer != "false" {
+		return errors.New("REGULAGRAPH_SEMANTIC_PRINT_PRODUCER must be true or false")
+	}
+	if printProducer == "true" {
+		raw, encodeErr := (protojson.MarshalOptions{Indent: "  ", UseProtoNames: true}).Marshal(service.ProducerManifest())
+		if encodeErr != nil {
+			return encodeErr
+		}
+		_, writeErr := fmt.Fprintln(os.Stdout, string(raw))
+		return writeErr
 	}
 	listener, err := net.Listen("tcp", config.listen)
 	if err != nil {

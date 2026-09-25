@@ -100,6 +100,12 @@ func NewSemanticService(provider StructuredProvider, config SemanticConfig) (*Se
 	}, nil
 }
 
+// ProducerManifest exports a detached, non-secret configuration identity for operator pinning.
+// It performs no provider call; mutating the returned manifest cannot change a live gateway.
+func (s *SemanticService) ProducerManifest() *pb.ProducerManifest {
+	return proto.Clone(s.producer).(*pb.ProducerManifest)
+}
+
 func (s *SemanticService) ExtractBatch(ctx context.Context, request *pb.ExtractBatchRequest) (*pb.ExtractBatchResponse, error) {
 	if s.config.Model.Task != pb.ModelTask_MODEL_TASK_EXTRACT {
 		return nil, status.Error(codes.FailedPrecondition, "gateway is not configured for EXTRACT")

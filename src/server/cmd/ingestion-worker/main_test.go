@@ -33,8 +33,8 @@ func TestCoordinatorAlternatesParseAndBindingPreference(t *testing.T) {
 		order = append(order, "bind")
 		return domain.JobRecord{}, nil, nil
 	}
-	for _, preferBinding := range []bool{false, true} {
-		attempts := coordinatorAttempts(preferBinding, parse, binding)
+	for _, first := range []int{0, 1} {
+		attempts := coordinatorAttempts(first, parse, binding)
 		_, _, _ = attempts[0]()
 	}
 	if got := order; len(got) != 2 || got[0] != "parse" || got[1] != "bind" {

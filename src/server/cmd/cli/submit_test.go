@@ -76,9 +76,20 @@ func TestSubmitCommandPersistsPinnedRequestAndReplays(t *testing.T) {
 	temp := t.TempDir()
 	requestPath := filepath.Join(temp, "request.json")
 	policyPath := filepath.Join(temp, "policy.json")
+	producerPath := filepath.Join(temp, "resolver.json")
+	resolver := proto.Clone(request.ConfigManifest).(*pb.ProducerManifest)
+	resolver.Models = []*pb.ModelManifest{{ModelId: "local:resolver", Version: "v1", Task: pb.ModelTask_MODEL_TASK_RESOLVE,
+		WeightsHash: ontology.ContentHash(), TokenizerHash: ontology.ContentHash(), PromptHash: ontology.ContentHash(),
+		MaxTokens: 1024, Precision: "fp32", Backend: "fixture"}}
+	producerBytes, err := protojson.Marshal(resolver)
+	if err != nil {
+		t.Fatal(err)
+	}
+	producerDigest := sha256.Sum256(producerBytes)
 	for path, content := range map[string][]byte{
-		requestPath: requestBytes,
-		policyPath:  []byte(`{"schema_version":1,"corpora":{"corpus:submit-fixture":{"scopes_by_type":{"organization":["ID:national"]},"maximum_mentions":100,"maximum_scopes_per_mention":4,"maximum_total_scopes":400}}}`),
+		requestPath:  requestBytes,
+		producerPath: producerBytes,
+		policyPath:   []byte(`{"schema_version":1,"corpora":{"corpus:submit-fixture":{"scopes_by_type":{"organization":["ID:national"]},"maximum_mentions":100,"maximum_scopes_per_mention":4,"maximum_total_scopes":400}}}`),
 	} {
 		if err := os.WriteFile(path, content, 0o600); err != nil {
 			t.Fatal(err)
@@ -95,6 +106,8 @@ func TestSubmitCommandPersistsPinnedRequestAndReplays(t *testing.T) {
 	t.Setenv("REGULAGRAPH_ONTOLOGY_SHA256", ontology.ContentHash().Sha256)
 	t.Setenv("REGULAGRAPH_CANDIDATE_POLICY_PATH", policyPath)
 	t.Setenv("REGULAGRAPH_CANDIDATE_POLICY_SHA256", hex.EncodeToString(policyDigest[:]))
+	t.Setenv("REGULAGRAPH_RESOLUTION_PRODUCER_PATH", producerPath)
+	t.Setenv("REGULAGRAPH_RESOLUTION_PRODUCER_SHA256", hex.EncodeToString(producerDigest[:]))
 	jobID := "job:cli:" + unique
 	var first, second struct {
 		JobID  string `json:"job_id"`
@@ -124,8 +137,9 @@ func TestSubmitCommandPersistsPinnedRequestAndReplays(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(stored.GetConfigManifest().GetInputHashes()) != 2 ||
-		!proto.Equal(stored.ConfigManifest.InputHashes[1], policyHash) {
+	if len(stored.GetConfigManifest().GetInputHashes()) != 3 ||
+		!proto.Equal(stored.ConfigManifest.InputHashes[1], policyHash) ||
+		stored.ConfigManifest.InputHashes[2].Sha256 != hex.EncodeToString(producerDigest[:]) {
 		t.Fatal("persisted submit request lacks exact corpus policy pin")
 	}
 }

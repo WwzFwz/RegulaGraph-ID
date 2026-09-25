@@ -137,6 +137,18 @@ func TestSemanticExtractProjectsAbsoluteEvidenceAndCachesOperation(t *testing.T)
 	}
 }
 
+func TestSemanticProducerExportIsDetachedAndNeedsNoInference(t *testing.T) {
+	provider := &providerDouble{}
+	service, _ := semanticFixture(provider)
+	manifest := service.ProducerManifest()
+	expected := service.ProducerManifest()
+	manifest.Models[0].Version = "mutated"
+	manifest.InputHashes[0].Sha256 = strings.Repeat("0", 64)
+	if !proto.Equal(service.ProducerManifest(), expected) || provider.callCount() != 0 {
+		t.Fatal("manifest export changed live config or called provider")
+	}
+}
+
 func TestSemanticExtractReturnsExplicitNonRetryableProjectionError(t *testing.T) {
 	provider := &providerDouble{raw: json.RawMessage(`{"mentions":[{"local_id":"m1","surface_form":"Badan","candidate_type":"organization","span":{"start_byte":1,"end_byte":6,"quote":"Badan"}}],"assertions":[],"supports":[]}`)}
 	service, request := semanticFixture(provider)

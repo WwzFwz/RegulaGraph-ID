@@ -66,6 +66,23 @@ func runSubmit(ctx context.Context, args []string, out, errOut io.Writer) int {
 		fmt.Fprintln(errOut, "prepare ingestion request:", err)
 		return 2
 	}
+	// An optional resolver pin enables later automatic RESOLVE for this immutable job.
+	// Validate its bytes before persisting; a partial environment must not omit the pin.
+	producerPath, producerHash := os.Getenv("REGULAGRAPH_RESOLUTION_PRODUCER_PATH"), os.Getenv("REGULAGRAPH_RESOLUTION_PRODUCER_SHA256")
+	if producerPath != "" || producerHash != "" {
+		if _, err := serverconfig.LoadResolutionProducer(producerPath, producerHash); err != nil {
+			fmt.Fprintln(errOut, "load pinned resolution producer:", err)
+			return 2
+		}
+		pin := &pb.ContentHash{Sha256: producerHash}
+		found := false
+		for _, hash := range request.ConfigManifest.InputHashes {
+			found = found || proto.Equal(hash, pin)
+		}
+		if !found {
+			request.ConfigManifest.InputHashes = append(request.ConfigManifest.InputHashes, pin)
+		}
+	}
 	repository, err := postgres.Open(ctx, postgres.Config{DSN: os.Getenv("REGULAGRAPH_POSTGRES_DSN"),
 		MaxConnections: 4, MinConnections: 1, ConnectTimeout: 5 * time.Second,
 		HealthTimeout: 5 * time.Second})

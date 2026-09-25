@@ -1,8 +1,9 @@
 // Runs the durable Go ingestion coordinator against PostgreSQL and the loopback Rust document worker.
 //
 // Configuration is loaded explicitly from REGULAGRAPH_* environment variables. Startup opens each
-// dependency once; the loop advances PARSE→STRUCTURE→BIND→CHUNK jobs, emits JSON operational events, and drains through
-// signal cancellation. Migrations, EXTRACT+, and snapshot publication remain separate operational stages. Measure queue and
+// dependency once; the loop advances PARSE through EXTRACT and optional RESOLVE proposals,
+// emits JSON operational events, and drains through signal cancellation. RESOLVE proposals
+// wait for review; migrations, later graph stages and publication remain separate. Measure queue and
 // stage p95/p99 plus retry/cancellation behavior against configs/benchmark-targets.yaml.
 package main
 
@@ -117,8 +118,13 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	resolutionExecutor, closeResolution, err := newResolutionExecutor(config, ontology, repository, artifacts)
+	if err != nil {
+		return fmt.Errorf("configure RESOLVE executor: %w", err)
+	}
+	defer closeResolution()
 	encoder := json.NewEncoder(os.Stdout)
-	preferBinding := false
+	nextAttempt := 0
 	for ctx.Err() == nil {
 		parseAttempt := func() (domain.JobRecord, map[string]any, error) {
 			job, response, executeErr := parseExecutor.RunOnce(ctx)
@@ -140,11 +146,28 @@ func run(ctx context.Context) error {
 				"attempt": bindingJob.Attempt, "fence": bindingJob.LeaseFence, "completeness": result.Completeness.String(),
 			}, nil
 		}
-		attempts := coordinatorAttempts(preferBinding, parseAttempt, bindingAttempt)
-		preferBinding = !preferBinding
-		job, event, executeErr := attempts[0]()
-		if errors.Is(executeErr, postgres.ErrLeaseUnavailable) {
-			job, event, executeErr = attempts[1]()
+		available := []coordinatorAttempt{parseAttempt, bindingAttempt}
+		if resolutionExecutor != nil {
+			available = append(available, func() (domain.JobRecord, map[string]any, error) {
+				job, result, executeErr := resolutionExecutor.RunOnce(ctx)
+				if executeErr != nil {
+					return job, nil, executeErr
+				}
+				return job, map[string]any{"level": "info", "component": "ingestion-worker", "stage": "RESOLVE",
+					"job_id": job.JobID, "attempt": job.Attempt, "fence": job.LeaseFence, "state": result.State.String(),
+					"artifact_id": result.Artifact.GetArtifactId()}, nil
+			})
+		}
+		attempts := coordinatorAttempts(nextAttempt, available...)
+		nextAttempt = (nextAttempt + 1) % len(available)
+		var job domain.JobRecord
+		var event map[string]any
+		var executeErr error
+		for _, attempt := range attempts {
+			job, event, executeErr = attempt()
+			if !errors.Is(executeErr, postgres.ErrLeaseUnavailable) {
+				break
+			}
 		}
 		if executeErr == nil {
 			if err = encoder.Encode(event); err != nil {
@@ -178,11 +201,12 @@ func run(ctx context.Context) error {
 	return nil
 }
 
-func coordinatorAttempts(preferBinding bool, parse, binding coordinatorAttempt) [2]coordinatorAttempt {
-	if preferBinding {
-		return [2]coordinatorAttempt{binding, parse}
+func coordinatorAttempts(first int, available ...coordinatorAttempt) []coordinatorAttempt {
+	ordered := make([]coordinatorAttempt, len(available))
+	for i := range available {
+		ordered[i] = available[(first+i)%len(available)]
 	}
-	return [2]coordinatorAttempt{parse, binding}
+	return ordered
 }
 
 func loadConfig() (runtimeConfig, error) {
