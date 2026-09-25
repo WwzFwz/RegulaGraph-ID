@@ -52,6 +52,9 @@ filter snapshot; integrasi worker/publication dan benchmark belum dibuktikan.
 mencatat renderer teks chunk dengan konteks induk dan penolakan urutan term
 sparse yang tidak sah pada batch/Qdrant; pengikatan worker dan backend hidup
 masih terbuka.
+[verification-report-x01-verified-inputs.md](verification-report-x01-verified-inputs.md)
+mencatat policy label node pemilik, loader TextArtifact terverifikasi, key reuse
+embedding, dan batas bahwa worker INDEX maupun benchmark belum aktif.
 [verification-report-k01-candidate-batch.md](verification-report-k01-candidate-batch.md) mencatat
 builder kandidat deterministik dan validasi alias-to-scope; autentikasi PostgreSQL serta stage RESOLVE
 masih pekerjaan lanjutan.
