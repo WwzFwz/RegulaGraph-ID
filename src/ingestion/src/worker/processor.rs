@@ -2403,6 +2403,80 @@ mod tests {
             .iter()
             .any(|dependency| dependency.dependency_id == "organization:fixture"));
 
+        let index_inputs = crate::indexing::loading::VerifiedIndexInputs::new(&output)
+            .expect("complete CHUNK batch passes index preflight");
+        let selected = vec![output.chunks[0].meta.record_id.clone()];
+        let rendered = index_inputs
+            .load_selected(
+                &processor.store,
+                &normalizer,
+                &selected,
+                1024,
+                &AtomicBool::new(false),
+            )
+            .expect("index input reads verified text and source-bound chunk");
+        assert_eq!(rendered.len(), 1);
+        assert_eq!(rendered[0].chunk_id, selected[0]);
+        let primary_span = output.chunks[0].text_span.as_ref().unwrap();
+        let primary =
+            &normalized.text[primary_span.start_byte as usize..primary_span.end_byte as usize];
+        assert!(rendered[0].text.ends_with(primary));
+        assert!(output.chunks.len() > 1);
+        let reversed = vec![
+            output.chunks.last().unwrap().meta.record_id.clone(),
+            selected[0].clone(),
+        ];
+        let selected_in_order = index_inputs
+            .load_selected(
+                &processor.store,
+                &normalizer,
+                &reversed,
+                1024,
+                &AtomicBool::new(false),
+            )
+            .unwrap();
+        assert_eq!(selected_in_order[0].chunk_id, reversed[0]);
+        assert_eq!(selected_in_order[1].chunk_id, reversed[1]);
+        assert!(index_inputs
+            .load_selected(
+                &processor.store,
+                &normalizer,
+                &[selected[0].clone(), selected[0].clone()],
+                1024,
+                &AtomicBool::new(false),
+            )
+            .is_err());
+        assert!(index_inputs
+            .load_selected(
+                &processor.store,
+                &normalizer,
+                &["chunk:missing".to_owned()],
+                1024,
+                &AtomicBool::new(false),
+            )
+            .is_err());
+        assert!(matches!(
+            index_inputs.load_selected(
+                &processor.store,
+                &normalizer,
+                &selected,
+                1024,
+                &AtomicBool::new(true),
+            ),
+            Err(crate::indexing::loading::LoadIndexInputsError::Cancelled)
+        ));
+        let mut wrong_normalizer = normalizer.clone();
+        wrong_normalizer.remove_soft_hyphen = !wrong_normalizer.remove_soft_hyphen;
+        assert!(index_inputs
+            .load_selected(
+                &processor.store,
+                &wrong_normalizer,
+                &selected,
+                1024,
+                &AtomicBool::new(false),
+            )
+            .is_err());
+
         let calls = Arc::new(AtomicUsize::new(0));
         let prompt_hash = hash('d');
         let model = common::ModelManifest {

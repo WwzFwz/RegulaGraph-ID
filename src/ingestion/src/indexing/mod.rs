@@ -10,7 +10,7 @@
 //! Ukur p50/p95/p99, throughput, waktu antre, serta RSS/VRAM sesuai workload. Ambang wajib ada di configs/benchmark-targets.yaml (REQUIRED_UNMEASURED); ukur cold/warm terpisah dan pertahankan kualitas sumber/versi.
 //!
 //! Status: statistik BM25 lokal, analyzer lexical v1, dictionary reader,
-//! pembobot sparse, renderer parent-label, dan satu batch dense model-bound aktif sebagai library;
+//! pembobot sparse, loader/renderer label struktur terikat sumber, key reuse embedding, dan satu batch dense model-bound aktif sebagai library;
 //! pipeline indeks, writer, dan layanan INDEX belum aktif.
 
 pub mod analyzer;
@@ -19,5 +19,7 @@ pub mod dictionary;
 pub mod inputs;
 mod letter_ranges;
 pub mod lexical;
+pub mod loading;
 mod nfc_properties;
+pub mod reuse;
 pub mod statistics;

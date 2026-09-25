@@ -1,9 +1,9 @@
-//! Renders a verified chunk's primary text with bounded parent labels for X01.
+//! Renders a verified chunk's primary text with bounded structural labels for X01.
 //!
 //! The caller must load and authenticate the normalized TextArtifact and prove
 //! that the Chunk/StructureNode records belong to the same complete
 //! DocumentBatch. This local renderer checks UTF-8 byte boundaries, exact
-//! artifact identity, ancestor references, and output bounds before native
+//! artifact identity, ancestor references, owning-node label, and output bounds before native
 //! inference. The rendering policy version and output hash must be pinned in
 //! the IndexGeneration/build plan; this helper does not publish an index.
 //! Measure added tokens, build throughput/RSS, and Recall@k by policy against
@@ -13,7 +13,7 @@ use crate::wire::documents;
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 
-pub const RENDER_POLICY_VERSION: &str = "parent-labels-v1";
+pub const RENDER_POLICY_VERSION: &str = "structure-labels-v1";
 const MAX_PARENT_DEPTH: usize = 64;
 const MAX_PARENT_LABEL_BYTES: usize = 1024;
 const MAX_RENDER_BYTES: usize = 1024 * 1024;
@@ -61,7 +61,7 @@ impl<'a> EmbeddingInputRenderer<'a> {
         Ok(Self { index })
     }
 
-    /// Renders labels in the chunk's root-to-parent order and the exact primary
+    /// Renders labels in root-to-parent-to-owning-node order and the exact primary
     /// byte span. Ancestor full text and exceptions remain evidence for hydration,
     /// not silent additions to embedding input. The caller supplies a verified
     /// normalized string and pins this policy to the generation.
@@ -143,8 +143,10 @@ impl<'a> EmbeddingInputRenderer<'a> {
             {
                 return Err(RenderError::ForeignStructure);
             }
-            if parent.kind.enum_value() != Ok(documents::StructureKind::STRUCTURE_KIND_DOCUMENT) {
-                expected_reverse.push(parent_id);
+            match parent.kind.enum_value() {
+                Ok(documents::StructureKind::STRUCTURE_KIND_DOCUMENT) => {}
+                Ok(_) => expected_reverse.push(parent_id),
+                Err(_) => return Err(RenderError::InvalidParentChain),
             }
             current = parent;
         }
@@ -180,6 +182,23 @@ impl<'a> EmbeddingInputRenderer<'a> {
                 return Err(RenderError::TooLarge);
             }
             labels.push(label);
+        }
+        match direct.kind.enum_value() {
+            Ok(documents::StructureKind::STRUCTURE_KIND_DOCUMENT) => {}
+            Ok(_) => {
+                let label = direct.label.trim();
+                if label.is_empty() || label.chars().any(char::is_control) {
+                    return Err(RenderError::InvalidParentLabel);
+                }
+                label_bytes = label_bytes
+                    .checked_add(label.len())
+                    .ok_or(RenderError::TooLarge)?;
+                if label_bytes > MAX_PARENT_LABEL_BYTES {
+                    return Err(RenderError::TooLarge);
+                }
+                labels.push(label);
+            }
+            Err(_) => return Err(RenderError::InvalidParentChain),
         }
         let rendered_len = if labels.is_empty() {
             primary.len()
@@ -293,11 +312,28 @@ mod tests {
             .unwrap();
         assert_eq!(
             result.text,
-            "Konteks: BAB I > Pasal 1\nTeks: (1) Syarat berlaku, kecuali darurat."
+            "Konteks: BAB I > Pasal 1 > (1)\nTeks: (1) Syarat berlaku, kecuali darurat."
         );
         assert_eq!(result.sha256.len(), 64);
         assert_eq!(result.policy_version, RENDER_POLICY_VERSION);
         assert_eq!(result.chunk_id, "chunk:1");
+    }
+
+    #[test]
+    fn keeps_owning_article_label_when_body_chunk_excludes_heading() {
+        let (mut chunk, nodes, text) = fixture();
+        chunk.structure_node_refs = vec!["node:pasal".into()];
+        chunk.parent_refs = vec!["node:bab".into()];
+        let start = text.find("Syarat berlaku").unwrap();
+        chunk.text_span.as_mut().unwrap().start_byte = start as u64;
+        let renderer = EmbeddingInputRenderer::new(&nodes).unwrap();
+        let rendered = renderer
+            .render_embedding_input(&chunk, "text:1", &text, 1024)
+            .unwrap();
+        assert_eq!(
+            rendered.text,
+            "Konteks: BAB I > Pasal 1\nTeks: Syarat berlaku, kecuali darurat."
+        );
     }
 
     #[test]
