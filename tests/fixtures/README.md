@@ -33,3 +33,9 @@ Berkas terkait: [wire-cases.json](wire-cases.json). Dependency, cara menjalankan
 Fixture `semantic-resolve-context-roundtrip` dan `resolution-rationale-context-roundtrip` memeriksa preservation field baru lintas Go/Rust/C++/Python. Fixture tanpa konteks tetap valid secara wire tetapi ditolak gateway RESOLVE karena tidak cukup untuk reasoning.
 
 `semantic-resolve-candidate-context-roundtrip` memeriksa bukti kandidat dari sumber berbeda. Fixture `candidate-context-missing-support` dan `candidate-context-empty-excerpts` harus ditolak keempat validator. Semua label/sumber fiktif; preservation wire tidak membuktikan LINK yang benar secara semantik.
+
+[lexical-analyzer-v1.json](lexical-analyzer-v1.json) adalah fixture sintetis bersama
+Rust dan Go untuk token BM25: nomor regulasi, negasi, tanda hubung, NFC Unicode 15,
+code-switch, dan dua karakter yang membedakan `is_alphabetic` Rust dari kategori
+Letter Go. Fixture ini menguji kesamaan aturan pada contoh terpilih, bukan
+Recall@k atau kualitas ranking pada corpus nyata.

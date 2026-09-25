@@ -8,13 +8,19 @@ Logika di luar cakupan ini ditempatkan pada komponen pemiliknya. Jika fungsi bar
 
 ## Peran dan integrasi anak
 
-Hasil akhirnya batch untuk Go publisher. `lexical.rs` sekarang menghitung statistik BM25 incremental dari token yang sudah dianalisis dengan identity analyzer terpin, tanpa menyamakan learned sparse BGE-M3 dengan BM25. Skor lokal memakai BM25 dengan frekuensi query sebagai pengali; formula dan parameter harus dipin saat artifact generation dibuat. Analyzer produksi, serialisasi artifact, writer backend, dan snapshot publication belum tersambung; folder ini tidak menulis publication marker.
+Hasil akhirnya batch untuk Go publisher. `analyzer.rs` kini membuat istilah dokumen menurut aturan lexical v1: NFC Unicode 15, lipat huruf ASCII saja, pertahankan nomor dengan garis miring dan kata majemuk berhubung. `lexical.rs` menghitung statistik BM25 incremental; `dictionary.rs` membaca term-ID immutable yang nantinya dialokasikan Go serta memeriksa descendant terikat digest; `statistics.rs` membekukan DF dan menghasilkan bobot sparse dokumen/query. Term baru pada descendant memakai frozen DF=0. Dot product diuji terhadap skor BM25 lokal. Learned sparse BGE-M3 tetap representasi berbeda. Serialisasi artefak generation, allocator Go, writer backend, dan publication belum tersambung; folder ini tidak menulis publication marker.
+
+NFC menggunakan kebijakan stream-safe x/text Go yang direplikasi di Rust dengan tabel
+properti Unicode 15 terpin. Tabel kategori Letter dan properti NFC dibangkitkan
+offline; Jamo terurai maupun Hangul tersusun mengikuti aturan yang sama. Perubahan
+versi Unicode atau properti memerlukan generation analyzer baru. Input gagal tidak
+menghasilkan indeks lexical parsial.
 
 Pertahankan source/canonical/provision-version/snapshot ID dan schema version lintas anak. Boundary runtime mengikuti [src/contracts](../../../contracts/README.md), dengan pekerjaan batch atau inference yang jelas. Perubahan bentuk data, error/status, serta offset sumber harus didokumentasikan bersama konsumennya; jangan menggandakan kebijakan publikasi di beberapa runtime.
 
 ## Isi saat ini
 
-Berkas: [dense.rs](dense.rs), [lexical.rs](lexical.rs), [mod.rs](mod.rs).
+Berkas: [analyzer.rs](analyzer.rs), [dense.rs](dense.rs), [dictionary.rs](dictionary.rs), [letter_ranges.rs](letter_ranges.rs), [nfc_properties.rs](nfc_properties.rs), [lexical.rs](lexical.rs), [statistics.rs](statistics.rs), [mod.rs](mod.rs). Dua tabel Unicode dihasilkan oleh [generator Unicode](../../../../scripts/generate_lexical_letters.go); jangan mengeditnya secara manual.
 
 ## Benchmark dan perhatian performa
 
@@ -24,7 +30,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. Pipeline parsing/graph/retrieval, mutasi backend, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan target kualitas atau latency.
+Analyzer, dictionary reader dengan pemeriksaan lineage lokal, statistik BM25 incremental/frozen, dan encoder sparse tersedia sebagai library untuk initial build serta dictionary append descendant yang tervalidasi. Bukti lineage tepercaya dari registry Go, artefak typed, dan pengujian backend masih diperlukan sebelum update dapat dipublikasikan. Fixture bersama Rust–Go membuktikan kasus tokenisasi terpilih; parity skor pada corpus kecil diuji. IndexBatch, allocator, Qdrant writer/search, dan acceptance kualitas/latency belum tersedia. Fixture tidak membuktikan Recall@k atau target required.
 
 ## Rekomendasi implementasi anak
 
@@ -33,4 +39,6 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
 | [dense.rs](dense.rs) | Build model-bound dense records via batch embedding with deterministic IDs, dimensions and representation generation. | Test model drift, partial embeddings and retry idempotency; measure batch throughput/RSS and downstream recall. |
-| [lexical.rs](lexical.rs) | Bekukan analyzer Unicode/nomor hukum, serialisasikan statistik/dictionary berversi, lalu hubungkan dengan filter payload dan query BM25. | Tes incremental/full rebuild statistik dan token Unicode lulus; parity retrieval, full corpus, throughput/RSS, dan Recall@k tetap NOT_MEASURED. |
+| [analyzer.rs](analyzer.rs) | Analyzer v1 aktif; lanjutkan corpus-scale profiling dan pin artifact identity pada IndexGeneration. | Go/Rust memakai fixture sama; versi Unicode diuji, namun seluruh vocabulary corpus belum diaudit. |
+| [dictionary.rs](dictionary.rs) | Reader term-ID dan cek descendant lokal aktif; sambungkan allocator/binding revision PostgreSQL, bukti lineage tepercaya dan artefak typed. | Tolak duplicate ID/term, reassignment, future/sibling dan digest revision yang bertentangan sebelum reuse backend. |
+| [lexical.rs](lexical.rs) dan [statistics.rs](statistics.rs) | Statistik incremental, frozen DF dan bobot sparse termasuk term append aktif sebagai library; tambah serialisasi dan build batch dua pass. | Dot product parity vs skor referensi lulus pada fixture; full corpus, throughput/RSS, dan Recall@k tetap NOT_MEASURED. |

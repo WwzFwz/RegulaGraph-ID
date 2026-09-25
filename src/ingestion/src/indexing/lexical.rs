@@ -12,7 +12,8 @@
 //! Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //!
 //! Status: statistik BM25 incremental untuk token hasil analyzer terpin aktif;
-//! analyzer dokumen, artifact wire, writer indeks, dan query backend belum aktif.
+//! analyzer dokumen dan pembobot sparse library aktif. Artifact wire, writer indeks,
+//! dan query backend belum aktif.
 //!
 //! Batas runtime: worker hanya menyiapkan batch representasi dan metadata. Commit indeks dan publikasi snapshot dikoordinasikan Go; modul ini tidak menjadi pemilik publikasi kedua.
 //! Rekomendasi implementasi berikutnya:
@@ -22,6 +23,9 @@
 //! Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
 
 use std::collections::BTreeMap;
+
+use super::dictionary::LexicalDictionary;
+use super::statistics::{FrozenBm25, SparseWeightError};
 
 const MAX_DOCUMENT_TOKENS: usize = 100_000;
 const MAX_QUERY_TOKENS: usize = 1_024;
@@ -82,6 +86,43 @@ impl Bm25Statistics {
 
     pub fn document_frequency(&self, term: &str) -> u64 {
         self.document_frequency.get(term).copied().unwrap_or(0)
+    }
+
+    /// Captures the corpus-level statistics used for one immutable sparse generation.
+    /// A new corpus-statistics refresh must reweight every document, while ordinary
+    /// metadata changes can reuse weights only when the pinned generation is unchanged.
+    pub fn freeze(
+        &self,
+        dictionary: &LexicalDictionary,
+        k1: f64,
+        b: f64,
+    ) -> Result<FrozenBm25, SparseWeightError> {
+        if dictionary.analyzer_id() != self.analyzer_id {
+            return Err(SparseWeightError::AnalyzerMismatch);
+        }
+        if self.documents.is_empty() || self.total_tokens == 0 {
+            return Err(SparseWeightError::EmptyCorpus);
+        }
+        if !k1.is_finite() || k1 <= 0.0 || !b.is_finite() || !(0.0..=1.0).contains(&b) {
+            return Err(SparseWeightError::InvalidParameters);
+        }
+        let mut df_by_id = BTreeMap::new();
+        for (term, count) in &self.document_frequency {
+            let id = dictionary
+                .term_id(term)
+                .ok_or(SparseWeightError::MissingDictionaryTerm)?;
+            df_by_id.insert(id, *count);
+        }
+        FrozenBm25::from_checked(
+            self.analyzer_id.clone(),
+            dictionary.revision().to_string(),
+            dictionary.fingerprint(),
+            self.documents.len() as u64,
+            self.total_tokens,
+            df_by_id,
+            k1,
+            b,
+        )
     }
 
     /// Replaces an exact versioned chunk ID. All validation precedes mutation, so

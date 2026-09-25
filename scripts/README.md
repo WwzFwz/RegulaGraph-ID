@@ -24,6 +24,14 @@ Lihat [kebijakan benchmark](../doc/benchmark-policy.md) untuk protokol pengukura
 
 ## Status implementasi
 
+[generate_lexical_letters.go](generate_lexical_letters.go) menghasilkan tabel kategori
+huruf dan properti stream-safe NFC Unicode 15 untuk analyzer Rust dari tabel
+`unicode.IsLetter` serta x/text NFC Go. Properti privat x/text dibaca hanya saat
+generasi offline dan susunan field diperiksa agar perubahan dependency gagal jelas. Jalankan
+`go run scripts/generate_lexical_letters.go --check` dari root repo untuk memeriksa
+artefak terpin; `--write` hanya saat mengubah analyzer generation setelah review.
+Generator bekerja offline dan tidak berada di jalur query/ingestion produksi.
+
 Status lintas repositori: collector PDF dan kontrak/validator C01 sudah tersedia; lihat [cakupan implementasi C01](../doc/contracts-implementation.md). Pipeline parsing/graph/retrieval, adapter storage, layanan model dan evaluator benchmark masih belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
 
 ## Penambahan C01 dan panduan verifikasi

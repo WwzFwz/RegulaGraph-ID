@@ -14,7 +14,17 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
-Berkas: [classifier.go](classifier.go), [entity_linker.go](entity_linker.go), [normalizer.go](normalizer.go).
+Berkas: [classifier.go](classifier.go), [entity_linker.go](entity_linker.go), [lexical.go](lexical.go), [normalizer.go](normalizer.go).
+
+`lexical.go` menyediakan analyzer query BM25 v1 dengan aturan yang sama seperti Rust
+indexing. Library ini belum memanggil dictionary/statistics terpin atau backend.
+Fixture [lexical-analyzer-v1.json](../../../../../tests/fixtures/lexical-analyzer-v1.json)
+memeriksa nomor hukum, negasi, Unicode NFC, dan kesesuaian keluaran kedua bahasa.
+Kategori huruf dan properti stream-safe NFC Rust memakai tabel Unicode 15 yang
+dihasilkan dari `unicode.IsLetter` dan x/text NFC Go oleh
+[generator](../../../../../scripts/generate_lexical_letters.go). Query dibatasi
+1.024 term; Jamo terurai dan Hangul tersusun mengikuti aturan normalisasi yang
+sama. Perubahan versi tabel/normalisasi harus membentuk analyzer generation baru.
 
 ## Benchmark dan perhatian performa
 
@@ -26,7 +36,7 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. Pipeline parsing/graph/retrieval, mutasi backend, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan target kualitas atau latency.
+Analyzer lexical query aktif sebagai library dan menolak input/term/term-count yang melewati batas. Query planner, snapshot-pinned entity linking, dictionary lookup, retrieval backend, gold dataset, serta acceptance belum aktif. Fixture parity tidak membuktikan kualitas pencarian.
 
 ## Rekomendasi implementasi anak
 

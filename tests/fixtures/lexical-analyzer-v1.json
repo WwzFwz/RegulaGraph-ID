@@ -1,0 +1,18 @@
+{
+  "version": "regulagraph-lexical-nfc-ascii-v1",
+  "description": "Synthetic shared Rust/Go lexical analyzer parity cases; not relevance gold or a benchmark result.",
+  "cases": [
+    {"name": "legal-number", "input": "UU No. 12/2020 Pasal 3 ayat (2)", "terms": ["uu", "no", "12/2020", "pasal", "3", "ayat", "2"]},
+    {"name": "different-number", "input": "UU 12/2021 dan UU 120/20", "terms": ["uu", "12/2021", "dan", "uu", "120/20"]},
+    {"name": "negation", "input": "TIDAK wajib, bukan dilarang", "terms": ["tidak", "wajib", "bukan", "dilarang"]},
+    {"name": "hyphen", "input": "Undang-Undang dan peraturan-peraturan", "terms": ["undang-undang", "dan", "peraturan-peraturan"]},
+    {"name": "unicode-nfc", "input": "Cafe\u0301 dan Café", "terms": ["café", "dan", "café"]},
+    {"name": "informal-code-switch", "input": "gimana izin online OSS-RBA?", "terms": ["gimana", "izin", "online", "oss-rba"]},
+    {"name": "empty", "input": "...?!", "terms": []},
+    {"name": "non-ascii-case-preserved", "input": "Ékonomi ékonomi", "terms": ["Ékonomi", "ékonomi"]},
+    {"name": "letter-number-is-separator", "input": "pasalⅣ berlaku", "terms": ["pasal", "berlaku"]},
+    {"name": "other-alphabetic-mark-is-separator", "input": "a\u0345b", "terms": ["a", "b"]},
+    {"name": "stream-safe-combining-run", "input": "A\u0315\u0315\u0315\u0315\u0315\u0315\u0315\u0315\u0315\u0315\u0315\u0315\u0315\u0315\u0315\u0315\u0315\u0315\u0315\u0315\u0315\u0315\u0315\u0315\u0315\u0315\u0315\u0315\u0315\u0315\u0300", "terms": ["a"]},
+    {"name": "composed-hangul", "input": "한글", "terms": ["한글"]}
+  ]
+}

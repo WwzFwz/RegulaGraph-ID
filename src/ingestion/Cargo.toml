@@ -23,6 +23,8 @@ serde_json = "=1.0.151"
 tokio = { version = "=1.47.1", features = ["macros", "rt-multi-thread", "signal", "sync", "time"] }
 tonic = "=0.13.1"
 tokenizers = { version = "=0.21.4", default-features = false, features = ["fancy-regex"] }
+# Tabel NFC Unicode 15.0 cocok dengan x/text pada Go 1.26; tes analyzer mengunci versi.
+unicode-normalization = "=0.1.22"
 
 [build-dependencies]
 protoc-bin-vendored = "=3.2.0"
