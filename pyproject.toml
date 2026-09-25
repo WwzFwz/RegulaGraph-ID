@@ -1,6 +1,6 @@
 # Packaging tooling Python offline untuk evaluation dan persiapan model.
 # Peran: Python tidak lagi menjadi runtime API, retrieval, atau ingestion produksi.
-# Integrasi: runner berkomunikasi dengan kontrak/artefak Go-Rust-C++; dependency ML belum dipilih.
+# Integrasi: runner berkomunikasi dengan kontrak/artefak Go-Rust-C++; extras models hanya untuk tooling offline.
 # Performa: tooling tidak dimasukkan ke jalur request interaktif.
 [build-system]
 requires = ["setuptools>=68"]
@@ -13,6 +13,10 @@ description = "Offline evaluation and model tooling for RegulaGraph-ID"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = ["protobuf==7.34.1", "PyMuPDF==1.26.4", "PyYAML==6.0.3", "pypdf==5.6.0", "pypdfium2==4.30.0"]
+
+[project.optional-dependencies]
+models = ["torch==2.6.0", "transformers==4.51.3", "tokenizers==0.21.4", "onnx==1.18.0", "huggingface-hub==0.34.4", "grpcio==1.76.0", "numpy>=1.26,<3"]
+model-tests = ["onnxruntime==1.22.0", "pytest>=8,<9"]
 
 [tool.setuptools.packages.find]
 where = ["."]

@@ -14,7 +14,7 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
-Berkas: [__init__.py](__init__.py), [export.py](export.py), [parity.py](parity.py).
+Berkas: [__init__.py](__init__.py), [export.py](export.py), [parity.py](parity.py), [load.py](load.py).
 
 ## Benchmark dan perhatian performa
 
@@ -24,7 +24,7 @@ Ikuti [kebijakan benchmark](../../doc/benchmark-policy.md). Angka wajib mengikut
 
 ## Status
 
-Status lintas repositori: collector PDF dan kontrak/validator C01 sudah tersedia; lihat [cakupan implementasi C01](../../doc/contracts-implementation.md). Pipeline parsing/graph/retrieval, adapter storage, layanan model dan evaluator benchmark masih belum aktif. Status anak dijelaskan pada header masing-masing; build dan fixture tidak membuktikan target kualitas atau latency.
+Exporter ONNX, reference/parity CLI, dan load diagnostic sudah aktif untuk model XLM-RoBERTa embedding/reranker terpin. Hasil berasal dari runtime C++ yang sama dengan serving. Kualitas gold, full workload, OCR/model selection menyeluruh, dan acceptance tetap terpisah; lihat [panduan native](../../doc/native-inference.md).
 
 ## Rekomendasi implementasi anak
 
@@ -34,3 +34,5 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | --- | --- | --- |
 | [export.py](export.py) | Export selected model plus tokenizer/pooling/normalization/precision/dynamic-shape manifest and content hashes. | Test unsupported operations and representative multilingual/long inputs; export success alone cannot authorize production parity. |
 | [parity.py](parity.py) | Compare Python reference and actual C++ outputs using the same weights/tokenizer and representative batches. | Measure vector/score/rank deviations plus downstream quality, latency and memory; quantization requires evidence against unchanged gates. |
+
+`load.py` mencatat seluruh offered arrival, termasuk capacity rejection dan kegagalan; jangan menyebut percentile diagnostik sebagai required gate PASS. Reference/cases dibekukan bersama hash byte awal dan keluaran native divalidasi sebelum metrik.
