@@ -111,8 +111,7 @@ func TestNormalizeCandidateSurfaceKeepsIdentitySignals(t *testing.T) {
 		}
 	}
 	// Raw spacing can exceed the lookup-key limit while its normalized alias remains valid.
-	if got, err := NormalizeCandidateSurface("Pasal" + strings.Repeat(" ", 700) + "1");
-		err != nil || got != "pasal 1" {
+	if got, err := NormalizeCandidateSurface("Pasal" + strings.Repeat(" ", 700) + "1"); err != nil || got != "pasal 1" {
 		t.Fatalf("collapsible whitespace excluded valid alias: %q, %v", got, err)
 	}
 }
@@ -128,8 +127,14 @@ func TestPlanRegistryCandidatesRejectsMissingCoverageAndOverflow(t *testing.T) {
 			s.Mentions[1].Meta.RecordId = s.Mentions[0].Meta.RecordId
 		}},
 		{"scope budget", func(_ *pb.ExtractionBatch, p *CandidatePlanningPolicy) { p.MaximumTotalScopes = 4 }},
+		{"huge positive budget", func(_ *pb.ExtractionBatch, p *CandidatePlanningPolicy) {
+			p.MaximumTotalScopes = DefaultWireLimits.MaxItems + 1
+		}},
 		{"repeated configured scope", func(_ *pb.ExtractionBatch, p *CandidatePlanningPolicy) {
 			p.ScopesByType["organization"] = []string{"national", "national"}
+		}},
+		{"unknown disabled source type", func(_ *pb.ExtractionBatch, p *CandidatePlanningPolicy) {
+			p.IncludeSourceRegulationType["typo_entity"] = false
 		}},
 		{"missing provenance", func(s *pb.ExtractionBatch, _ *CandidatePlanningPolicy) { s.Mentions[0].SourceRefs = nil }},
 		{"invalid Unicode", func(s *pb.ExtractionBatch, _ *CandidatePlanningPolicy) {

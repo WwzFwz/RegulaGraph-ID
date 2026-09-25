@@ -25,7 +25,14 @@ func (store *ontologySubmitStore) SubmitJob(_ context.Context, intent domain.Job
 
 func TestJobSchedulerRejectsUnpinnedOntologyBeforeDurableSubmit(t *testing.T) {
 	store := &ontologySubmitStore{parseStoreFake: parseFixtureStore(false)}
-	scheduler, err := NewJobScheduler(store, parseTestOntology())
+	policy := domain.CandidatePlanningPolicy{ScopesByType: map[string][]string{"organization": {"ID:national"}},
+		MaximumMentions: 100, MaximumScopesPerMention: 4, MaximumTotalScopes: 400}
+	scheduler, err := NewJobScheduler(store, parseTestOntology(),
+		map[string]domain.CandidatePlanningPolicy{store.request.CorpusId: policy})
+	if err != nil {
+		t.Fatal(err)
+	}
+	policyHash, err := policy.Fingerprint()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,8 +46,55 @@ func TestJobSchedulerRejectsUnpinnedOntologyBeforeDurableSubmit(t *testing.T) {
 		t.Fatalf("wrong ontology hash reached durable store: err=%v intents=%d", err, len(store.submitted))
 	}
 	request.ConfigManifest.InputHashes = []*pb.ContentHash{parseTestOntology().ContentHash()}
+	if _, _, err := scheduler.Submit(context.Background(), "job:missing-policy", request); err == nil || len(store.submitted) != 0 {
+		t.Fatalf("missing policy pin reached durable store: err=%v intents=%d", err, len(store.submitted))
+	}
+	request.ConfigManifest.InputHashes = append(request.ConfigManifest.InputHashes, &pb.ContentHash{Sha256: strings.Repeat("e", 64)})
+	if _, _, err := scheduler.Submit(context.Background(), "job:wrong-policy", request); err == nil || len(store.submitted) != 0 {
+		t.Fatalf("wrong policy pin reached durable store: err=%v intents=%d", err, len(store.submitted))
+	}
+	request.ConfigManifest.InputHashes[1] = policyHash
 	if _, _, err := scheduler.Submit(context.Background(), "job:pinned", request); err != nil || len(store.submitted) != 1 {
-		t.Fatalf("valid ontology pin did not reach durable store: err=%v intents=%d", err, len(store.submitted))
+		t.Fatalf("valid ontology/policy pins did not reach durable store: err=%v intents=%d", err, len(store.submitted))
+	}
+	stored := new(pb.IngestionRequest)
+	if err := proto.Unmarshal(store.submitted[0].RequestPayload, stored); err != nil ||
+		!containsExpectedHash(stored.GetConfigManifest().GetInputHashes(), policyHash) ||
+		store.submitted[0].CorpusID != request.CorpusId {
+		t.Fatalf("durable job lost candidate policy pin: err=%v intent=%+v", err, store.submitted[0])
+	}
+	request.CorpusId = "corpus:foreign"
+	if _, _, err := scheduler.Submit(context.Background(), "job:foreign", request); err == nil || len(store.submitted) != 1 {
+		t.Fatalf("unconfigured corpus reused another policy: err=%v intents=%d", err, len(store.submitted))
+	}
+}
+
+func TestJobSchedulerFreezesPolicyAtConstruction(t *testing.T) {
+	store := &ontologySubmitStore{parseStoreFake: parseFixtureStore(false)}
+	policy := domain.CandidatePlanningPolicy{ScopesByType: map[string][]string{"organization": {"ID:national"}},
+		MaximumMentions: 100, MaximumScopesPerMention: 4, MaximumTotalScopes: 400}
+	hash, err := policy.Fingerprint()
+	if err != nil {
+		t.Fatal(err)
+	}
+	scheduler, err := NewJobScheduler(store, parseTestOntology(),
+		map[string]domain.CandidatePlanningPolicy{store.request.CorpusId: policy})
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy.ScopesByType["organization"][0] = "ID:regional"
+	request := proto.Clone(store.request).(*pb.IngestionRequest)
+	request.ConfigManifest.InputHashes = append(request.ConfigManifest.InputHashes, hash)
+	if _, _, err := scheduler.Submit(context.Background(), "job:frozen", request); err != nil || len(store.submitted) != 1 {
+		t.Fatalf("mutating caller policy changed scheduler snapshot: %v", err)
+	}
+	if _, err := NewJobScheduler(store, parseTestOntology(), nil); err == nil {
+		t.Fatal("scheduler accepted no corpus policy")
+	}
+	if _, err := NewJobScheduler(store, parseTestOntology(), map[string]domain.CandidatePlanningPolicy{
+		"corpus:bad": {ScopesByType: map[string][]string{"unknown_type": {"ID:national"}}},
+	}); err == nil {
+		t.Fatal("scheduler accepted invalid candidate policy")
 	}
 }
 

@@ -20,7 +20,7 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: scheduler S01 aktif untuk submit, claim, renew, checkpoint, dan transisi state.
-// Submit memerlukan ontology hash terpin sebelum durable enqueue; executor Rust/Go berjalan
+// Submit memerlukan ontology dan policy kandidat corpus terpin sebelum durable enqueue; executor Rust/Go berjalan
 // sampai EXTRACT, sedangkan RESOLVE dan tahap selanjutnya menunggu paket dependennya.
 // Bukti verifikasi mengikuti doc/verification.md.
 package workflows
@@ -31,6 +31,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"regexp"
 	"time"
 
 	"google.golang.org/protobuf/proto"
@@ -47,15 +48,33 @@ type JobStore interface {
 }
 
 type JobScheduler struct {
-	store    JobStore
-	ontology *domain.Ontology
+	store                 JobStore
+	ontology              *domain.Ontology
+	candidatePolicyHashes map[string]*pb.ContentHash
 }
 
-func NewJobScheduler(store JobStore, ontology *domain.Ontology) (*JobScheduler, error) {
-	if store == nil || ontology == nil {
-		return nil, errors.New("job store and pinned ontology are required")
+var schedulerCorpusIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$`)
+
+// NewJobScheduler freezes one candidate-policy fingerprint per corpus at startup. A submission
+// for an unconfigured corpus fails before writing its idempotent job; callers must pin both
+// ontology and candidate policy in the immutable request manifest.
+func NewJobScheduler(store JobStore, ontology *domain.Ontology,
+	policies map[string]domain.CandidatePlanningPolicy) (*JobScheduler, error) {
+	if store == nil || ontology == nil || len(policies) == 0 || len(policies) > 1024 {
+		return nil, errors.New("job store, pinned ontology, and bounded corpus candidate policies are required")
 	}
-	return &JobScheduler{store: store, ontology: ontology}, nil
+	hashes := make(map[string]*pb.ContentHash, len(policies))
+	for corpusID, policy := range policies {
+		if !schedulerCorpusIDPattern.MatchString(corpusID) {
+			return nil, fmt.Errorf("invalid candidate-policy corpus %q", corpusID)
+		}
+		hash, err := policy.Fingerprint()
+		if err != nil {
+			return nil, fmt.Errorf("candidate policy for corpus %q: %w", corpusID, err)
+		}
+		hashes[corpusID] = hash
+	}
+	return &JobScheduler{store: store, ontology: ontology, candidatePolicyHashes: hashes}, nil
 }
 
 func (s *JobScheduler) Submit(ctx context.Context, jobID string, request *pb.IngestionRequest) (domain.JobRecord, bool, error) {
@@ -64,6 +83,10 @@ func (s *JobScheduler) Submit(ctx context.Context, jobID string, request *pb.Ing
 	}
 	if request == nil || request.ConfigManifest == nil || !containsExpectedHash(request.ConfigManifest.InputHashes, s.ontology.ContentHash()) {
 		return domain.JobRecord{}, false, errors.New("ingestion request must pin current ontology bytes before submit")
+	}
+	policyHash := s.candidatePolicyHashes[request.CorpusId]
+	if policyHash == nil || !containsExpectedHash(request.ConfigManifest.InputHashes, policyHash) {
+		return domain.JobRecord{}, false, errors.New("ingestion request must pin configured corpus candidate policy before submit")
 	}
 	payload, err := proto.MarshalOptions{Deterministic: true}.Marshal(request)
 	if err != nil {

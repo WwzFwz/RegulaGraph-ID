@@ -36,12 +36,18 @@ type CandidatePlanningPolicy struct {
 // Go's JSON encoder sorts map keys, so equivalent policy maps have identical hashes.
 func (policy CandidatePlanningPolicy) Fingerprint() (*pb.ContentHash, error) {
 	if policy.MaximumMentions <= 0 || policy.MaximumScopesPerMention <= 0 ||
-		policy.MaximumTotalScopes <= 0 || len(policy.ScopesByType) == 0 {
-		return nil, errors.New("candidate policy requires positive limits and legal scopes")
+		policy.MaximumTotalScopes <= 0 || len(policy.ScopesByType) == 0 ||
+		policy.MaximumMentions > DefaultWireLimits.MaxItems ||
+		policy.MaximumScopesPerMention > policy.MaximumTotalScopes ||
+		policy.MaximumTotalScopes < policy.MaximumMentions ||
+		policy.MaximumTotalScopes > DefaultWireLimits.MaxItems {
+		return nil, errors.New("candidate policy requires bounded positive limits and legal scopes")
 	}
 	for entityType, scopes := range policy.ScopesByType {
-		if CanonicalEntityTypeCode(entityType) == 0 || len(scopes) == 0 {
-			return nil, fmt.Errorf("unsupported or empty candidate policy type %q", entityType)
+		if CanonicalEntityTypeCode(entityType) == 0 || len(scopes) == 0 ||
+			len(scopes) > policy.MaximumScopesPerMention ||
+			policy.IncludeSourceRegulationType[entityType] && len(scopes) >= policy.MaximumScopesPerMention {
+			return nil, fmt.Errorf("unsupported, empty, or over-budget candidate policy type %q", entityType)
 		}
 		seen := map[string]bool{}
 		for _, scope := range scopes {
@@ -51,9 +57,9 @@ func (policy CandidatePlanningPolicy) Fingerprint() (*pb.ContentHash, error) {
 			seen[scope] = true
 		}
 	}
-	for entityType, enabled := range policy.IncludeSourceRegulationType {
-		if enabled && len(policy.ScopesByType[entityType]) == 0 {
-			return nil, fmt.Errorf("source regulation scope lacks type policy %q", entityType)
+	for entityType := range policy.IncludeSourceRegulationType {
+		if CanonicalEntityTypeCode(entityType) == 0 || len(policy.ScopesByType[entityType]) == 0 {
+			return nil, fmt.Errorf("source regulation scope lacks supported type policy %q", entityType)
 		}
 	}
 	raw, err := json.Marshal(policy)

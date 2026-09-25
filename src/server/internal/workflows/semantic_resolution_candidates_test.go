@@ -119,9 +119,14 @@ func TestCandidateRevisionRaceRetriesBeforeArtifactWrite(t *testing.T) {
 }
 
 func TestPlannedCandidatesBindPolicyAndStoredExtract(t *testing.T) {
-	handoff, job, oldRef, _, _, _, _, store, artifacts := modelWorkflowFixture(t)
+	_, job, oldRef, _, _, _, _, store, artifacts := modelWorkflowFixture(t)
 	policy := domain.CandidatePlanningPolicy{ScopesByType: map[string][]string{"permit": {"national"}},
 		MaximumMentions: 10, MaximumScopesPerMention: 2, MaximumTotalScopes: 10}
+	handoff, err := NewPlannedSemanticResolutionHandoff(store, artifacts, 1<<20, 1000, 10,
+		map[string]domain.CandidatePlanningPolicy{job.CorpusID: policy})
+	if err != nil {
+		t.Fatal(err)
+	}
 	fingerprint, err := policy.Fingerprint()
 	if err != nil {
 		t.Fatal(err)
@@ -138,7 +143,7 @@ func TestPlannedCandidatesBindPolicyAndStoredExtract(t *testing.T) {
 	store.request.ConfigManifest.InputHashes = append(store.request.ConfigManifest.InputHashes, fingerprint)
 	store.prepared = prepared
 	batch, ref, err := handoff.PrepareAndStorePlannedCandidates(context.Background(), job,
-		producer, "candidates:planned", policy, 4, 4)
+		producer, "candidates:planned", policy, 10, 4)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -150,12 +155,26 @@ func TestPlannedCandidatesBindPolicyAndStoredExtract(t *testing.T) {
 		len(artifacts.contents[ref.ArtifactId]) == 0 || store.dependencies[ref.ArtifactId] == nil {
 		t.Fatal("automatic candidate plan was not stored with pinned policy and EXTRACT dependency")
 	}
+	store.planned = nil
+	if _, _, err = handoff.PrepareAndStorePlannedCandidates(context.Background(), job,
+		producer, "candidates:underprovisioned", policy, 4, 4); err == nil || store.planned != nil {
+		t.Fatalf("candidate planner accepted lookup cap below pinned policy: %v", err)
+	}
+	underBudget, err := NewPlannedSemanticResolutionHandoff(store, artifacts, 1<<20, 10, 4,
+		map[string]domain.CandidatePlanningPolicy{job.CorpusID: policy})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err = underBudget.PrepareAndStorePlannedCandidates(context.Background(), job,
+		producer, "candidates:under-referenced", policy, 10, 4); err == nil || store.planned != nil {
+		t.Fatalf("candidate planner accepted reference budget below minimum batch cost: %v", err)
+	}
 	// A policy drift must fail before reading a registry revision or writing an artifact.
 	changed := policy
 	changed.ScopesByType = map[string][]string{"permit": {"regional"}}
 	store.planned = nil
 	if _, _, err = handoff.PrepareAndStorePlannedCandidates(context.Background(), job,
-		producer, "candidates:drift", changed, 4, 4); err == nil || store.planned != nil {
+		producer, "candidates:drift", changed, 10, 4); err == nil || store.planned != nil {
 		t.Fatal("un-pinned candidate policy was read or persisted")
 	}
 	// A newly constructed producer cannot authorize a policy absent from the submitted job.
@@ -166,14 +185,19 @@ func TestPlannedCandidatesBindPolicyAndStoredExtract(t *testing.T) {
 	forgedProducer := proto.Clone(producer).(*pb.ProducerManifest)
 	forgedProducer.InputHashes = append(forgedProducer.InputHashes, changedFingerprint)
 	if _, _, err = handoff.PrepareAndStorePlannedCandidates(context.Background(), job,
-		forgedProducer, "candidates:forged-policy", changed, 4, 4); !errors.Is(err, domain.ErrPersistentIntegrity) ||
+		forgedProducer, "candidates:forged-policy", changed, 10, 4); err == nil ||
 		store.planned != nil {
 		t.Fatalf("caller re-pinned unsanctioned policy: %v", err)
+	}
+	store.request.ConfigManifest.InputHashes = append(store.request.ConfigManifest.InputHashes, changedFingerprint)
+	if _, _, err = handoff.PrepareAndStorePlannedCandidates(context.Background(), job,
+		forgedProducer, "candidates:extra-policy", changed, 10, 4); err == nil || store.planned != nil {
+		t.Fatalf("additional durable hash replaced trusted policy: %v", err)
 	}
 	// The source must come from the same submitted config even if both manifests pin the policy.
 	store.request.ConfigManifest.ConfigHash = parseHash("d")
 	if _, _, err = handoff.PrepareAndStorePlannedCandidates(context.Background(), job,
-		producer, "candidates:foreign-source", policy, 4, 4); !errors.Is(err, domain.ErrPersistentIntegrity) ||
+		producer, "candidates:foreign-source", policy, 10, 4); !errors.Is(err, domain.ErrPersistentIntegrity) ||
 		store.planned != nil {
 		t.Fatalf("candidate planner accepted source from another config: %v", err)
 	}

@@ -42,6 +42,44 @@ type SemanticCandidatePolicyStore interface {
 	LoadIngestionRequest(context.Context, string) (*pb.IngestionRequest, error)
 }
 
+// NewPlannedSemanticResolutionHandoff freezes the trusted policy fingerprint for each corpus.
+// Config rotation is fail-closed for old jobs until their original policy is explicitly loaded;
+// an extra hash in caller-supplied manifest cannot authorize a different policy.
+func NewPlannedSemanticResolutionHandoff(store SemanticResolutionStore,
+	artifacts SemanticResolutionArtifactReader, maximumBytes uint64,
+	maximumReferences, maximumCandidatesPerMention int,
+	policies map[string]domain.CandidatePlanningPolicy) (*SemanticResolutionHandoff, error) {
+	handoff, err := NewSemanticResolutionHandoff(store, artifacts, maximumBytes,
+		maximumReferences, maximumCandidatesPerMention)
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := store.(SemanticCandidatePolicyStore); !ok {
+		return nil, errors.New("planned resolution requires a durable ingestion request loader")
+	}
+	if _, ok := store.(SemanticCandidateStore); !ok {
+		return nil, errors.New("planned resolution requires a candidate registry store")
+	}
+	if _, ok := artifacts.(SemanticCandidateArtifacts); !ok {
+		return nil, errors.New("planned resolution requires a verified artifact writer")
+	}
+	if len(policies) == 0 || len(policies) > 1024 {
+		return nil, errors.New("planned resolution requires bounded corpus policies")
+	}
+	handoff.expectedCandidatePolicies = make(map[string]*pb.ContentHash, len(policies))
+	for corpusID, policy := range policies {
+		if !schedulerCorpusIDPattern.MatchString(corpusID) {
+			return nil, fmt.Errorf("invalid planned resolution corpus %q", corpusID)
+		}
+		hash, err := policy.Fingerprint()
+		if err != nil {
+			return nil, fmt.Errorf("planned resolution policy for %q: %w", corpusID, err)
+		}
+		handoff.expectedCandidatePolicies[corpusID] = hash
+	}
+	return handoff, nil
+}
+
 // PrepareAndStoreCandidates uses the exact source checkpoint and caller-supplied legal scope
 // plan. A registry change during preparation is retryable with a fresh candidate read because
 // no immutable decision intent has been saved yet.
@@ -69,6 +107,13 @@ func (handoff *SemanticResolutionHandoff) PrepareAndStorePlannedCandidates(ctx c
 	if err != nil {
 		return nil, nil, err
 	}
+	if !proto.Equal(handoff.expectedCandidatePolicies[job.CorpusID], fingerprint) {
+		return nil, nil, errors.New("candidate policy differs from trusted corpus configuration")
+	}
+	if policy.MaximumTotalScopes > maximumScopes ||
+		1+policy.MaximumMentions+2*policy.MaximumTotalScopes > handoff.maximumReferences {
+		return nil, nil, errors.New("candidate policy exceeds configured resolution lookup budgets")
+	}
 	pinned := false
 	if producer != nil {
 		for _, hash := range producer.InputHashes {
@@ -82,7 +127,9 @@ func (handoff *SemanticResolutionHandoff) PrepareAndStorePlannedCandidates(ctx c
 	if !ok {
 		return nil, nil, errors.New("candidate planning requires the durable ingestion request")
 	}
-	request, err := policyStore.LoadIngestionRequest(ctx, job.JobID)
+	requestCtx, cancel := context.WithDeadline(ctx, job.LeaseExpiresAt)
+	defer cancel()
+	request, err := policyStore.LoadIngestionRequest(requestCtx, job.JobID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("load durable candidate policy: %w", err)
 	}

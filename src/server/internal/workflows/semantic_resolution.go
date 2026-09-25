@@ -35,6 +35,7 @@ type SemanticResolutionHandoff struct {
 	maximumBytes                uint64
 	maximumReferences           int
 	maximumCandidatesPerMention int
+	expectedCandidatePolicies   map[string]*pb.ContentHash
 }
 
 func NewSemanticResolutionHandoff(store SemanticResolutionStore,
