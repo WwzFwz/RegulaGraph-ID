@@ -161,3 +161,15 @@ Gateway RESOLVE dan workflow `ProposeWithModel` tersedia untuk input kandidat/cl
 ## M01/N01: native embedding dan reranking
 
 Runtime C++ ONNX, tokenizer native, model export/reference/parity, client Go/Rust, dan verifikasi proses nyata tersedia. BGE-M3 serta reranker v2 M3 terpin telah menghasilkan output nyata pada GPU lokal. Lihat [panduan integrasi](native-inference.md) dan [bukti verifikasi](verification-report-native-models.md). Status keseluruhan M01/N01 tetap terbuka untuk model-quality/Recall/nDCG gold, workload lengkap pada profil referensi, serta bagian M01 PDF/OCR/model lain. Jangan mengubah status semua paket menjadi selesai dari numerical parity. X01 memakai client ini untuk pembangunan indeks berikutnya.
+
+## Kemajuan integrasi RAG 2026-10-03
+
+Q01 kini memiliki branch dense native dan BM25, candidate workflow paralel dengan
+RRF dan error tanpa fallback diam-diam. A01 memiliki generator draft terstruktur,
+span UTF-8 dan citation dari metadata tepercaya; klaim tetap UNREVIEWED/PARTIAL.
+`RAGWorkflow.AnswerPinnedQuestion` menghubungkan search, port hidrasi serta
+context/generation dengan fixture integrasi dan reviewer independen.
+Alur PDF nyata masih menunggu writer/publication X01, katalog/admission snapshot,
+hidrasi storage dan tokenizer prompt generator. Reranker penuh, streaming,
+graph serta acceptance juga belum selesai. Lihat
+[laporan integrasi RAG](verification-report-rag-workflow.md).

@@ -9,6 +9,11 @@ Kontrak mengikuti [system-contracts.md](system-contracts.md), kebijakan snapshot
 
 ## Tujuan dan kode yang dipakai ulang
 
+Kemajuan 2026-10-03: branch dense/BM25 dan workflow fusion paralel sudah callable,
+dengan uji Qdrant nyata serta port hidrasi menuju A01. Admission snapshot,
+hidrasi storage, reranking dan graph penuh masih terbuka. Bukti dan batasnya
+dicatat pada [laporan integrasi RAG](verification-report-rag-workflow.md).
+
 Input: pertanyaan, principal/izin corpus, temporal scope, profil retrieval, deadline,
 dan snapshot yang diminta. Output: RetrievalPlan, EvidenceBundle dengan provenance
 dan completeness, durasi tiap stage, serta manifest konfigurasi/model/generation.

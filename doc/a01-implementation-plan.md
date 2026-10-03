@@ -9,6 +9,12 @@ Implementasi dilakukan sebelum full gold; hasil kualitas tetap harus dibuktikan 
 
 ## Tujuan dan fondasi aktif
 
+Kemajuan 2026-10-03: generator draft terstruktur dan workflow non-streaming sudah
+terhubung ke port hidrasi Q01. Klaim tetap UNREVIEWED/PARTIAL; tokenizer generator
+tepat, hidrasi storage dan API/CLI belum tersambung. Lihat
+[laporan integrasi RAG](verification-report-rag-workflow.md) untuk hasil tes
+dan batas klaim kualitas/produksi.
+
 Gunakan kembali `BuildContext`, `BuildCitations`, dan `ValidateGroundedAnswer`.
 Ketiganya memberi fondasi packing dan validasi struktural, bukan bukti bahwa LLM sudah
 menjawab dengan benar. Render proof graph, dependency context lengkap, generator,

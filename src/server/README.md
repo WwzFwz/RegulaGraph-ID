@@ -35,3 +35,8 @@ Collector/audit D01, kontrak/validator C01, evaluator E01, adapter control-plane
 Gateway RESOLVE kontekstual dan workflow proposal audit/replay tersedia sebagai komponen callable, termasuk katalog EXTRACT atomik dan bukti kandidat lintas dokumen. LINK wajib mengutip konteks mention serta kandidat terpilih. Dispatch proposal otomatis opt-in tersedia; review/resume dan acceptance model lokal belum selesai; lihat [integrasi resolusi](../../doc/semantic-resolution.md).
 
 Client C01 native embedding/reranking tersedia pada `internal/adapters/inference`. Ia memakai koneksi reusable, manifest exact dan deadline; wiring penuh dense retrieval/indexing masih memiliki milestone tersendiri.
+
+Workflow kandidat Vector/Hybrid dan komposisi draft dari evidence kini tersedia
+sebagai library bersama branch native/Qdrant. Alur PDF-to-answer, admission
+snapshot, hydrator storage dan endpoint masih belum aktif; lihat
+[status integrasi RAG](../../doc/verification-report-rag-workflow.md).
