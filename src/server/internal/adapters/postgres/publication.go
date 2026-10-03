@@ -318,11 +318,18 @@ func (r *Repository) CommitPublication(ctx context.Context, publicationID string
 		return fmt.Errorf("verify publication readiness: %w: %v", ErrPublicationNotReady, err)
 	}
 	var active sql.NullString
-	if err = tx.QueryRow(ctx, `SELECT active_snapshot_id FROM corpus_state WHERE corpus_id=$1 FOR UPDATE`, corpusID).Scan(&active); err != nil {
+	var publisherFence int64
+	if err = tx.QueryRow(ctx, `SELECT active_snapshot_id,publisher_fence FROM corpus_state WHERE corpus_id=$1 FOR UPDATE`, corpusID).Scan(&active, &publisherFence); err != nil {
 		return fmt.Errorf("lock active snapshot: %w", err)
 	}
 	if state == int16(pb.SnapshotState_SNAPSHOT_STATE_PUBLISHED) {
 		return finalizePublicationTx(ctx, tx, publicationID, snapshotID, corpusID, jobID.String)
+	}
+	// A newer reservation revokes this writer even while the active parent is
+	// unchanged. Keep the corpus row locked through activation; historical
+	// PUBLISHED replay above remains valid without activating it again.
+	if publisherFence != fence {
+		return ErrStaleFence
 	}
 	if active.String != parent.String {
 		return ErrSnapshotCASConflict
