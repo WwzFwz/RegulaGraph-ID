@@ -4,6 +4,11 @@ Definisi data dan invariant lintas komponen: dokumen, versi pasal, chunk, canoni
 
 ## Batas tanggung jawab
 
+`index_build_plan.go` memvalidasi plan INDEX dan hasil Rust terhadap source view,
+dependency, pilihan record, snapshot, serta commitment vector v1. Pemanggil wajib
+mengautentikasi byte plan/source dan otoritas registry sebelum gate ini. Gate tidak
+menulis backend atau menyetujui publikasi; lihat [kontrak INDEX](../../../../doc/index-build.md).
+
 [resolution_context.go](resolution_context.go) memvalidasi konteks mention dan support kandidat, tipe/corpus/revision, exact UTF-8 span, serta citation dua sisi untuk LINK. Gate yang sama dipakai gateway dan workflow return boundary; autentikasi alias dan hash sumber tetap milik workflow/storage. `ValidateExtractionBatchClosure` juga mengikat auth scope dan snapshot EXTRACT ke DocumentBatch; reuse lintas snapshot memerlukan bukti membership yang belum tersedia. Fixture adversarial memeriksa kontrak ini, bukan akurasi semantik.
 
 Tidak mengandung client database, prompt model, routing HTTP, atau orchestration. Jika fungsi baru tidak sesuai cakupan, siapkan usulan lokasi dan alasan lalu tanyakan kepada pengguna apakah perlu folder baru atau perluasan cakupan. Migrasi runtime ini sudah disetujui; pekerjaan rutin yang sesuai definisi tidak perlu konfirmasi ulang. Ikuti [AGENTS.md](../../../../AGENTS.md).

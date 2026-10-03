@@ -8,7 +8,7 @@ Logika di luar cakupan ini ditempatkan pada komponen pemiliknya. Jika fungsi bar
 
 ## Peran dan integrasi anak
 
-Hasil akhirnya batch untuk Go publisher. `inputs.rs` merender teks primer chunk dengan label induk serta node pemilik secara berbatas, berdasarkan span UTF-8 dan node yang sudah diverifikasi pemanggil; policy `structure-labels-v1` harus dipin pada generation. `loading.rs` memvalidasi objek `DocumentBatch` lengkap sekali, mengambil pilihan chunk berbatas, dan membaca TextArtifact melalui jalur `ReadVerified`; pemanggil tetap harus mengautentikasi byte batch dan mem-pin corpus/job. `reuse.rs` menghitung key reuse vektor dari corpus, byte hasil render, policy, dan identitas model v1; metadata hukum dan visibilitas selalu dibangun ulang. `analyzer.rs` membuat istilah dokumen menurut aturan lexical v1: NFC Unicode 15, lipat huruf ASCII saja, pertahankan nomor dengan garis miring dan kata majemuk berhubung. `lexical.rs` menghitung statistik BM25 incremental; `dictionary.rs` membaca term-ID immutable yang nantinya dialokasikan Go serta memeriksa descendant terikat digest; `statistics.rs` membekukan DF dan menghasilkan bobot sparse dokumen/query. Term baru pada descendant memakai frozen DF=0. Dot product diuji terhadap skor BM25 lokal. Learned sparse BGE-M3 tetap representasi berbeda. Exporter allocator Go dan reader typed dictionary tersedia sebagai library; artefak generation lain, writer backend, dan publication belum tersambung; folder ini tidak menulis publication marker.
+Hasil akhirnya batch untuk Go publisher. `inputs.rs` merender teks primer chunk dengan label induk serta node pemilik secara berbatas, berdasarkan span UTF-8 dan node yang sudah diverifikasi pemanggil; policy `structure-labels-v1` harus dipin pada generation. `loading.rs` memvalidasi objek `DocumentBatch` lengkap sekali, mengambil pilihan chunk berbatas, dan membaca TextArtifact melalui jalur `ReadVerified`; pemanggil tetap harus mengautentikasi byte batch dan mem-pin corpus/job. `reuse.rs` menghitung key reuse vektor dari corpus, byte hasil render, policy, dan identitas model v1; metadata hukum dan visibilitas selalu dibangun ulang. `analyzer.rs` membuat istilah dokumen menurut aturan lexical v1: NFC Unicode 15, lipat huruf ASCII saja, pertahankan nomor dengan garis miring dan kata majemuk berhubung. `lexical.rs` menghitung statistik BM25 incremental; `dictionary.rs` membaca term-ID immutable yang nantinya dialokasikan Go serta memeriksa descendant terikat digest; `statistics.rs` membekukan DF dan menghasilkan bobot sparse dokumen/query. Term baru pada descendant memakai frozen DF=0. Dot product diuji terhadap skor BM25 lokal. Learned sparse BGE-M3 tetap representasi berbeda. Exporter allocator Go dan reader typed dictionary tersedia sebagai library; artefak analyzer/statistik dan plan terhubung ke worker INDEX, sementara writer backend dan publication belum tersambung; folder ini tidak menulis publication marker.
 
 NFC menggunakan kebijakan stream-safe x/text Go yang direplikasi di Rust dengan tabel
 properti Unicode 15 terpin. Tabel kategori Letter dan properti NFC dibangkitkan
@@ -20,12 +20,19 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+[build.rs](build.rs) membaca plan dan generation terverifikasi, memproyeksikan
+filter sumber/versi, merakit sparse+dense, dan menghasilkan checksum sesuai
+[kontrak INDEX](../../../../doc/index-build.md). Closure tetap instruksi coordinator;
+worker tidak mempublikasikan snapshot. Batas input dan output lintas bahasa
+ditetapkan bersama agar hasil worker tidak ditolak setelah inference hanya karena
+kapasitas admission Go berbeda.
+
 [statistics_artifact.rs](statistics_artifact.rs) memproduksi policy analyzer dan
 membaca statistik frozen typed menjadi FrozenBm25. `lexical.rs::freeze_artifact`
 mengekspor statistik serta fingerprint dari populasi term aktual, termasuk chunk
 kosong. Reader mengikatnya ke exact checked dictionary. Bytes fixture sama dibaca
 Go; lihat [kontrak lexical](../../../../doc/lexical-generation.md). Wire budget
-membatasi keluaran; otorisasi snapshot dan worker INDEX masih perlu integrasi.
+membatasi keluaran; otorisasi snapshot dan publication masih perlu integrasi. Worker INDEX memakai build.rs untuk plan terpin.
 
 Berkas: [analyzer.rs](analyzer.rs), [dense.rs](dense.rs), [dictionary.rs](dictionary.rs), [inputs.rs](inputs.rs), [loading.rs](loading.rs), [reuse.rs](reuse.rs), [letter_ranges.rs](letter_ranges.rs), [nfc_properties.rs](nfc_properties.rs), [lexical.rs](lexical.rs), [statistics.rs](statistics.rs), [mod.rs](mod.rs). Dua tabel Unicode dihasilkan oleh [generator Unicode](../../../../scripts/generate_lexical_letters.go); jangan mengeditnya secara manual.
 
@@ -42,11 +49,11 @@ sama dengan pembentuk Go untuk analyzer/revisi/pasangan term-ID tertentu. Ini
 membuktikan parity encoding fixture, belum membuktikan provenance artefak atau
 lineage revision PostgreSQL produksi.
 
-`VerifiedIndexInputs::prepare_selected` sekarang menyiapkan `TextItem` native dengan provenance sumber/versi/halaman yang juga dipakai EXTRACT, hash teks render, dan reuse key yang terikat `IndexGeneration`. Seluruh pilihan berhasil atau fungsi gagal tanpa output parsial. Pemanggil tetap harus membuktikan byte `DocumentBatch`, corpus/job, dan snapshot membership sebelum menulis indeks. Stage worker INDEX, `IndexBatch`, serta publikasi belum aktif.
+`VerifiedIndexInputs::prepare_selected` sekarang menyiapkan `TextItem` native dengan provenance sumber/versi/halaman yang juga dipakai EXTRACT, hash teks render, dan reuse key yang terikat `IndexGeneration`. Seluruh pilihan berhasil atau fungsi gagal tanpa output parsial. Pemanggil tetap harus membuktikan byte `DocumentBatch`, corpus/job, dan snapshot membership sebelum menulis indeks. Stage worker INDEX dan perakitan `IndexBatch` aktif untuk plan terpin; dispatch durable Go dan publikasi belum tersambung.
 
 `prepare_selected` menolak policy/model generation yang tidak didukung sebelum membaca TextArtifact. Hash key per item tetap diperiksa terhadap byte hasil render sesudah pembacaan. Uji fixture menegaskan error generation/model mengalahkan kegagalan normalizer yang sengaja disuntikkan; manfaat I/O dan latency pada PDF besar belum diukur.
 
-Analyzer, dictionary reader dengan pemeriksaan lineage lokal, statistik BM25 incremental/frozen, encoder sparse, renderer label struktur, loader chunk terverifikasi, key reuse embedding v1, dan pembentuk satu batch dense melalui native inference tersedia sebagai library. Loader memvalidasi objek batch sekali dan membaca artifact per pilihan maksimum 128 chunk/2 MiB hasil render; pembacaan dan normalisasi ulang satu artifact tidak terhenti di tengah oleh cancellation. Batas output tidak membatasi working set I/O/RSS. Renderer membangun lookup node sekali agar biaya banyak chunk tidak mengulang scan semua struktur; hash output mengikat byte teks, sedangkan key reuse menambahkan corpus/policy/model dan hanya berlaku untuk vektor. Dense batch memerlukan chunk text dengan source/span provenance; respons parsial, drift model, truncation, serta vektor tidak valid ditolak tanpa output parsial. Bukti lineage otoritatif dari registry Go, artefak typed statistik/analyzer/build-plan, dan pengujian backend masih diperlukan sebelum update dapat dipublikasikan. Fixture bersama Rust–Go membuktikan kasus tokenisasi terpilih; parity skor pada corpus kecil diuji. Dispatch IndexBatch, integrasi allocator, writer terkoordinasi, dan acceptance kualitas/latency belum tersedia. Fixture tidak membuktikan Recall@k atau target required.
+Analyzer, dictionary reader dengan pemeriksaan lineage lokal, statistik BM25 incremental/frozen, encoder sparse, renderer label struktur, loader chunk terverifikasi, key reuse embedding v1, dan pembentuk satu batch dense melalui native inference tersedia sebagai library. Loader memvalidasi objek batch sekali dan membaca artifact per pilihan maksimum 128 chunk/2 MiB hasil render; pembacaan dan normalisasi ulang satu artifact tidak terhenti di tengah oleh cancellation. Batas output tidak membatasi working set I/O/RSS. Renderer membangun lookup node sekali agar biaya banyak chunk tidak mengulang scan semua struktur; hash output mengikat byte teks, sedangkan key reuse menambahkan corpus/policy/model dan hanya berlaku untuk vektor. Dense batch memerlukan chunk text dengan source/span provenance; respons parsial, drift model, truncation, serta vektor tidak valid ditolak tanpa output parsial. Bukti lineage otoritatif dari registry Go, otorisasi build-plan, serta pengujian writer backend masih diperlukan sebelum update dapat dipublikasikan. Fixture bersama Rust–Go membuktikan kasus tokenisasi terpilih; parity skor pada corpus kecil diuji. Dispatch coordinator durable, integrasi allocator, writer terkoordinasi, dan acceptance kualitas/latency belum tersedia. Fixture tidak membuktikan Recall@k atau target required.
 
 ## Rekomendasi implementasi anak
 
@@ -54,7 +61,7 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
-| [dense.rs](dense.rs) | Hubungkan hasil satu batch dense yang telah divalidasi ke record IndexBatch dengan ID/reuse key deterministik dan generation terpin. | Uji input tanpa provenance, drift model, partial embeddings dan retry idempotency; ukur throughput/RSS batch dan downstream recall. |
+| [dense.rs](dense.rs), [build.rs](build.rs) | Perakitan IndexBatch terpin aktif; lanjutkan cache vektor terverifikasi dan dispatcher/katalog Go. | Uji input tanpa provenance, drift model, partial embeddings dan retry idempotency; ukur throughput/RSS batch dan downstream recall. |
 | [inputs.rs](inputs.rs), [loading.rs](loading.rs) | Hubungkan loader/renderer dengan version joins dan rendering policy terpin di plan. | Uji byte hash sumber, ancestor berbeda, label Unicode, batas parent/context, dan efek policy terhadap Recall@k serta token cost. |
 | [reuse.rs](reuse.rs) | Hubungkan key reuse dengan cache vector terverifikasi serta pembuktian hak corpus dan source baru; jangan menyalin metadata versi dari record lama. | Uji model/policy/input drift, cache miss/hit, kompatibilitas generation, dan manfaat throughput pada update corpus. |
 | [analyzer.rs](analyzer.rs) | Analyzer v1 aktif; lanjutkan corpus-scale profiling dan pin artifact identity pada IndexGeneration. | Go/Rust memakai fixture sama; versi Unicode diuji, namun seluruh vocabulary corpus belum diaudit. |

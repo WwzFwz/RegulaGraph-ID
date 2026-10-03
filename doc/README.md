@@ -1,5 +1,13 @@
 # doc
 
+[index-build.md](index-build.md) menetapkan plan INDEX, perakitan worker Rust,
+admission Go, commitment vector, policy BM25, batas batch dan pekerjaan publication
+yang masih terbuka.
+
+[verification-report-index-build.md](verification-report-index-build.md) mencatat
+hasil tes dan review independen worker INDEX, termasuk batas fixture serta pekerjaan
+coordinator/publication yang belum terhubung.
+
 Dokumentasi desain, keputusan arsitektur, kontrak data, dan referensi proyek. Folder ini menjelaskan sistem secara menyeluruh serta alasan pemilihan desain, tanpa menjalankan pipeline. Dokumen ini menjadi kontrak cakupan folder dan panduan penempatan komponennya.
 
 ## Batas tanggung jawab

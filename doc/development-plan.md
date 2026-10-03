@@ -149,7 +149,7 @@ schema, divalidasi Go/Rust, dan dicocokkan ke metadata collection; upgrade
 semua route reader sebelum publication masih perlu dibuktikan. Allocator PostgreSQL
 append-only, exporter snapshot dictionary typed, serta reader Go/Rust kini tersedia
 sebagai library dengan fixture lintas bahasa. Binding registry/lineage otoritatif,
-build-plan terpin, integrasi allocator pada
+dispatch plan terpin dari allocator ke
 worker INDEX, ledger mutasi, closure/recovery, readiness replica, dan
 publication tetap terbuka. Lihat [rencana X01](x01-implementation-plan.md)
 serta [verifikasi policy generation](verification-report-x01-input-policy.md).
@@ -157,8 +157,8 @@ serta [verifikasi policy generation](verification-report-x01-input-policy.md).
 Artefak analyzer/statistik BM25 typed kini diproduksi Rust dan dibaca loader Go
 dengan pemeriksaan hash, corpus, exact base dictionary, formula serta populasi.
 Factory retriever menolak encoder tanpa binding dan statistik dari snapshot masa
-depan. Fixture parity dan Qdrant nyata sudah diuji; authority katalog dan worker
-INDEX belum terhubung. Lihat [kontrak lexical](lexical-generation.md) serta
+depan. Fixture parity dan Qdrant nyata sudah diuji; authority katalog dan dispatch coordinator
+INDEX belum terhubung. Worker INDEX kini merakit output dari plan terpin; lihat [kontrak INDEX](index-build.md). Lihat [kontrak lexical](lexical-generation.md) serta
 [laporan verifikasi](verification-report-lexical-generation.md).
 
 ## Kelanjutan K01: proposal model kontekstual
@@ -170,6 +170,14 @@ Gateway RESOLVE dan workflow `ProposeWithModel` tersedia untuk input kandidat/cl
 Runtime C++ ONNX, tokenizer native, model export/reference/parity, client Go/Rust, dan verifikasi proses nyata tersedia. BGE-M3 serta reranker v2 M3 terpin telah menghasilkan output nyata pada GPU lokal. Lihat [panduan integrasi](native-inference.md) dan [bukti verifikasi](verification-report-native-models.md). Status keseluruhan M01/N01 tetap terbuka untuk model-quality/Recall/nDCG gold, workload lengkap pada profil referensi, serta bagian M01 PDF/OCR/model lain. Jangan mengubah status semua paket menjadi selesai dari numerical parity. X01 memakai client ini untuk pembangunan indeks berikutnya.
 
 ## Kemajuan integrasi RAG 2026-10-03
+
+Pembaruan 2026-10-04: paket **worker INDEX dan admission output** sudah terverifikasi.
+Plan mengikat source/target snapshot, generation, dictionary/statistik dan selection;
+Rust menghasilkan IndexBatch dense+sparse, Go memeriksa hasil terhadap source.
+Lihat [kontrak INDEX](index-build.md) dan [bukti verifikasi](verification-report-index-build.md).
+X01 tetap terbuka untuk coordinator plan/dispatch, katalog generation, writer backend,
+closure/recovery dan publikasi. Berikutnya selesaikan jalur tersebut sebelum
+hidrasi storage dan antarmuka PDF→jawaban; pengujian INDEX baru masih memakai model fixture.
 
 Q01 kini memiliki branch dense native dan BM25, candidate workflow paralel dengan
 RRF dan error tanpa fallback diam-diam. A01 memiliki generator draft terstruktur,

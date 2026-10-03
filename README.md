@@ -387,7 +387,7 @@ cmake -S src/inference -B .cache/inference-src
 cmake --build .cache/inference-src --config Release
 ```
 
-Build Go memvalidasi package, collector, storage/control-plane, client Worker, coordinator PARSE→STRUCTURE→BIND→CHUNK→EXTRACT, serta Semantic.ExtractBatch Gateway; entry point API query tetap scaffold. Rust menyediakan worker Tonic untuk PARSE, STRUCTURE, CHUNK, dan EXTRACT terkonfigurasi. Go BIND menyelesaikan exact identity dan coordinator memverifikasi bytes/dependency/checkpoint sampai EXTRACT, termasuk model/prompt pin dan exact source evidence. C++ masih static library tanpa ONNX runtime/model. C01 menyediakan 163 message, 31 enum, empat service descriptor, codegen dan validator. RESOLVE–INDEX, provider/model produksi, dan deployment produksi belum aktif. Packaging Python hanya mencakup evaluation dan tooling.
+Build Go memvalidasi package, collector, storage/control-plane, client Worker, coordinator PARSE sampai EXTRACT, dan Semantic.ExtractBatch Gateway; entry point API query tetap scaffold. Rust menyediakan worker Tonic untuk PARSE, STRUCTURE, CHUNK, EXTRACT, dan INDEX terkonfigurasi. Go memverifikasi bytes/dependency/checkpoint sampai EXTRACT, termasuk model/prompt pin dan exact source evidence. C++ menyediakan layanan ONNX native terpin; acceptance kualitas model dan benchmark tetap terbuka. C01 menyediakan schema lintas bahasa, empat service descriptor, codegen dan validator. Worker INDEX merakit artefak plan-bound; dispatch durable, katalog/writer/publication penuh dan antarmuka RAG end-to-end belum tersambung. Lihat [kontrak INDEX](doc/index-build.md). Packaging Python hanya mencakup evaluation dan tooling.
 
 ## Performa dan benchmark
 

@@ -8,6 +8,10 @@ Tidak mengubah canonical registry atau menebak fakta yang tidak ada dalam pertan
 
 ## Peran dan integrasi anak
 
+Loader generation BM25 memeriksa `LexicalStatisticsArtifact.input_policy` terhadap
+policy generation. Statistik token-only lama tetap dapat diperiksa offline, tetapi
+tidak memenuhi admission serving sampai policy populasi dibuktikan dan dipin.
+
 Anak mempertahankan pertanyaan asli, nomor, tahun, negasi, dan filter waktu. Ketidakpastian linking harus diteruskan; kegagalan satu jalur tidak otomatis menutup jalur retrieval lain.
 
 Pertahankan source/canonical/provision-version/snapshot ID dan schema version lintas anak. Boundary runtime mengikuti [src/contracts](../../../../contracts/README.md), dengan pekerjaan batch atau inference yang jelas. Perubahan bentuk data, error/status, serta offset sumber harus didokumentasikan bersama konsumennya; jangan menggandakan kebijakan publikasi di beberapa runtime.

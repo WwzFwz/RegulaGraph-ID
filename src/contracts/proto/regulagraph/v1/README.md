@@ -14,6 +14,12 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+`IndexBuildPlan`, `ProcessBatchRequest.index_build_plan`, `IndexBatch.build_plan`
+dan `LexicalStatisticsArtifact.input_policy` menambahkan handoff INDEX terpin secara
+aditif. Konsumen stage INDEX menolak plan/policy hilang; pembaca wire lama tetap
+mempertahankan unknown fields. Baseline schema tetap; lihat
+[kontrak INDEX](../../../../../doc/index-build.md).
+
 `evidence.proto` juga memuat artefak analyzer/statistik BM25 typed yang digunakan
 builder Rust dan reader Go. Penambahan pesan bersifat aditif; baseline schema
 tidak ditulis ulang. Semantik formula, empty chunks dan fingerprint populasi

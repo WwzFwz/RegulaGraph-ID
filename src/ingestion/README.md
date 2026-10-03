@@ -1,5 +1,10 @@
 # src/ingestion
 
+Worker INDEX kini menghasilkan IndexBatch dari immutable plan, text artifact,
+dictionary/statistik terpin dan native embedding. Go memvalidasi proyeksi output
+terhadap sumber. Ini menutup paket worker, sementara dispatch durable coordinator,
+katalog/writer dan publication masih terbuka. Lihat [kontrak INDEX](../../doc/index-build.md).
+
 Crate Rust untuk pemrosesan dokumen serta transformasi knowledge graph dan indeks secara batch. Dokumen ini mendefinisikan superset tanggung jawab folder dan kontrak integrasi anaknya.
 
 ## Batas tanggung jawab
@@ -28,7 +33,7 @@ Ikuti [kebijakan benchmark](../../doc/benchmark-policy.md). Angka wajib mengikut
 
 Worker EXTRACT memuat ontology berversi dengan hash terpin, memeriksa pin pada request/manifest Semantic Gateway, dan menolak graph typed yang tidak sesuai sebelum persistence. Gate ini belum mengukur akurasi extraction.
 
-Boundary parser PDFium, normalizer, structural chunking, proyeksi/persistence C01, incremental planner, selector timeline, blocking kandidat, dan helper alias LINK sourced aktif sebagai library. Executable worker Tonic menjalankan PARSE dari PDF terverifikasi, STRUCTURE dari `DocumentBatch` immutable, lalu CHUNK dari batch BIND lengkap. CHUNK memverifikasi ulang raw/normalized/mapping dan hierarchy, memasangkan node ke `ProvisionVersion` registry-owned secara eksak, memakai tokenizer Hugging Face hash-pinned, serta menghasilkan chunk parent-aware dengan batas token. Stage RESOLVE, receipt registry terintegrasi, extraction change-event, tabel, graph/index batch, OCR, gold temporal, object storage, full-rebuild equivalence, dan acceptance produksi belum aktif.
+Boundary parser PDFium, normalizer, structural chunking, proyeksi/persistence C01, incremental planner, selector timeline, blocking kandidat, dan helper alias LINK sourced aktif sebagai library. Executable worker Tonic menjalankan PARSE dari PDF terverifikasi, STRUCTURE dari `DocumentBatch` immutable, lalu CHUNK dari batch BIND lengkap. CHUNK memverifikasi ulang raw/normalized/mapping dan hierarchy, memasangkan node ke `ProvisionVersion` registry-owned secara eksak, memakai tokenizer Hugging Face hash-pinned, serta menghasilkan chunk parent-aware dengan batas token. Stage RESOLVE, receipt registry terintegrasi, extraction change-event, tabel, graph assembly/writer indeks, OCR, gold temporal, object storage, full-rebuild equivalence, dan acceptance produksi belum aktif.
 
 ## Penambahan C01 dan panduan verifikasi
 
@@ -37,5 +42,5 @@ Berkas terkait: [build.rs](build.rs). Dependency, cara menjalankan dan batas pem
 Adapter `NativeEmbeddingClient` menyediakan batch embedding async melalui C++ C01 untuk integrasi indexing. Client ini sudah diuji pada transport nyata; publikasi dense index tetap pekerjaan X01.
 
 Builder analyzer/statistik BM25 typed kini tersedia dengan reader Go dari bytes
-yang sama. Ini menutup handoff representasi lexical, tetapi bukan dispatch INDEX
+yang sama. Ini menutup handoff representasi lexical, tetapi bukan dispatch coordinator INDEX
 atau publication; lihat [kontrak lexical](../../doc/lexical-generation.md).

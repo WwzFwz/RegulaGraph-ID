@@ -1,5 +1,10 @@
 # tests/fixtures
 
+Kasus `index-build-*` pada wire-cases.json diambil dari output integrasi Rust
+CHUNK→INDEX sintetis. Plan, batch, request dan missing-selection case menguji
+schema empat bahasa; source authority dan checksum diuji terpisah pada admission
+Go. Artefak yang dirujuk fixture wire bukan corpus produksi atau bukti kualitas model.
+
 `lexical-analyzer-artifact-v1.pb` dan `lexical-statistics-v1.pb` adalah fixture
 typed sintetis untuk producer Rust dan reader Go. Populasi berisi `doc:empty`,
 `doc:one` (izin, pasal, pasal), serta `doc:two` (izin): N=3, total=4, empty=1,
