@@ -46,6 +46,17 @@ Allocator term PostgreSQL per corpus/analyzer kini menyediakan ID `uint32` appen
 revisi terpin, operasi idempotent, dan pembacaan dictionary berbatas sebagai library Go.
 Tes transaksi nyata memakai cluster PostgreSQL sementara; pemakaian dari stage INDEX,
 artefak dictionary bertipe/lineage, dan benchmark workload belum tersedia.
+Nama revisi `lexrev:<angka>` dan fingerprint mapping v1 kini memiliki fixture
+Go–Rust yang sama; hash itu tidak menggantikan binding corpus/artifact tepercaya.
+Layout fingerprint v1: SHA-256 dari domain bytes
+`regulagraph-lexical-dictionary-v1` diikuti byte NUL, lalu analyzer ID dan nama
+revisi masing-masing sebagai panjang `uint64` big-endian + UTF-8 bytes, jumlah
+term sebagai `uint64` big-endian, lalu untuk setiap term terurut menurut bytes
+UTF-8: panjang `uint64` big-endian + bytes term + ID `uint32` big-endian.
+Producer PostgreSQL membatasi ID analyzer ke grammar storage ASCII dan revisi
+ke bentuk `lexrev:<angka>`; hash sama di corpus berbeda tetap memerlukan binding
+corpus/artefak terpisah. Sorting penuh butuh O(n log n) dan salinan mapping,
+sehingga peak RSS dictionary besar masih harus diprofilkan.
 Artefak generation/build plan bertipe, writer terkoordinasi, closure/recovery,
 bukti replica, dan publication masih belum aktif. Generation
 paired **tidak boleh diterbitkan** sebelum setiap pembaca yang bisa menerima

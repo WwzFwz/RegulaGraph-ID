@@ -17,6 +17,8 @@ Anak tidak boleh mengubah kontrak input/output secara tersembunyi. Perubahan ben
 [verification-report-x01-lexical-allocator.md](verification-report-x01-lexical-allocator.md)
 mencatat migration dan tes PostgreSQL nyata untuk allocator term BM25 per revisi;
 stage INDEX dan benchmark release masih belum selesai.
+[verification-report-x01-dictionary-fingerprint.md](verification-report-x01-dictionary-fingerprint.md)
+mencatat fixture byte fingerprint Go–Rust untuk mapping dictionary yang sama.
 
 Subfolder yang dikelola: [decisions/](decisions/README.md).
 

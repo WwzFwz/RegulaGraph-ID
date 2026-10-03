@@ -30,6 +30,11 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
+Fixture [dictionary.rs](dictionary.rs) sekarang memeriksa fingerprint byte yang
+sama dengan pembentuk Go untuk analyzer/revisi/pasangan term-ID tertentu. Ini
+membuktikan parity encoding fixture, belum membuktikan provenance artefak atau
+lineage revision PostgreSQL produksi.
+
 `VerifiedIndexInputs::prepare_selected` sekarang menyiapkan `TextItem` native dengan provenance sumber/versi/halaman yang juga dipakai EXTRACT, hash teks render, dan reuse key yang terikat `IndexGeneration`. Seluruh pilihan berhasil atau fungsi gagal tanpa output parsial. Pemanggil tetap harus membuktikan byte `DocumentBatch`, corpus/job, dan snapshot membership sebelum menulis indeks. Stage worker INDEX, `IndexBatch`, serta publikasi belum aktif.
 
 `prepare_selected` menolak policy/model generation yang tidak didukung sebelum membaca TextArtifact. Hash key per item tetap diperiksa terhadap byte hasil render sesudah pembacaan. Uji fixture menegaskan error generation/model mengalahkan kegagalan normalizer yang sengaja disuntikkan; manfaat I/O dan latency pada PDF besar belum diukur.

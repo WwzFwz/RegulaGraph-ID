@@ -25,6 +25,13 @@ lineage yang dipakai publication masih pekerjaan X01. Jalur query tidak boleh
 memanggil allocator per token. Ukur p95/p99, pool wait, contention, ukuran
 dictionary, dan RSS pada corpus referensi; target tetap REQUIRED_UNMEASURED.
 
+[index_dictionary_fingerprint.go](index_dictionary_fingerprint.go) memberi nama
+revisi `lexrev:<angka>` dan fingerprint mapping yang sama dengan reader Rust.
+Hash ini tidak memasukkan corpus; artifact owner dan pemanggil publication wajib
+mengikat corpus serta revision PostgreSQL terverifikasi secara terpisah. Fixture
+lintas bahasa sudah lulus, tetapi schema artefak dictionary dan storage handoff
+belum aktif.
+
 [repository.go](repository.go) mengelola lifecycle pool dan error boundary. [migrate.go](migrate.go) menerapkan migration terurut dengan advisory lock serta checksum. [jobs.go](jobs.go) mengelola idempotency, claim PARSE/STRUCTURE/BIND/CHUNK/EXTRACT/RESOLVE, attempt global dan budget retry per stage, lease/fence, polling cancellation, checkpoint, dan completion atomik yang memberi prioritas pada cancellation. Klaim RESOLVE mensyaratkan checkpoint EXTRACT dengan terminal sukses dan tidak diambil claimant generik. [artifacts.go](artifacts.go) mengikat serta memuat metadata immutable untuk handoff checkpoint. [registry.go](registry.go) mengalokasikan exact canonical identity secara revisioned dan idempotent. [registry_aliases.go](registry_aliases.go) meregistrasikan profil/alias bersumber secara append-only dengan CAS revision, sedangkan [registry_candidates.go](registry_candidates.go) membaca kandidat ambigu dan revision lookup positif/negatif dalam satu snapshot. [publication.go](publication.go) merealisasikan reservation, backend receipt, snapshot CAS, outbox, abort, dan read lease. [repository_integration_test.go](repository_integration_test.go) dan [registry_aliases_integration_test.go](registry_aliases_integration_test.go) adalah suite PostgreSQL aktual dan akan skip jika DSN test tidak tersedia.
 
 [registry_candidate_batch.go](registry_candidate_batch.go) membaca scope yang dipilih eksplisit per mention
