@@ -50,3 +50,11 @@ Rust dan Go untuk token BM25: nomor regulasi, negasi, tanda hubung, NFC Unicode 
 code-switch, dan dua karakter yang membedakan `is_alphabetic` Rust dari kategori
 Letter Go. Fixture ini menguji kesamaan aturan pada contoh terpilih, bukan
 Recall@k atau kualitas ranking pada corpus nyata.
+
+[lexical-dictionary-v1.pb](lexical-dictionary-v1.pb) adalah protobuf sintetis:
+corpus `corpus:one`, analyzer lexical v1, revision 2, `izin=1` dan `pasal=2`.
+Builder produksi Go harus menghasilkan bytes identik dan reader Rust membaca
+file yang sama. Fixture JSON `lexical-dictionary-*` menguji wire preservation
+dan required fields pada empat bahasa; parent hash sintetis pada fixture wire
+tidak merupakan bukti ancestry. Uji domain terpisah memeriksa parent sebenarnya
+dan reassignment dengan hash yang tetap valid.

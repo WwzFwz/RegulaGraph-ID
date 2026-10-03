@@ -16,6 +16,7 @@
 pub mod analyzer;
 pub mod dense;
 pub mod dictionary;
+pub mod dictionary_artifact;
 pub mod inputs;
 mod letter_ranges;
 pub mod lexical;

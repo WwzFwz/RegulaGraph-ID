@@ -41,10 +41,17 @@ func FingerprintLexicalDictionary(analyzerID, revision string, entries []Lexical
 	}
 	ordered := append([]LexicalTerm(nil), entries...)
 	sort.Slice(ordered, func(i, j int) bool { return ordered[i].Term < ordered[j].Term })
+	return fingerprintOrderedLexicalDictionary(analyzerID, revision, ordered)
+}
+
+// Caller has bounded the input and checked identity; the artifact reader already
+// has sorted entries and avoids another full dictionary clone/sort here.
+func fingerprintOrderedLexicalDictionary(analyzerID, revision string, ordered []LexicalTerm) ([32]byte, error) {
+	var zero [32]byte
 	seenIDs := make(map[uint32]struct{}, len(ordered))
 	for i, entry := range ordered {
 		if entry.ID == 0 || entry.Term == "" || len(entry.Term) > 256 ||
-			!utf8.ValidString(entry.Term) || i > 0 && entry.Term == ordered[i-1].Term {
+			!utf8.ValidString(entry.Term) || i > 0 && entry.Term <= ordered[i-1].Term {
 			return zero, errors.New("invalid or duplicate lexical dictionary entry")
 		}
 		for _, ch := range entry.Term {
