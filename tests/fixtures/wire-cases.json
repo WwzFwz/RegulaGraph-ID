@@ -279,7 +279,7 @@
       "valid": true,
       "value": {
         "item_id": "item-1",
-        "text": "Pasal é — kewajiban; 中文"
+        "text": "Pasal Ã© â€” kewajiban; ä¸­æ–‡"
       }
     },
     {
@@ -1347,6 +1347,160 @@
         "parent_mapping_fingerprint": {
           "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
         }
+      }
+    },
+    {
+      "name": "lexical-analyzer-artifact-roundtrip",
+      "type": "LexicalAnalyzerArtifact",
+      "valid": true,
+      "value": {
+        "meta": {
+          "schema_version": 1,
+          "corpus_id": "corpus:one",
+          "record_id": "analyzer:one"
+        },
+        "analyzer_id": "regulagraph-lexical-nfc-ascii-v1",
+        "unicode_version": "15.0.0",
+        "maximum_input_bytes": "2000000",
+        "maximum_term_bytes": 256,
+        "maximum_document_terms": 100000,
+        "maximum_query_terms": 1024
+      },
+      "append_hex": "fa0703616263"
+    },
+    {
+      "name": "lexical-analyzer-artifact-missing-meta",
+      "type": "LexicalAnalyzerArtifact",
+      "valid": false,
+      "value": {
+        "analyzer_id": "regulagraph-lexical-nfc-ascii-v1",
+        "unicode_version": "15.0.0",
+        "maximum_input_bytes": "2000000",
+        "maximum_term_bytes": 256,
+        "maximum_document_terms": 100000,
+        "maximum_query_terms": 1024
+      }
+    },
+    {
+      "name": "lexical-statistics-artifact-roundtrip",
+      "type": "LexicalStatisticsArtifact",
+      "valid": true,
+      "value": {
+        "meta": {
+          "schema_version": 1,
+          "corpus_id": "corpus:one",
+          "record_id": "stats:one"
+        },
+        "analyzer_id": "regulagraph-lexical-nfc-ascii-v1",
+        "dictionary_registry_revision": "2",
+        "dictionary_mapping_fingerprint": {
+          "sha256": "8199cf3ca12cb04c039ec1a296d025254b7a09ba1f675512d78c289fd80c4a7a"
+        },
+        "population_snapshot": {
+          "corpus_id": "corpus:one",
+          "snapshot_id": "snapshot:one",
+          "sequence": "7",
+          "manifest_hash": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "representation_generation": "generation:one"
+        },
+        "population_fingerprint": {
+          "sha256": "aad68a3d328457ca032d8821250746ccad906186ee0ebf4994abe349bd03a212"
+        },
+        "document_count": "3",
+        "total_tokens": "4",
+        "zero_token_documents": "1",
+        "k1": 1.2,
+        "b": 0.75,
+        "formula_id": "regulagraph-frozen-bm25-v1",
+        "document_frequencies": [
+          {
+            "term_id": 1,
+            "document_count": "2"
+          },
+          {
+            "term_id": 2,
+            "document_count": "1"
+          }
+        ]
+      },
+      "append_hex": "fa0703616263"
+    },
+    {
+      "name": "lexical-statistics-artifact-missing-meta",
+      "type": "LexicalStatisticsArtifact",
+      "valid": false,
+      "value": {
+        "analyzer_id": "regulagraph-lexical-nfc-ascii-v1",
+        "dictionary_registry_revision": "2",
+        "dictionary_mapping_fingerprint": {
+          "sha256": "8199cf3ca12cb04c039ec1a296d025254b7a09ba1f675512d78c289fd80c4a7a"
+        },
+        "population_snapshot": {
+          "corpus_id": "corpus:one",
+          "snapshot_id": "snapshot:one",
+          "sequence": "7",
+          "manifest_hash": {
+            "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "representation_generation": "generation:one"
+        },
+        "population_fingerprint": {
+          "sha256": "aad68a3d328457ca032d8821250746ccad906186ee0ebf4994abe349bd03a212"
+        },
+        "document_count": "3",
+        "total_tokens": "4",
+        "zero_token_documents": "1",
+        "k1": 1.2,
+        "b": 0.75,
+        "formula_id": "regulagraph-frozen-bm25-v1",
+        "document_frequencies": [
+          {
+            "term_id": 1,
+            "document_count": "2"
+          },
+          {
+            "term_id": 2,
+            "document_count": "1"
+          }
+        ]
+      }
+    },
+    {
+      "name": "lexical-statistics-missing-population",
+      "type": "LexicalStatisticsArtifact",
+      "valid": false,
+      "value": {
+        "meta": {
+          "schema_version": 1,
+          "corpus_id": "corpus:one",
+          "record_id": "stats:one"
+        },
+        "analyzer_id": "regulagraph-lexical-nfc-ascii-v1",
+        "dictionary_registry_revision": "2",
+        "dictionary_mapping_fingerprint": {
+          "sha256": "8199cf3ca12cb04c039ec1a296d025254b7a09ba1f675512d78c289fd80c4a7a"
+        },
+        "population_fingerprint": {
+          "sha256": "aad68a3d328457ca032d8821250746ccad906186ee0ebf4994abe349bd03a212"
+        },
+        "document_count": "3",
+        "total_tokens": "4",
+        "zero_token_documents": "1",
+        "k1": 1.2,
+        "b": 0.75,
+        "formula_id": "regulagraph-frozen-bm25-v1",
+        "document_frequencies": [
+          {
+            "term_id": 1,
+            "document_count": "2"
+          },
+          {
+            "term_id": 2,
+            "document_count": "1"
+          }
+        ]
       }
     }
   ]

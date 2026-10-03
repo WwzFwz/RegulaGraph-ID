@@ -1,5 +1,13 @@
 # tests/fixtures
 
+`lexical-analyzer-artifact-v1.pb` dan `lexical-statistics-v1.pb` adalah fixture
+typed sintetis untuk producer Rust dan reader Go. Populasi berisi `doc:empty`,
+`doc:one` (izin, pasal, pasal), serta `doc:two` (izin): N=3, total=4, empty=1,
+DF izin=2/pasal=1, k1=1.2 dan b=0.75. Mapping memakai dictionary revision 2
+di fixture pendamping. Tes Rust menuntut bytes ekspor identik; Go membaca file
+yang sama dan memeriksa score serta corruption. Kasus JSON tambahan menguji
+presence dan unknown-field roundtrip empat bahasa. Ini bukan gold relevansi.
+
 Sampel kecil dan deterministik untuk kasus parsing, versi, canonicalization, dan sumber citation. Dokumen ini menjadi kontrak cakupan folder dan panduan penempatan komponennya.
 
 ## Batas tanggung jawab

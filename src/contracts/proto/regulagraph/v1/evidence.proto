@@ -44,6 +44,41 @@ message LexicalDictionaryEntry {
   string term=1 [(rules).required=true];
   uint32 term_id=2 [(rules).positive=true];
 }
+// Pins the implemented lexical policy, including Unicode tables and hard limits.
+// Readers reject unsupported values instead of silently selecting local defaults.
+message LexicalAnalyzerArtifact {
+  RecordMeta meta=1 [(rules).required=true];
+  string analyzer_id=2 [(rules)={required:true ascii_id:true}];
+  string unicode_version=3 [(rules).required=true];
+  uint64 maximum_input_bytes=4 [(rules).positive=true];
+  uint32 maximum_term_bytes=5 [(rules).positive=true];
+  uint32 maximum_document_terms=6 [(rules).positive=true];
+  uint32 maximum_query_terms=7 [(rules).positive=true];
+}
+// Frozen BM25 v1: document TF/length weight times query qtf*IDF, including empty
+// chunks in N. DF=0 for terms absent from the population. Refresh changes the
+// generation and reweights documents. Sorted positive DF entries reference the
+// exact checked base dictionary; descendants must prove immutable ancestry.
+message LexicalStatisticsArtifact {
+  RecordMeta meta=1 [(rules).required=true];
+  string analyzer_id=2 [(rules)={required:true ascii_id:true}];
+  uint64 dictionary_registry_revision=3 [(rules).positive=true];
+  ContentHash dictionary_mapping_fingerprint=4 [(rules).required=true];
+  SnapshotRef population_snapshot=5 [(rules).required=true];
+  // Canonical analyzed population fingerprint, not proof of snapshot membership.
+  ContentHash population_fingerprint=6 [(rules).required=true];
+  uint64 document_count=7 [(rules).positive=true];
+  uint64 total_tokens=8 [(rules).positive=true];
+  uint64 zero_token_documents=9;
+  double k1=10 [(rules).finite=true];
+  double b=11 [(rules).finite=true];
+  string formula_id=12 [(rules)={required:true ascii_id:true}];
+  repeated LexicalDocumentFrequency document_frequencies=13 [(rules).min_items=1];
+}
+message LexicalDocumentFrequency {
+  uint32 term_id=1 [(rules).positive=true];
+  uint64 document_count=2 [(rules).positive=true];
+}
 message IndexGeneration {
   RecordMeta meta=1 [(rules).required=true];
   ModelManifest dense_manifest=2 [(rules).required=true];
