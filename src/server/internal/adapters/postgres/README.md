@@ -25,7 +25,7 @@ lineage yang dipakai publication masih pekerjaan X01. Jalur query tidak boleh
 memanggil allocator per token. Ukur p95/p99, pool wait, contention, ukuran
 dictionary, dan RSS pada corpus referensi; target tetap REQUIRED_UNMEASURED.
 
-[index_dictionary_fingerprint.go](index_dictionary_fingerprint.go) memberi nama
+[domain/index_dictionary_fingerprint.go](../../domain/index_dictionary_fingerprint.go) memberi nama
 revisi `lexrev:<angka>` dan fingerprint mapping yang sama dengan reader Rust.
 Hash ini tidak memasukkan corpus; artifact owner dan pemanggil publication wajib
 mengikat corpus serta revision PostgreSQL terverifikasi secara terpisah. Fixture

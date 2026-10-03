@@ -21,6 +21,9 @@ indexing. `sparse.go` membangun encoder query dari proyeksi dictionary/statistik
 yang telah diverifikasi, memeriksa digest/lineage lokal saat load, lalu menghasilkan
 vektor query tanpa mutasi vocabulary. Pembuktian hash artefak, ancestry registry
 PostgreSQL, binding snapshot dan pencarian backend belum tersambung.
+Fingerprint dictionary kini memakai encoder bersama di `internal/domain`, bukan
+salinan formula di query. Pemuatan dictionary tetap menyalin mapping agar aman
+untuk pembacaan konkuren; ukur peak RSS pada vocabulary corpus acuan.
 Fixture [lexical-analyzer-v1.json](../../../../../tests/fixtures/lexical-analyzer-v1.json)
 memeriksa nomor hukum, negasi, Unicode NFC, dan kesesuaian keluaran kedua bahasa.
 Kategori huruf dan properti stream-safe NFC Rust memakai tabel Unicode 15 yang

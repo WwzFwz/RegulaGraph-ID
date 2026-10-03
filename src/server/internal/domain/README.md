@@ -16,6 +16,13 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+[index_dictionary_fingerprint.go](index_dictionary_fingerprint.go) adalah encoder
+fingerprint dictionary BM25 kanonik Go untuk adapter PostgreSQL dan pembaca
+query; Rust memakai layout byte yang sama. Mapping hash tidak memuat corpus,
+sehingga admission artifact dan generation tetap harus membuktikan corpus,
+revisi registry, dan lineage secara terpisah. Encoder mengurutkan seluruh term
+dan memakai memori tambahan O(n); ukur peak RSS saat memuat vocabulary besar.
+
 [candidate_planning.go](candidate_planning.go) menurunkan scope lookup dari setiap mention EXTRACT lengkap berdasarkan policy corpus terpin dan regulation ID sumber yang diizinkan. Ia menormalisasi alias dengan casing Unicode kontekstual yang sama dengan Rust, mempertahankan seluruh scope termasuk yang ambigu, dan menolak overflow tanpa truncation. `Fingerprint` mengikat peta scope dan limit; workflow wajib memeriksa hash itu pada request ingest durable serta manifest kandidat. [candidate_planning_test.go](candidate_planning_test.go) menguji cakupan scope, drift policy, batas, dan parity key. Kode tipe kanonik pada [registry.go](registry.go) meliputi seluruh ontology v1 dengan ID lama yang tetap stabil; kualitas blocking pada gold dan latency masih perlu diukur.
 
 [ontology.go](ontology.go) memuat vocabulary EXTRACT bersama dari JSONC terpin hash dan memvalidasi tipe mention, predicate, endpoint, origin, serta qualifier. [ontology_test.go](ontology_test.go) menutup drift istilah dan konfigurasi; gate deterministik ini masih membutuhkan gold set untuk mengukur kebenaran hukum.
