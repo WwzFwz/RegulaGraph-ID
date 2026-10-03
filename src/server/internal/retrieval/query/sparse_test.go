@@ -8,7 +8,23 @@ import (
 	"math"
 	"reflect"
 	"testing"
+
+	"regulagraph.local/server/internal/domain"
 )
+
+// Test fixtures call the shared domain encoder so indexing and query admission
+// cannot silently diverge within the Go process.
+func sparseDictionaryFingerprint(analyzer, revision string, terms map[string]uint32) [32]byte {
+	entries := make([]domain.LexicalTerm, 0, len(terms))
+	for term, id := range terms {
+		entries = append(entries, domain.LexicalTerm{Term: term, ID: id})
+	}
+	digest, err := domain.FingerprintLexicalDictionary(analyzer, revision, entries)
+	if err != nil {
+		panic(err)
+	}
+	return digest
+}
 
 func pinnedFixture() (SparseDictionaryView, FrozenBM25View) {
 	terms := map[string]uint32{"pasal": 8, "12/2020": 3, "tidak": 20, "wajib": 21}

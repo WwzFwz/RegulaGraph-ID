@@ -3,7 +3,7 @@
 // callers must separately bind corpus, trusted PostgreSQL revision and artifact
 // bytes before reuse. Sorting costs O(n log n), with O(n) extra memory;
 // profile RSS and hashing latency on the full corpus (targets unmeasured).
-package postgres
+package domain
 
 import (
 	"crypto/sha256"
@@ -14,6 +14,13 @@ import (
 	"unicode"
 	"unicode/utf8"
 )
+
+// LexicalTerm is the language-neutral, immutable term-ID pair read from an
+// authoritative dictionary revision. Corpus ownership is validated separately.
+type LexicalTerm struct {
+	Term string
+	ID   uint32
+}
 
 // LexicalRevisionName maps PostgreSQL's monotonically increasing revision to
 // the stable string carried by the Rust dictionary reader.
@@ -28,7 +35,7 @@ func LexicalRevisionName(revision uint64) (string, error) {
 // v1 exactly. It rejects duplicate terms/IDs and never relies on caller order.
 func FingerprintLexicalDictionary(analyzerID, revision string, entries []LexicalTerm) ([32]byte, error) {
 	var zero [32]byte
-	if !storageIDPattern.MatchString(analyzerID) || !storageIDPattern.MatchString(revision) ||
+	if !validDocumentID(analyzerID) || !validDocumentID(revision) ||
 		len(entries) > 10_000_000 {
 		return zero, errors.New("invalid lexical dictionary identity or size")
 	}

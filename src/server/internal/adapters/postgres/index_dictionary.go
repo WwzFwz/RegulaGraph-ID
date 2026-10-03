@@ -25,10 +25,7 @@ import (
 const maxLexicalAllocationTerms = 10_000
 
 // LexicalTerm carries the immutable mapping visible at a dictionary revision.
-type LexicalTerm struct {
-	Term string
-	ID   uint32
-}
+type LexicalTerm = domain.LexicalTerm
 
 // AllocateLexicalTerms returns IDs in caller order and the resulting revision.
 // An identical operation key replays its historical revision even after later writes.

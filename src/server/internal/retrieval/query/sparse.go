@@ -9,14 +9,11 @@
 package query
 
 import (
-	"crypto/sha256"
-	"encoding/binary"
 	"errors"
 	"math"
 	"sort"
-	"strings"
-	"unicode"
-	"unicode/utf8"
+
+	"regulagraph.local/server/internal/domain"
 )
 
 // SparseDictionaryView is a local projection of a verified dictionary artifact.
@@ -67,17 +64,20 @@ func NewPinnedBM25QueryEncoder(dictionary SparseDictionaryView, statistics Froze
 		len(dictionary.Lineage) == 0 || len(dictionary.Lineage) > 16_384 {
 		return nil, ErrInvalidSparseGeneration
 	}
-	ids := make(map[uint32]bool, len(dictionary.Terms))
 	terms := make(map[string]uint32, len(dictionary.Terms))
+	entries := make([]domain.LexicalTerm, 0, len(dictionary.Terms))
 	for term, id := range dictionary.Terms {
-		if term == "" || len(term) > 256 || !utf8.ValidString(term) || strings.IndexFunc(term, unicode.IsControl) >= 0 ||
-			id == 0 || ids[id] {
-			return nil, ErrInvalidSparseGeneration
-		}
-		ids[id] = true
 		terms[term] = id
+		entries = append(entries, domain.LexicalTerm{Term: term, ID: id})
 	}
-	fingerprint := sparseDictionaryFingerprint(dictionary.AnalyzerID, dictionary.Revision, terms)
+	fingerprint, err := domain.FingerprintLexicalDictionary(dictionary.AnalyzerID, dictionary.Revision, entries)
+	if err != nil {
+		return nil, ErrInvalidSparseGeneration
+	}
+	ids := make(map[uint32]bool, len(entries))
+	for _, entry := range entries {
+		ids[entry.ID] = true
+	}
 	selfDigest, selfExists := dictionary.Lineage[dictionary.Revision]
 	ancestorDigest, ancestorExists := dictionary.Lineage[statistics.DictionaryRevision]
 	if !selfExists || !ancestorExists || selfDigest != fingerprint ||
@@ -145,34 +145,4 @@ func validSparseIdentity(id string) bool {
 		}
 	}
 	return true
-}
-
-func sparseDictionaryFingerprint(analyzer, revision string, terms map[string]uint32) [32]byte {
-	h := sha256.New()
-	h.Write([]byte("regulagraph-lexical-dictionary-v1\x00"))
-	writeField := func(value string) {
-		var number [8]byte
-		binary.BigEndian.PutUint64(number[:], uint64(len(value)))
-		h.Write(number[:])
-		h.Write([]byte(value))
-	}
-	writeField(analyzer)
-	writeField(revision)
-	var number [8]byte
-	binary.BigEndian.PutUint64(number[:], uint64(len(terms)))
-	h.Write(number[:])
-	keys := make([]string, 0, len(terms))
-	for key := range terms {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	for _, term := range keys {
-		writeField(term)
-		var id [4]byte
-		binary.BigEndian.PutUint32(id[:], terms[term])
-		h.Write(id[:])
-	}
-	var result [32]byte
-	copy(result[:], h.Sum(nil))
-	return result
 }

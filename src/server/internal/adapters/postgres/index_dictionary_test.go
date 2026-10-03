@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
+	"regulagraph.local/server/internal/domain"
 )
 
 func TestValidateLexicalTermsCanonicalDigest(t *testing.T) {
@@ -39,22 +40,22 @@ func TestValidateLexicalTermsCanonicalDigest(t *testing.T) {
 }
 
 func TestLexicalDictionaryFingerprintMatchesRustFixture(t *testing.T) {
-	revision, err := LexicalRevisionName(2)
+	revision, err := domain.LexicalRevisionName(2)
 	if err != nil || revision != "lexrev:2" {
 		t.Fatalf("revision name: %q %v", revision, err)
 	}
-	entries := []LexicalTerm{{"pasal", 2}, {"izin", 1}}
-	digest, err := FingerprintLexicalDictionary("regulagraph-lexical-nfc-ascii-v1", revision, entries)
+	entries := []LexicalTerm{{Term: "pasal", ID: 2}, {Term: "izin", ID: 1}}
+	digest, err := domain.FingerprintLexicalDictionary("regulagraph-lexical-nfc-ascii-v1", revision, entries)
 	if err != nil || fmt.Sprintf("%x", digest) != "8199cf3ca12cb04c039ec1a296d025254b7a09ba1f675512d78c289fd80c4a7a" {
 		t.Fatalf("cross-language fingerprint: %x err=%v", digest, err)
 	}
 	entries[0], entries[1] = entries[1], entries[0]
-	reordered, err := FingerprintLexicalDictionary("regulagraph-lexical-nfc-ascii-v1", revision, entries)
+	reordered, err := domain.FingerprintLexicalDictionary("regulagraph-lexical-nfc-ascii-v1", revision, entries)
 	if err != nil || reordered != digest {
 		t.Fatalf("fingerprint depends on input order: %x err=%v", reordered, err)
 	}
-	if _, err = FingerprintLexicalDictionary("regulagraph-lexical-nfc-ascii-v1", revision,
-		[]LexicalTerm{{"izin", 1}, {"pasal", 1}}); err == nil {
+	if _, err = domain.FingerprintLexicalDictionary("regulagraph-lexical-nfc-ascii-v1", revision,
+		[]LexicalTerm{{Term: "izin", ID: 1}, {Term: "pasal", ID: 1}}); err == nil {
 		t.Fatal("duplicate dictionary ID accepted")
 	}
 }
@@ -81,17 +82,17 @@ func TestLexicalDictionaryAgainstPostgres(t *testing.T) {
 	corpus := fmt.Sprintf("corpus:lexical-test:%d", time.Now().UnixNano())
 	first, revision, err := repo.AllocateLexicalTerms(ctx, corpus, "analyzer:v1", "operation:first", 1,
 		[]string{"pasal", "izin"})
-	if err != nil || revision != 2 || !reflect.DeepEqual(first, []LexicalTerm{{"pasal", 2}, {"izin", 1}}) {
+	if err != nil || revision != 2 || !reflect.DeepEqual(first, []LexicalTerm{{Term: "pasal", ID: 2}, {Term: "izin", ID: 1}}) {
 		t.Fatalf("initial allocation: %v revision=%d err=%v", first, revision, err)
 	}
 	second, revision, err := repo.AllocateLexicalTerms(ctx, corpus, "analyzer:v1", "operation:second", 2,
 		[]string{"izin", "tidak"})
-	if err != nil || revision != 3 || !reflect.DeepEqual(second, []LexicalTerm{{"izin", 1}, {"tidak", 3}}) {
+	if err != nil || revision != 3 || !reflect.DeepEqual(second, []LexicalTerm{{Term: "izin", ID: 1}, {Term: "tidak", ID: 3}}) {
 		t.Fatalf("append allocation: %v revision=%d err=%v", second, revision, err)
 	}
 	replayed, oldRevision, err := repo.AllocateLexicalTerms(ctx, corpus, "analyzer:v1", "operation:first", 1,
 		[]string{"izin", "pasal"})
-	if err != nil || oldRevision != 2 || !reflect.DeepEqual(replayed, []LexicalTerm{{"izin", 1}, {"pasal", 2}}) {
+	if err != nil || oldRevision != 2 || !reflect.DeepEqual(replayed, []LexicalTerm{{Term: "izin", ID: 1}, {Term: "pasal", ID: 2}}) {
 		t.Fatalf("historical replay: %v revision=%d err=%v", replayed, oldRevision, err)
 	}
 	if _, _, err = repo.AllocateLexicalTerms(ctx, corpus, "analyzer:v1", "operation:first", 1,
@@ -108,7 +109,7 @@ func TestLexicalDictionaryAgainstPostgres(t *testing.T) {
 		t.Fatalf("existing terms advanced revision: %v revision=%d err=%v", noChange, unchangedRevision, err)
 	}
 	old, err := repo.LoadLexicalDictionary(ctx, corpus, "analyzer:v1", 2, 3)
-	if err != nil || !reflect.DeepEqual(old, []LexicalTerm{{"izin", 1}, {"pasal", 2}}) {
+	if err != nil || !reflect.DeepEqual(old, []LexicalTerm{{Term: "izin", ID: 1}, {Term: "pasal", ID: 2}}) {
 		t.Fatalf("pinned old dictionary: %v err=%v", old, err)
 	}
 	if _, err = repo.LoadLexicalDictionary(ctx, corpus, "analyzer:v1", 3, 2); !errors.Is(err, ErrResultLimit) {
@@ -119,7 +120,7 @@ func TestLexicalDictionaryAgainstPostgres(t *testing.T) {
 	}
 	other, otherRevision, err := repo.AllocateLexicalTerms(ctx, corpus, "analyzer:v2", "operation:first", 1,
 		[]string{"pasal"})
-	if err != nil || otherRevision != 2 || !reflect.DeepEqual(other, []LexicalTerm{{"pasal", 1}}) {
+	if err != nil || otherRevision != 2 || !reflect.DeepEqual(other, []LexicalTerm{{Term: "pasal", ID: 1}}) {
 		t.Fatalf("analyzer isolation: %v revision=%d err=%v", other, otherRevision, err)
 	}
 	if _, err = repo.pool.Exec(ctx, `DELETE FROM lexical_dictionary_terms WHERE corpus_id=$1`, corpus); err == nil {
