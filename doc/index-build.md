@@ -94,7 +94,10 @@ Manifest ini bukan bundle JSON export model. Channel native dan handle Tokio dip
 sekali; eksekusi sinkron worker berada pada blocking pool. Native memvalidasi pin model
 setiap request. Tanpa konfigurasi native, INDEX gagal `FailedPrecondition`; tahap lain
 tetap tersedia. Pembuatan plan otomatis dari registry, dispatch durable coordinator,
-writer backend/publication dan antarmuka query RAG masih pekerjaan berikutnya.
+wiring backend/publication dan antarmuka query RAG masih pekerjaan berikutnya.
+Library [writer snapshot awal](initial-index-writer.md) sudah tersedia terpisah:
+hash/checkpoint admission, katalog PostgreSQL, Qdrant dan receipt telah diuji
+dengan backend nyata; daemon INDEX belum memanggil library ini secara otomatis.
 
 ## Verifikasi
 

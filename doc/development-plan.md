@@ -175,16 +175,22 @@ Pembaruan 2026-10-04: paket **worker INDEX dan admission output** sudah terverif
 Plan mengikat source/target snapshot, generation, dictionary/statistik dan selection;
 Rust menghasilkan IndexBatch dense+sparse, Go memeriksa hasil terhadap source.
 Lihat [kontrak INDEX](index-build.md) dan [bukti verifikasi](verification-report-index-build.md).
-X01 tetap terbuka untuk coordinator plan/dispatch, katalog generation, writer backend,
-closure/recovery dan publikasi. Berikutnya selesaikan jalur tersebut sebelum
-hidrasi storage dan antarmuka PDF→jawaban; pengujian INDEX baru masih memakai model fixture.
+Katalog generation/point PostgreSQL dan library writer snapshot awal Qdrant kini
+tersedia. Preparation mengikat plan/source/checkpoint/dictionary; intent mendahului
+I/O, full point readback dan probe serving mendahului receipt. Tes backend nyata
+membuktikan lost reply/retry, publication terisolasi dan blokir saat receipt Neo4j
+belum ada. Lihat [kontrak writer awal](initial-index-writer.md) dan
+[bukti verifikasi](verification-report-initial-index.md). X01 tetap terbuka untuk
+coordinator plan/dispatch, inventory sumber otoritatif, backend wajib profil penuh,
+writer Neo4j, closure/recovery dan workload produksi. Pengujian writer baru masih
+memakai checkpoint, statistik dan vector fixture; bukan acceptance RAG.
 
 Q01 kini memiliki branch dense native dan BM25, candidate workflow paralel dengan
 RRF dan error tanpa fallback diam-diam. A01 memiliki generator draft terstruktur,
 span UTF-8 dan citation dari metadata tepercaya; klaim tetap UNREVIEWED/PARTIAL.
 `RAGWorkflow.AnswerPinnedQuestion` menghubungkan search, port hidrasi serta
 context/generation dengan fixture integrasi dan reviewer independen.
-Alur PDF nyata masih menunggu writer/publication X01, katalog/admission snapshot,
+Alur PDF nyata masih menunggu wiring writer/publication X01, admission snapshot,
 hidrasi storage dan tokenizer prompt generator. Reranker penuh, streaming,
 graph serta acceptance juga belum selesai. Lihat
 [laporan integrasi RAG](verification-report-rag-workflow.md).

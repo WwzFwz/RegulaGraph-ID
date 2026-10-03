@@ -1,5 +1,10 @@
 # doc
 
+[initial-index-writer.md](initial-index-writer.md) menjelaskan preparation sumber,
+catalog/intent PostgreSQL, writer Qdrant awal, readback dan receipt publication.
+[verification-report-initial-index.md](verification-report-initial-index.md)
+mencatat bukti tes backend nyata dan batas integrasi yang masih terbuka.
+
 [index-build.md](index-build.md) menetapkan plan INDEX, perakitan worker Rust,
 admission Go, commitment vector, policy BM25, batas batch dan pekerjaan publication
 yang masih terbuka.

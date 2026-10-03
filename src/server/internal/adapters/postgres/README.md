@@ -16,6 +16,18 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+[index_catalog.go](index_catalog.go) menyimpan generation/route dan record point
+immutable dengan collision check UUID di bawah fence publication. Migration 0014
+wajib tersedia; record terikat byte payload dan replay tidak boleh mengubahnya.
+[index_writer.go](index_writer.go) menyediakan session lock, admission checkpoint
+CHUNK/dictionary dan planned intent sebelum backend I/O. Ini primitive internal;
+autentikasi byte serta kelengkapan sumber dilakukan preparation
+[writer awal](../../../../../doc/initial-index-writer.md). Caller menyisakan
+koneksi pool untuk transaksi selain koneksi session lock. Commit publication
+memeriksa publisher fence sebelum aktivasi; replay snapshot yang sudah published
+tidak mengaktifkan ulang pointer lama. Tes DB nyata mencakup collision, rollback,
+immutability, lock/retry serta injected epoch drift. Required benchmark belum diukur.
+
 [index_dictionary.go](index_dictionary.go) mengalokasikan ID term BM25 `uint32` secara
 append-only per corpus/analyzer, mengembalikan revision dan replay operation key,
 serta membaca dictionary pada revisi terpin dengan batas item. Migration 0013

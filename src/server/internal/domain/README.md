@@ -21,6 +21,11 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+[index_catalog.go](index_catalog.go) mendefinisikan binding fisik indeks internal
+dan derivasi UUID/digest point deterministik. PostgreSQL tetap wajib memeriksa
+collision dan payload immutable; fungsi hash saja bukan bukti alokasi/otorisasi.
+Kontrak dan integrasinya ada pada [writer awal](../../../../doc/initial-index-writer.md).
+
 [index_statistics_artifact.go](index_statistics_artifact.go) memvalidasi analyzer
 dan statistik frozen terhadap corpus serta dictionary dasar checked. DF, populasi
 nonempty dan parameter formula diperiksa; validitas lokal bukan bukti membership

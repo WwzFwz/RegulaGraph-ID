@@ -14,7 +14,13 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
-Berkas: [publication.go](publication.go).
+Berkas: [publication.go](publication.go), [initial_prepare.go](initial_prepare.go),
+[initial_writer.go](initial_writer.go), dan [initial_writer_test.go](initial_writer_test.go).
+Preparation mengautentikasi batch/plan/source/checkpoint/dictionary untuk daftar
+sumber snapshot awal; writer menyimpan intent, menulis Qdrant, membaca ulang semua
+point dan merekam receipt. Pemanggil wajib membekukan inventory dan backend wajib.
+Lihat [kontrak writer](../../../../doc/initial-index-writer.md) untuk batas resource,
+retry, namespace, dan prasyarat integrasi. Tidak ada route publik/CLI baru.
 
 ## Benchmark dan perhatian performa
 
@@ -24,7 +30,12 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-Publication coordinator S01 sudah aktif untuk reserve, stage, acknowledge, pre-commit validation, snapshot CAS, dan abort melalui durable store. Mutation batch Neo4j/Qdrant, BM25/vector generations, compensation menyeluruh, serta benchmark indexing/retrieval masih mengikuti X01/U01. Build dan fixture tidak membuktikan target kualitas atau latency.
+Publication coordinator S01 aktif untuk reserve, stage, acknowledge, pre-commit
+validation, snapshot CAS, dan abort melalui durable store. Writer Qdrant snapshot
+awal kini diuji dengan PostgreSQL/Qdrant nyata, termasuk lost reply/retry dan
+receipt graph hilang. Wiring daemon, mutation Neo4j, incremental/compensation,
+serta benchmark indexing/retrieval masih mengikuti X01/U01. Fixture sintetis
+tidak membuktikan target kualitas atau latency.
 
 ## Rekomendasi implementasi anak
 

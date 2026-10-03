@@ -22,7 +22,8 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: state machine S01 reserve, stage, acknowledge, publish, dan abort aktif melalui
-// PublicationStore. Backend mutation serta retire/GC penuh dilanjutkan pada X01/U01/O01.
+// PublicationStore. initial_writer.go menambahkan mutation/receipt Qdrant snapshot awal;
+// backend profil penuh, incremental serta retire/GC dilanjutkan pada X01/U01/O01.
 // Bukti verifikasi: receipt stale/search-unready ditolak dan VerifyPublicationReady harus
 // berhasil sebelum commit; ikuti doc/verification.md.
 package indexing

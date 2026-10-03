@@ -16,7 +16,9 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 Berkas: [client.go](client.go), [collections.go](collections.go),
 [points.go](points.go), [search.go](search.go), [readback.go](readback.go),
-[store_test.go](store_test.go), dan [readback_test.go](readback_test.go).
+[readiness.go](readiness.go), [store_test.go](store_test.go),
+[readback_test.go](readback_test.go), [readiness_test.go](readiness_test.go),
+dan [readiness_integration_test.go](readiness_integration_test.go).
 
 ## Benchmark dan perhatian performa
 
@@ -61,8 +63,12 @@ Ia dapat menemukan point hilang atau berubah pada route ber-`consistency=all`,
 tetapi pemanggil masih harus memaginasi semua expected ID dan membuktikan
 route/replica yang boleh melayani query.
 
-Closure/recovery, bukti readback seluruh point dan replica,
-PostgreSQL binding, writer coordinator, query hydration, Qdrant nyata, gold,
+`VerifyInitialServing` memeriksa topology satu shard/satu replica sehat, exact
+point count dan probe dense/BM25 setelah caller membaca ulang seluruh manifest.
+Library [writer awal](../../../../../doc/initial-index-writer.md) sudah mengikat
+catalog PostgreSQL, intent dan receipt; tes Qdrant 1.18 nyata menguji replay,
+readback dan count kurang/lebih. Itu bukan bukti kesiapan topology terdistribusi.
+Closure/recovery, daemon writer, query hydration, gold,
 serta acceptance performa tetap belum tersedia. Tanggal berlaku dan kecukupan
 multi-versi diperiksa setelah hydration oleh retrieval owner, bukan diasumsikan
 dari filter kandidat backend.

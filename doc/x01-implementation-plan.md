@@ -64,8 +64,10 @@ Artefak analyzer/statistik typed sekarang tersedia dengan producer Rust, reader
 Go hash-bound dan fixture parity empat bahasa. Statistik mengikat populasi dan
 dictionary dasar checked; loader tidak membuktikan authority registry atau
 membership snapshot. Lihat [kontrak lexical](lexical-generation.md).
-Build plan bertipe, writer terkoordinasi, closure/recovery,
-bukti replica, dan publication masih belum aktif. Generation
+Build plan bertipe dan library [writer awal](initial-index-writer.md) sudah aktif
+untuk daftar sumber eksplisit, generation baru dan topology satu shard/satu replica.
+Wiring coordinator otomatis, closure/recovery dan bukti topology terdistribusi
+masih belum aktif. Generation
 paired **tidak boleh diterbitkan** sebelum setiap pembaca yang bisa menerima
 route query memahami format tersebut; pembaca binary lama mengabaikan field
 baru dan dapat kehilangan filter hukum walau decode berhasil. Binding fisik
