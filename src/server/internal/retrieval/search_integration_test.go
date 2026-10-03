@@ -17,7 +17,6 @@ import (
 	pb "regulagraph.local/server/gen/regulagraph/v1"
 	"regulagraph.local/server/internal/adapters/qdrant"
 	"regulagraph.local/server/internal/domain"
-	"regulagraph.local/server/internal/retrieval/query"
 )
 
 func TestRetrieveBranchesAgainstQdrant(t *testing.T) {
@@ -30,6 +29,8 @@ func TestRetrieveBranchesAgainstQdrant(t *testing.T) {
 		t.Fatal("test requires a disposable loopback HTTP Qdrant")
 	}
 	input, index, embed := searchFixture()
+	reader := lexicalArtifacts(t, input.Generation)
+	index.binding.Generation = proto.Clone(input.Generation).(*pb.IndexGeneration)
 	binding := index.binding
 	binding.Collection = fmt.Sprintf("regulagraph_test_%d", time.Now().UnixNano())
 	client := &http.Client{Timeout: 10 * time.Second}
@@ -60,7 +61,7 @@ func TestRetrieveBranchesAgainstQdrant(t *testing.T) {
 	interval := &pb.LegalInterval{Start: &pb.DateAssertion{Knowledge: pb.DateKnowledge_DATE_KNOWLEDGE_UNKNOWN}, End: &pb.DateAssertion{Knowledge: pb.DateKnowledge_DATE_KNOWLEDGE_UNKNOWN}}
 	point := qdrant.Point{ID: "b1786f40-3fa9-4b84-bcb9-71b05ad3c289", Record: &pb.IndexRecord{
 		Meta: &pb.RecordMeta{SchemaVersion: 1, CorpusId: input.Context.CorpusId, RecordId: "index:one", Visibility: proto.Clone(visibility).(*pb.Visibility)}, GenerationId: input.Generation.Meta.RecordId, ChunkId: "chunk:one", ProvisionVersionRefs: []string{"version:one"},
-		DenseVector: &pb.DenseVector{Values: []float32{1, 0}, Dimensions: 2, ModelId: input.Generation.DenseManifest.ModelId}, SparseVector: &pb.SparseVector{Indices: []uint32{1}, Values: []float32{1}},
+		DenseVector: &pb.DenseVector{Values: []float32{1, 0}, Dimensions: 2, ModelId: input.Generation.DenseManifest.ModelId}, SparseVector: &pb.SparseVector{Indices: []uint32{2}, Values: []float32{1}},
 		FilterMetadata: &pb.FilterMetadata{Visibility: visibility, ProvisionFilters: []*pb.IndexProvisionFilter{{ProvisionVersionId: "version:one", RegulationId: "regulation:one", SourceBlobId: "blob:one", Jurisdiction: "ID", LegalInterval: interval, LegalStatus: pb.LegalStatus_LEGAL_STATUS_UNKNOWN}}},
 		Dependencies:   &pb.DependencyManifest{ArtifactId: "dependency:one", ProducerManifest: &pb.ProducerManifest{Software: "fixture", Build: "test", SchemaVersion: 1, ConfigHash: input.Context.ConfigFingerprint}},
 	}}
@@ -74,16 +75,7 @@ func TestRetrieveBranchesAgainstQdrant(t *testing.T) {
 	if err != nil || len(result.Hits) != 1 || result.Hits[0].RecordID != "index:one" {
 		t.Fatalf("actual dense retrieval: %v %v", result, err)
 	}
-	digest, err := domain.FingerprintLexicalDictionary(query.LexicalAnalyzerVersion, "lexrev:2", []domain.LexicalTerm{{Term: "pasal", ID: 1}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	encoder, err := query.NewPinnedBM25QueryEncoder(query.SparseDictionaryView{AnalyzerID: query.LexicalAnalyzerVersion, Revision: "lexrev:2", Terms: map[string]uint32{"pasal": 1}, Lineage: map[string][32]byte{"lexrev:2": digest}},
-		query.FrozenBM25View{AnalyzerID: query.LexicalAnalyzerVersion, DictionaryRevision: "lexrev:2", DictionaryFingerprint: digest, DocumentCount: 1, TotalTokens: 1, DFByID: map[uint32]uint64{1: 1}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	lexical, err := NewLexicalRetriever(encoder, input.Generation, store)
+	lexical, err := LoadLexicalRetriever(ctx, reader, input.Generation, store, nil, nil, 1<<20, domain.DefaultWireLimits)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,8 +91,8 @@ func TestRetrieveBranchesAgainstQdrant(t *testing.T) {
 		t.Fatalf("future point leaked into old snapshot: %v %v", result, err)
 	}
 	result, err = lexical.Retrieve(ctx, input)
-	if err != nil || len(result.Hits) != 0 {
-		t.Fatalf("future lexical point leaked into old snapshot: %v %v", result, err)
+	if err == nil || result != nil {
+		t.Fatalf("future statistics accepted for old snapshot: %v %v", result, err)
 	}
-	t.Log("real Qdrant create/upsert/exact readback/dense and lexical retrieval/snapshot exclusion passed; synthetic model/data and lexical artifact binding")
+	t.Log("real Qdrant create/upsert/exact readback/dense and lexical retrieval/snapshot exclusion passed; synthetic model/data; verified lexical artifact binding")
 }

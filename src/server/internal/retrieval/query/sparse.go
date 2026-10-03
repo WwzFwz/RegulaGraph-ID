@@ -11,6 +11,7 @@ package query
 import (
 	"errors"
 	"math"
+	pb "regulagraph.local/server/gen/regulagraph/v1"
 	"sort"
 
 	"regulagraph.local/server/internal/domain"
@@ -45,9 +46,11 @@ type SparseQuery struct {
 
 // PinnedBM25QueryEncoder is immutable and safe for concurrent query reads.
 type PinnedBM25QueryEncoder struct {
-	terms map[string]uint32
-	df    map[uint32]uint64
-	n     uint64
+	generation *pb.IndexGeneration
+	population *pb.SnapshotRef
+	terms      map[string]uint32
+	df         map[uint32]uint64
+	n          uint64
 }
 
 var ErrInvalidSparseGeneration = errors.New("invalid or incompatible BM25 sparse generation")

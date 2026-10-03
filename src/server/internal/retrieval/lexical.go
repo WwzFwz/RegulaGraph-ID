@@ -12,7 +12,7 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: branch BM25 memakai encoder generation terpin dan backend sparse aktif.
-// Caller membuktikan binding artefak statistik/dictionary dan read lease.
+// Factory memeriksa artefak statistik/dictionary; caller membuktikan publication dan read lease.
 // Integrasi berikutnya:
 // Implement BM25 query path using the pinned analyzer/statistics generation; keep learned sparse as a distinct representation.
 // Bukti verifikasi: Test exact legal identifiers, typo/code-switch strata and empty queries; evaluate recall and latency without merging score scales.
@@ -28,6 +28,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 	pb "regulagraph.local/server/gen/regulagraph/v1"
+	"regulagraph.local/server/internal/domain"
 	"regulagraph.local/server/internal/retrieval/query"
 )
 
@@ -37,6 +38,7 @@ import (
 type LexicalRetriever struct {
 	encoder    *query.PinnedBM25QueryEncoder
 	generation *pb.IndexGeneration
+	population *pb.SnapshotRef
 	index      SearchIndex
 }
 
@@ -44,7 +46,25 @@ func NewLexicalRetriever(encoder *query.PinnedBM25QueryEncoder, generation *pb.I
 	if encoder == nil || generation == nil || index == nil || !proto.Equal(generation, index.Binding().Generation) {
 		return nil, errors.New("lexical encoder and matching trusted generation required")
 	}
-	return &LexicalRetriever{encoder: encoder, generation: proto.Clone(generation).(*pb.IndexGeneration), index: index}, nil
+	bound, population := encoder.ArtifactBinding()
+	if bound == nil || population == nil || !proto.Equal(bound, generation) {
+		return nil, errors.New("encoder requires verified artifacts from this generation")
+	}
+	return &LexicalRetriever{encoder: encoder, generation: proto.Clone(generation).(*pb.IndexGeneration), population: population, index: index}, nil
+}
+
+// LoadLexicalRetriever authenticates analyzer/dictionary/statistics bytes once
+// before constructing the reusable branch. Publication/auth remain caller-owned.
+func LoadLexicalRetriever(ctx context.Context, reader query.ArtifactReader, generation *pb.IndexGeneration, index SearchIndex,
+	parent, statisticsBase *domain.CheckedLexicalDictionary, maximumBytes uint64, limits domain.WireLimits) (*LexicalRetriever, error) {
+	if index == nil || generation == nil || !proto.Equal(index.Binding().Generation, generation) || index.Binding().CorpusID != generation.GetMeta().GetCorpusId() {
+		return nil, errors.New("index binding does not match lexical generation")
+	}
+	encoder, err := query.LoadArtifactBM25Encoder(ctx, reader, generation, parent, statisticsBase, maximumBytes, limits)
+	if err != nil {
+		return nil, err
+	}
+	return NewLexicalRetriever(encoder, generation, index)
 }
 
 // Retrieve returns a legitimate empty branch for all-OOV input, with OOV count
@@ -59,6 +79,11 @@ func (retriever *LexicalRetriever) Retrieve(ctx context.Context, input SearchInp
 		return nil, err
 	}
 	defer cancel()
+	if population := retriever.population; population != nil &&
+		(input.Scope.SnapshotSeq < population.Sequence || input.Scope.SnapshotSeq == population.Sequence &&
+			!proto.Equal(input.Context.SnapshotRef, population)) {
+		return nil, errors.New("query snapshot predates or conflicts with frozen statistics population")
+	}
 	vector, err := retriever.encoder.Encode(input.Question)
 	if err != nil {
 		return nil, err

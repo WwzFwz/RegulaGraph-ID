@@ -15,7 +15,6 @@ import (
 	pb "regulagraph.local/server/gen/regulagraph/v1"
 	"regulagraph.local/server/internal/adapters/qdrant"
 	"regulagraph.local/server/internal/domain"
-	"regulagraph.local/server/internal/retrieval/query"
 )
 
 type embeddingFunc func(context.Context, *pb.EmbedBatchRequest) (*pb.EmbedBatchResponse, error)
@@ -148,17 +147,9 @@ func TestRetrieveDenseFailureIsNotEmptySuccess(t *testing.T) {
 
 func TestLexicalOOVSkipsBackendAndPinsGeneration(t *testing.T) {
 	input, index, _ := searchFixture()
-	entries := []domain.LexicalTerm{{Term: "pasal", ID: 1}}
-	digest, err := domain.FingerprintLexicalDictionary(query.LexicalAnalyzerVersion, "lexrev:2", entries)
-	if err != nil {
-		t.Fatal(err)
-	}
-	encoder, err := query.NewPinnedBM25QueryEncoder(query.SparseDictionaryView{AnalyzerID: query.LexicalAnalyzerVersion, Revision: "lexrev:2", Terms: map[string]uint32{"pasal": 1}, Lineage: map[string][32]byte{"lexrev:2": digest}},
-		query.FrozenBM25View{AnalyzerID: query.LexicalAnalyzerVersion, DictionaryRevision: "lexrev:2", DictionaryFingerprint: digest, DocumentCount: 1, TotalTokens: 1, DFByID: map[uint32]uint64{1: 1}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	r, err := NewLexicalRetriever(encoder, input.Generation, index)
+	reader := lexicalArtifacts(t, input.Generation)
+	index.binding.Generation = proto.Clone(input.Generation).(*pb.IndexGeneration)
+	r, err := LoadLexicalRetriever(context.Background(), reader, input.Generation, index, nil, nil, 1<<20, domain.DefaultWireLimits)
 	if err != nil {
 		t.Fatal(err)
 	}

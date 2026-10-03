@@ -18,9 +18,10 @@ import (
 	"unicode/utf8"
 
 	"golang.org/x/text/unicode/norm"
+	"regulagraph.local/server/internal/domain"
 )
 
-const LexicalAnalyzerVersion = "regulagraph-lexical-nfc-ascii-v1"
+const LexicalAnalyzerVersion = domain.LexicalAnalyzerV1
 const maxLexicalInputBytes = 2_000_000
 const maxLexicalTermBytes = 256
 const maxLexicalTerms = 1_024
