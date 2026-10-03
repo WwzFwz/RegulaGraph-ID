@@ -1,5 +1,12 @@
 # tests/fixtures
 
+`index-source-v1.pb` (8.9 KB) menyimpan DocumentBatch sintetis dari ekspor tes
+Rust CHUNK-to-INDEX, sumber pendamping kasus `index-build-*` pada wire-cases.json.
+Tes writer Go merebind corpus/ID/snapshot, memilih dua chunk dengan closure
+dokumen/versi/struktur utuh, dan memakai vector/statistik sintetis. Seed checkpoint
+SQL serta reader artefak in-memory menguji admission dan recovery writer dengan
+backend nyata; itu bukan ingestion PDF/model live atau gold regulasi.
+
 Kasus `index-build-*` pada wire-cases.json diambil dari output integrasi Rust
 CHUNK→INDEX sintetis. Plan, batch, request dan missing-selection case menguji
 schema empat bahasa; source authority dan checksum diuji terpisah pada admission
