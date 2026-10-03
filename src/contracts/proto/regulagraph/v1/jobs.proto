@@ -222,6 +222,8 @@ message ProcessBatchRequest {
   ArtifactRef checkpoint=8;
   repeated JobStage stages=9 [(rules)={required:true unique:true min_items:1}];
   repeated SourceObservation observations=10;
+  // Required by the INDEX processor; explicit role, never inferred from sources order.
+  ArtifactRef index_build_plan=11;
 }
 message ProcessBatchResponse {
   string request_id=1 [(rules)={required:true ascii_id:true}];

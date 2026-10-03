@@ -74,6 +74,8 @@ message LexicalStatisticsArtifact {
   double b=11 [(rules).finite=true];
   string formula_id=12 [(rules)={required:true ascii_id:true}];
   repeated LexicalDocumentFrequency document_frequencies=13 [(rules).min_items=1];
+  // Empty on legacy/offline token-only exports; INDEX requires an explicit policy.
+  string input_policy=14;
 }
 message LexicalDocumentFrequency {
   uint32 term_id=1 [(rules).positive=true];
@@ -138,6 +140,29 @@ message IndexBatch {
   Counts counts=6 [(rules).required=true];
   ContentHash operations_checksum=7 [(rules).required=true];
   DependencyManifest dependencies=8 [(rules).required=true];
+  // INDEX v1 commits to the immutable coordinator plan plus ordered vector operations.
+  ArtifactRef build_plan=9;
+}
+// Coordinator-owned immutable INDEX input. The worker builds one bounded selection;
+// source membership, registry lineage and publication remain Go responsibilities.
+message IndexBuildItem {
+  string chunk_id=1 [(rules)={required:true ascii_id:true}];
+  string record_id=2 [(rules)={required:true ascii_id:true}];
+}
+message IndexBuildPlan {
+  RecordMeta meta=1 [(rules).required=true];
+  SnapshotRef target_snapshot=2 [(rules).required=true];
+  ArtifactRef document_batch=3 [(rules).required=true];
+  SnapshotRef source_snapshot=4 [(rules).required=true];
+  IndexGeneration generation=5 [(rules).required=true];
+  // Root through target, including the frozen statistics base dictionary.
+  repeated ArtifactRef dictionary_chain=6 [(rules).min_items=1];
+  repeated IndexBuildItem items=7 [(rules).min_items=1];
+  string output_batch_id=8 [(rules)={required:true ascii_id:true}];
+  ProducerManifest producer=9 [(rules).required=true];
+  // v1 weights the same structure-labels-v1 rendered input as dense inference.
+  string lexical_input_policy=10 [(rules).required=true];
+  repeated VisibilityClosure closures=11;
 }
 message StageBudget {
   string stage=1 [(rules).required=true];
