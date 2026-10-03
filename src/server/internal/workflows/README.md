@@ -57,3 +57,23 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 [semantic_resolution_model.go](semantic_resolution_model.go) menyediakan `ProposeWithModel`: hydrate konteks dari EXTRACT/document/text terverifikasi, panggil gateway model, validasi proposal/revision, dan simpan request-response immutable untuk replay lintas restart. [semantic_resolution_evidence.go](semantic_resolution_evidence.go) mengambil seluruh support alias kandidat dari katalog checkpoint EXTRACT sukses dalam corpus/snapshot/auth yang sama, lalu memverifikasi ulang bytes serta closure dokumen. Cache teks/budget dipakai bersama dan dependency identik dideduplikasi; LINK wajib merujuk konteks mention serta kandidat terpilih. Hasilnya dapat diteruskan ke handoff registry yang sudah ada; metode ini tidak mengautentikasi reviewer; SemanticExecutor menggunakannya untuk dispatch proposal otomatis. Lihat [integrasi resolusi](../../../../doc/semantic-resolution.md).
 
 `parse.go` memakai `SaveExtractionCheckpoint` untuk output EXTRACT yang telah divalidasi, termasuk recovery. Checkpoint sukses dan katalog mention disimpan dalam satu transaksi fenced. Output parsial/gagal tetap menyimpan outcome tanpa memasukkan lokasi bukti sebagai sumber kandidat.
+
+[retrieval.go](retrieval.go) mengorkestrasi candidate search Vector RAG atau
+Hybrid RAG dengan cabang dense/BM25 paralel, explicit failure, dan fusion bersama.
+Graph profiles ditolak sebelum I/O. Callback branch wajib menghormati context;
+workflow membatalkan dan menunggu sibling selesai sebelum mengembalikan error.
+[rag.go](rag.go) menyambungkan search, port hidrasi tepercaya, dan
+[answer.go](answer.go) untuk context serta draft bersitasi. Workflow menerima
+snapshot yang sudah diotorisasi/dipin oleh caller; tidak menganggap supplied
+RequestContext sebagai bukti akses. Saat ini hanya AS_OF dengan tanggal
+eksplisit dan respons non-streaming yang diterima.
+
+Hidrasi harus membaca hash sumber, membuktikan membership/versi/tanggal, dan
+prefetch URL. Boundary menuntut accounting setiap kandidat, menolak versi lain,
+memulihkan urutan/provenance ranking asli, serta memberikan salinan mendalam
+hasil search kepada callback agar ekspektasi tidak bisa diubah.
+[rag_test.go](rag_test.go) menguji komposisi sintetis sampai citation;
+[retrieval_test.go](retrieval_test.go) menguji paralelisme, cancellation dan
+konsistensi identitas. Concrete storage hydrator, snapshot admission/read-lease
+ownership, reranker pada workflow penuh, tokenizer generator dan API/CLI query
+masih belum tersambung. Kode ini bukan klaim PDF-to-answer produksi sudah aktif.
