@@ -39,6 +39,16 @@ func TestValidateLexicalTermsCanonicalDigest(t *testing.T) {
 	}
 }
 
+func TestExportLexicalDictionaryRejectsWireBudgetBeforeDatabase(t *testing.T) {
+	// No pool: a budget failure must occur before any storage access.
+	repo := &Repository{}
+	limits := domain.DefaultWireLimits
+	limits.MaxItems = 5 // Two terms require six wire items including meta/hash.
+	if _, err := repo.ExportLexicalDictionary(context.Background(), "corpus:one", "analyzer:v1", "dictionary:2", 2, 2, limits); err == nil {
+		t.Fatal("accepted capacity that cannot fit the wire item budget")
+	}
+}
+
 func TestLexicalDictionaryFingerprintMatchesRustFixture(t *testing.T) {
 	revision, err := domain.LexicalRevisionName(2)
 	if err != nil || revision != "lexrev:2" {
@@ -117,6 +127,17 @@ func TestLexicalDictionaryAgainstPostgres(t *testing.T) {
 	}
 	if _, err = repo.LoadLexicalDictionary(ctx, corpus, "analyzer:v1", 4, 3); !errors.Is(err, ErrConflict) {
 		t.Fatalf("future dictionary revision: %v", err)
+	}
+	artifact, err := repo.ExportLexicalDictionary(ctx, corpus, "analyzer:v1", "dictionary:old", 2, 3, domain.DefaultWireLimits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checked, err := domain.CheckLexicalDictionaryArtifact(artifact, corpus, nil, domain.DefaultWireLimits)
+	if err != nil || len(checked.Terms()) != 2 || checked.Terms()["pasal"] != 2 || artifact.ParentRegistryRevision != nil {
+		t.Fatalf("historical export must be a pinned root snapshot: %v err=%v", artifact, err)
+	}
+	if _, err = repo.ExportLexicalDictionary(ctx, corpus, "analyzer:v1", "dictionary:limited", 3, 2, domain.DefaultWireLimits); !errors.Is(err, ErrResultLimit) {
+		t.Fatalf("export silently truncated vocabulary: %v", err)
 	}
 	other, otherRevision, err := repo.AllocateLexicalTerms(ctx, corpus, "analyzer:v2", "operation:first", 1,
 		[]string{"pasal"})

@@ -20,8 +20,8 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 append-only per corpus/analyzer, mengembalikan revision dan replay operation key,
 serta membaca dictionary pada revisi terpin dengan batas item. Migration 0013
 wajib diterapkan sebelum pemanggil INDEX memakai adapter ini. SQL menyimpan
-mapping dan ledger, sedangkan artefak dictionary lintas Rust/Go serta bukti
-lineage yang dipakai publication masih pekerjaan X01. Jalur query tidak boleh
+mapping dan ledger; exporter typed tersedia sebagai library, sedangkan bukti
+lineage otoritatif yang dipakai publication masih pekerjaan X01. Jalur query tidak boleh
 memanggil allocator per token. Ukur p95/p99, pool wait, contention, ukuran
 dictionary, dan RSS pada corpus referensi; target tetap REQUIRED_UNMEASURED.
 
@@ -29,8 +29,17 @@ dictionary, dan RSS pada corpus referensi; target tetap REQUIRED_UNMEASURED.
 revisi `lexrev:<angka>` dan fingerprint mapping yang sama dengan reader Rust.
 Hash ini tidak memasukkan corpus; artifact owner dan pemanggil publication wajib
 mengikat corpus serta revision PostgreSQL terverifikasi secara terpisah. Fixture
-lintas bahasa sudah lulus, tetapi schema artefak dictionary dan storage handoff
-belum aktif.
+lintas bahasa sudah lulus. [index_dictionary_artifact.go](index_dictionary_artifact.go)
+mengekspor snapshot penuh pada revisi terpin ke `LexicalDictionaryArtifact`, dengan
+batas jumlah term dan wire bytes; kelebihan batas menghasilkan error, bukan truncation.
+Ekspor ini root-only: tidak menyatakan ancestry historis dan tidak menulis storage.
+Pemanggil masih harus menyimpan bytes secara immutable, mengikat manifest generation
+dan membuktikan registry authority sebelum publikasi. Pembacaan SQL dibatasi jumlah
+term; batas wire bytes diperiksa setelah mapping dimuat, bukan batas peak RSS.
+Budget item wire adalah `2 * jumlah_term + 2` untuk root (tambah satu untuk
+parent hash pada child). Exporter memeriksa kapasitas ini sebelum SQL; default
+100000 wire items memuat maksimal 49999 term root, dan vocabulary lebih besar
+memerlukan konfigurasi budget eksplisit, bukan truncation atau kenaikan otomatis.
 
 [repository.go](repository.go) mengelola lifecycle pool dan error boundary. [migrate.go](migrate.go) menerapkan migration terurut dengan advisory lock serta checksum. [jobs.go](jobs.go) mengelola idempotency, claim PARSE/STRUCTURE/BIND/CHUNK/EXTRACT/RESOLVE, attempt global dan budget retry per stage, lease/fence, polling cancellation, checkpoint, dan completion atomik yang memberi prioritas pada cancellation. Klaim RESOLVE mensyaratkan checkpoint EXTRACT dengan terminal sukses dan tidak diambil claimant generik. [artifacts.go](artifacts.go) mengikat serta memuat metadata immutable untuk handoff checkpoint. [registry.go](registry.go) mengalokasikan exact canonical identity secara revisioned dan idempotent. [registry_aliases.go](registry_aliases.go) meregistrasikan profil/alias bersumber secara append-only dengan CAS revision, sedangkan [registry_candidates.go](registry_candidates.go) membaca kandidat ambigu dan revision lookup positif/negatif dalam satu snapshot. [publication.go](publication.go) merealisasikan reservation, backend receipt, snapshot CAS, outbox, abort, dan read lease. [repository_integration_test.go](repository_integration_test.go) dan [registry_aliases_integration_test.go](registry_aliases_integration_test.go) adalah suite PostgreSQL aktual dan akan skip jika DSN test tidak tersedia.
 
