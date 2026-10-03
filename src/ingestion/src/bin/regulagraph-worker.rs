@@ -17,6 +17,7 @@ use regulagraph_ingestion::worker::{
     ExtractionRuntimeConfig, ParseBatchProcessor, ParseBatchProcessorConfig, WorkerService,
     WorkerServiceConfig,
 };
+use sha2::{Digest, Sha256};
 use std::env;
 use std::error::Error;
 use std::fs;
@@ -158,6 +159,34 @@ async fn main() -> Result<(), Box<dyn Error>> {
     )?;
     let processor = if let Some((client, config)) = extraction {
         processor.with_extraction(client, config)?
+    } else {
+        processor
+    };
+    let processor = if let Some(endpoint) = configured("REGULAGRAPH_WORKER_NATIVE_ENDPOINT") {
+        // The manifest is a small, hash-pinned C01 ModelManifest protobuf, not an
+        // export-tool bundle JSON or a model name guessed from the endpoint.
+        let file = fs::File::open(required("REGULAGRAPH_WORKER_EMBED_MANIFEST")?)?;
+        let mut bytes = Vec::new();
+        file.take(65_537).read_to_end(&mut bytes)?;
+        if bytes.is_empty()
+            || bytes.len() > 65_536
+            || format!("{:x}", Sha256::digest(&bytes))
+                != required("REGULAGRAPH_WORKER_EMBED_MANIFEST_SHA256")?
+        {
+            return Err("embedding manifest bytes or hash mismatch".into());
+        }
+        let decoded = regulagraph_ingestion::domain::wire::decode(
+            &bytes,
+            &<common::ModelManifest as protobuf::MessageFull>::descriptor(),
+            regulagraph_ingestion::domain::wire::Limits::default(),
+        )?;
+        let model = decoded
+            .downcast_ref::<common::ModelManifest>()
+            .ok_or("embedding manifest descriptor mismatch")?
+            .clone();
+        processor.with_indexing(Arc::new(
+            regulagraph_ingestion::worker::NativeIndexEmbedding::connect(endpoint, model).await?,
+        ))?
     } else {
         processor
     };

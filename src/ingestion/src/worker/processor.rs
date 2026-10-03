@@ -1,10 +1,11 @@
-//! PARSE/STRUCTURE/CHUNK/EXTRACT processor backed by pinned native, tokenizer,
+//! PARSE/STRUCTURE/CHUNK/EXTRACT/INDEX processor backed by pinned native, tokenizer,
 //! and semantic-model dependencies.
 //!
 //! STRUCTURE emits hierarchy, while CHUNK consumes a registry-bound immutable `DocumentBatch` and
 //! emits source-mapped, parent-aware chunks. The processor never fabricates legal identities or
 //! publication state; every node-to-version binding must already be explicit and unambiguous.
-//! EXTRACT and the INDEX input helper share source/version/page projection.
+//! EXTRACT and INDEX share source/version/page projection. INDEX delegates bounded
+//! plan assembly and native embedding to index.rs; publication remains Go-owned.
 //! Measure stage throughput, p95/p99, queue delay, and peak RSS against
 //! configs/benchmark-targets.yaml (REQUIRED_UNMEASURED).
 
@@ -86,11 +87,12 @@ impl Default for ParseBatchProcessorConfig {
 }
 
 pub struct ParseBatchProcessor {
-    store: ArtifactStore,
+    pub(super) store: ArtifactStore,
     parser: Option<PdfParser>,
     tokenizer: Arc<dyn TokenCounter>,
-    config: ParseBatchProcessorConfig,
+    pub(super) config: ParseBatchProcessorConfig,
     extraction: Option<ExtractionRuntime>,
+    pub(super) indexing: Option<Arc<dyn super::index::IndexEmbedding>>,
 }
 
 impl ParseBatchProcessor {
@@ -128,6 +130,7 @@ impl ParseBatchProcessor {
             tokenizer,
             config,
             extraction: None,
+            indexing: None,
         })
     }
 
@@ -150,6 +153,11 @@ impl BatchProcessor for ParseBatchProcessor {
         progress: &dyn Fn(jobs::JobStage, u64, u64),
     ) -> Result<jobs::ProcessBatchResponse, ProcessError> {
         if request.stages.len() == 1
+            && request.stages[0].enum_value() == Ok(jobs::JobStage::JOB_STAGE_INDEX)
+        {
+            return self.process_index(request, cancelled, progress);
+        }
+        if request.stages.len() == 1
             && request.stages[0].enum_value() == Ok(jobs::JobStage::JOB_STAGE_STRUCTURE)
         {
             return self.process_structure(request, cancelled, progress);
@@ -169,7 +177,7 @@ impl BatchProcessor for ParseBatchProcessor {
         {
             return Err(ProcessError::new(
                 Code::Unimplemented,
-                "worker accepts exactly one PARSE, STRUCTURE, CHUNK, or EXTRACT stage",
+                "worker accepts exactly one PARSE, STRUCTURE, CHUNK, EXTRACT, or INDEX stage",
             ));
         }
         let context = request
@@ -2605,6 +2613,8 @@ mod tests {
             ))
         ));
 
+        let processor =
+            super::super::index_tests::exercise_index(processor, &output, index_generation.clone());
         let calls = Arc::new(AtomicUsize::new(0));
         let prompt_hash = hash('d');
         let model = common::ModelManifest {

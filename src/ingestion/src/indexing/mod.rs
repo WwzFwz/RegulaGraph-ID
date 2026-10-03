@@ -11,9 +11,11 @@
 //!
 //! Status: statistik BM25 lokal/artefak typed, analyzer lexical v1, dictionary reader,
 //! pembobot sparse, loader/renderer label struktur terikat sumber, key reuse embedding, dan satu batch dense model-bound aktif sebagai library;
-//! pipeline indeks, writer, dan layanan INDEX belum aktif.
+//! build.rs merakit IndexBatch terikat plan untuk stage worker INDEX;
+//! writer backend dan publikasi belum terhubung.
 
 pub mod analyzer;
+pub mod build;
 pub mod dense;
 pub mod dictionary;
 pub mod dictionary_artifact;
