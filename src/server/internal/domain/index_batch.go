@@ -23,7 +23,9 @@ func ValidateIndexBatchLocalClosure(batch *pb.IndexBatch, source *IndexSourceVie
 	if len(batch.Records) > maxOperations || len(batch.Closures) > maxOperations-len(batch.Records) {
 		return errors.New("index batch exceeds operation bound")
 	}
-	if err := ValidateWire(batch, DefaultWireLimits); err != nil {
+	limits := DefaultWireLimits
+	limits.MaxItems = 1_000_000 // Bounded 128 x 4096 dense outputs plus sparse/provenance.
+	if err := ValidateWire(batch, limits); err != nil {
 		return fmt.Errorf("invalid index batch wire: %w", err)
 	}
 	if err := ValidatePairedIndexGeneration(batch.Generation); err != nil {
