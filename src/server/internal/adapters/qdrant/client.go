@@ -51,6 +51,16 @@ type Store struct {
 	ensureMu   sync.Mutex
 }
 
+// Binding returns an owned copy for query/model compatibility checks. It is not
+// proof of publication or authorization; callers must hold a valid snapshot pin.
+func (store *Store) Binding() Binding {
+	if store == nil {
+		return Binding{}
+	}
+	return Binding{Collection: store.binding.Collection, CorpusID: store.binding.CorpusID,
+		Generation: proto.Clone(store.binding.Generation).(*pb.IndexGeneration)}
+}
+
 // New has no network side effect. The caller supplies a reusable HTTP client
 // with timeout and connection pool configured for its workload.
 func New(endpoint, apiKey string, client *http.Client, binding Binding) (*Store, error) {

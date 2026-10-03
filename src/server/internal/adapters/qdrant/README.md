@@ -84,3 +84,7 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | [client.go](client.go), [collections.go](collections.go) | Ikat konfigurasi fisik ke katalog generation dan periksa capability/read route sesudah perubahan koleksi. | Uji server Qdrant terpin, salah dimensi/modifier/metadata/payload index, restart dan route berubah. |
 | [points.go](points.go), [readback.go](readback.go) | Sambungkan allocator ID, ledger operasi, closure dan paginasi pemeriksaan readback penuh sebelum publication. | Uji replay, partial write, stale fence, point hilang, dan replica tertinggal pada Qdrant nyata. |
 | [search.go](search.go) | Hidrasi kandidat dan terapkan kebijakan temporal/versi final dengan budget overfetch eksplisit. | Ukur recall/latency per cabang dan kasus tanggal unknown/konflik. |
+
+`Store.Binding()` mengembalikan salinan generation/corpus/collection bagi
+retrieval untuk menolak model atau snapshot-generation yang berbeda sebelum
+inference. Salinan ini bukan bukti publication, authorization, atau read lease.

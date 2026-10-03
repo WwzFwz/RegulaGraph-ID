@@ -32,7 +32,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. Pipeline parsing/graph/retrieval, mutasi backend, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan target kualitas atau latency.
 
-Fusion RRF deterministik pada [fusion.go](fusion.go) aktif sebagai fungsi lokal: input cabang berbatas, rank dan keputusan filter divalidasi, hasil ambigu antar cabang dideduplikasi berdasarkan evidence key, dan seluruh provenance dipertahankan. [reranking.go](reranking.go) kini mengorelasikan seluruh hasil batch model ke kandidat, menolak hasil hilang/gagal/salah model, menyalin provenance, serta mempertahankan urutan fusion saat skor seri. Pemanggil tetap wajib membentuk key dari bukti/versi tepercaya, menerapkan filter corpus/snapshot/versi, dan mengikat pair ke teks bukti yang benar. Jalur dense, BM25, graph, transport model, serta orkestrasi retrieval belum tersambung; tes lokal tidak membuktikan Recall@k atau p95/p99.
+Fusion RRF deterministik pada [fusion.go](fusion.go) aktif sebagai fungsi lokal: input cabang berbatas, rank dan keputusan filter divalidasi, hasil ambigu antar cabang dideduplikasi berdasarkan evidence key, dan seluruh provenance dipertahankan. [reranking.go](reranking.go) kini mengorelasikan seluruh hasil batch model ke kandidat, menolak hasil hilang/gagal/salah model, menyalin provenance, serta mempertahankan urutan fusion saat skor seri. Pemanggil tetap wajib membentuk key dari bukti/versi tepercaya, menerapkan filter corpus/snapshot/versi, dan mengikat pair ke teks bukti yang benar. Branch dense dan BM25 kini callable dengan client native/Qdrant; graph serta hidrasi storage dan admission snapshot produksi belum tersambung; tes lokal tidak membuktikan Recall@k atau p95/p99.
 
 ## Rekomendasi implementasi anak
 
@@ -45,3 +45,21 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | [fusion.go](fusion.go) | Fuse ranked lists deterministically, preserve source ranks and deduplicate by evidence/version; expose configurable RRF baseline. | Test ties, empty branches and duplicate evidence with different supports; compare recall/nDCG and candidate cost on fixed corpus. |
 | [lexical.go](lexical.go) | Implement BM25 query path using the pinned analyzer/statistics generation; keep learned sparse as a distinct representation. | Test exact legal identifiers, typo/code-switch strata and empty queries; evaluate recall and latency without merging score scales. |
 | [reranking.go](reranking.go) | Korelasi hasil batch aktif; lanjutkan pemilihan pasangan berbatas, integrasi adapter model, dan perlindungan bukti multi-hop saat budget habis. | Tes hasil reordered/missing/duplicate, salah model, token/truncation, alias provenance, dan ties lulus; nDCG, coverage, queue latency tetap NOT_MEASURED. |
+
+`RetrieveDense` mempertahankan query asli, memakai purpose QUERY pada model milik
+generation, menolak truncation/vektor invalid, dan meneruskan deadline ke backend.
+`LexicalRetriever` memakai encoder frozen tanpa mengalokasikan term; semua-OOV
+menghasilkan branch kosong dengan hitungan OOV, sedangkan kegagalan tetap error.
+`BranchOutput` hanya kandidat dengan ID/versi/rank, belum bukti hukum terhidrasi.
+Factory tepercaya wajib membuktikan artefak pembentuk encoder sesuai generation;
+constructor lokal tidak membuktikan hash storage atau publication. Pemanggil
+memegang read lease dan menerapkan kebijakan tanggal pada hidrasi berikutnya.
+[search_test.go](search_test.go) menguji boundary dan cancellation dengan doubles.
+
+[search_integration_test.go](search_integration_test.go) dapat dijalankan dengan
+`REGULAGRAPH_TEST_QDRANT_ENDPOINT=http://127.0.0.1:56333` dan
+`go test ./src/server/internal/retrieval -run TestRetrieveBranchesAgainstQdrant -count=1 -v`
+dari root pada Qdrant disposable. Tes membuat collection unik lalu menghapusnya;
+create/upsert/readback, branch dense/BM25 dan isolasi sequence telah lulus pada
+Qdrant 1.18.0. Vektor/model dan binding artefak lexical masih fixture sintetis,
+sehingga tes ini tidak membuktikan kualitas retrieval atau publication corpus.
