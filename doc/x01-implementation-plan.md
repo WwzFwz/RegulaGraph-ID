@@ -42,8 +42,12 @@ Go memiliki validasi closure lokal `IndexBatch`, transport
 Qdrant upsert/query/readback exact-ID, serta gate payload index bagi filter
 snapshot. Preflight Go kini mengikat locator node pemilik ke halaman nyata
 yang overlap; generic closure sudah mengikat span versi ke teks normalisasi.
-Artefak generation/build plan bertipe, allocator PostgreSQL, writer
-terkoordinasi, closure/recovery, bukti replica, dan publication masih belum aktif. Generation
+Allocator term PostgreSQL per corpus/analyzer kini menyediakan ID `uint32` append-only,
+revisi terpin, operasi idempotent, dan pembacaan dictionary berbatas sebagai library Go.
+Tes transaksi nyata memakai cluster PostgreSQL sementara; pemakaian dari stage INDEX,
+artefak dictionary bertipe/lineage, dan benchmark workload belum tersedia.
+Artefak generation/build plan bertipe, writer terkoordinasi, closure/recovery,
+bukti replica, dan publication masih belum aktif. Generation
 paired **tidak boleh diterbitkan** sebelum setiap pembaca yang bisa menerima
 route query memahami format tersebut; pembaca binary lama mengabaikan field
 baru dan dapat kehilangan filter hukum walau decode berhasil. Binding fisik
