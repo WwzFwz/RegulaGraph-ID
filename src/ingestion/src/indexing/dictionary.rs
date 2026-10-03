@@ -130,6 +130,10 @@ impl LexicalDictionary {
     pub fn term_id(&self, term: &str) -> Option<u32> {
         self.terms.get(term).copied()
     }
+
+    pub(crate) fn term_ids(&self) -> impl Iterator<Item = u32> + '_ {
+        self.terms.values().copied()
+    }
     pub fn len(&self) -> usize {
         self.terms.len()
     }

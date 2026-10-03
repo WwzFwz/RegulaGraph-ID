@@ -58,8 +58,22 @@ impl FrozenBm25 {
         if document_count == 0 || total_tokens == 0 {
             return Err(SparseWeightError::EmptyCorpus);
         }
-        if df_by_id.values().any(|df| *df == 0 || *df > document_count) {
+        if !k1.is_finite()
+            || k1 <= 0.0
+            || !b.is_finite()
+            || !(0.0..=1.0).contains(&b)
+            || df_by_id.is_empty()
+            || df_by_id
+                .iter()
+                .any(|(id, df)| *id == 0 || *df == 0 || *df > document_count)
+        {
             return Err(SparseWeightError::InvalidParameters);
+        }
+        let mut remaining = total_tokens;
+        for df in df_by_id.values() {
+            remaining = remaining
+                .checked_sub(*df)
+                .ok_or(SparseWeightError::InvalidParameters)?;
         }
         Ok(Self {
             analyzer_id,

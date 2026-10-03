@@ -12,8 +12,8 @@
 //! Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //!
 //! Status: statistik BM25 incremental untuk token hasil analyzer terpin aktif;
-//! analyzer dokumen dan pembobot sparse library aktif. Artifact wire, writer indeks,
-//! dan query backend belum aktif.
+//! analyzer dokumen, pembobot sparse, dan ekspor artifact wire typed aktif.
+//! Worker INDEX serta writer/publication belum tersambung.
 //!
 //! Batas runtime: worker hanya menyiapkan batch representasi dan metadata. Commit indeks dan publikasi snapshot dikoordinasikan Go; modul ini tidak menjadi pemilik publikasi kedua.
 //! Rekomendasi implementasi berikutnya:
@@ -25,7 +25,13 @@
 use std::collections::BTreeMap;
 
 use super::dictionary::LexicalDictionary;
+use super::dictionary_artifact::CheckedDictionary;
 use super::statistics::{FrozenBm25, SparseWeightError};
+use super::statistics_artifact::{check_statistics, digest_hex, FORMULA_V1};
+use crate::domain::wire::{self, Limits};
+use crate::wire::{common, evidence};
+use protobuf::MessageField;
+use sha2::{Digest, Sha256};
 
 const MAX_DOCUMENT_TOKENS: usize = 100_000;
 const MAX_QUERY_TOKENS: usize = 1_024;
@@ -86,6 +92,97 @@ impl Bm25Statistics {
 
     pub fn document_frequency(&self, term: &str) -> u64 {
         self.document_frequency.get(term).copied().unwrap_or(0)
+    }
+
+    /// Export immutable frozen statistics of the actual analyzed document set.
+    /// Population hash v1 uses length-prefixed UTF-8 analyzer/document/term bytes,
+    /// u64 BE counts and u32 BE frequencies, in BTreeMap byte order; token order is
+    /// intentionally irrelevant to BM25. Snapshot membership is not proven here.
+    pub fn freeze_artifact(
+        &self,
+        meta: &common::RecordMeta,
+        snapshot: &common::SnapshotRef,
+        base: &CheckedDictionary,
+        k1: f64,
+        b: f64,
+        limits: Limits,
+    ) -> Result<evidence::LexicalStatisticsArtifact, String> {
+        wire::validate(meta, limits)?;
+        wire::validate(snapshot, limits)?;
+        if self.analyzer_id != base.dictionary().analyzer_id()
+            || meta.corpus_id != base.corpus_id()
+            || snapshot.corpus_id != base.corpus_id()
+            || meta.visibility.is_some()
+            || self.documents.is_empty()
+            || self.total_tokens == 0
+            || !k1.is_finite()
+            || k1 <= 0.0
+            || !b.is_finite()
+            || !(0.0..=1.0).contains(&b)
+        {
+            return Err("invalid statistics export identity, population or parameters".into());
+        }
+        // Each repeated DF message consumes two item-budget slots. Bound before
+        // building/serializing the full artifact, not after allocating it.
+        if self.document_frequency.len() > limits.max_items.saturating_sub(6) / 2 {
+            return Err("statistics exceed wire item budget".into());
+        }
+        let mut hasher = Sha256::new();
+        hasher.update(b"regulagraph-bm25-population-v1\0");
+        let field = |hash: &mut Sha256, bytes: &[u8]| {
+            hash.update((bytes.len() as u64).to_be_bytes());
+            hash.update(bytes);
+        };
+        field(&mut hasher, self.analyzer_id.as_bytes());
+        hasher.update((self.documents.len() as u64).to_be_bytes());
+        let mut empty = 0;
+        for (id, document) in &self.documents {
+            field(&mut hasher, id.as_bytes());
+            hasher.update((document.frequencies.len() as u64).to_be_bytes());
+            for (term, frequency) in &document.frequencies {
+                field(&mut hasher, term.as_bytes());
+                hasher.update(frequency.to_be_bytes());
+            }
+            if document.length == 0 {
+                empty += 1;
+            }
+        }
+        let mut dfs = Vec::with_capacity(self.document_frequency.len());
+        for (term, count) in &self.document_frequency {
+            dfs.push(evidence::LexicalDocumentFrequency {
+                term_id: base
+                    .dictionary()
+                    .term_id(term)
+                    .ok_or("unallocated statistics term")?,
+                document_count: *count,
+                ..Default::default()
+            });
+        }
+        dfs.sort_by_key(|entry| entry.term_id);
+        let artifact = evidence::LexicalStatisticsArtifact {
+            meta: MessageField::some(meta.clone()),
+            analyzer_id: self.analyzer_id.clone(),
+            dictionary_registry_revision: base.registry_revision(),
+            dictionary_mapping_fingerprint: MessageField::some(common::ContentHash {
+                sha256: digest_hex(base.dictionary().fingerprint()),
+                ..Default::default()
+            }),
+            population_snapshot: MessageField::some(snapshot.clone()),
+            population_fingerprint: MessageField::some(common::ContentHash {
+                sha256: digest_hex(hasher.finalize().into()),
+                ..Default::default()
+            }),
+            document_count: self.documents.len() as u64,
+            total_tokens: self.total_tokens,
+            zero_token_documents: empty,
+            k1,
+            b,
+            formula_id: FORMULA_V1.into(),
+            document_frequencies: dfs,
+            ..Default::default()
+        };
+        check_statistics(&artifact, base, limits)?;
+        Ok(artifact)
     }
 
     /// Captures the corpus-level statistics used for one immutable sparse generation.
