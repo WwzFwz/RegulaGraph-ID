@@ -19,12 +19,13 @@ import (
 )
 
 type StructuredRequest struct {
-	ModelID      string
-	SystemPrompt string
-	ItemID       string
-	Text         string
-	SchemaName   string
-	Schema       json.RawMessage
+	ModelID         string
+	SystemPrompt    string
+	ItemID          string
+	Text            string
+	SchemaName      string
+	Schema          json.RawMessage
+	MaxOutputTokens uint32 // Zero preserves existing provider policy; answering sets an explicit reserve.
 }
 
 type StructuredResponse struct {
@@ -91,6 +92,7 @@ type chatRequest struct {
 	Messages       []chatMessage  `json:"messages"`
 	ResponseFormat responseFormat `json:"response_format"`
 	Temperature    float64        `json:"temperature"`
+	MaxTokens      uint32         `json:"max_tokens,omitempty"`
 }
 
 type chatMessage struct {
@@ -148,6 +150,7 @@ func (p *OpenAICompatibleProvider) Generate(ctx context.Context, request Structu
 		},
 		ResponseFormat: responseFormat{Type: "json_schema", JSONSchema: jsonSchema{Name: request.SchemaName, Strict: true, Schema: request.Schema}},
 		Temperature:    0,
+		MaxTokens:      request.MaxOutputTokens,
 	})
 	if err != nil {
 		return StructuredResponse{}, &ProviderError{Code: "encode", Safe: "failed to encode provider request", cause: err}

@@ -28,7 +28,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. Pipeline parsing/graph/retrieval, mutasi backend, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan target kualitas atau latency.
 
-[context_builder.go](context_builder.go) kini mengepak bukti langsung dari satu snapshot dalam urutan retrieval, menghitung seluruh fragmen melalui penghitung tokenizer yang dipasok caller, serta menandai item, parent, path, dan dependency yang tidak masuk sebagai konteks parsial. [citations.go](citations.go) membangun sitasi deterministik untuk setiap klaim/bukti/sumber dari versi dan URL metadata tepercaya, menolak sumber ganda tanpa locator blob, serta membatasi klaim, jumlah sitasi, dan URL. [validation.go](validation.go) mengikat klaim/sitasi ke bukti terpilih, URL tepercaya, snapshot, versi schema, dan omission yang dihitung ulang dari bundle. Gate akhir mewajibkan setiap sumber pada bukti klaim yang didukung memiliki sitasi, memakai cache lookup URL per validasi, dan menolak prosa substantif di luar rentang claim pada status COMPLETE/PARTIAL/CONFLICT. Graph path jawaban ditolak sampai proof dirender. ID jalur graph tidak dianggap bukti jalur sudah dirender. Parent/pengecualian/path hydration, tokenizer generator aktual, generator, dan validasi semantik jawaban belum tersambung. Gate validasi tidak membuktikan hitungan token atau entailment isi klaim.
+[context_builder.go](context_builder.go) kini mengepak bukti langsung dari satu snapshot dalam urutan retrieval, menghitung seluruh fragmen melalui penghitung tokenizer yang dipasok caller, serta menandai item, parent, path, dan dependency yang tidak masuk sebagai konteks parsial. [citations.go](citations.go) membangun sitasi deterministik untuk setiap klaim/bukti/sumber dari versi dan URL metadata tepercaya, menolak sumber ganda tanpa locator blob, serta membatasi klaim, jumlah sitasi, dan URL. [validation.go](validation.go) mengikat klaim/sitasi ke bukti terpilih, URL tepercaya, snapshot, versi schema, dan omission yang dihitung ulang dari bundle. Gate akhir mewajibkan setiap sumber pada bukti klaim yang didukung memiliki sitasi, memakai cache lookup URL per validasi, dan menolak prosa substantif di luar rentang claim pada status COMPLETE/PARTIAL/CONFLICT. Graph path jawaban ditolak sampai proof dirender. ID jalur graph tidak dianggap bukti jalur sudah dirender. Parent/pengecualian/path hydration, tokenizer generator aktual dan validasi semantik jawaban belum tersambung; generator draft non-streaming kini tersedia dengan prasyarat di bawah. Gate validasi tidak membuktikan hitungan token atau entailment isi klaim.
 
 Seluruh `SourceRefs` pada satu Evidence saat ini dianggap wajib disitasi karena kontrak belum membedakan sumber bersama dari mirror alternatif; policy ini sengaja fail-closed. `SourceURLLookup` harus disuplai dari metadata yang telah dipin ke snapshot dan dibatasi deadline oleh caller; signaturenya belum membawa context atau batch prefetch. Pengukuran latency lookup/generator produksi masih diperlukan.
 
@@ -42,3 +42,21 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | [context_builder.go](context_builder.go) | Pack ordered evidence with parent context using the exact generator tokenizer; preserve exceptions and required path sets. | Test oversized clauses, repeated parents and insufficient token budget; record omitted required evidence and actual token count. |
 | [generator.go](generator.go) | Generate claims constrained to selected evidence, explicit partial/abstain/conflict states and provisional stream events. | Evaluate faithfulness and answer correctness independently; measure TTFT/completion/cost and test interrupted generation. |
 | [validation.go](validation.go) | Gate struktural kini aktif; lanjutkan dukungan semantik terkalibrasi, cek token budget dari tokenizer tepercaya, dan bukti graph path yang dirender. | Tes adversarial URL/versi/context/omission/conflict/path sudah ada; gold human review dan kalibrasi semantic judge belum tersedia. |
+
+`NewDraftGenerator` membutuhkan manifest model/prompt terpin, penghitung seluruh
+prompt memakai tokenizer generator sebenarnya, output reserve, batas byte/claim,
+dan policy `AllowUnreviewedDrafts=true` yang eksplisit. Permit concurrency meliputi
+preflight, packing payload, token count dan provider call; pembatalan berlaku
+saat antre. `Generate` hanya menghasilkan abstention aplikasi atau draft
+PARTIAL dengan semua klaim UNREVIEWED. Go menghitung span UTF-8 dan membangun
+sitasi dari evidence/URL tepercaya melalui `BuildDraftCitations`; model tidak
+mengisi URL, offset, atau status dukungan. Mode ini belum membuktikan entailment
+atau meluluskan benchmark jawaban. `BuildCitations` lama tetap khusus klaim
+SUPPORTED; tidak ada pelonggaran gate jawaban COMPLETE.
+
+[generator_test.go](generator_test.go) menguji adapter HTTP aktual dengan server
+fixture, query/output-cap propagation, Unicode spans, abstention, provenance
+serta output invalid. Penghitung token fixture hanya untuk kontrol alur.
+Produksi harus menghitung chat template, envelope, system/question/schema dan
+reserved output; provider usage yang berbeda dari hitungan terpin ditolak.
+Tokenizer BGE tidak boleh dipakai untuk model jawaban Qwen.

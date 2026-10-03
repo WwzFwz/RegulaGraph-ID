@@ -46,6 +46,24 @@ const maximumCitationClaims = 256
 // This function establishes structural provenance, never semantic entailment of a claim.
 func BuildCitations(claims []*pb.Claim, context *pb.ContextBundle, bundle *pb.EvidenceBundle,
 	lookup domain.SourceURLLookup, maximumCitations int) ([]*pb.Citation, error) {
+	return buildCitations(claims, context, bundle, lookup, maximumCitations, false)
+}
+
+// BuildDraftCitations maps proposed references while preserving UNREVIEWED
+// support. A citation proves a source locator, not entailment; draft outputs must
+// remain explicitly PARTIAL and must not be presented as verified answers.
+func BuildDraftCitations(claims []*pb.Claim, context *pb.ContextBundle, bundle *pb.EvidenceBundle,
+	lookup domain.SourceURLLookup, maximumCitations int) ([]*pb.Citation, error) {
+	for _, claim := range claims {
+		if claim == nil || claim.SupportStatus != pb.SupportStatus_SUPPORT_STATUS_UNREVIEWED {
+			return nil, errors.New("draft citation requires unreviewed claims")
+		}
+	}
+	return buildCitations(claims, context, bundle, lookup, maximumCitations, true)
+}
+
+func buildCitations(claims []*pb.Claim, context *pb.ContextBundle, bundle *pb.EvidenceBundle,
+	lookup domain.SourceURLLookup, maximumCitations int, draft bool) ([]*pb.Citation, error) {
 	if context == nil || bundle == nil || lookup == nil || maximumCitations <= 0 {
 		return nil, errors.New("context, evidence, trusted URL lookup, and citation limit are required")
 	}
@@ -99,7 +117,7 @@ func BuildCitations(claims []*pb.Claim, context *pb.ContextBundle, bundle *pb.Ev
 			return nil, errors.New("duplicate claim ID in citation mapping")
 		}
 		seenClaims[claim.ClaimId] = true
-		if claim.SupportStatus != pb.SupportStatus_SUPPORT_STATUS_SUPPORTED {
+		if claim.SupportStatus != pb.SupportStatus_SUPPORT_STATUS_SUPPORTED && !draft {
 			continue
 		}
 		if len(claim.EvidenceIds) == 0 || len(claim.EvidenceIds) > maximumCitations-len(result) {

@@ -42,3 +42,8 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | [semantic.go](semantic.go) | Terapkan ontology endpoint/predicate/qualifier allowlist dan cache durable; perluas RPC RESOLVE/SUMMARIZE pada milestone masing-masing. | Uji unknown ontology terms, replay lintas restart, collision operation-key, span multibyte, cancellation, serta evaluasi extraction pada gold split. |
 
 `semantic_resolution.go`, `semantic_resolution_cache.go`, dan `semantic_resolution_client.go` mengimplementasikan gateway/context projection, bounded replay cache, dan client gRPC RESOLVE. Satu gateway memakai task EXTRACT atau RESOLVE terpin; producer/model/schema/context/candidate identity divalidasi. LINK harus merujuk konteks yang mencakup mention dan support kandidat terpilih; metadata label saja tidak cukup. Tes membuktikan projection, malformed input, provenance, cancellation, eviction/coalescing, dan RPC; kualitas model tetap belum diukur. `semantic_provider_integration_test.go` menyediakan smoke endpoint nyata opt-in; konfigurasi serta batas pembuktiannya berada di [panduan resolusi](../../../../../doc/semantic-resolution.md).
+
+`StructuredRequest.MaxOutputTokens` menambahkan output cap eksplisit untuk
+generator jawaban; adapter mengirim `max_tokens` jika nonzero. Nilai nol
+mempertahankan policy provider lama untuk EXTRACT/RESOLVE. Adapter tetap
+memeriksa model, finish reason, usage dan batas bytes tanpa retry implisit.
