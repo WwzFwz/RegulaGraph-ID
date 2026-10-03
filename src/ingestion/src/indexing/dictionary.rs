@@ -195,6 +195,25 @@ mod tests {
     }
 
     #[test]
+    fn fingerprint_matches_postgres_allocator_fixture() {
+        let dictionary = LexicalDictionary::from_allocated_entries(
+            "regulagraph-lexical-nfc-ascii-v1",
+            "lexrev:2",
+            [("pasal".into(), 2), ("izin".into(), 1)],
+        )
+        .unwrap();
+        let digest: String = dictionary
+            .fingerprint()
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
+        assert_eq!(
+            digest,
+            "8199cf3ca12cb04c039ec1a296d025254b7a09ba1f675512d78c289fd80c4a7a"
+        );
+    }
+
+    #[test]
     fn descendant_preserves_ids_and_rejects_sibling_or_reassignment() {
         let base =
             LexicalDictionary::from_allocated_entries("analyzer-v1", "r1", [("pasal".into(), 7)])

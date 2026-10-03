@@ -38,6 +38,27 @@ func TestValidateLexicalTermsCanonicalDigest(t *testing.T) {
 	}
 }
 
+func TestLexicalDictionaryFingerprintMatchesRustFixture(t *testing.T) {
+	revision, err := LexicalRevisionName(2)
+	if err != nil || revision != "lexrev:2" {
+		t.Fatalf("revision name: %q %v", revision, err)
+	}
+	entries := []LexicalTerm{{"pasal", 2}, {"izin", 1}}
+	digest, err := FingerprintLexicalDictionary("regulagraph-lexical-nfc-ascii-v1", revision, entries)
+	if err != nil || fmt.Sprintf("%x", digest) != "8199cf3ca12cb04c039ec1a296d025254b7a09ba1f675512d78c289fd80c4a7a" {
+		t.Fatalf("cross-language fingerprint: %x err=%v", digest, err)
+	}
+	entries[0], entries[1] = entries[1], entries[0]
+	reordered, err := FingerprintLexicalDictionary("regulagraph-lexical-nfc-ascii-v1", revision, entries)
+	if err != nil || reordered != digest {
+		t.Fatalf("fingerprint depends on input order: %x err=%v", reordered, err)
+	}
+	if _, err = FingerprintLexicalDictionary("regulagraph-lexical-nfc-ascii-v1", revision,
+		[]LexicalTerm{{"izin", 1}, {"pasal", 1}}); err == nil {
+		t.Fatal("duplicate dictionary ID accepted")
+	}
+}
+
 func TestLexicalDictionaryAgainstPostgres(t *testing.T) {
 	dsn := os.Getenv("REGULAGRAPH_TEST_POSTGRES_DSN")
 	if dsn == "" {
