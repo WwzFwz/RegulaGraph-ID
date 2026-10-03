@@ -40,3 +40,8 @@ Workflow kandidat Vector/Hybrid dan komposisi draft dari evidence kini tersedia
 sebagai library bersama branch native/Qdrant. Alur PDF-to-answer, admission
 snapshot, hydrator storage dan endpoint masih belum aktif; lihat
 [status integrasi RAG](../../doc/verification-report-rag-workflow.md).
+
+Factory lexical kini membaca artefak analyzer/dictionary/statistik dengan hash
+dan binding generation yang diperiksa sebelum query; encoder tanpa bukti ditolak.
+Publication/admission dan hidrasi sumber masih terbuka; lihat
+[kontrak lexical](../../doc/lexical-generation.md).

@@ -20,6 +20,13 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+[statistics_artifact.rs](statistics_artifact.rs) memproduksi policy analyzer dan
+membaca statistik frozen typed menjadi FrozenBm25. `lexical.rs::freeze_artifact`
+mengekspor statistik serta fingerprint dari populasi term aktual, termasuk chunk
+kosong. Reader mengikatnya ke exact checked dictionary. Bytes fixture sama dibaca
+Go; lihat [kontrak lexical](../../../../doc/lexical-generation.md). Wire budget
+membatasi keluaran; otorisasi snapshot dan worker INDEX masih perlu integrasi.
+
 Berkas: [analyzer.rs](analyzer.rs), [dense.rs](dense.rs), [dictionary.rs](dictionary.rs), [inputs.rs](inputs.rs), [loading.rs](loading.rs), [reuse.rs](reuse.rs), [letter_ranges.rs](letter_ranges.rs), [nfc_properties.rs](nfc_properties.rs), [lexical.rs](lexical.rs), [statistics.rs](statistics.rs), [mod.rs](mod.rs). Dua tabel Unicode dihasilkan oleh [generator Unicode](../../../../scripts/generate_lexical_letters.go); jangan mengeditnya secara manual.
 
 ## Benchmark dan perhatian performa

@@ -60,7 +60,11 @@ Producer PostgreSQL membatasi ID analyzer ke grammar storage ASCII dan revisi
 ke bentuk `lexrev:<angka>`; hash sama di corpus berbeda tetap memerlukan binding
 corpus/artefak terpisah. Sorting penuh butuh O(n log n) dan salinan mapping,
 sehingga peak RSS dictionary besar masih harus diprofilkan.
-Artefak generation/build plan bertipe, writer terkoordinasi, closure/recovery,
+Artefak analyzer/statistik typed sekarang tersedia dengan producer Rust, reader
+Go hash-bound dan fixture parity empat bahasa. Statistik mengikat populasi dan
+dictionary dasar checked; loader tidak membuktikan authority registry atau
+membership snapshot. Lihat [kontrak lexical](lexical-generation.md).
+Build plan bertipe, writer terkoordinasi, closure/recovery,
 bukti replica, dan publication masih belum aktif. Generation
 paired **tidak boleh diterbitkan** sebelum setiap pembaca yang bisa menerima
 route query memahami format tersebut; pembaca binary lama mengabaikan field

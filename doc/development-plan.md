@@ -149,10 +149,17 @@ schema, divalidasi Go/Rust, dan dicocokkan ke metadata collection; upgrade
 semua route reader sebelum publication masih perlu dibuktikan. Allocator PostgreSQL
 append-only, exporter snapshot dictionary typed, serta reader Go/Rust kini tersedia
 sebagai library dengan fixture lintas bahasa. Binding registry/lineage otoritatif,
-artefak statistik/analyzer/build-plan terpin, integrasi allocator pada
+build-plan terpin, integrasi allocator pada
 worker INDEX, ledger mutasi, closure/recovery, readiness replica, dan
 publication tetap terbuka. Lihat [rencana X01](x01-implementation-plan.md)
 serta [verifikasi policy generation](verification-report-x01-input-policy.md).
+
+Artefak analyzer/statistik BM25 typed kini diproduksi Rust dan dibaca loader Go
+dengan pemeriksaan hash, corpus, exact base dictionary, formula serta populasi.
+Factory retriever menolak encoder tanpa binding dan statistik dari snapshot masa
+depan. Fixture parity dan Qdrant nyata sudah diuji; authority katalog dan worker
+INDEX belum terhubung. Lihat [kontrak lexical](lexical-generation.md) serta
+[laporan verifikasi](verification-report-lexical-generation.md).
 
 ## Kelanjutan K01: proposal model kontekstual
 

@@ -52,7 +52,9 @@ generation, menolak truncation/vektor invalid, dan meneruskan deadline ke backen
 menghasilkan branch kosong dengan hitungan OOV, sedangkan kegagalan tetap error.
 `BranchOutput` hanya kandidat dengan ID/versi/rank, belum bukti hukum terhidrasi.
 Factory tepercaya wajib membuktikan artefak pembentuk encoder sesuai generation;
-constructor lokal tidak membuktikan hash storage atau publication. Pemanggil
+`LoadLexicalRetriever` kini memeriksa hash/media/corpus/statistik dan mengikat
+encoder ke generation. Constructor menolak encoder tanpa binding; publication
+dan authority registry tetap harus dibuktikan caller. Pemanggil
 memegang read lease dan menerapkan kebijakan tanggal pada hidrasi berikutnya.
 [search_test.go](search_test.go) menguji boundary dan cancellation dengan doubles.
 
@@ -61,5 +63,6 @@ memegang read lease dan menerapkan kebijakan tanggal pada hidrasi berikutnya.
 `go test ./src/server/internal/retrieval -run TestRetrieveBranchesAgainstQdrant -count=1 -v`
 dari root pada Qdrant disposable. Tes membuat collection unik lalu menghapusnya;
 create/upsert/readback, branch dense/BM25 dan isolasi sequence telah lulus pada
-Qdrant 1.18.0. Vektor/model dan binding artefak lexical masih fixture sintetis,
-sehingga tes ini tidak membuktikan kualitas retrieval atau publication corpus.
+Qdrant 1.18.0. Vektor/model dan corpus masih sintetis; artefak lexical sudah dibaca
+melalui factory dengan pemeriksaan hash. Snapshot lebih tua ditolak sebelum BM25
+memakai statistik masa depan. Tes tidak membuktikan kualitas atau publication corpus.

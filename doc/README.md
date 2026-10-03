@@ -14,6 +14,10 @@ Anak tidak boleh mengubah kontrak input/output secara tersembunyi. Perubahan ben
 
 ## Isi saat ini
 
+[lexical-generation.md](lexical-generation.md) mendefinisikan artefak analyzer dan
+statistik frozen, formula serta handoff Rust ke Go. Bukti parity, backend dan
+batas kesiapannya ada pada [laporan](verification-report-lexical-generation.md).
+
 [verification-report-rag-workflow.md](verification-report-rag-workflow.md)
 mencatat integrasi library retrieval menuju draft bersitasi, uji branch pada
 Qdrant nyata, perbaikan boundary hidrasi, dan koneksi storage/model yang belum siap.

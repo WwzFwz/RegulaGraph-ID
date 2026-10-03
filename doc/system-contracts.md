@@ -199,3 +199,10 @@ Pada `LexicalDictionaryArtifact`, `registry_revision` dan `parent_registry_revis
 adalah revisi `lexical_dictionary_state` per corpus/analyzer. Keduanya berbeda
 dari revisi canonical entity registry K01; jangan mengikat dictionary ke
 `RegistryRevision` graph atau menjadikannya bukti perubahan identitas entitas.
+
+`LexicalAnalyzerArtifact` dan `LexicalStatisticsArtifact` menjadi isi typed untuk
+referensi analyzer/statistics pada IndexGeneration. Wire contract ditambahkan
+tanpa mengubah field/baseline lama; validasi semantik Go/Rust serta loader reader
+mewajibkan format tersebut untuk jalur lexical baru. Lihat [kontrak generation
+lexical](lexical-generation.md) untuk formula, population fingerprint, media type,
+ancestry, empty chunks dan batas otoritas pemanggil.

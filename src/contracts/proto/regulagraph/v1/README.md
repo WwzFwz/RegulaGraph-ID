@@ -14,6 +14,11 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+`evidence.proto` juga memuat artefak analyzer/statistik BM25 typed yang digunakan
+builder Rust dan reader Go. Penambahan pesan bersifat aditif; baseline schema
+tidak ditulis ulang. Semantik formula, empty chunks dan fingerprint populasi
+dijelaskan pada [kontrak lexical](../../../../../doc/lexical-generation.md).
+
 Berkas: [answers.proto](answers.proto), [common.proto](common.proto), [documents.proto](documents.proto), [evidence.proto](evidence.proto), [graph.proto](graph.proto), [inference.proto](inference.proto), [jobs.proto](jobs.proto).
 
 `RegistryCandidateBatch` adalah kontrak handoff read-only antara EXTRACT dan RESOLVE: hasil kandidat serta lookup kosong dicatat per scope bersama revisi, tipe, canonical scope, dan key normalisasi. Kontrak aditif masuk schema lock setelah review independen. Pembaca registry dan konsumen RESOLVE produksi belum tersedia; validasi struktur tidak membuktikan kebenaran hasil query database.

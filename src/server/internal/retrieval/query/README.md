@@ -14,13 +14,20 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+[artifacts.go](artifacts.go) memuat encoder dari bytes analyzer/dictionary/statistik
+yang hash, tipe, corpus, ID dan ancestry lokalnya cocok dengan IndexGeneration.
+Pemuatan dilakukan sekali; Encode tidak membaca storage. Constructor matematika
+tetap tersedia untuk proyeksi/tes, tetapi tidak dapat langsung masuk retriever.
+Publication, membership snapshot dan authority registry tetap milik admission.
+
 Berkas: [classifier.go](classifier.go), [entity_linker.go](entity_linker.go), [lexical.go](lexical.go), [normalizer.go](normalizer.go), [sparse.go](sparse.go), dan tesnya.
 
 `lexical.go` menyediakan analyzer query BM25 v1 dengan aturan yang sama seperti Rust
 indexing. `sparse.go` membangun encoder query dari proyeksi dictionary/statistik BM25
 yang telah diverifikasi, memeriksa digest/lineage lokal saat load, lalu menghasilkan
-vektor query tanpa mutasi vocabulary. Pembuktian hash artefak, ancestry registry
-PostgreSQL, binding snapshot dan pencarian backend belum tersambung.
+vektor query tanpa mutasi vocabulary. Pembuktian hash artefak dan ancestry mapping
+lokal tersedia pada loader; authority registry PostgreSQL dan admission snapshot
+tetap perlu integrasi. Backend sparse tersedia pada retriever induk.
 Fingerprint dictionary kini memakai encoder bersama di `internal/domain`, bukan
 salinan formula di query. Pemuatan dictionary tetap menyalin mapping agar aman
 untuk pembacaan konkuren; ukur peak RSS pada vocabulary corpus acuan.

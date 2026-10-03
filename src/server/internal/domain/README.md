@@ -16,6 +16,12 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+[index_statistics_artifact.go](index_statistics_artifact.go) memvalidasi analyzer
+dan statistik frozen terhadap corpus serta dictionary dasar checked. DF, populasi
+nonempty dan parameter formula diperiksa; validitas lokal bukan bukti membership
+snapshot atau authority registry. [Kontrak lexical](../../../../doc/lexical-generation.md)
+menjelaskan integrasi Rust dan reader query.
+
 [index_dictionary_fingerprint.go](index_dictionary_fingerprint.go) adalah encoder
 fingerprint dictionary BM25 kanonik Go untuk adapter PostgreSQL dan pembaca
 query; Rust memakai layout byte yang sama. Mapping hash tidak memuat corpus,
