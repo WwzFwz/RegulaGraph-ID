@@ -83,6 +83,7 @@ Proposal EXTRACT tidak boleh menulis mention ID ke field `canonical_id`. Endpoin
 
 | Record | Field semantik | Pemilik dan aturan |
 | --- | --- | --- |
+| LexicalDictionaryArtifact | meta, analyzer_id, registry_revision, mapping_fingerprint, sorted entries, optional parent revision/hash | Snapshot lengkap; parent aktual diperiksa; hash mapping tidak menggantikan hash storage atau registry authority |
 | IndexGeneration | generation_id, dense_manifest, lexical_analyzer/dictionary/stats refs, ontology_version, schema_version | Generation incompatible tidak dicampur saat query |
 | IndexRecord | record_id, chunk_id, provision_version_refs, dense_vector?, sparse_indices/values?, filter_metadata, dependencies | Sparse indices unik/terurut, panjang values cocok; dense dimensi cocok |
 | RetrievalPlan | query_original, query_normalized, intents, linked_entities, temporal_scope, requested_profile, stage_budgets | Go; perubahan query tersimpan untuk audit |
@@ -193,3 +194,8 @@ Semua file proto existing tetap pemilik utama: common untuk primitive/context/ma
 `AmbiguousMention.context_items` membawa teks chunk dengan provenance versi chunk, terpisah dari exact mention evidence. Caller memverifikasi bytes artefak; gateway menguji UTF-8, containment dan source correlation. Gateway baru mensyaratkan konteks meskipun field aditif tetap opsional untuk binary compatibility. `ResolutionProposal.rationale` dan `supporting_context_ids` merujuk catatan request immutable, tidak menjadi approval atau probabilitas terkalibrasi. Workflow mengarsipkan input/output dan memverifikasi producer/model serta revision sebelum meneruskan proposal. Lihat [kontrak runtime](semantic-resolution.md); baseline lama tidak ditulis ulang.
 
 `AmbiguousMention.candidate_contexts` mengikat canonical/alias ID ke support mention dan excerpt dokumen kandidat. Katalog checkpoint EXTRACT hanya menyediakan locator; workflow memverifikasi alias/support, hash, corpus, snapshot, auth scope, ontology, document closure, serta exact bytes sebelum sampling. Gateway dan workflow mewajibkan LINK mengutip konteks mention serta support kandidat terpilih. Kandidat boleh tetap ambigu; tidak ada merge atau approval yang tersirat dari rationale. Dependency audit mencakup artefak sumber kandidat dan menolak metadata bertentangan untuk ID sama. Runtime lama yang mengabaikan field aditif tidak menjamin gate ini; upgrade workflow/gateway dan pin prompt bersama.
+
+Pada `LexicalDictionaryArtifact`, `registry_revision` dan `parent_registry_revision`
+adalah revisi `lexical_dictionary_state` per corpus/analyzer. Keduanya berbeda
+dari revisi canonical entity registry K01; jangan mengikat dictionary ke
+`RegistryRevision` graph atau menjadikannya bukti perubahan identitas entitas.

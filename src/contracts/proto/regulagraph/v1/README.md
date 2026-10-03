@@ -46,3 +46,18 @@ Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator 
 Penambahan resolusi kontekstual memakai tag aditif: `AmbiguousMention.context_items=6`, `ResolutionProposal.rationale=11`, dan `supporting_context_ids=12`. Pembaca binary lama tetap dapat membaca field lama; gateway RESOLVE baru menolak request tanpa konteks secara eksplisit. Schema lock lama dipertahankan dan compatibility check dijalankan; fixture baru menguji round trip keempat bahasa. Lihat [kontrak runtime resolusi](../../../../../doc/semantic-resolution.md).
 
 `AmbiguousMention.candidate_contexts=7` menambah `ResolutionCandidateContext` berisi canonical ID, alias ID, supporting Mention, dan excerpt sumber. Field lama/baseline tidak diubah. Gateway dan workflow baru mensyaratkan citation mention serta kandidat terpilih untuk LINK; pembaca lama yang mengabaikan field tidak memberikan jaminan perilaku tersebut, sehingga runtime/prompt perlu diperbarui bersama. Fixture lintas bahasa menguji preservation serta penolakan support/context wajib yang hilang.
+
+`LexicalDictionaryArtifact` dan `LexicalDictionaryEntry` menambahkan kontrak
+snapshot penuh secara aditif. `IndexGeneration.lexical_dictionary` menunjuk bytes
+artefak yang hash-nya diverifikasi storage. Mapping fingerprint v1 mengikat analyzer,
+`lexrev:<registry_revision>`, dan pasangan term-ID; corpus dan metadata terikat
+oleh validasi stage serta hash bytes artefak, bukan hash mapping. Entries harus
+urut byte UTF-8 secara ketat. Parent revision/hash wajib sama-sama hadir atau
+absen dan hanya memberi ancestry bila parent aktual sudah diperiksa. Reader
+baru diperlukan sebelum writer memakai jenis artefak ini; decode schema saja
+tidak membuktikan registry authority, ancestry, atau readiness publication.
+
+Pada `LexicalDictionaryArtifact`, `registry_revision` dan `parent_registry_revision`
+adalah revisi `lexical_dictionary_state` per corpus/analyzer. Keduanya berbeda
+dari revisi canonical entity registry K01; jangan mengikat dictionary ke
+`RegistryRevision` graph atau menjadikannya bukti perubahan identitas entitas.

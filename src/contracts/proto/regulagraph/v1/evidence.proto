@@ -24,6 +24,26 @@ enum IndexFilterFormat {
   INDEX_FILTER_FORMAT_UNSPECIFIED=0;
   INDEX_FILTER_FORMAT_PAIRED_PROVISION_V1=1;
 }
+// A complete bounded vocabulary snapshot; entries are strictly UTF-8 byte ordered.
+// IndexGeneration.lexical_dictionary points to verified bytes of this message.
+// Parent fields are both absent for a root, or both present for a checked ancestor.
+// Absence does not claim any earlier ancestry. Corpus ownership and PostgreSQL
+// authority must be verified outside the mapping fingerprint before publication.
+message LexicalDictionaryArtifact {
+  RecordMeta meta=1 [(rules).required=true];
+  string analyzer_id=2 [(rules)={required:true ascii_id:true}];
+  // Revision of lexical_dictionary_state for this corpus/analyzer, NOT the
+  // canonical entity registry_revision used by K01/graph resolution.
+  uint64 registry_revision=3 [(rules).positive=true];
+  ContentHash mapping_fingerprint=4 [(rules).required=true];
+  repeated LexicalDictionaryEntry entries=5;
+  optional uint64 parent_registry_revision=6 [(rules).positive=true]; // Same lexical revision namespace.
+  ContentHash parent_mapping_fingerprint=7;
+}
+message LexicalDictionaryEntry {
+  string term=1 [(rules).required=true];
+  uint32 term_id=2 [(rules).positive=true];
+}
 message IndexGeneration {
   RecordMeta meta=1 [(rules).required=true];
   ModelManifest dense_manifest=2 [(rules).required=true];

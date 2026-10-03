@@ -4838,6 +4838,106 @@
         "type_name": ".regulagraph.v1.DateAssertion"
       }
     },
+    "regulagraph.v1.LexicalDictionaryArtifact": {
+      "1": {
+        "label": 1,
+        "name": "meta",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 11,
+        "type_name": ".regulagraph.v1.RecordMeta"
+      },
+      "2": {
+        "label": 1,
+        "name": "analyzer_id",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "ascii_id": true,
+          "required": true
+        },
+        "type": 9,
+        "type_name": ""
+      },
+      "3": {
+        "label": 1,
+        "name": "registry_revision",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "positive": true
+        },
+        "type": 4,
+        "type_name": ""
+      },
+      "4": {
+        "label": 1,
+        "name": "mapping_fingerprint",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 11,
+        "type_name": ".regulagraph.v1.ContentHash"
+      },
+      "5": {
+        "label": 3,
+        "name": "entries",
+        "oneof": null,
+        "optional": false,
+        "rules": {},
+        "type": 11,
+        "type_name": ".regulagraph.v1.LexicalDictionaryEntry"
+      },
+      "6": {
+        "label": 1,
+        "name": "parent_registry_revision",
+        "oneof": "_parent_registry_revision",
+        "optional": true,
+        "rules": {
+          "positive": true
+        },
+        "type": 4,
+        "type_name": ""
+      },
+      "7": {
+        "label": 1,
+        "name": "parent_mapping_fingerprint",
+        "oneof": null,
+        "optional": false,
+        "rules": {},
+        "type": 11,
+        "type_name": ".regulagraph.v1.ContentHash"
+      }
+    },
+    "regulagraph.v1.LexicalDictionaryEntry": {
+      "1": {
+        "label": 1,
+        "name": "term",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "required": true
+        },
+        "type": 9,
+        "type_name": ""
+      },
+      "2": {
+        "label": 1,
+        "name": "term_id",
+        "oneof": null,
+        "optional": false,
+        "rules": {
+          "positive": true
+        },
+        "type": 13,
+        "type_name": ""
+      }
+    },
     "regulagraph.v1.ListReviewsRequest": {
       "1": {
         "label": 1,
