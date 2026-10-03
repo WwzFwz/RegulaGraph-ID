@@ -172,3 +172,7 @@ karena rencana ini tersedia.
 [verification-report-implementation-plans.md](verification-report-implementation-plans.md)
 mencatat temuan audit independen pada batas indeks, graph, retrieval dan jawaban,
 perbaikannya, serta status pemeriksaan dokumentasi tanpa mengklaim acceptance kode.
+
+[verification-report-x01-dictionary-artifact.md](verification-report-x01-dictionary-artifact.md)
+mencatat handoff dictionary Go/Rust, exporter PostgreSQL terpin, uji empat bahasa,
+review independen dan batas integrasi serta benchmark yang masih terbuka.

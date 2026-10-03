@@ -146,8 +146,10 @@ readback exact-ID, serta mensyaratkan payload index filter snapshot pada
 collection yang di-bootstrap eksklusif. Batch dan Qdrant menolak ID term sparse
 yang tidak terurut. `IndexGeneration.embedding_input_policy` kini dipin pada
 schema, divalidasi Go/Rust, dan dicocokkan ke metadata collection; upgrade
-semua route reader sebelum publication masih perlu dibuktikan. Artefak build
-terpin, allocator,
+semua route reader sebelum publication masih perlu dibuktikan. Allocator PostgreSQL
+append-only, exporter snapshot dictionary typed, serta reader Go/Rust kini tersedia
+sebagai library dengan fixture lintas bahasa. Binding registry/lineage otoritatif,
+artefak statistik/analyzer/build-plan terpin, integrasi allocator pada
 worker INDEX, ledger mutasi, closure/recovery, readiness replica, dan
 publication tetap terbuka. Lihat [rencana X01](x01-implementation-plan.md)
 serta [verifikasi policy generation](verification-report-x01-input-policy.md).

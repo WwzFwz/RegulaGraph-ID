@@ -44,8 +44,11 @@ snapshot. Preflight Go kini mengikat locator node pemilik ke halaman nyata
 yang overlap; generic closure sudah mengikat span versi ke teks normalisasi.
 Allocator term PostgreSQL per corpus/analyzer kini menyediakan ID `uint32` append-only,
 revisi terpin, operasi idempotent, dan pembacaan dictionary berbatas sebagai library Go.
-Tes transaksi nyata memakai cluster PostgreSQL sementara; pemakaian dari stage INDEX,
-artefak dictionary bertipe/lineage, dan benchmark workload belum tersedia.
+Tes transaksi nyata memakai cluster PostgreSQL sementara. Exporter Go dan reader Rust
+untuk `LexicalDictionaryArtifact` penuh sudah tersedia dengan pemeriksaan hash,
+corpus, revision, parent, serta term-ID immutable. Ekspor SQL root-only; lineage
+lokal hanya diwarisi dari checked parent, bukan klaim ancestry SQL. Pemakaian
+dari stage INDEX, katalog lineage otoritatif, serta benchmark workload belum tersedia.
 Nama revisi `lexrev:<angka>` dan fingerprint mapping v1 kini memiliki fixture
 Go–Rust yang sama; hash itu tidak menggantikan binding corpus/artifact tepercaya.
 Layout fingerprint v1: SHA-256 dari domain bytes
