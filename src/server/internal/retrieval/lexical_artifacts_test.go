@@ -42,6 +42,13 @@ func lexicalArtifacts(t *testing.T, g *pb.IndexGeneration) lexicalFixtureReader 
 		if err = proto.Unmarshal(raw, item.msg); err != nil {
 			t.Fatal(err)
 		}
+		if stats, ok := item.msg.(*pb.LexicalStatisticsArtifact); ok {
+			stats.InputPolicy = g.EmbeddingInputPolicy
+			raw, err = proto.Marshal(stats)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
 		id := item.msg.GetMeta().RecordId
 		h := sha256.Sum256(raw)
 		r[id] = raw

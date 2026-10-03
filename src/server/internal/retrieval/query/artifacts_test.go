@@ -56,6 +56,15 @@ func artifactGeneration(t *testing.T) (*pb.IndexGeneration, *artifactFixtureRead
 		if err = proto.Unmarshal(raw, item.msg); err != nil {
 			t.Fatal(err)
 		}
+		if stats, ok := item.msg.(*pb.LexicalStatisticsArtifact); ok {
+			// The generic token-only fixture is deliberately legacy-empty. This
+			// serving fixture explicitly pins its synthetic rendered population.
+			stats.InputPolicy = g.EmbeddingInputPolicy
+			raw, err = proto.Marshal(stats)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
 		id := item.msg.GetMeta().RecordId
 		r.raw[id] = raw
 		*item.dest = fixtureRef(id, raw, item.msg)
@@ -99,13 +108,23 @@ func TestArtifactEncoderReadsImmutableStorageAndPinsGeneration(t *testing.T) {
 }
 
 func TestArtifactEncoderRejectsTamperingBeforeEncoding(t *testing.T) {
-	for _, mode := range []string{"hash", "size", "media", "corpus", "id", "analyzer", "budget", "cancel", "dictionary", "nil base"} {
+	for _, mode := range []string{"hash", "size", "media", "corpus", "id", "analyzer", "budget", "cancel", "dictionary", "nil base", "missing policy", "foreign policy"} {
 		t.Run(mode, func(t *testing.T) {
 			g, r := artifactGeneration(t)
 			maximum := uint64(1 << 20)
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			switch mode {
+			case "missing policy", "foreign policy":
+				s := new(pb.LexicalStatisticsArtifact)
+				_ = proto.Unmarshal(r.raw[g.LexicalStatistics.ArtifactId], s)
+				s.InputPolicy = ""
+				if mode == "foreign policy" {
+					s.InputPolicy = "primary-span-only"
+				}
+				raw, _ := proto.Marshal(s)
+				g.LexicalStatistics = fixtureRef(s.Meta.RecordId, raw, s)
+				r.raw[s.Meta.RecordId] = raw
 			case "hash":
 				r.raw[g.LexicalStatistics.ArtifactId][0] ^= 1
 			case "size":

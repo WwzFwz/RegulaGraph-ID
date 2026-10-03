@@ -100,6 +100,9 @@ func LoadArtifactBM25Encoder(ctx context.Context, reader ArtifactReader, generat
 	if err = read(generation.LexicalStatistics, stats); err != nil {
 		return nil, fmt.Errorf("load statistics: %w", err)
 	}
+	if stats.InputPolicy != generation.EmbeddingInputPolicy {
+		return nil, errors.New("lexical population input policy differs from index generation")
+	}
 	if stats.DictionaryRegistryRevision == checked.RegistryRevision() {
 		statisticsBase = checked
 	}
