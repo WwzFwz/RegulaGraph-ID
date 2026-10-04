@@ -197,3 +197,9 @@ perbaikannya, serta status pemeriksaan dokumentasi tanpa mengklaim acceptance ko
 [verification-report-x01-dictionary-artifact.md](verification-report-x01-dictionary-artifact.md)
 mencatat handoff dictionary Go/Rust, exporter PostgreSQL terpin, uji empat bahasa,
 review independen dan batas integrasi serta benchmark yang masih terbuka.
+
+[pinned-evidence.md](pinned-evidence.md) mendokumentasikan reader katalog,
+hidrasi teks sumber, kebijakan AS_OF dan kepemilikan lease request sampai draft.
+[verification-report-pinned-evidence.md](verification-report-pinned-evidence.md)
+memisahkan bukti integrasi storage nyata dari model sintetis serta gate yang
+belum diukur.

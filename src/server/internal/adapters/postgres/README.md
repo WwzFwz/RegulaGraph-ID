@@ -112,3 +112,10 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | [registry_aliases.go](registry_aliases.go) dan [registry_candidates.go](registry_candidates.go) | Hubungkan producer bersumber dan stage RESOLVE setelah validasi keberadaan `support_refs`; tambahkan review, closure, dan query historis melalui keputusan revisioned. | Uji candidate coverage dan false merge/split pada gold, replay/corruption, concurrent write, ukuran indeks, pool wait, serta p50/p95/p99 lookup/batch. |
 | [artifacts.go](artifacts.go) | Gunakan dependency rows untuk closure U01 dan batch registration. | Bandingkan closure incremental dengan rebuild dan ukur reverse lookup pada corpus referensi. |
 | [publication.go](publication.go) | Sambungkan backend operations, compensation, retention, dan recovery U01/O01. | Injeksi crash di setiap langkah, verifikasi historical visibility, read lease, dan pool saturation. |
+
+[index_read.go](index_read.go) membaca generation PUBLISHED dan receipt di bawah
+lease snapshot hidup, lalu mengambil record secara batch dengan batas byte SQL.
+Owner/corpus/sequence/expiry, digest point, payload dan visibility diperiksa;
+missing record tidak berubah menjadi partial success. Snapshot tidak diganti
+ke pointer aktif lain selama request. Lihat [kontrak baca](../../../../../doc/pinned-evidence.md)
+dan [verifikasi](../../../../../doc/verification-report-pinned-evidence.md).

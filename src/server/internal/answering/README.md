@@ -60,3 +60,10 @@ serta output invalid. Penghitung token fixture hanya untuk kontrol alur.
 Produksi harus menghitung chat template, envelope, system/question/schema dan
 reserved output; provider usage yang berbeda dari hitungan terpin ditolak.
 Tokenizer BGE tidak boleh dipakai untuk model jawaban Qwen.
+
+Context kini menyertakan `status_at_knowledge_snapshot` agar UNKNOWN/CONFLICT
+terlihat oleh generator. Status saat snapshot pengetahuan tidak menggantikan
+filter tanggal AS_OF: versi REPEALED dapat relevan sebelum tanggal pencabutan.
+Budget context menghitung label tersebut bersama seluruh teks yang dikirim.
+[Integrasi terpin](../../../../doc/pinned-evidence.md) menjaga lease selama
+hydration/generation; source URL prefetched tetap berasal dari bukti terverifikasi.

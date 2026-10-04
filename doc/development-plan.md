@@ -190,7 +190,11 @@ RRF dan error tanpa fallback diam-diam. A01 memiliki generator draft terstruktur
 span UTF-8 dan citation dari metadata tepercaya; klaim tetap UNREVIEWED/PARTIAL.
 `RAGWorkflow.AnswerPinnedQuestion` menghubungkan search, port hidrasi serta
 context/generation dengan fixture integrasi dan reviewer independen.
-Alur PDF nyata masih menunggu wiring writer/publication X01, admission snapshot,
-hidrasi storage dan tokenizer prompt generator. Reranker penuh, streaming,
+Library admission snapshot, lease selama request dan hidrasi storage kini
+tersambung sampai draft bersitasi dalam tes PostgreSQL/Qdrant nyata dengan
+embedding/generator sintetis. Lihat [kontrak](pinned-evidence.md) dan
+[bukti verifikasi](verification-report-pinned-evidence.md). Alur PDF nyata masih
+menunggu wiring coordinator INDEX, factory query/API/CLI dan tokenizer prompt
+generator sebenarnya. Reranker penuh, streaming,
 graph serta acceptance juga belum selesai. Lihat
 [laporan integrasi RAG](verification-report-rag-workflow.md).

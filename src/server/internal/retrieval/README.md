@@ -34,6 +34,16 @@ Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator 
 
 Fusion RRF deterministik pada [fusion.go](fusion.go) aktif sebagai fungsi lokal: input cabang berbatas, rank dan keputusan filter divalidasi, hasil ambigu antar cabang dideduplikasi berdasarkan evidence key, dan seluruh provenance dipertahankan. [reranking.go](reranking.go) kini mengorelasikan seluruh hasil batch model ke kandidat, menolak hasil hilang/gagal/salah model, menyalin provenance, serta mempertahankan urutan fusion saat skor seri. Pemanggil tetap wajib membentuk key dari bukti/versi tepercaya, menerapkan filter corpus/snapshot/versi, dan mengikat pair ke teks bukti yang benar. Branch dense dan BM25 kini callable dengan client native/Qdrant; graph serta hidrasi storage dan admission snapshot produksi belum tersambung; tes lokal tidak membuktikan Recall@k atau p95/p99.
 
+## Hidrasi sumber terpublikasi
+
+[hydration.go](hydration.go) membaca katalog di bawah lease, memverifikasi plan,
+source dan normalized text, memetakan span UTF-8 serta URL, dan menerapkan
+kebijakan AS_OF. Cache bytes/plan/source view berlaku per request dengan budget
+agregat. Parent/exception belum diekspansi; versi campuran yang memerlukan
+proyeksi teks ditolak. Lihat [kontrak hidrasi](../../../../doc/pinned-evidence.md).
+[hydration_test.go](hydration_test.go) memeriksa interval dan unresolved policy;
+integrasi PostgreSQL/Qdrant sampai draft berada pada tes indexing.
+
 ## Rekomendasi implementasi anak
 
 Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan status aktif/scaffold; tabel bukan klaim fitur sudah tersedia. Integrasikan keluaran anak melalui kontrak induk dan jalankan [protokol verifikasi](../../../../doc/verification.md) sebelum menyatakan paket selesai. Target angka tetap bersumber dari configs/benchmark-targets.yaml.

@@ -44,3 +44,10 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
 | [publication.go](publication.go) | Sambungkan batch mutation X01 serta compensation/reconcile/retire U01/O01 pada state machine yang sudah aktif. | Pertahankan VerifyPublicationReady sebelum commit; injeksi crash setiap backend dan tolak fence/receipt stale. |
+
+`initial_writer_test.go` juga menguji pembacaan katalog, batas byte, korupsi teks,
+unresolved policy dan lease yang dilepas. [published_rag_test.go](published_rag_test.go)
+menyambungkan publication PostgreSQL/Qdrant nyata sampai draft bersitasi melalui
+RAGSession dan SourceHydrator. Embedding/generator serta token counter sintetis,
+dan factory memakai store fixture yang sudah dibuat; ini belum menguji pemilihan
+route/credential produksi atau kualitas model. Lihat [laporan](../../../../doc/verification-report-pinned-evidence.md).

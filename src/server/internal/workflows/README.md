@@ -74,6 +74,10 @@ memulihkan urutan/provenance ranking asli, serta memberikan salinan mendalam
 hasil search kepada callback agar ekspektasi tidak bisa diubah.
 [rag_test.go](rag_test.go) menguji komposisi sintetis sampai citation;
 [retrieval_test.go](retrieval_test.go) menguji paralelisme, cancellation dan
-konsistensi identitas. Concrete storage hydrator, snapshot admission/read-lease
-ownership, reranker pada workflow penuh, tokenizer generator dan API/CLI query
-masih belum tersambung. Kode ini bukan klaim PDF-to-answer produksi sudah aktif.
+konsistensi identitas. [rag_session.go](rag_session.go) kini memiliki lease
+snapshot aktif sampai generation dan cleanup; [rag_hydration.go](rag_hydration.go)
+memasang hydrator storage ke urutan hasil fusion. Factory milik caller wajib
+memakai binding katalog dan client/model reusable, dengan akses corpus yang
+sudah diautentikasi. [rag_session_test.go](rag_session_test.go) menguji lifecycle,
+cancellation dan error. Reranker penuh, tokenizer generator nyata dan API/CLI
+query masih belum tersambung. Lihat [kontrak](../../../../doc/pinned-evidence.md).

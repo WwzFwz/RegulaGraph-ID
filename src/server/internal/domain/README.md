@@ -147,3 +147,8 @@ dan lineage sendiri; hanya parent yang benar-benar diperiksa boleh diwarisi.
 Root pada revisi mana pun membuktikan dirinya saja. Reader menolak reassignment,
 term hilang, parent/corpus/hash berbeda dan batas wire terlampaui. Pemeriksaan
 ini tidak mengautentikasi writer registry, hash bytes storage, atau publication.
+
+[index_read.go](index_read.go) mendefinisikan PinnedIndex dan IndexCatalogRecord untuk
+boundary lokal pembacaan storage. Tipe memakai schema C01 yang sama; pin membawa
+locator lease, bukan authorization pengguna. Adapter wajib memeriksa owner,
+expiry dan publication saat membaca. Lihat [kontrak](../../../../doc/pinned-evidence.md).

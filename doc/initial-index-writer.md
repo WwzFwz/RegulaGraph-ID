@@ -83,7 +83,8 @@ Neo4j dan membuktikan publication diblokir tanpa receipt-nya, tanpa memalsukan a
 
 Belum tersedia: incremental parent/closures, copy-forward parent points, recovery
 bootstrap, retire/GC, topology terdistribusi, writer Neo4j, coordinator INDEX daemon,
-reader katalog/hydration, dan alur PDF nyata sampai jawaban. Preparation belum
+dan alur PDF nyata sampai jawaban. Reader katalog/hydration kini tersedia sebagai
+[library terpin](pinned-evidence.md), dengan uji draft memakai model sintetis. Preparation belum
 boleh dipromosikan menjadi endpoint publik yang menerima daftar sumber sembarang.
 
 Ukur p95/p99 preparation/lock/batch/readback, throughput, pool occupancy, RSS,

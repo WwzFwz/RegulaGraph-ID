@@ -94,3 +94,8 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 `Store.Binding()` mengembalikan salinan generation/corpus/collection bagi
 retrieval untuk menolak model atau snapshot-generation yang berbeda sebelum
 inference. Salinan ini bukan bukti publication, authorization, atau read lease.
+
+`search.go` memproyeksikan daftar provision-version unik dari filter berpasangan,
+meskipun satu versi muncul pada lebih dari satu pasangan sumber. Duplikat pasangan
+versi/blob tetap ditolak. Hit belum merupakan teks bukti; [hydrator](../../retrieval/hydration.go)
+memeriksa membership katalog dan artefak sumber sebelum answering.
