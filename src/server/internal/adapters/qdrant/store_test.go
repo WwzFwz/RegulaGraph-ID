@@ -124,6 +124,53 @@ func TestStoreCreatesMissingPayloadIndexesBeforeReadiness(t *testing.T) {
 	}
 }
 
+func TestReadOnlyAdmissionNeverBootstraps(t *testing.T) {
+	for _, mode := range []string{"missing", "missing payload index", "valid", "drift after ready"} {
+		t.Run(mode, func(t *testing.T) {
+			reads := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodGet {
+					t.Error("query admission attempted mutation", r.Method)
+					w.WriteHeader(500)
+					return
+				}
+				reads++
+				if mode == "missing" {
+					w.WriteHeader(404)
+					return
+				}
+				body := collectionReply()
+				if mode == "missing payload index" {
+					body = strings.Replace(body, `"corpus_id":{"data_type":"keyword"},`, "", 1)
+				}
+				if mode == "drift after ready" && reads > 1 {
+					body = strings.Replace(body, `"size":2`, `"size":3`, 1)
+				}
+				_, _ = w.Write([]byte(body))
+			}))
+			defer server.Close()
+			binding, _ := qdrantFixture()
+			store, err := New(server.URL, "", server.Client(), binding)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = store.OpenExistingCollection(context.Background())
+			valid := mode == "valid" || mode == "drift after ready"
+			if (err == nil) != valid {
+				t.Fatal(mode, err)
+			}
+			if mode == "drift after ready" {
+				if err = store.OpenExistingCollection(context.Background()); err == nil {
+					t.Fatal("layout drift accepted")
+				}
+				if err = store.requireReady(); err == nil {
+					t.Fatal("readiness not revoked")
+				}
+			}
+		})
+	}
+}
+
 func TestStoreRejectsWrongPayloadIndexType(t *testing.T) {
 	writes := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

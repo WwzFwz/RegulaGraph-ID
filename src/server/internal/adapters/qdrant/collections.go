@@ -50,6 +50,17 @@ var requiredPayloadIndexes = []struct{ field, kind string }{
 // serializes this Store instance. A failed partial bootstrap requires an
 // explicit repair/rebuild, since a later call sees an existing collection.
 func (store *Store) EnsureCollection(ctx context.Context) error {
+	return store.admitCollection(ctx, true)
+}
+
+// OpenExistingCollection admits only an already provisioned collection. Query
+// processes must never bootstrap a missing index or repair schema while reading.
+// Reuse the admitted Store for queries; publication owns complete serving checks.
+func (store *Store) OpenExistingCollection(ctx context.Context) error {
+	return store.admitCollection(ctx, false)
+}
+
+func (store *Store) admitCollection(ctx context.Context, allowCreate bool) error {
 	if store == nil {
 		return errors.New("qdrant store is required")
 	}
@@ -64,6 +75,9 @@ func (store *Store) EnsureCollection(ctx context.Context) error {
 		return err
 	}
 	if status == http.StatusNotFound {
+		if !allowCreate {
+			return errors.New("published qdrant collection is missing")
+		}
 		input := map[string]any{
 			"vectors": map[string]any{"dense": map[string]any{
 				"size": store.binding.Generation.DenseManifest.GetDimensions(), "distance": "Cosine"}},
