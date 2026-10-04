@@ -129,6 +129,7 @@ func (store *Store) search(ctx context.Context, using string, vector any, scope 
 		}
 		seen[canonicalID] = true
 		versions := make([]string, 0, len(payload.ProvisionFilters))
+		seenVersions := make(map[string]bool, len(payload.ProvisionFilters))
 		pairs := make(map[string]bool, len(payload.ProvisionFilters))
 		versionMatched := scope.ProvisionVersionID == ""
 		for _, filter := range payload.ProvisionFilters {
@@ -145,7 +146,10 @@ func (store *Store) search(ctx context.Context, using string, vector any, scope 
 				return nil, errors.New("qdrant hit has incomplete paired legal evidence")
 			}
 			pairs[pairKey] = true
-			versions = append(versions, filter.VersionID)
+			if !seenVersions[filter.VersionID] {
+				versions = append(versions, filter.VersionID)
+				seenVersions[filter.VersionID] = true
+			}
 			if filter.VersionID == scope.ProvisionVersionID {
 				versionMatched = true
 			}

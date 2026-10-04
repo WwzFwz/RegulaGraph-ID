@@ -525,6 +525,34 @@ func TestStoreRejectsCorruptPairedSearchHit(t *testing.T) {
 	}
 }
 
+func TestStoreDeduplicatesVersionProjectionAcrossSourcePairs(t *testing.T) {
+	paired := `{"provision_version_id":"version:one","regulation_id":"regulation:one","source_blob_id":"blob:one","jurisdiction":"ID","legal_status":"LEGAL_STATUS_ACTIVE","legal_interval":{"start":{"knowledge":"DATE_KNOWLEDGE_UNKNOWN"},"end":{"knowledge":"DATE_KNOWLEDGE_UNKNOWN"}}}`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodGet {
+			_, _ = w.Write([]byte(collectionReply()))
+			return
+		}
+		_, _ = w.Write([]byte(`{"status":"ok","result":{"points":[{"id":"` + testPointID + `","score":0.9,"payload":{"corpus_id":"corpus:one","generation_id":"generation:one","record_id":"index:one","chunk_id":"chunk:one","from_seq":7,"provision_filters":[` + paired + `,` + strings.Replace(paired, "blob:one", "blob:two", 1) + `]}}]}}`))
+	}))
+	defer server.Close()
+	binding, _ := qdrantFixture()
+	store, err := New(server.URL, "", server.Client(), binding)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = store.EnsureCollection(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	hits, err := store.SearchDense(context.Background(), []float32{0.2, 0.8}, SearchScope{SnapshotSeq: 7, Limit: 1})
+	if err != nil || len(hits) != 1 {
+		t.Fatal(hits, err)
+	}
+	if len(hits[0].ProvisionVersionIDs) != 1 || hits[0].ProvisionVersionIDs[0] != "version:one" {
+		t.Fatal("version projection repeated source pairs", hits)
+	}
+}
+
 func TestStoreRejectsOversizedSparseQueryBeforeNetwork(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
