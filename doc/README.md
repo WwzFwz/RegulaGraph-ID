@@ -203,3 +203,7 @@ hidrasi teks sumber, kebijakan AS_OF dan kepemilikan lease request sampai draft.
 [verification-report-pinned-evidence.md](verification-report-pinned-evidence.md)
 memisahkan bukti integrasi storage nyata dari model sintetis serta gate yang
 belum diukur.
+
+[query-evidence.md](query-evidence.md) menjelaskan CLI operator untuk pencarian
+bukti terpin serta factory query berbasis katalog. [Laporan verifikasi query](verification-report-query-evidence.md)
+memisahkan tes storage nyata, provider sintetis, dan target yang belum diukur.

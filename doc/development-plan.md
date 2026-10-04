@@ -194,7 +194,15 @@ Library admission snapshot, lease selama request dan hidrasi storage kini
 tersambung sampai draft bersitasi dalam tes PostgreSQL/Qdrant nyata dengan
 embedding/generator sintetis. Lihat [kontrak](pinned-evidence.md) dan
 [bukti verifikasi](verification-report-pinned-evidence.md). Alur PDF nyata masih
-menunggu wiring coordinator INDEX, factory query/API/CLI dan tokenizer prompt
+menunggu wiring coordinator INDEX, API/CLI jawaban dan tokenizer prompt
 generator sebenarnya. Reranker penuh, streaming,
 graph serta acceptance juga belum selesai. Lihat
 [laporan integrasi RAG](verification-report-rag-workflow.md).
+
+Pembaruan berikutnya 2026-10-04: `query-evidence` kini mengekspos native embedding,
+dense/BM25 dan hidrasi terpin sebagai perintah operator. Factory memilih physical
+store dari katalog, melakukan admission baca tanpa bootstrap dan menyiapkan BM25
+terverifikasi. Warm binding library diuji terpisah dari cold invocation CLI.
+Lihat [panduan](query-evidence.md) dan [verifikasi](verification-report-query-evidence.md).
+Coordinator INDEX untuk corpus pengguna, generator/tokenizer prompt nyata, API
+terautentikasi, graph dan acceptance tetap terbuka; gold tetap tahap berikutnya.

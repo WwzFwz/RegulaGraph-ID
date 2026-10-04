@@ -8,7 +8,7 @@ Logika di luar cakupan ini ditempatkan pada komponen pemiliknya. Jika fungsi bar
 
 ## Peran dan integrasi anak
 
-Perintah collect memanggil internal/workflows.CollectSources dan mengunduh PDF nyata serta metadata ke data/acquisition. Perintah audit memanggil sources.AuditAcquisition untuk memverifikasi inventory lokal secara streaming dan menulis manifest deterministik. Perintah `submit` menerima request ProtoJSON berbatas, memasang hash ontology dan policy corpus terpin, lalu membuat job PostgreSQL yang idempotent melalui scheduler. CLI hanya memuat argumen, merakit dependency, dan melaporkan output JSON. Exit code 0 berarti operasi/integrity sukses, 1 berarti kegagalan atau integrity error, dan 2 berarti argumen salah. Query/update CLI produksi belum tersedia. Lihat [panduan collector](../../../../doc/acquisition.md).
+Perintah collect memanggil internal/workflows.CollectSources dan mengunduh PDF nyata serta metadata ke data/acquisition. Perintah audit memanggil sources.AuditAcquisition untuk memverifikasi inventory lokal secara streaming dan menulis manifest deterministik. Perintah `submit` menerima request ProtoJSON berbatas, memasang hash ontology dan policy corpus terpin, lalu membuat job PostgreSQL yang idempotent melalui scheduler. CLI hanya memuat argumen, merakit dependency, dan melaporkan output JSON. Exit code 0 berarti operasi/integrity sukses, 1 berarti kegagalan atau integrity error, dan 2 berarti argumen salah. CLI evidence-only tersedia; query jawaban serta update produksi belum tersedia. Lihat [panduan collector](../../../../doc/acquisition.md).
 
 Pertahankan source/canonical/provision-version/snapshot ID dan schema version lintas anak. Boundary runtime mengikuti [src/contracts](../../../contracts/README.md), dengan pekerjaan batch atau inference yang jelas. Perubahan bentuk data, error/status, serta offset sumber harus didokumentasikan bersama konsumennya; jangan menggandakan kebijakan publikasi di beberapa runtime.
 
@@ -40,3 +40,10 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | --- | --- | --- |
 | [main.go](main.go) | Pertahankan routing command tipis; expose job/status/update/query hanya setelah workflow pemilik aktif. | Uji exit code, machine-readable output, cancellation, dan Ctrl+C pada proses aktif. |
 | [audit.go](audit.go) | Pertahankan flag bounded dan exit integrity; tambahkan opsi output hanya bila format manifest tetap kompatibel. | Uji root/write/stdout failure, cancellation, dan invalid inventory tidak pernah exit 0. |
+
+[query.go](query.go) menyediakan `query-evidence` untuk operator lokal: pertanyaan,
+tanggal AS_OF dan profil eksplisit masuk ke RAGSession, native embedding, dense/BM25
+serta hidrasi sumber. Output adalah evidence ProtoJSON dengan penolakan eksplisit,
+bukan jawaban model. Konfigurasi, prasyarat snapshot terpublikasi, cold setup dan
+exit code dijelaskan di [panduan query](../../../../doc/query-evidence.md).
+[query_test.go](query_test.go) menguji validasi sebelum I/O, redaction dan output.

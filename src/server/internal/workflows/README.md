@@ -80,4 +80,12 @@ memasang hydrator storage ke urutan hasil fusion. Factory milik caller wajib
 memakai binding katalog dan client/model reusable, dengan akses corpus yang
 sudah diautentikasi. [rag_session_test.go](rag_session_test.go) menguji lifecycle,
 cancellation dan error. Reranker penuh, tokenizer generator nyata dan API/CLI
-query masih belum tersambung. Lihat [kontrak](../../../../doc/pinned-evidence.md).
+jawaban masih belum tersambung; CLI evidence-only sudah tersedia. Lihat [kontrak](../../../../doc/pinned-evidence.md).
+
+[published_query.go](published_query.go) mempersiapkan dependency dari binding
+katalog: origin credential harus cocok persis, admission Qdrant hanya membaca,
+dan BM25 memverifikasi registry/hash artefak. PreparedQuery.Bind menggunakan ulang
+resource generation serta membuat hydrator per pin. Perubahan binding ditolak
+sampai resource baru disiapkan. SearchQuestion/SearchPinnedQuestion menyediakan
+jalur evidence-only yang sama dengan answering tanpa pemanggilan generator.
+Lihat [panduan](../../../../doc/query-evidence.md) untuk lifecycle cold CLI/warm library.

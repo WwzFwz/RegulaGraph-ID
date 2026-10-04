@@ -45,3 +45,8 @@ Factory lexical kini membaca artefak analyzer/dictionary/statistik dengan hash
 dan binding generation yang diperiksa sebelum query; encoder tanpa bukti ditolak.
 Publication/admission dan hidrasi sumber masih terbuka; lihat
 [kontrak lexical](../../doc/lexical-generation.md).
+
+CLI operator `query-evidence` kini tersedia untuk pencarian dan hidrasi bukti pada
+snapshot terpublikasi. Profil/date eksplisit, native embedding serta BM25 memakai
+workflow bersama. Ini belum menyediakan jawaban LLM atau API publik; lihat
+[panduan query](../../doc/query-evidence.md).

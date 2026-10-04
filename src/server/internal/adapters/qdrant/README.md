@@ -99,3 +99,8 @@ inference. Salinan ini bukan bukti publication, authorization, atau read lease.
 meskipun satu versi muncul pada lebih dari satu pasangan sumber. Duplikat pasangan
 versi/blob tetap ditolak. Hit belum merupakan teks bukti; [hydrator](../../retrieval/hydration.go)
 memeriksa membership katalog dan artefak sumber sebelum answering.
+
+`OpenExistingCollection` memakai pemeriksaan layout yang sama dengan writer,
+tetapi menolak 404 dan indeks payload yang hilang tanpa create/repair. Factory
+query memakai admission ini agar request baca tidak memutasi indeks. Store yang
+sudah diadmit dapat dipakai ulang; publication tetap memiliki gate data lengkap.

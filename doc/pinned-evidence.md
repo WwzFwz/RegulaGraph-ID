@@ -70,9 +70,10 @@ draft tetap UNREVIEWED; pemeriksaan referensi citation bukan pembuktian entailme
 
 ## Integrasi berikutnya dan pengukuran
 
+Factory query dan CLI operator evidence-only kini tersedia; lihat [panduan](query-evidence.md).
 Sambungkan coordinator INDEX dengan inventory otoritatif, profil backend wajib,
-query factory/cache generation, tokenizer prompt generator sebenarnya, serta
-API/CLI terautentikasi. Reader sumber saat ini hanya menerima source snapshot
+cache lintas generation, tokenizer prompt generator sebenarnya, serta API
+terautentikasi dan CLI jawaban. Reader sumber saat ini hanya menerima source snapshot
 yang sama dengan target snapshot awal; lineage incremental dan parent context,
 reranker penuh, writer Neo4j/graph dan streaming tetap pekerjaan berikutnya.
 
