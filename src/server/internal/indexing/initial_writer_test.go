@@ -23,10 +23,12 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	pb "regulagraph.local/server/gen/regulagraph/v1"
 	"regulagraph.local/server/internal/adapters/postgres"
 	"regulagraph.local/server/internal/adapters/qdrant"
 	"regulagraph.local/server/internal/domain"
+	"regulagraph.local/server/internal/retrieval"
 )
 
 type indexMemoryArtifacts map[string][]byte
@@ -108,19 +110,23 @@ func runInitialIndexPublication(t *testing.T, requireGraph bool) {
 		t.Fatal(err)
 	}
 	artifacts := indexMemoryArtifacts{}
+	putRaw := func(id, media string, raw []byte) *pb.ArtifactRef {
+		t.Helper()
+		sum := sha256.Sum256(raw)
+		ref := &pb.ArtifactRef{ArtifactId: id, SchemaVersion: 1, MediaType: media, ByteSize: uint64(len(raw)), ContentHash: &pb.ContentHash{Sha256: fmt.Sprintf("%x", sum)}, StorageKey: fmt.Sprintf("objects/%x", sum)}
+		if e := repo.RegisterArtifact(ctx, corpus, ref); e != nil {
+			t.Fatal(e)
+		}
+		artifacts[id] = raw
+		return ref
+	}
 	put := func(id, media string, m proto.Message) *pb.ArtifactRef {
 		t.Helper()
 		raw, e := proto.Marshal(m)
 		if e != nil {
 			t.Fatal(e)
 		}
-		sum := sha256.Sum256(raw)
-		ref := &pb.ArtifactRef{ArtifactId: id, SchemaVersion: 1, MediaType: media, ByteSize: uint64(len(raw)), ContentHash: &pb.ContentHash{Sha256: fmt.Sprintf("%x", sum)}, StorageKey: fmt.Sprintf("objects/%x", sum)}
-		if e = repo.RegisterArtifact(ctx, corpus, ref); e != nil {
-			t.Fatal(e)
-		}
-		artifacts[id] = raw
-		return ref
+		return putRaw(id, media, raw)
 	}
 	load := func(name string, m proto.Message) {
 		t.Helper()
@@ -188,6 +194,22 @@ func runInitialIndexPublication(t *testing.T, requireGraph bool) {
 		}
 	}
 	source.Chunks = chunks
+	// Persist bounded synthetic text through the same registry/hash boundary as
+	// production hydration. Spans stay fixed; model/text quality is not asserted.
+	for _, text := range source.TextArtifacts {
+		old := text.NormalizedTextRef
+		data := []byte(strings.Repeat("a", int(old.ByteSize)))
+		copy(data, []byte("Perizinan usaha memerlukan bukti."))
+		text.NormalizedTextRef = putRaw(old.ArtifactId+suffix, old.MediaType, data)
+		for _, version := range source.Versions {
+			if proto.Equal(version.TextRef, old) {
+				version.TextRef = proto.Clone(text.NormalizedTextRef).(*pb.ArtifactRef)
+			}
+		}
+	}
+	for i, blob := range source.Sources {
+		source.Observations = append(source.Observations, &pb.SourceObservation{Meta: &pb.RecordMeta{SchemaVersion: 1, CorpusId: corpus, RecordId: fmt.Sprintf("observation:%d%s", i, suffix)}, PortalId: "fixture", DetailUrl: "https://example.org/fixture.pdf", ResolvedUrl: "https://example.org/fixture.pdf", FetchedAt: timestamppb.Now(), Status: pb.ObservationStatus_OBSERVATION_STATUS_COMPLETE, SourceBlobId: proto.String(blob.Meta.RecordId)})
+	}
 	plan.DocumentBatch = put(source.Meta.RecordId, "application/x-protobuf; message=regulagraph.v1.DocumentBatch", source)
 	job := "job:" + corpus
 	checkpoint := &pb.Checkpoint{Meta: &pb.RecordMeta{SchemaVersion: 1, CorpusId: corpus, RecordId: "checkpoint:" + corpus}, JobId: job, Stage: pb.JobStage_JOB_STAGE_CHUNK,
@@ -363,6 +385,116 @@ func runInitialIndexPublication(t *testing.T, requireGraph bool) {
 	}
 	if err = WriteInitialIndex(ctx, repo, backend, p); err == nil {
 		t.Fatal("terminal snapshot accepted fresh writes")
+	}
+	verifyPublishedHydration(t, ctx, repo, physical, p, artifacts, source)
+	verifyPublishedRAG(t, ctx, repo, physical, p, artifacts, source.DependencyManifest.ProducerManifest)
+}
+
+func verifyPublishedHydration(t *testing.T, ctx context.Context, repo *postgres.Repository, physical *qdrant.Store, p *PreparedInitialIndex, artifacts indexMemoryArtifacts, source *pb.DocumentBatch) {
+	t.Helper()
+	pin, err := repo.PinActiveSnapshot(ctx, p.snapshot.CorpusId, "read:"+p.binding.PublicationID, "reader:fixture", 30*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer repo.ReleaseSnapshotPin(context.Background(), pin.LeaseID, pin.OwnerID)
+	index, err := repo.LoadPinnedIndex(ctx, pin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !proto.Equal(index.Snapshot, p.snapshot) || !proto.Equal(index.Binding.Generation, p.binding.Generation) {
+		t.Fatal("read admitted a different snapshot generation")
+	}
+	ids := []string{p.records[1].Meta.RecordId, p.records[0].Meta.RecordId}
+	read, err := repo.LoadPinnedIndexRecords(ctx, pin, ids, 4<<20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if read[0].Record.Meta.RecordId != ids[0] || read[1].Record.Meta.RecordId != ids[1] {
+		t.Fatal("catalog lost caller order")
+	}
+	for _, bad := range [][]string{{ids[0], ids[0]}, {ids[0], "index:absent"}} {
+		if _, err = repo.LoadPinnedIndexRecords(ctx, pin, bad, 4<<20); err == nil {
+			t.Fatal("invalid catalog selection returned partial success")
+		}
+	}
+	if _, err = repo.LoadPinnedIndexRecords(ctx, pin, ids, 1); err == nil {
+		t.Fatal("catalog exceeded requested byte budget")
+	}
+	wrong := pin
+	wrong.OwnerID = "reader:wrong"
+	if _, err = repo.LoadPinnedIndex(ctx, wrong); err == nil {
+		t.Fatal("foreign lease owner accepted")
+	}
+	wrong = pin
+	wrong.Sequence++
+	if _, err = repo.LoadPinnedIndex(ctx, wrong); err == nil {
+		t.Fatal("forged snapshot sequence accepted")
+	}
+	h, err := retrieval.NewSourceHydrator(repo, artifacts, index, retrieval.HydrationConfig{MaximumCandidates: 32, MaximumArtifactBytes: 16 << 20, MaximumEvidenceBytes: 1 << 20, Producer: source.DependencyManifest.ProducerManifest})
+	if err != nil {
+		t.Fatal(err)
+	}
+	hits, err := physical.SearchDense(ctx, p.records[0].DenseVector.Values, qdrant.SearchScope{SnapshotSeq: pin.Sequence, Limit: 2})
+	if err != nil || len(hits) != 2 {
+		t.Fatal(hits, err)
+	}
+	request := &pb.QuestionRequest{Question: "Apa ketentuannya?", CorpusId: pin.CorpusID, ResponseMode: pb.ResponseMode_RESPONSE_MODE_COMPLETE, RequestedProfile: pb.RetrievalProfile_RETRIEVAL_PROFILE_VECTOR_RAG,
+		TemporalScope: &pb.TemporalScope{Mode: pb.TemporalMode_TEMPORAL_MODE_AS_OF, EffectiveAt: &pb.CalendarDate{Year: 2026, Month: 1, Day: 1}, UnresolvedPolicy: pb.UnresolvedPolicy_UNRESOLVED_POLICY_REPORT}}
+	result, err := h.Hydrate(ctx, request, hits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Evidence.Items) != 2 || !proto.Equal(result.Evidence.Snapshot, p.snapshot) || result.Evidence.Completeness != pb.Completeness_COMPLETENESS_PARTIAL {
+		t.Fatal("hydration lost evidence or hid unresolved dates/context")
+	}
+	limited, err := retrieval.NewSourceHydrator(repo, artifacts, index, retrieval.HydrationConfig{MaximumCandidates: 32, MaximumArtifactBytes: 16 << 20, MaximumEvidenceBytes: uint64(proto.Size(result.Evidence) - 1), Producer: source.DependencyManifest.ProducerManifest})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = limited.Hydrate(ctx, request, hits); err == nil {
+		t.Fatal("bundle metadata escaped total output budget")
+	}
+	for _, evidence := range result.Evidence.Items {
+		span := evidence.SourceSpans[0]
+		for _, text := range source.TextArtifacts {
+			if text.Meta.RecordId == span.TextArtifactId && evidence.Text != string(artifacts[text.NormalizedTextRef.ArtifactId][span.StartByte:span.EndByte]) {
+				t.Fatal("evidence text did not come from verified artifact span")
+			}
+		}
+		for _, ref := range evidence.SourceRefs {
+			urls, e := result.SourceURLs(ref.SourceBlobId, ref.ProvisionVersionId)
+			if e != nil || len(urls) != 1 || urls[0] != "https://example.org/fixture.pdf" {
+				t.Fatal(urls, e)
+			}
+		}
+	}
+	forged := append([]qdrant.Hit(nil), hits...)
+	forged[0].PointID = "00000000-0000-8000-8000-000000000000"
+	if _, err = h.Hydrate(ctx, request, forged); err == nil {
+		t.Fatal("foreign Qdrant point reached evidence")
+	}
+	request.TemporalScope.UnresolvedPolicy = pb.UnresolvedPolicy_UNRESOLVED_POLICY_EXCLUDE
+	excluded, err := h.Hydrate(ctx, request, hits)
+	if err != nil || len(excluded.Rejected) != len(hits) || len(excluded.Evidence.Items) != 0 {
+		t.Fatal("unresolved exclusion", err)
+	}
+	request.TemporalScope.UnresolvedPolicy = pb.UnresolvedPolicy_UNRESOLVED_POLICY_REQUIRE_REVIEW
+	if _, err = h.Hydrate(ctx, request, hits); err == nil {
+		t.Fatal("required legal review bypassed")
+	}
+	request.TemporalScope.UnresolvedPolicy = pb.UnresolvedPolicy_UNRESOLVED_POLICY_REPORT
+	textRef := source.TextArtifacts[0].NormalizedTextRef
+	saved := artifacts[textRef.ArtifactId]
+	artifacts[textRef.ArtifactId] = []byte("corrupt")
+	if _, err = h.Hydrate(ctx, request, hits); err == nil {
+		t.Fatal("corrupt source text reached evidence")
+	}
+	artifacts[textRef.ArtifactId] = saved
+	if err = repo.ReleaseSnapshotPin(ctx, pin.LeaseID, pin.OwnerID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = h.Hydrate(ctx, request, hits); err == nil {
+		t.Fatal("released snapshot lease still served evidence")
 	}
 }
 

@@ -142,5 +142,5 @@ func renderEvidence(item *pb.Evidence) string {
 		}
 	}
 	return "Evidence " + item.Meta.RecordId + " versions [" + strings.Join(versions, ",") +
-		"] text " + strconv.Quote(item.Text)
+		"] status_at_knowledge_snapshot [" + item.LegalStatus.String() + "] text " + strconv.Quote(item.Text)
 }

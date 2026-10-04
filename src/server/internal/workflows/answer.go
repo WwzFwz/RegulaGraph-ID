@@ -13,8 +13,9 @@
 // Target numerik required: configs/benchmark-targets.yaml; status REQUIRED_UNMEASURED.
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
-// Status: workflow draft dari EvidenceBundle terpin aktif; admission snapshot,
-// hidrasi storage, retrieval end-to-end dan streaming tetap perlu disambungkan.
+// Status: workflow draft dari EvidenceBundle terpin aktif; rag_session.go dan
+// rag_hydration.go menyambungkan admission/hidrasi sebagai library. API/CLI,
+// tokenizer generator nyata dan streaming masih perlu disambungkan.
 // Integrasi berikutnya:
 // Pin one snapshot, resolve temporal intent, coordinate retrieval/context/generation and validate terminal evidence; propagate cancellation.
 // Bukti verifikasi: Test unavailable dependencies, evidence conflicts and snapshot rollover mid-request; trace queue and stage durations.

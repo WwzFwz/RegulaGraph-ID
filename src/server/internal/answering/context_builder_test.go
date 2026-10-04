@@ -42,7 +42,7 @@ func countBytes(ctx context.Context, value string) (uint64, error) {
 func TestBuildContextBudgetAndMissingEvidence(t *testing.T) {
 	bundle := contextFixture()
 	hash := &pb.ContentHash{Sha256: strings.Repeat("b", 64)}
-	firstOnly, err := BuildContext(context.Background(), bundle, "context:one", hash, 90, 2, countBytes)
+	firstOnly, err := BuildContext(context.Background(), bundle, "context:one", hash, 140, 2, countBytes)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +52,8 @@ func TestBuildContextBudgetAndMissingEvidence(t *testing.T) {
 		t.Fatalf("budget omission was hidden: %+v", firstOnly)
 	}
 	if !strings.Contains(firstOnly.RenderedBlocks[0].RenderedText, "provision:v1") ||
-		!strings.Contains(firstOnly.RenderedBlocks[0].RenderedText, `"Isi pasal pertama."`) {
+		!strings.Contains(firstOnly.RenderedBlocks[0].RenderedText, `"Isi pasal pertama."`) ||
+		!strings.Contains(firstOnly.RenderedBlocks[0].RenderedText, "LEGAL_STATUS_ACTIVE") {
 		t.Fatalf("source version or escaped text missing: %+v", firstOnly.RenderedBlocks[0])
 	}
 	complete, err := BuildContext(context.Background(), bundle, "context:two", hash, 1000, 2, countBytes)
