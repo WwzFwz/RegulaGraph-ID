@@ -36,14 +36,16 @@ type RAGWorkflow struct {
 	Search  *CandidateSearch
 	Hydrate CandidateHydrator
 	Answer  *EvidenceAnswerWorkflow
+	profile pb.RetrievalProfile // Nonzero pins a prepared factory's enabled profile.
 }
 
 type RAGResult struct {
-	Search   *CandidateSearchResult
-	Evidence *pb.EvidenceBundle
-	Answer   *EvidenceAnswerResult
-	Rejected map[string]string
-	Duration time.Duration
+	Search     *CandidateSearchResult
+	Evidence   *pb.EvidenceBundle
+	Answer     *EvidenceAnswerResult
+	Rejected   map[string]string
+	Duration   time.Duration
+	sourceURLs domain.SourceURLLookup
 }
 
 // AnswerPinnedQuestion is the shared composition point for CLI/API/evaluation.
@@ -51,11 +53,34 @@ type RAGResult struct {
 // taken directly from untrusted HTTP JSON. Neither child releases the owner pin.
 func (w *RAGWorkflow) AnswerPinnedQuestion(ctx context.Context, request *pb.QuestionRequest, input retrieval.SearchInput) (*RAGResult, error) {
 	started := time.Now()
-	if ctx == nil || w == nil || w.Search == nil || w.Hydrate == nil || w.Answer == nil || request == nil || input.Context == nil {
-		return nil, errors.New("RAG workflow requires search, hydrator, answering and admitted request")
+	if w == nil || w.Answer == nil {
+		return nil, errors.New("configured answering workflow required")
+	}
+	result, err := w.SearchPinnedQuestion(ctx, request, input)
+	if err != nil {
+		return nil, err
+	}
+	answer, err := w.Answer.AnswerEvidence(ctx, request, input.Context, result.Evidence, result.sourceURLs)
+	if err != nil {
+		return nil, err
+	}
+	result.Answer, result.Duration = answer, time.Since(started)
+	return result, nil
+}
+
+// SearchPinnedQuestion returns authenticated evidence and candidate accounting
+// without calling a generator. It is the same retrieval path used by answering;
+// absence of an answer does not imply abstention or a model-quality judgment.
+func (w *RAGWorkflow) SearchPinnedQuestion(ctx context.Context, request *pb.QuestionRequest, input retrieval.SearchInput) (*RAGResult, error) {
+	started := time.Now()
+	if ctx == nil || w == nil || w.Search == nil || w.Hydrate == nil || request == nil || input.Context == nil {
+		return nil, errors.New("RAG workflow requires search, hydrator and admitted request")
 	}
 	if err := domain.ValidateWire(request, domain.DefaultWireLimits); err != nil {
 		return nil, err
+	}
+	if w.profile != pb.RetrievalProfile_RETRIEVAL_PROFILE_UNSPECIFIED && w.profile != request.RequestedProfile {
+		return nil, errors.New("request profile differs from prepared query")
 	}
 	if err := domain.ValidateWire(input.Context, domain.DefaultWireLimits); err != nil {
 		return nil, err
@@ -86,11 +111,7 @@ func (w *RAGWorkflow) AnswerPinnedQuestion(ctx context.Context, request *pb.Ques
 	if err = validateHydratedCandidates(found, hydrated); err != nil {
 		return nil, err
 	}
-	answer, err := w.Answer.AnswerEvidence(call, request, input.Context, hydrated.Evidence, hydrated.SourceURLs)
-	if err != nil {
-		return nil, err
-	}
-	return &RAGResult{Search: found, Evidence: hydrated.Evidence, Answer: answer, Rejected: hydrated.Rejected, Duration: time.Since(started)}, nil
+	return &RAGResult{Search: found, Evidence: hydrated.Evidence, Rejected: hydrated.Rejected, Duration: time.Since(started), sourceURLs: hydrated.SourceURLs}, nil
 }
 
 // Hydration receives its own search view: its callback must not be able to

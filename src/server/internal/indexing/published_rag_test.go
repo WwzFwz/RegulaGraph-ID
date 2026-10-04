@@ -7,6 +7,7 @@ package indexing
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -50,25 +51,23 @@ func verifyPublishedRAG(t *testing.T, ctx context.Context, repo *postgres.Reposi
 		t.Fatal(err)
 	}
 	var observed domain.SnapshotPin
+	var prepared *workflows.PreparedQuery
 	session := &workflows.RAGSession{Store: repo, OwnerID: "reader:published-rag", MaximumDuration: 20 * time.Second, SearchLimit: 2,
-		Factory: func(_ context.Context, index *domain.PinnedIndex) (*workflows.RAGWorkflow, error) {
+		Factory: func(c context.Context, index *domain.PinnedIndex) (*workflows.RAGWorkflow, error) {
 			observed = index.Pin
-			h, err := retrieval.NewSourceHydrator(repo, artifacts, index, retrieval.HydrationConfig{MaximumCandidates: 2, MaximumArtifactBytes: 16 << 20, MaximumEvidenceBytes: 1 << 20, Producer: producer})
-			if err != nil {
-				return nil, err
+			if prepared == nil {
+				var err error
+				prepared, err = workflows.PreparePublishedQuery(c, index, repo, artifacts, publishedEmbedding{p.records[0].DenseVector.Values},
+					&workflows.EvidenceAnswerWorkflow{Generator: generator, ContextTokenizer: hash, MaximumContextTokens: 30000, MaximumEvidence: 2, CountContext: func(_ context.Context, s string) (uint64, error) { return uint64(len(s)), nil }},
+					workflows.PublishedQueryConfig{QdrantCredentials: map[string]string{physical.Endpoint(): ""}, HTTPClient: &http.Client{Timeout: 10 * time.Second}, Profile: pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_RAG, MaximumLexicalBytes: 16 << 20,
+						Fusion: retrieval.RRFConfig{K: 60, MaximumPerBranch: 2, MaximumTotalInputs: 4, Weights: map[pb.RetrieverKind]float64{pb.RetrieverKind_RETRIEVER_KIND_DENSE: 1, pb.RetrieverKind_RETRIEVER_KIND_BM25: 1}}, Hydration: retrieval.HydrationConfig{MaximumCandidates: 4, MaximumArtifactBytes: 16 << 20, MaximumEvidenceBytes: 1 << 20, Producer: producer}})
+				if err != nil {
+					return nil, err
+				}
 			}
-			hydrate, err := workflows.StorageCandidateHydrator(h, index.Snapshot)
-			if err != nil {
-				return nil, err
-			}
-			return &workflows.RAGWorkflow{
-				Search: &workflows.CandidateSearch{Dense: func(c context.Context, in retrieval.SearchInput) (*retrieval.BranchOutput, error) {
-					return retrieval.RetrieveDense(c, in, publishedEmbedding{p.records[0].DenseVector.Values}, physical)
-				}, Fusion: retrieval.RRFConfig{K: 60, MaximumPerBranch: 2, MaximumTotalInputs: 2, Weights: map[pb.RetrieverKind]float64{pb.RetrieverKind_RETRIEVER_KIND_DENSE: 1}}},
-				Hydrate: hydrate, Answer: &workflows.EvidenceAnswerWorkflow{Generator: generator, ContextTokenizer: hash, MaximumContextTokens: 30000, MaximumEvidence: 2, CountContext: func(_ context.Context, s string) (uint64, error) { return uint64(len(s)), nil }},
-			}, nil
+			return prepared.Bind(c, index)
 		}}
-	request := &pb.QuestionRequest{Question: "Apa ketentuan perizinan?", CorpusId: p.snapshot.CorpusId, ResponseMode: pb.ResponseMode_RESPONSE_MODE_COMPLETE, RequestedProfile: pb.RetrievalProfile_RETRIEVAL_PROFILE_VECTOR_RAG, TemporalScope: &pb.TemporalScope{Mode: pb.TemporalMode_TEMPORAL_MODE_AS_OF, EffectiveAt: &pb.CalendarDate{Year: 2026, Month: 1, Day: 1}, UnresolvedPolicy: pb.UnresolvedPolicy_UNRESOLVED_POLICY_REPORT}}
+	request := &pb.QuestionRequest{Question: "Apa ketentuan perizinan?", CorpusId: p.snapshot.CorpusId, ResponseMode: pb.ResponseMode_RESPONSE_MODE_COMPLETE, RequestedProfile: pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_RAG, TemporalScope: &pb.TemporalScope{Mode: pb.TemporalMode_TEMPORAL_MODE_AS_OF, EffectiveAt: &pb.CalendarDate{Year: 2026, Month: 1, Day: 1}, UnresolvedPolicy: pb.UnresolvedPolicy_UNRESOLVED_POLICY_REPORT}}
 	call := &pb.RequestContext{SchemaVersion: 1, RequestId: "request:published-rag", TraceId: "trace:published-rag", CorpusId: p.snapshot.CorpusId, AuthScopeRef: "auth:fixture", ConfigFingerprint: hash, Deadline: timestamppb.New(time.Now().Add(time.Minute))}
 	result, err := session.AnswerQuestion(ctx, request, call)
 	if err != nil {
@@ -98,5 +97,12 @@ func verifyPublishedRAG(t *testing.T, ctx context.Context, repo *postgres.Reposi
 	}
 	if _, err = repo.LoadPinnedIndex(ctx, observed); err == nil {
 		t.Fatal("completed RAG request leaked read lease")
+	}
+	searched, err := session.SearchQuestion(ctx, request, call)
+	if err != nil || searched == nil || searched.Answer != nil || len(searched.Evidence.Items) != 2 || len(searched.Search.Branches) != 2 || provider.calls != 1 {
+		t.Fatal("warm evidence query changed generation/model behavior", err)
+	}
+	if _, err = repo.LoadPinnedIndex(ctx, observed); err == nil {
+		t.Fatal("evidence query leaked lease")
 	}
 }

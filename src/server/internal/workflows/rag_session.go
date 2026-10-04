@@ -40,6 +40,16 @@ type RAGSession struct {
 // from that snapshot fail; they are never silently redirected to latest data.
 // No endpoint should accept the trusted RequestContext directly from JSON.
 func (s *RAGSession) AnswerQuestion(ctx context.Context, request *pb.QuestionRequest, call *pb.RequestContext) (result *RAGResult, err error) {
+	return s.runPinned(ctx, request, call, true)
+}
+
+// SearchQuestion owns the same lease and admission as answering, but returns
+// evidence only. It never converts a generator failure into a search success.
+func (s *RAGSession) SearchQuestion(ctx context.Context, request *pb.QuestionRequest, call *pb.RequestContext) (*RAGResult, error) {
+	return s.runPinned(ctx, request, call, false)
+}
+
+func (s *RAGSession) runPinned(ctx context.Context, request *pb.QuestionRequest, call *pb.RequestContext, generate bool) (result *RAGResult, err error) {
 	if ctx == nil || s == nil || s.Store == nil || s.Factory == nil || s.OwnerID == "" || s.MaximumDuration <= 0 || s.SearchLimit <= 0 || s.SearchLimit > 256 || request == nil || call == nil {
 		return nil, errors.New("configured RAG session and authorized request context required")
 	}
@@ -116,7 +126,12 @@ func (s *RAGSession) AnswerQuestion(ctx context.Context, request *pb.QuestionReq
 	if err != nil {
 		return nil, err
 	}
-	result, err = workflow.AnswerPinnedQuestion(leased, request, retrieval.SearchInput{Context: owned, Question: request.Question, Generation: generation, Scope: qdrant.SearchScope{SnapshotSeq: pin.Sequence, Limit: s.SearchLimit}})
+	input := retrieval.SearchInput{Context: owned, Question: request.Question, Generation: generation, Scope: qdrant.SearchScope{SnapshotSeq: pin.Sequence, Limit: s.SearchLimit}}
+	if generate {
+		result, err = workflow.AnswerPinnedQuestion(leased, request, input)
+	} else {
+		result, err = workflow.SearchPinnedQuestion(leased, request, input)
+	}
 	if err != nil {
 		return nil, err
 	}
