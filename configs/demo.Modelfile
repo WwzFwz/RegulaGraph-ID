@@ -1,0 +1,7 @@
+# Local interview generation profile. Reuses installed Qwen weights without a download.
+# Larger context keeps the bounded five-excerpt prompt intact; this is not the
+# production M01 model selection or an acceptance benchmark configuration.
+FROM qwen2.5:7b
+PARAMETER num_ctx 8192
+PARAMETER temperature 0
+PARAMETER num_predict 768
