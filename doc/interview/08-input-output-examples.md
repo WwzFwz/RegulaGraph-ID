@@ -6,6 +6,8 @@ adalah ilustrasi, bukan data hukum, hasil eksekusi, atau kontrak API baru. Nama 
 dipendekkan supaya mudah dibaca; bentuk wire sebenarnya mengikuti
 [system-contracts](../system-contracts.md) dan [Protobuf](../../src/contracts/proto/README.md).
 Status implementasi tetap berada di [dokumen 7](07-implementation-status.md).
+Pembahasan evaluasi, keandalan, observability, scalability dan batas desain lintas
+tahap ada di [dokumen 9](09-engineering-depth.md).
 
 Cara membaca setiap tahap: pahami fungsinya, lihat input, ikuti proses, lalu bandingkan
 output. Sesudah itu, baca alasan bisnis dan harga keputusan tersebut. Semua JSON

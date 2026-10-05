@@ -2,7 +2,7 @@
 
 Folder ini menampung bahan untuk menjelaskan masalah, arsitektur, pilihan teknologi,
 alur data, algoritma, dan pemetaan implementasi RegulaGraph-ID dalam interview.
-**Dokumen 01–06 dan 08 memakai asumsi seluruh komponen arsitektur telah terintegrasi.**
+**Dokumen 01–06, 08, dan 09 memakai asumsi seluruh komponen arsitektur telah terintegrasi.**
 Dengan asumsi ini, penjelasan dibaca sebagai satu sistem utuh, bukan laporan progres.
 Keadaan repository dan bukti yang benar-benar tersedia dipisahkan ke
 [07-implementation-status.md](07-implementation-status.md).
@@ -19,11 +19,15 @@ Keadaan repository dan bukti yang benar-benar tersedia dipisahkan ke
 | 6 | [Latihan menjawab](06-interview-answers.md) | Bagaimana menjelaskan proyek dengan jelas tanpa melebihkan hasil? |
 | 7 | [Status aktual](07-implementation-status.md) | Apa yang sudah diimplementasikan, diuji, dan masih terbuka di repository? |
 | 8 | [Input/output dan contoh](08-input-output-examples.md) | Bagaimana contoh data berubah pada tiap tahap, mengapa tahap itu dipilih, dan apa manfaat bisnis serta trade-off-nya? |
+| 9 | [Kedalaman engineering](09-engineering-depth.md) | Bagaimana mengevaluasi, menjaga keandalan, mendiagnosis, meningkatkan kapasitas, dan menjelaskan desain sistem? |
 
 Jika waktu persiapan hanya 15 menit, baca diagram di dokumen 1, routing adaptif di
 dokumen 3, BM25 dan latency di dokumen 4, kemudian latihan di dokumen 6.
 Untuk mengikuti satu contoh dari PDF hingga jawaban, baca dokumen 8 setelah diagram
 arsitektur; contoh juga mencakup update, recovery, review, dan evaluasi.
+Untuk diskusi engineering yang lebih dalam, gunakan dokumen 9: Evaluation,
+Reliability, Observability, Scalability, dan System Design, masing-masing dengan
+failure case, metrik, alasan bisnis, trade-off, lokasi kode, dan contoh jawaban.
 Panduan menjalankan aplikasi tetap berada di [interview-demo.md](../interview-demo.md).
 Buka Markdown Preview di editor untuk membaca tabel dan persamaan dengan lebih
 nyaman; di VS Code biasanya menggunakan `Ctrl+Shift+V`.
@@ -46,6 +50,8 @@ kontrak wire baru; nama record dan invariant tetap mengikuti kontrak sistem.
 Contoh JSON bersifat pedagogis, bukan payload API. Alasan bisnis menjelaskan
 hipotesis manfaat pengguna, biaya, alternatif dan ukuran pembuktian; bukan klaim
 pelanggan, ROI, atau hasil benchmark yang belum tersedia.
+Dokumen kedalaman engineering menghubungkan kelima aspek ke kontrak dan bukti;
+ia tidak menetapkan target baru, tool observability, atau status deployment.
 Latihan jawaban wajib konsisten dengan semuanya. Tambahan topik interview boleh
 masuk di sini selama berupa bahan penjelasan, bukan kode produk atau dataset.
 

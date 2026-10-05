@@ -135,6 +135,10 @@ retrieval serta budget dicatat. Target evaluasi bukan hasil pengukuran.
 
 ## 3. Urutan menjelaskan sambil membuka kode
 
+Untuk pertanyaan lanjutan tentang **Evaluation, Reliability, Observability,
+Scalability, dan System Design**, gunakan [panduan engineering](09-engineering-depth.md).
+Siapkan satu failure case dan cara membuktikan penanganannya untuk setiap aspek.
+
 Mulai dari [arsitektur](01-architecture.md), lalu ikuti [flow query](03-flows.md).
 Tunjukkan pemilik admission/snapshot, classifier, retrieval/fusion, hydration/context,
 dan generation/validation pada [peta file](05-code-map.md). Jelaskan input, output,
