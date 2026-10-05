@@ -5,6 +5,10 @@ sudah terintegrasi. Fokusnya adalah cara kerja sistem lengkap dan tanggung jawab
 setiap bagian. Peta kode ada di [dokumen 5](05-code-map.md); keadaan repository
 sebenarnya dipisahkan di [status implementasi](07-implementation-status.md).
 
+Untuk input, proses, output dan contoh konkret **setiap tahap**, baca
+[perjalanan data end-to-end](08-input-output-examples.md). Satu contoh regulasi
+fiktif diikuti dari unduhan PDF, struktur pasal, graph/index, query sampai jawaban.
+
 ## 1. Masalah yang ingin diselesaikan
 
 Regulasi tersebar pada portal berbeda, saling merujuk, dan dapat berubah sebagian.

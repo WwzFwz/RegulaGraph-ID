@@ -1,7 +1,7 @@
 # Status implementasi dan bukti aktual
 
 Dokumen ini memisahkan keadaan repository yang diperiksa pada 5 Oktober 2026 dari
-asumsi sistem lengkap pada dokumen 01–06. Dokumen utama menjelaskan cara kerja
+asumsi sistem lengkap pada dokumen 01–06 dan 08. Dokumen utama menjelaskan cara kerja
 arsitektur ketika semua bagian sudah terintegrasi; dokumen ini menjawab apa yang
 benar-benar dapat dijalankan dan dibuktikan sekarang.
 
@@ -73,7 +73,7 @@ Pekerjaan yang tersisa: [development-plan](../development-plan.md).
 
 ## Menggunakan bahan interview
 
-Untuk pertanyaan desain, gunakan dokumen 01–06 dengan framing “dalam arsitektur
+Untuk pertanyaan desain, gunakan dokumen 01–06 dan 08 dengan framing “dalam arsitektur
 lengkap, sistem bekerja seperti ini”. Untuk pertanyaan hasil implementasi, metrik,
 pengalaman melabeli gold atau deployment, gunakan status dan bukti di dokumen ini.
 Asumsi desain lengkap tidak mengubah hasil test yang belum dijalankan menjadi PASS,

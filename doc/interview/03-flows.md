@@ -5,6 +5,10 @@ sudah terintegrasi: ingestion, adaptive retrieval, generation dan feedback loop.
 Pemilik file ada di [peta kode](05-code-map.md). Status runnable dan batas demo
 berada terpisah pada [status implementasi](07-implementation-status.md).
 
+Pendamping alur ini adalah [input/output per tahap](08-input-output-examples.md):
+setiap tahap menjelaskan data masuk, perubahan yang dilakukan, data keluar, dan
+contoh berantai, termasuk ketika versi berubah atau bukti belum cukup.
+
 ## 1. Ingestion: pekerjaan sebelum pengguna bertanya
 
 | Tahap | Apa yang terjadi | Hasil / hal yang tidak boleh hilang |
