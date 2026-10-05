@@ -12,13 +12,13 @@ Keadaan repository dan bukti yang benar-benar tersedia dipisahkan ke
 | Urutan | Dokumen | Pertanyaan yang dijawab |
 | --- | --- | --- |
 | 1 | [Arsitektur](01-architecture.md) | Sistem lengkap ini membangun apa dan bagaimana komponen bekerja bersama? |
-| 2 | [Pilihan dan trade-off](02-decisions.md) | Mengapa memilih bagian itu, mengapa bukan alternatifnya, kapan keputusan berubah? |
+| 2 | [Pilihan dan trade-off](02-decisions.md) | Apa alasan teknis/bisnis, biaya alternatif, dan cara membuktikan manfaatnya? |
 | 3 | [Alur end-to-end](03-flows.md) | Apa yang terjadi sejak PDF masuk dan sejak pengguna mengirim pertanyaan? |
 | 4 | [Algoritma dan matematika](04-math-and-performance.md) | Bagaimana skor dihitung, apa efek parameter, dan bagaimana mengukur keberhasilannya? |
 | 5 | [Peta implementasi](05-code-map.md) | Folder/file mana yang memiliki setiap fungsi dalam arsitektur lengkap? |
 | 6 | [Latihan menjawab](06-interview-answers.md) | Bagaimana menjelaskan proyek dengan jelas tanpa melebihkan hasil? |
 | 7 | [Status aktual](07-implementation-status.md) | Apa yang sudah diimplementasikan, diuji, dan masih terbuka di repository? |
-| 8 | [Input/output dan contoh](08-input-output-examples.md) | Data apa masuk dan keluar di setiap tahap, bagaimana diproses, dan seperti apa contohnya? |
+| 8 | [Input/output dan contoh](08-input-output-examples.md) | Bagaimana contoh data berubah pada tiap tahap, mengapa tahap itu dipilih, dan apa manfaat bisnis serta trade-off-nya? |
 
 Jika waktu persiapan hanya 15 menit, baca diagram di dokumen 1, routing adaptif di
 dokumen 3, BM25 dan latency di dokumen 4, kemudian latihan di dokumen 6.
@@ -43,6 +43,9 @@ Dokumen keputusan menjelaskan alasan desain; flow menghubungkan komponen;
 matematika menjelaskan mekanisme; peta kode menghubungkan penjelasan ke implementasi.
 Dokumen input/output menelusuri contoh yang konsisten lintas tahap tanpa membuat
 kontrak wire baru; nama record dan invariant tetap mengikuti kontrak sistem.
+Contoh JSON bersifat pedagogis, bukan payload API. Alasan bisnis menjelaskan
+hipotesis manfaat pengguna, biaya, alternatif dan ukuran pembuktian; bukan klaim
+pelanggan, ROI, atau hasil benchmark yang belum tersedia.
 Latihan jawaban wajib konsisten dengan semuanya. Tambahan topik interview boleh
 masuk di sini selama berupa bahan penjelasan, bukan kode produk atau dataset.
 
