@@ -1,48 +1,48 @@
 # Panduan interview RegulaGraph-ID
 
 Folder ini menampung bahan untuk menjelaskan masalah, arsitektur, pilihan teknologi,
-alur data, algoritma, dan implementasi RegulaGraph-ID dalam interview. Ini adalah
-penjelasan dari kode dan rancangan proyek, bukan spesifikasi baru atau bukti bahwa
-seluruh sistem telah selesai. Status diperiksa pada 5 Oktober 2026, setelah demo lokal.
+alur data, algoritma, dan pemetaan implementasi RegulaGraph-ID dalam interview.
+**Dokumen 01–06 memakai asumsi seluruh komponen arsitektur telah terintegrasi.**
+Dengan asumsi ini, penjelasan dibaca sebagai satu sistem utuh, bukan laporan progres.
+Keadaan repository dan bukti yang benar-benar tersedia dipisahkan ke
+[07-implementation-status.md](07-implementation-status.md).
 
 ## Cara membaca
 
 | Urutan | Dokumen | Pertanyaan yang dijawab |
 | --- | --- | --- |
-| 1 | [Arsitektur](01-architecture.md) | Sistem ini membangun apa, komponennya apa, dan mana yang sudah berjalan? |
+| 1 | [Arsitektur](01-architecture.md) | Sistem lengkap ini membangun apa dan bagaimana komponen bekerja bersama? |
 | 2 | [Pilihan dan trade-off](02-decisions.md) | Mengapa memilih bagian itu, mengapa bukan alternatifnya, kapan keputusan berubah? |
 | 3 | [Alur end-to-end](03-flows.md) | Apa yang terjadi sejak PDF masuk dan sejak pengguna mengirim pertanyaan? |
 | 4 | [Algoritma dan matematika](04-math-and-performance.md) | Bagaimana skor dihitung, apa efek parameter, dan bagaimana mengukur keberhasilannya? |
-| 5 | [Peta implementasi](05-code-map.md) | Di folder/file mana fungsi itu berada, dan apa yang masih perlu dibangun? |
+| 5 | [Peta implementasi](05-code-map.md) | Folder/file mana yang memiliki setiap fungsi dalam arsitektur lengkap? |
 | 6 | [Latihan menjawab](06-interview-answers.md) | Bagaimana menjelaskan proyek dengan jelas tanpa melebihkan hasil? |
+| 7 | [Status aktual](07-implementation-status.md) | Apa yang sudah diimplementasikan, diuji, dan masih terbuka di repository? |
 
-Jika waktu persiapan hanya 15 menit, baca bagian status di dokumen 1, alur demo di
+Jika waktu persiapan hanya 15 menit, baca diagram di dokumen 1, routing adaptif di
 dokumen 3, BM25 dan latency di dokumen 4, kemudian latihan di dokumen 6.
 Panduan menjalankan aplikasi tetap berada di [interview-demo.md](../interview-demo.md).
 Buka Markdown Preview di editor untuk membaca tabel dan persamaan dengan lebih
 nyaman; di VS Code biasanya menggunakan `Ctrl+Shift+V`.
 
-## Label status yang digunakan
+## Cara membaca asumsi
 
-| Label | Makna |
-| --- | --- |
-| **DEMO** | Dipakai pada jalur demo lokal yang sudah dicoba dengan PDF dan model nyata. |
-| **KOMPONEN** | Ada implementasi/library atau integrasi terbatas dengan pengujian; belum berarti seluruh pipeline produk aktif. |
-| **RENCANA** | Bagian arsitektur target yang belum lengkap/tersambung, termasuk scaffold. |
-
-Satu komponen bisa mempunyai bagian KOMPONEN dan bagian RENCANA. Contohnya native
-embedding sudah tersedia, tetapi demo BM25 tidak memanggilnya. Keberadaan file,
-test yang lulus, dan kualitas sistem pada gold dataset adalah tiga bukti berbeda.
+Kalimat seperti “classifier memilih kebutuhan retrieval” dalam dokumen utama
+menjelaskan perilaku sistem pada asumsi integrasi lengkap. Ia tidak menyatakan
+bahwa file classifier saat ini sudah selesai. Dokumen status memakai label DEMO,
+KOMPONEN dan RENCANA untuk membedakan kemampuan aktual. Benchmark tetap membutuhkan
+hasil run nyata; tidak ada angka keberhasilan yang dibuat dari asumsi.
 
 ## Cakupan dan integrasi anak
 
-Dokumen arsitektur memberi istilah dan batas status yang dipakai dokumen lain.
+Dokumen arsitektur memberi istilah dan batas tanggung jawab untuk dokumen lain.
 Dokumen keputusan menjelaskan alasan desain; flow menghubungkan komponen;
 matematika menjelaskan mekanisme; peta kode menghubungkan penjelasan ke implementasi.
 Latihan jawaban wajib konsisten dengan semuanya. Tambahan topik interview boleh
 masuk di sini selama berupa bahan penjelasan, bukan kode produk atau dataset.
 
-Saat implementasi berubah, perbarui status, flow, dan peta file bersama. Angka
+Saat desain berubah, perbarui flow dan peta file; saat implementasi berubah,
+perbarui dokumen status dan tautan bukti. Angka
 required tetap bersumber tunggal dari [benchmark-targets.yaml](../../configs/benchmark-targets.yaml).
 Angka ilustrasi matematika bukan target baru. Hasil smoke demo hanya berlaku untuk
 kondisi pada [laporan demo](../verification-report-interview-demo.md).

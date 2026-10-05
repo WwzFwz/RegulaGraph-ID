@@ -1,7 +1,8 @@
 # Algoritma, persamaan, dan trade-off performa
 
 Dokumen ini membantu menjelaskan mekanisme dan arah perubahan parameter saat
-interview. Persamaan menyatakan model matematis atau penyederhanaan dengan asumsi
+interview dengan asumsi sistem lengkap pada [panduan](README.md). Status aktual
+ada di [dokumen 7](07-implementation-status.md). Persamaan menyatakan model matematis atau penyederhanaan dengan asumsi
 yang disebutkan. Tidak ada persamaan yang membuktikan kualitas corpus tanpa
 pengujian; angka ilustratif bukan perubahan benchmark required.
 
@@ -22,8 +23,8 @@ boundary; structural chunking mempunyai panjang yang mengikuti dokumen.
 - L lebih besar: konteks lokal lebih utuh, tetapi satu vector merangkum lebih
   banyak topik dan prompt bisa membesar. Tidak ada jaminan recall naik.
 
-Demo menggunakan rune untuk window dan byte UTF-8 untuk locator. Produksi memakai
-struktur serta tokenizer yang dipin. “1.600 rune” tidak berarti “1.600 token”.
+Structural chunking memakai hierarchy dan tokenizer terpin; locator memakai byte
+UTF-8. Rune, byte, dan token adalah unit berbeda dan tidak boleh dipertukarkan.
 
 ## 2. BM25: istilah langka dan frekuensi yang jenuh
 
@@ -52,14 +53,11 @@ untuk dokumen di atas panjang rata-rata; bukan berarti kualitas selalu lebih bai
 Contoh ilustratif: N=100 dan df=10 memberi IDF sekitar 2,26; df=90 memberi sekitar
 0,11. Itu bobot retrieval, bukan confidence bahwa suatu pasal benar.
 
-**Implementasi:** demo memakai k1=1,2, b=0,75, term query unik, serta token
-`judul + teks` untuk setiap passage. Jadi panjang/df demo termasuk judul yang
-berulang per passage. Produksi membekukan analyzer, dictionary dan statistik per
-generation; query encoder juga dapat membawa frekuensi term query. Jangan
-mencampur statistik demo dan produksi saat membandingkan skor.
+**Integrasi:** analyzer, dictionary dan statistik dibekukan per generation. Query
+encoder dan document encoder harus memakai representasi term yang kompatibel.
+Kebijakan term query unik atau frekuensi query harus eksplisit agar skor reproducible.
 
-Kode: [preview.go](../../src/server/internal/retrieval/preview.go),
-[sparse.go](../../src/server/internal/retrieval/query/sparse.go),
+Kode: [sparse.go](../../src/server/internal/retrieval/query/sparse.go),
 [lexical.rs](../../src/ingestion/src/indexing/lexical.rs),
 [statistics.rs](../../src/ingestion/src/indexing/statistics.rs).
 
@@ -155,7 +153,7 @@ B_{\text{template}}+B_{\text{output-reserve}}\le B_{\text{model}}$$
 Semua B dihitung menggunakan tokenizer/template generator yang sesuai. Menambah
 konteks dapat membantu menemukan syarat tetapi juga menambah noise, prefill dan
 memori. Menghapus evidence wajib demi muat harus menghasilkan status partial,
-bukan klaim jawaban lengkap. Preview belum memiliki exact token admission produksi.
+bukan klaim jawaban lengkap.
 
 Secara konseptual, generation mengikuti:
 
@@ -258,4 +256,28 @@ dari pertanyaan dasar yang sama harus berada pada split yang sama.
 Kode metrik: [retrieval.py](../../evaluation/metrics/retrieval.py),
 [citations.py](../../evaluation/metrics/citations.py),
 [runtime.py](../../evaluation/metrics/runtime.py). Required gates tetap mengikuti
-[benchmark policy](../benchmark-policy.md); gold/acceptance produksi belum selesai.
+[benchmark policy](../benchmark-policy.md). Status hasil pengukuran dipisahkan dari asumsi desain.
+
+## 13. Routing adaptif dan biaya pencarian ulang
+
+Untuk R putaran yang benar-benar dijalankan:
+
+$$T_{total}=T_{admission}+\sum_{r=1}^{R}(T_{retrieve,r}+T_{context,r}+T_{check,r})
++\sum_{j=1}^{J}T_{generate,j}$$
+
+J menghitung panggilan generation/revisi yang benar-benar terjadi; pemeriksaan
+sebelum generation dapat menghindari panggilan model yang belum memiliki cukup bukti.
+Biaya paralel di dalam satu putaran dihitung menurut critical path, bukan semua
+branch dijumlahkan. Deadline, token, kandidat dan model calls merupakan batas total
+request; putaran baru tidak mendapat budget baru.
+
+Misalkan E_r himpunan evidence terverifikasi yang terkumpul sampai putaran r.
+Kemajuan sumber dapat dicatat sebagai $|E_r \setminus E_{r-1}|$, tetapi bertambahnya
+jumlah bukti belum menjamin gap yang diperlukan tertutup. Workflow memantau missing
+dependencies serta validitas versi/path. Ia berhenti ketika bukti memadai, tidak
+ada kemajuan relevan, batas putaran tercapai, atau budget habis.
+
+Classifier memilih kebutuhan yang dapat tumpang tindih, bukan tiga kelas eksklusif.
+Evaluasinya mencakup missed-required-branch dan evidence recall setelah routing.
+Optimasi routing hanya bermanfaat jika penghematan latency tidak mengorbankan
+required quality gates. Bandingkan dengan routing tetap pada corpus/split yang sama.

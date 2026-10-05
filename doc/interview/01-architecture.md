@@ -1,8 +1,9 @@
-# Arsitektur: masalah, komponen, dan batas kesiapan
+# Arsitektur lengkap RegulaGraph-ID
 
-Dokumen ini menjadi gambaran besar RegulaGraph-ID untuk interview. Ia membedakan
-arsitektur target Hybrid GraphRAG, komponen yang tersedia, dan demo BM25 yang aktif.
-Peta implementasi rinci berada di [dokumen 5](05-code-map.md).
+Dokumen ini menjelaskan RegulaGraph-ID dengan asumsi semua komponen arsitektur
+sudah terintegrasi. Fokusnya adalah cara kerja sistem lengkap dan tanggung jawab
+setiap bagian. Peta kode ada di [dokumen 5](05-code-map.md); keadaan repository
+sebenarnya dipisahkan di [status implementasi](07-implementation-status.md).
 
 ## 1. Masalah yang ingin diselesaikan
 
@@ -17,12 +18,11 @@ bahasa membantu interpretasi dan penyusunan jawaban; database dan kontrak menjag
 identitas serta provenance. Output fasih tidak otomatis dianggap benar.
 
 RAG berarti jawaban dibangun dari hasil retrieval. GraphRAG menambahkan penggunaan
-struktur relasi untuk mencari bukti. Dalam proyek ini, “Hybrid GraphRAG” ditargetkan
-menggabungkan BM25, dense retrieval, dan pencarian melalui graph, lalu reranking.
-Istilah itu tidak berarti proyek sudah mengimplementasikan setiap metode komunitas
-atau community-summary dari implementasi GraphRAG lain.
+struktur relasi untuk mencari bukti. Dalam proyek ini, “Hybrid GraphRAG” menggabungkan BM25, dense retrieval, dan pencarian melalui graph, lalu reranking.
+Graph yang dimaksud adalah graph regulasi berbukti; community-summary dari
+pendekatan GraphRAG lain bukan syarat definisi arsitektur ini.
 
-## 2. Dua jalur utama arsitektur target
+## 2. Dua jalur utama arsitektur lengkap
 
 ```text
 PERSIAPAN DATA / INGESTION
@@ -38,8 +38,8 @@ Portal resmi -> Go acquisition + scheduler -> Rust document processing
                           /             |              |            \
                     PostgreSQL       Qdrant          Neo4j       blob storage
 
-QUERY / SERVING TARGET
-Pertanyaan -> Go admission + snapshot pin + query preparation
+QUERY / SERVING
+Pertanyaan -> Go admission + snapshot pin + normalize/classify/plan
                          |
                +---------+------------------+
                |         |                  |
@@ -53,7 +53,7 @@ Pertanyaan -> Go admission + snapshot pin + query preparation
                  validasi klaim/sitasi -> jawaban
 ```
 
-Diagram menunjukkan desain target, bukan daftar proses yang seluruhnya aktif.
+Diagram mengikuti asumsi integrasi lengkap.
 `bind` adalah pekerjaan Go terhadap registry; tahap itu ditampilkan dalam rangkaian
 transformasi dokumen agar dependency terlihat. Engine PDF dan runtime model berada
 di bawah worker/client terkait, tidak ditulis ulang dari nol.
@@ -62,19 +62,25 @@ Ingestion dilakukan sebelum query agar pengguna tidak menunggu seluruh PDF dipar
 atau graph dibangun ulang setiap kali bertanya. Query hanya mengolah pertanyaan,
 kandidat, konteks terpilih, dan generation.
 
+Diagram ini memadatkan routing dan feedback loop. Classifier memilih
+kebutuhan factual/relational/temporal yang dapat tumpang tindih; evidence yang belum
+memadai dapat memicu pencarian tambahan dalam deadline/budget yang sama. Temporal
+policy berlaku lintas branch. Lihat [alur adaptif](03-flows.md), termasuk pemeriksaan
+bukti sebelum generation dan validasi klaim sesudahnya.
+
 ## 3. Bagian dalam setiap komponen
 
-| Komponen | Isi dan tanggung jawab | Input → output | Status |
-| --- | --- | --- | --- |
-| Acquisition | Discovery, download, receipt, hash, deduplikasi byte, audit | URL → PDF/HTML + metadata sumber | KOMPONEN; dipakai menyiapkan data demo |
-| Go control plane | Job, lease, checkpoint, retry, BIND, registry, publication | Request/job → transisi durable dan artefak terdaftar | KOMPONEN; coordinator semua tahap belum lengkap |
-| Rust document worker | PDFium, normalisasi, mapping UTF-8, hierarchy, structural chunking, transform versi | Source refs → DocumentBatch | KOMPONEN; OCR/tabel dan validasi kualitas belum lengkap |
-| Graph engineering | Ontology, mention, assertion, support, candidates, proposal resolution, assembly | Chunk berbukti → relasi/canonical assignments/GraphDelta | Sebagian KOMPONEN; graph penuh RENCANA |
-| Indexing | Render teks, dense vectors, BM25 dictionary/statistics, batch admission | Chunk → IndexBatch + generation | KOMPONEN; coordinator corpus nyata masih perlu disambung |
-| Native inference | Tokenizer, ONNX session, embedding, cross-encoder, batching/cancellation | Batch teks/pasangan → vector/skor | KOMPONEN; bukan generator demo |
-| Retrieval Go | Query representation, lexical/dense branches, fusion, hydration, reranking | Pertanyaan + snapshot → kandidat/bukti | KOMPONEN untuk vector/hybrid; graph serving belum aktif |
-| Answering Go | Context packing, model adapter, claim/citation mapping, validation | Bukti → draft/abstention | KOMPONEN; streaming/acceptance menyeluruh belum selesai |
-| Evaluation Python | Dataset schema, metric, telemetry, gate runner | Output run + gold + manifest → laporan | KOMPONEN; gold lengkap dan acceptance belum dilakukan |
+| Komponen | Isi dan tanggung jawab | Input → output |
+| --- | --- | --- |
+| Acquisition | Discovery, download, receipt, hash, deduplikasi byte, audit | URL → PDF/HTML + metadata sumber |
+| Go control plane | Job, lease, checkpoint, retry, BIND, registry, publication | Request/job → transisi durable dan artefak terdaftar |
+| Rust document worker | PDFium, normalisasi, mapping UTF-8, hierarchy, structural chunking, transform versi | Source refs → DocumentBatch |
+| Graph engineering | Ontology, mention, assertion, support, candidates, proposal resolution, assembly | Chunk berbukti → relasi/canonical assignments/GraphDelta |
+| Indexing | Render teks, dense vectors, BM25 dictionary/statistics, batch admission | Chunk → IndexBatch + generation |
+| Native inference | Tokenizer, ONNX session, embedding, cross-encoder, batching/cancellation | Batch teks/pasangan → vector/skor |
+| Retrieval Go | Query representation, lexical/dense/graph branches, fusion, hydration, reranking | Pertanyaan + snapshot → kandidat/bukti |
+| Answering Go | Context packing, model adapter, claim/citation mapping, validation | Bukti → draft/abstention |
+| Evaluation Python | Dataset schema, metric, telemetry, gate runner | Output run + gold + manifest → laporan |
 
 ## 4. Pemisahan penyimpanan
 
@@ -82,37 +88,31 @@ kandidat, konteks terpilih, dan generation.
 | --- | --- | --- |
 | PostgreSQL | Otoritas metadata, canonical registry, job/checkpoint, publication, read lease | Menjadi satu-satunya mesin komputasi embedding |
 | Qdrant | Pencarian dense/sparse dan payload filtering pada generation yang kompatibel | Menentukan sendiri kebenaran versi hukum |
-| Neo4j | Target penyimpanan adjacency dan jalur relasi beserta support | Membuat relasi benar hanya karena sudah menjadi edge |
+| Neo4j | Penyimpanan adjacency dan jalur relasi beserta support | Membuat relasi benar hanya karena sudah menjadi edge |
 | Blob/artifact storage | Byte PDF/teks/batch immutable, hash, replay, sumber kutipan | Menganggap checksum sebagai tanda tangan penerbit |
 
 PostgreSQL menjadi sumber otoritas publication; pointer snapshot baru tidak boleh
 aktif sebelum backend wajib siap. Kita tidak mengasumsikan transaksi atomik antara
 PostgreSQL, Qdrant, dan Neo4j. Lihat [konsistensi storage](../storage-consistency.md).
 
-## 5. Arsitektur demo yang benar-benar dijalankan
+## 5. Kendali kualitas dan pencarian adaptif
 
-```text
-PDF D01 -> Python offline / PyMuPDF -> teks halaman + SHA256SUMS
-                                           |
-                                    Go startup: verify + index
-                                           |
-Browser -> Go HTTP -> BM25 in-memory -> 5 kutipan -> Ollama / Qwen lokal
-                                           |                |
-                                  halaman + PDF       klaim + source IDs
-                                           +------- validasi -------+
-                                                        |
-                                                   tampilan jawaban
-```
+Classifier memetakan pertanyaan menjadi kebutuhan retrieval. Factual mengutamakan
+pencocokan lexical/semantik; relational membutuhkan hubungan dan path support;
+version-aware menambahkan batas tanggal pada seluruh branch yang relevan. Ketiga
+kebutuhan ini dapat hadir bersamaan.
 
-Demo tidak memakai Qdrant, Neo4j, embedding C++, atau structural chunker Rust dalam
-jalur pertanyaannya. Ia memakai kembali analyzer lexical Go dan adapter structured
-generation. Potongan demo berupa window halaman. Sumber ditautkan ke halaman,
-bukan hasil resolusi versi pasal yang sudah disahkan.
+Setelah fusion, reranking dan context hydration, sistem memeriksa kecukupan bukti.
+Dependency yang belum terpenuhi memicu retrieval terarah: mencari parent, pasal
+rujukan, exception, atau versi yang sesuai. Semua putaran menggunakan snapshot yang
+sama dan mengonsumsi budget total yang sama. Bila tidak ada kemajuan atau budget
+habis, keluaran menjadi partial/abstain atau meminta klarifikasi.
 
-Sample yang diuji mempunyai 24 dokumen, 1.061 halaman, dan 2.071 passage.
-Angka itu menjelaskan satu demo, bukan seluruh corpus. Jawaban berstatus
-`unreviewed_draft`. Detail dan bukti: [panduan demo](../interview-demo.md) dan
-[laporan](../verification-report-interview-demo.md).
+Generation dilakukan dari konteks yang dipilih, kemudian klaim dan citation
+diperiksa kembali. Kekurangan bukti dapat kembali ke retrieval; salah bentuk
+output atau klaim yang tidak didukung dapat memerlukan revisi jawaban. Jalur ini
+menghindari loop generate/retrieve tanpa batas. [Dokumen flow](03-flows.md)
+menjelaskan setiap handoff.
 
 ## 6. Identitas yang tidak boleh tertukar
 

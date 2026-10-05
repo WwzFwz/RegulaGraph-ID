@@ -1,10 +1,11 @@
 # Alur PDF, query, dan jawaban
 
-Dokumen ini menjelaskan urutan input–proses–output, pemilik tahap dan perilaku gagal.
-Alur demo diberi label DEMO; alur produksi adalah target dengan komponen yang baru
-sebagian tersambung. Semua path file dirinci pada [peta kode](05-code-map.md).
+Dokumen ini menjelaskan input, proses, dan output sistem dengan asumsi seluruh komponen
+sudah terintegrasi: ingestion, adaptive retrieval, generation dan feedback loop.
+Pemilik file ada di [peta kode](05-code-map.md). Status runnable dan batas demo
+berada terpisah pada [status implementasi](07-implementation-status.md).
 
-## 1. Ingestion target: pekerjaan sebelum pengguna bertanya
+## 1. Ingestion: pekerjaan sebelum pengguna bertanya
 
 | Tahap | Apa yang terjadi | Hasil / hal yang tidak boleh hilang |
 | --- | --- | --- |
@@ -19,12 +20,56 @@ sebagian tersambung. Semua path file dirinci pada [peta kode](05-code-map.md).
 | 9. ASSEMBLE dan INDEX | Siapkan graph delta; render teks, embedding dan sparse BM25 dalam batch | GraphDelta/IndexBatch, dependency manifests, generation yang kompatibel |
 | 10. Stage dan publish | Go menulis backend, memeriksa hasil/readiness, kemudian memindahkan pointer snapshot | Reader hanya memakai snapshot committed; error memicu recovery, bukan publication parsial |
 
-Status: durable document pipeline sampai EXTRACT dan proposal RESOLVE opt-in
-tersedia. Review/resume, graph penuh, coordinator INDEX corpus nyata, dan
-acceptance lintas tahap masih harus diselesaikan. Library worker INDEX dan writer
-awal tidak berarti langkah 1–10 sudah tersedia sebagai satu tombol produksi.
+## 2. Query: awal sampai akhir
 
-## 2. Query target: awal sampai akhir
+### Routing adaptif dan pengambilan bukti ulang
+
+Alur utama adalah `Question -> Normalize -> Classify -> Retrieve -> Fusion ->
+Rerank -> Build context -> Generate -> Validate`. Di antara tahap tersebut terdapat
+pemeriksaan evidence dan feedback terarah ketika bukti belum memadai.
+
+```text
+Question -> admission / snapshot -> Normalize -> Classify kebutuhan
+                                                     |
+                      factual: lexical + dense sebagai kandidat awal
+                      relational: tambah pencarian graph / path support
+                      version-aware: temporal policy pada SEMUA branch
+                                                     |
+                         retrieval -> filter/fusion -> rerank -> hydrate/context
+                                                     |
+                                             bukti memadai?
+                                      tidak /                 \ ya
+                          budget masih ada?                   Generate
+                         ya /           \ tidak                  |
+             cari dependency/bukti     partial/abstain    validasi klaim + sitasi
+                  yang hilang               atau                |
+                     |                  klarifikasi        jawab bila layak
+                     +---- kembali ke retrieval
+```
+
+Factual, relational dan version-aware bukan kelas yang harus saling eksklusif.
+Satu pertanyaan dapat memerlukan ketiganya. Classifier menghasilkan kebutuhan dan
+ketidakpastian; label bukan alasan otomatis membuang BM25 pada pertanyaan relasional
+atau membuang dense pada pertanyaan temporal. Penghematan dengan menutup branch
+harus dibuktikan melalui ablation. Temporal filtering juga diperlukan pada hasil
+lexical/dense sesuai scope, bukan hanya hasil graph.
+
+Kecukupan sebelum generation meliputi identitas/versi yang cocok, required evidence
+set, parent/exception atau path support yang diperlukan. Sesudah generation,
+periksa lagi klaim dan sitasi. Jika klaim gagal karena bukti hilang, workflow
+dapat kembali mencari bukti; jika masalahnya bentuk output atau salah interpretasi,
+retrieval ulang belum tentu membantu. Revisi jawaban atau abstention dapat lebih tepat.
+Pengecekan dukungan semantik bukan sesuatu yang otomatis dibuktikan validator ID.
+
+`Retrieve again` harus mengubah pencarian berdasarkan dependency/gap yang ditemukan,
+bukan mengulang query identik tanpa kemajuan. Seluruh putaran berbagi deadline,
+snapshot, budget kandidat/token/model calls; budget tidak direset. Batas putaran,
+kondisi tidak ada bukti baru, serta kondisi stop ditetapkan dalam konfigurasi
+request/profile dan dicatat dalam trace. Tidak ada angka target benchmark baru yang ditetapkan di sini.
+
+Profil eksperimen yang dibekukan tetap harus dihormati: jangan mengaktifkan graph
+diam-diam dalam run Vector RAG. Routing produk dan perbandingan profil evaluasi
+perlu dicatat terpisah. Acuan: [system-design bagian query](../system-design.md).
 
 Contoh pertanyaan konseptual: “Apa kewajiban X, pengecualiannya, dan aturan yang
 mengubahnya pada tanggal T?” Contoh ini menjelaskan kebutuhan data, bukan jawaban hukum.
@@ -39,10 +84,6 @@ Query preparation mempertahankan nomor, negasi dan nama; menyiapkan token lexica
 kandidat entity/alias dan kebutuhan temporal. Teks asli tetap disimpan. Normalisasi
 tidak boleh mengubah “tidak wajib” menjadi “wajib”. Query spelling/fuzzy expansion
 perlu diukur karena bisa merusak identifier hukum.
-
-**KOMPONEN:** RAGSession, catalog admission, lexical analyzer dan helper query
-tersedia. **RENCANA:** seluruh preparation/entity-linking/profile graph terhubung
-pada endpoint produksi terautentikasi.
 
 ### Langkah 4: mencari kandidat dengan dependency yang tepat
 
@@ -61,11 +102,6 @@ BM25 dan dense dapat berjalan concurrent. Graph yang memerlukan dense hits harus
 menunggu dense; tidak semua kotak di diagram dapat diparalelkan. Graph extraction
 corpus tidak diulang saat query.
 
-**KOMPONEN:** CandidateSearch sekarang menerima Vector RAG dan Hybrid RAG
-(dense + BM25). Permintaan profil graph ditolak; belum ada graph branch aktif
-dalam workflow ini. Kegagalan salah satu branch hybrid membatalkan sibling dan
-tidak diam-diam diubah menjadi vector-only yang dilaporkan sebagai hybrid.
-
 ### Langkah 5–6: filter, deduplikasi, dan fusion
 
 Filter corpus/snapshot yang dapat diekspresikan backend dipasang saat pencarian.
@@ -77,19 +113,15 @@ RRF menggabungkan ranked lists menggunakan peringkat, bukan penjumlahan raw scor
 Bukti yang sama pada versi sama digabung sambil mempertahankan provenance branch.
 Versi berbeda tidak boleh melebur hanya karena teksnya serupa.
 
-**KOMPONEN:** filter, RRF, dan hydration terpin tersedia pada integrasi terbatas.
-Selecting effective date tidak sama dengan membuktikan semua temporal assertions
-dalam corpus sudah diisi dengan benar.
-
 ### Langkah 7: rerank kandidat yang layak
 
 Cross-encoder menilai pasangan query–passage secara bersama. ID pasangan dijaga
 ketika batching supaya skor tidak tertukar jika backend mengembalikan urutan lain.
 Skor reranker adalah skor ranking, bukan probabilitas kebenaran hukum.
 
-**KOMPONEN:** native reranker dan helper correlation tersedia; tidak digunakan
-oleh demo. Memakai helper tidak membuktikan seluruh jalur rerank produksi telah
-terhubung atau menghasilkan gain kualitas.
+Teks kandidat yang diperlukan reranker sudah diambil dan diverifikasi sebelum
+inference. Hydration setelah reranking melengkapi konteks terpilih dengan parent,
+exception dan path support; bukan pertama kalinya teks passage dibaca.
 
 ### Langkah 8–9: hydrate bukti dan bangun konteks
 
@@ -101,11 +133,6 @@ Desain lengkap mengambil parent, pengecualian, definisi dan seluruh path support
 yang dibutuhkan. Context builder menyusun bukti dalam budget tokenizer generator.
 Bukti wajib yang hilang harus menurunkan completeness, bukan dipotong diam-diam.
 
-**KOMPONEN:** direct evidence hydration/packing tersedia. **RENCANA:** hidrasi
-parent/exception/path lengkap; implementasi saat ini menandai dependency tersebut
-sebagai missing/partial. Prompt tokenizer produksi juga harus benar-benar sesuai
-dengan generator, bukan estimasi jumlah kata.
-
 ### Langkah 10–12: generation, pemeriksaan, dan respons
 
 Generator menerima pertanyaan dan konteks terpilih. Model diminta menghasilkan
@@ -115,37 +142,27 @@ membuktikan entailment semantik; kualitas jawaban tetap dievaluasi terpisah.
 
 Reader memeriksa lease masih sah sampai akhir dan melepasnya sesudah selesai atau
 cancel. Desain streaming harus membedakan token sementara, final answer, timeout,
-dan terminal error. Saat ini library draft non-streaming sudah ada; jangan
-mengklaim demo telah melakukan streaming token.
+dan terminal error. Pada mode streaming, final answer hanya diterbitkan setelah pemeriksaan terminal;
+putus koneksi membatalkan pekerjaan dan melepaskan lease.
 
-## 3. Alur demo yang bisa ditunjukkan sekarang
+## 3. Failure path dan kondisi berhenti
 
-1. **Startup:** `cli/demo.go` memuat export offline dan memanggil `LoadPreviewCorpus`.
-   Hash, path, batas byte dan record PDF diperiksa. `NewPreviewIndex` membuat
-   passage window maksimal 1.600 rune dengan overlap sampai 160 rune dan BM25
-   in-memory. Batas ini kebijakan demo, bukan chunk policy produksi.
-2. **Browser:** UI mengirim `POST /api/ask` dengan `generate=false`. HTTP handler
-   membatasi input dan memanggil workflow `Preview.Ask`.
-3. **Retrieval:** tokenizer lexical dipakai; demo membuang daftar stopword ringan
-   dan mendeduplikasi term query menjadi satu kemunculan. BM25 mengurutkan passage;
-   dipilih lima hasil dari halaman berbeda. ID S1–S5 adalah label per respons.
-4. **Tampilan awal:** browser menampilkan kutipan dan PDF link. Jika checkbox model
-   aktif, browser mengirim POST kedua dengan `generate=true`. Pencarian saat ini
-   diulang secara murah; bukan reuse hasil POST pertama yang dipercaya dari browser.
-5. **Generation:** satu slot model diperbolehkan; Ollama dipanggil melalui adapter
-   structured output. Tidak ada embedding, graph atau cross-encoder pada langkah ini.
-6. **Validasi dan tampilkan:** setiap klaim wajib punya source ID yang tersedia;
-   hasil tetap `unreviewed_draft`. Browser memakai `textContent`, bukan HTML model.
-7. **Buka PDF:** endpoint hanya menerima hash dari receipt yang dimuat. Byte PDF
-   diperiksa kembali sebelum disajikan; `#page=N` mengarahkan viewer ke halaman.
-
-| Kondisi demo | Hasil |
+| Kondisi | Tindakan sistem lengkap |
 | --- | --- |
-| Tidak ada hasil lexical | `no_evidence`; tidak memanggil model |
-| Model dimatikan | `evidence_only` |
-| Bukti menurut model tidak cukup | `abstain` |
-| Provider gagal atau klaim tidak valid | `generation_failed`, evidence tetap ditampilkan |
-| Model sedang dipakai request lain | HTTP 429; tidak membuat antrean tanpa batas |
+| Interpretasi temporal/identitas material ambigu | Meminta klarifikasi atau melaporkan ketidakpastian sesuai policy |
+| Branch wajib gagal | Menandai kegagalan; fallback hanya jika diizinkan dan effective profile dicatat |
+| Bukti primer/path/exception belum lengkap | Retrieval tambahan ditargetkan pada dependency yang hilang |
+| Retrieval ulang tidak memberi bukti baru | Hentikan loop; partial/abstain atau klarifikasi, bukan reset budget |
+| Klaim tidak didukung bukti yang ada | Revisi/buang klaim atau cari bukti tambahan bila gap jelas dan budget tersedia |
+| Deadline atau budget habis | Keluaran terminal eksplisit; jangan melaporkan pencarian lengkap |
+| Snapshot lease kedaluwarsa | Jangan menyajikan hasil seolah snapshot tetap terpin; lakukan cleanup |
+| User membatalkan request | Batalkan turunan, hentikan antrean/model bila dapat dibatalkan, lepas resource |
 
-Pengujian nyata dan batas demo tercatat di
-[verification-report-interview-demo](../verification-report-interview-demo.md).
+Pemeriksaan kecukupan deterministik mencakup identitas, source/version, required
+sets dan missing dependencies. Pemeriksaan semantik memeriksa hubungan makna
+klaim dan bukti; bila memakai model tambahan, biayanya masuk deadline/model budget.
+Keduanya tidak digabung menjadi klaim "LLM pasti tahu kapan bukti cukup".
+
+Jika pertanyaan sejak awal dapat dijawab dengan evidence yang memadai, jalur selesai
+pada satu putaran retrieval dan generation. Sistem adaptif tidak mengharuskan semua
+pertanyaan menjalani loop atau memakai seluruh branch.
