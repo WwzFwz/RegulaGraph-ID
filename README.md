@@ -2,6 +2,10 @@
 
 Repositori ini menampung pengembangan Hybrid GraphRAG untuk regulasi Indonesia dengan pemisahan runtime berdasarkan latency dan throughput. README ini menjadi peta fungsi, pemilik komponen, dan cara memeriksa struktur build.
 
+**Demo lokal:** jalankan `powershell -ExecutionPolicy Bypass -File scripts/start_demo.ps1`
+lalu buka http://127.0.0.1:8096. [Panduan demo](doc/interview-demo.md) menjelaskan
+baseline BM25 + model lokal dari PDF nyata, contoh pertanyaan, dan batasnya.
+
 **Status: collector/audit D01, kontrak C01, evaluator E01, storage/publication S01, pipeline durable sampai EXTRACT, Semantic EXTRACT Gateway, ontology EXTRACT bersama, serta native embedding/reranker tersedia; Hybrid GraphRAG end-to-end belum aktif.** Go/Rust/C++ memegang runtime produk; Python untuk evaluasi/tooling offline. Audit D01 telah memverifikasi provenance dan blob lokal sekitar 3 GB, tetapi coverage queue/reference, connector JDIHN, stratifikasi format, dan gold data masih belum lengkap. Rust menghasilkan artefak dokumen, chunk, dan proposal ekstraksi berbukti; Go memegang exact identity, orchestration, gateway model, validasi commit EXTRACT, serta control-plane. Canonical resolution, graph/index, retrieval/answering menyeluruh, pemilihan seluruh model produksi, dan acceptance benchmark masih harus diselesaikan. Mulai kelanjutan dari [panduan implementasi](doc/implementation-guide.md), [runner evaluasi](doc/evaluation-runner.md), dan [protokol verifikasi](doc/verification.md).
 
 ## Struktur dan cakupan

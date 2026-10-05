@@ -89,3 +89,7 @@ resource generation serta membuat hydrator per pin. Perubahan binding ditolak
 sampai resource baru disiapkan. SearchQuestion/SearchPinnedQuestion menyediakan
 jalur evidence-only yang sama dengan answering tanpa pemanggilan generator.
 Lihat [panduan](../../../../doc/query-evidence.md) untuk lifecycle cold CLI/warm library.
+`preview.go` menghubungkan BM25 sampel dengan generator opsional untuk interview.
+Satu generation berjalan sekaligus; kegagalan model mempertahankan evidence dengan
+status generation_failed. Tidak ada snapshot publication atau klaim applicability
+hukum pada jalur ini. Entrypoint-nya CLI `demo`, bukan query produksi.

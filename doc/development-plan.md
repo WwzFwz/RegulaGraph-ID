@@ -206,3 +206,7 @@ terverifikasi. Warm binding library diuji terpisah dari cold invocation CLI.
 Lihat [panduan](query-evidence.md) dan [verifikasi](verification-report-query-evidence.md).
 Coordinator INDEX untuk corpus pengguna, generator/tokenizer prompt nyata, API
 terautentikasi, graph dan acceptance tetap terbuka; gold tetap tahap berikutnya.
+Prioritas pengguna 2026-10-05: demo runnable sebelum interview. Baseline lokal
+BM25 + model Ollama dari sampel PDF tersedia melalui CLI `demo`, dengan panduan
+di [interview-demo.md](interview-demo.md). Ini bukan penutupan K01/X01/Q01/A01
+produksi; pekerjaan coordinator, graph/dense dan acceptance tetap berlaku.

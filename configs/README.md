@@ -40,3 +40,6 @@ menghasilkan fingerprint. Berikutnya loader Go untuk ingestion/retrieval harus m
 fingerprint yang setara. `benchmark-targets.yaml` tetap sumber tunggal angka dan tidak diubah untuk meluluskan tes.
 
 Prompt `resolution-v1.md` dikonsumsi mode RESOLVE gateway. Provider lokal menjadi prioritas, tetapi model/versi belum dipin; target benchmark tidak berubah.
+`demo.Modelfile` adalah profil Ollama khusus demo interview: memakai bobot lokal
+Qwen yang sudah ada dan menentukan context/output bounds. Ini tidak mengganti
+model manifest produksi maupun target benchmark.

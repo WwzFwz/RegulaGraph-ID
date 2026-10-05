@@ -35,3 +35,7 @@ Collector/audit D01, kontrak/validator C01, evaluator E01, storage/publication S
 Adapter inference menyediakan RESOLVE kontekstual; workflow menghydrate input terverifikasi dan menyimpan proposal untuk replay. Dispatch proposal daemon tersedia secara opt-in; review/resume terautentikasi serta acceptance model lokal belum selesai.
 
 Adapter native embedding/reranking kini memiliki implementasi gRPC dan tes C++ nyata; provenance/ranking workflow tetap berada pada domain/retrieval pemiliknya.
+Berkas `preview.go` pada storage, retrieval, answering, workflows, dan API
+mengimplementasikan baseline demo lokal yang terpisah dari jalur C01 terpublikasi.
+Nilai internal/UI berada pada domain/local_preview.go, tanpa kontrak worker baru.
+Scope dan batas dijelaskan pada [panduan demo](../../../doc/interview-demo.md).

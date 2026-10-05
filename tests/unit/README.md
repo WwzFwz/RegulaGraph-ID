@@ -38,3 +38,6 @@ penolakan metadata/path yang tidak sesuai inventory, escaping judul, dan laranga
 PASS test tersebut membuktikan perilaku deterministik evaluator, bukan target benchmark.
 
 [test_model_provenance.py](test_model_provenance.py) menguji revision receipts, input/reference drift, empty/nonfinite/zero tensors, duplicate results, dan accounting seluruh arrival diagnostic. Fixture bukan bukti kualitas model.
+`test_demo_corpus.py` memeriksa export sampel PDF offline: manifest mengikat byte,
+output tidak ditimpa dan PDF korup tidak menghasilkan completion marker. Tes Go
+preview berada di folder komponen; smoke model/browser dicatat di artifacts.

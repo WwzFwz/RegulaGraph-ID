@@ -49,3 +49,8 @@ cold/warm terpisah dan jangan memakai heuristic strata sebagai label gold. Targe
 Pembanding pypdf/MuPDF/PDFium M01 aktif. Perbandingan OCR, peak RSS, layout/source mapping, CER/WER,
 table/column gold, binding Rust, serta pemilihan engine produksi belum selesai.
 Antrean kandidat dan paket triase PDF G01 aktif; anotasi dan adjudikasi manusia belum selesai.
+`prepare_demo.py` memilih sampel deterministik untuk preview interview, memverifikasi
+receipt/PDF, lalu mengekspor teks halaman dan record D01 asli dengan SHA256SUMS.
+Output adalah artefak eksperimen untuk baseline lokal, bukan parser/DocumentBatch
+produksi. Skip dan text-layer limitations dicatat di report.json; existing output
+ditolak. [Panduan demo](../../doc/interview-demo.md) menjelaskan konsumennya.

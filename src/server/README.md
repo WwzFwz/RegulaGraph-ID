@@ -50,3 +50,6 @@ CLI operator `query-evidence` kini tersedia untuk pencarian dan hidrasi bukti pa
 snapshot terpublikasi. Profil/date eksplisit, native embedding serta BM25 memakai
 workflow bersama. Ini belum menyediakan jawaban LLM atau API publik; lihat
 [panduan query](../../doc/query-evidence.md).
+CLI `demo` merakit preview RAG lokal pada sampel PDF tanpa database. Komponen
+storage/retrieval/answering/workflow/API tetap dipisah; `cmd/api` produksi belum
+menjadi entry point preview. Lihat [panduan](../../doc/interview-demo.md).

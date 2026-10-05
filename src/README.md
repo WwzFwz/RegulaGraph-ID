@@ -23,3 +23,7 @@ Setiap anak wajib mendokumentasikan cakupan dan kontrak integrasinya dalam READM
 Gateway dan workflow proposal RESOLVE kontekstual tersedia pada server. Dispatch RESOLVE opt-in sampai proposal WAITING_REVIEW kini tersedia; status stage belum aktif di atas merujuk keputusan dan ingestion end-to-end; lihat [integrasi resolusi](../doc/semantic-resolution.md).
 
 Native inference sekarang juga memiliki executable C01 dengan session embedding/reranker warm, tokenizer Rust C ABI, serta client Go/Rust. Lihat [panduan runtime](../doc/native-inference.md) untuk batas integrasi dan status acceptance.
+Baseline demo interview kini tersedia lewat CLI Go `demo`: persiapan sampel PDF
+berada di tooling Python offline, sementara retrieval BM25, workflow, generation
+adapter dan UI berjalan di Go. Jalur ini terpisah dari publication/GraphRAG produksi;
+lihat [panduan](../doc/interview-demo.md).

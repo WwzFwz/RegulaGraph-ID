@@ -152,3 +152,6 @@ ini tidak mengautentikasi writer registry, hash bytes storage, atau publication.
 boundary lokal pembacaan storage. Tipe memakai schema C01 yang sama; pin membawa
 locator lease, bukan authorization pengguna. Adapter wajib memeriksa owner,
 expiry dan publication saat membaca. Lihat [kontrak](../../../../doc/pinned-evidence.md).
+`local_preview.go` berisi nilai in-process/UI untuk sampel demo: halaman, passage,
+klaim dan hasil. Blob SHA-256 serta offset tidak dianggap canonical/version ID.
+Nilai ini bukan pengganti wire contract C01 atau EvidenceBundle produksi.

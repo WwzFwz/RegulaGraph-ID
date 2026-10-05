@@ -36,3 +36,9 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | --- | --- | --- |
 | [dependencies.go](dependencies.go) | Construct and close shared pools/clients explicitly; inject narrow workflow interfaces and pin model/config manifests. | Test partial startup cleanup and dependency failure without opening connections during package initialization. |
 | [server.go](server.go) | Wire HTTP routes, request size limits, deadlines, admission control and graceful drain; keep readiness separate from liveness. | Exercise slow clients, cancelled streams, overload and shutdown with in-flight requests; measure queue-inclusive latency. |
+`preview.go` dan `preview.html` menyediakan UI localhost serta status, ask dan PDF
+routes untuk workflow preview. Route membatasi body/deadline, Host/Origin dan
+memverifikasi PDF terhadap receipt; teks model ditampilkan melalui textContent.
+Tes boundary berada di `preview_test.go`. Server produksi dalam cmd/api tetap
+scaffold; UI aktif dirakit CLI demo, dijelaskan dalam
+[panduan](../../../../doc/interview-demo.md).

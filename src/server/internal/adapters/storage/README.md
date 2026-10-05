@@ -35,3 +35,7 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
 | [files.go](files.go) | Pertahankan write/read immutable; tambahkan retention-aware cleanup setelah read-lease policy O01 tersedia. | Perluas symlink/process-crash/short-write injection lintas platform; ukur bytes/s dan peak buffers. |
+`preview.go` memuat export eksperimen SHA256SUMS dan record D01 untuk demo lokal.
+Ia membatasi path, hash, jumlah file dan total bytes; tidak menulis katalog produksi.
+`preview_test.go` memeriksa korupsi, duplikasi dan traversal. Manifest lokal tidak
+menjadi signed provenance atau bukti akurasi parser.

@@ -76,3 +76,7 @@ create/upsert/readback, branch dense/BM25 dan isolasi sequence telah lulus pada
 Qdrant 1.18.0. Vektor/model dan corpus masih sintetis; artefak lexical sudah dibaca
 melalui factory dengan pemeriksaan hash. Snapshot lebih tua ditolak sebelum BM25
 memakai statistik masa depan. Tes tidak membuktikan kualitas atau publication corpus.
+`preview.go` menjalankan BM25 in-memory untuk demo PDF lokal memakai analyzer query
+bersama, offset UTF-8 halaman, overlap window dan ranking deterministik. Ini tidak
+menggunakan dense/graph atau filter temporal produksi. `preview_test.go` menguji
+ranking, OOV, pembatalan dan exact source offsets; kualitas gold belum diukur.

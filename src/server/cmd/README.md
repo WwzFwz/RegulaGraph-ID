@@ -29,3 +29,6 @@ Ikuti [kebijakan benchmark](../../../doc/benchmark-policy.md). Angka wajib mengi
 Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, fondasi storage/publication S01, coordinator hingga EXTRACT, worker EXTRACT, serta Semantic.ExtractBatch Gateway sudah tersedia. Provider/model produksi belum dipilih; hasil kualitas, latency, biaya, stage RESOLVE-INDEX, query, gold dataset, dan acceptance produksi belum aktif. Test deterministic tidak membuktikan target model.
 
 `semantic-gateway` dapat dijalankan dalam mode EXTRACT atau RESOLVE pada proses terpisah. RESOLVE menyediakan RPC proposal kontekstual; daemon ingestion-worker memiliki wiring RESOLVE opt-in untuk proposal, tanpa otomatis menyetujui LINK.
+`cli demo` kini menyusun preview interview di loopback: sample PDF terverifikasi,
+indeks BM25 Go dan model lokal opsional. Runtime produksi cmd/api tetap terpisah.
+Lihat [panduan demo](../../../doc/interview-demo.md).

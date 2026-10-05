@@ -67,3 +67,7 @@ filter tanggal AS_OF: versi REPEALED dapat relevan sebelum tanggal pencabutan.
 Budget context menghitung label tersebut bersama seluruh teks yang dikirim.
 [Integrasi terpin](../../../../doc/pinned-evidence.md) menjaga lease selama
 hydration/generation; source URL prefetched tetap berasal dari bukti terverifikasi.
+`preview.go` menyediakan generator demo terpisah dari DraftGenerator C01: output
+terstruktur dibatasi ke ID kutipan yang diberikan, dengan status unreviewed dan
+abstention. Exact prompt tokenizer dan pin model produksi belum tersedia pada
+jalur ini. `preview_test.go` menolak referensi rekaan/duplikat dan status invalid.

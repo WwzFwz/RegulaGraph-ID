@@ -207,3 +207,6 @@ belum diukur.
 [query-evidence.md](query-evidence.md) menjelaskan CLI operator untuk pencarian
 bukti terpin serta factory query berbasis katalog. [Laporan verifikasi query](verification-report-query-evidence.md)
 memisahkan tes storage nyata, provider sintetis, dan target yang belum diukur.
+[interview-demo.md](interview-demo.md) adalah panduan menjalankan baseline PDF RAG
+lokal. [verification-report-interview-demo.md](verification-report-interview-demo.md)
+mencatat tes serta batas klaimnya; ini tidak menutup milestone produksi.
