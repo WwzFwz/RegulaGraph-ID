@@ -224,6 +224,8 @@ message ProcessBatchRequest {
   repeated SourceObservation observations=10;
   // Required by the INDEX processor; explicit role, never inferred from sources order.
   ArtifactRef index_build_plan=11;
+  // Required by ASSEMBLE consumers; old workers must reject unsupported stage capability.
+  ArtifactRef graph_assembly_plan=12;
 }
 message ProcessBatchResponse {
   string request_id=1 [(rules)={required:true ascii_id:true}];

@@ -204,6 +204,37 @@ message GraphDelta {
   string ontology_version=14 [(rules).required=true];
   repeated ResolutionDecision decisions=15;
 }
+// Bounded, complete selection of canonical rows at a publication's immutable registry
+// binding. This is not the full corpus registry and does not confer publication authority.
+// requested_ids and entities must have exactly the same unique IDs in canonical order.
+message RegistryEntityView {
+  RecordMeta meta=1 [(rules).required=true];
+  string publication_id=2 [(rules)={required:true ascii_id:true}];
+  uint64 publication_fence=3 [(rules).positive=true];
+  uint64 registry_revision=4 [(rules).positive=true];
+  repeated string requested_ids=5 [(rules)={ascii_id:true unique:true}];
+  repeated CanonicalEntity entities=6;
+  ProducerManifest producer_manifest=7 [(rules).required=true];
+}
+// Coordinator pins all ASSEMBLE roles explicitly; source order never determines role.
+// Context.snapshot_ref is the base knowledge snapshot. target_sequence identifies the
+// reserved output slot without creating a cycle through the eventual manifest hash.
+message GraphAssemblyPlan {
+  RecordMeta meta=1 [(rules).required=true];
+  RequestContext context=2 [(rules).required=true];
+  string publication_id=3 [(rules)={required:true ascii_id:true}];
+  uint64 publication_fence=4 [(rules).positive=true];
+  uint64 target_sequence=5 [(rules).positive=true];
+  uint64 registry_revision=6 [(rules).positive=true];
+  ArtifactRef document_batch=7 [(rules).required=true];
+  ArtifactRef extraction_batch=8 [(rules).required=true];
+  ArtifactRef resolution_batch=9 [(rules).required=true];
+  ArtifactRef registry_view=10 [(rules).required=true];
+  string output_artifact_id=11 [(rules)={required:true ascii_id:true}];
+  string source_checkpoint_id=12 [(rules)={required:true ascii_id:true}];
+  ProducerManifest producer_manifest=13 [(rules).required=true];
+  ContentHash ontology_hash=14 [(rules).required=true];
+}
 message GraphPath {
   string path_id=1 [(rules)={required:true ascii_id:true}];
   repeated string ordered_node_ids=2 [(rules)={ascii_id:true min_items:1}];
