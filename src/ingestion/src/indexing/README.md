@@ -75,3 +75,9 @@ Parent harus berupa checked object; root membuktikan revision sendiri saja.
 Caller wajib membaca bytes dengan hash storage terverifikasi dan mengautentikasi
 binding registry sebelum reuse/publication. Load sekali per generation; ukur
 biaya decoding, lookup dan peak RSS bersama batas item/byte eksplisit.
+
+[population.rs](population.rs) menyiapkan seluruh chunk dari daftar sumber terverifikasi
+dengan renderer/analyzer INDEX, lalu mengekspos vocabulary untuk allocator Go dan
+freeze statistik berpolicy terikat. Dedup chunk lintas sumber, snapshot/scope,
+budget sumber/token/term serta referenced text reads diperiksa tanpa sampling.
+Lihat [panduan populasi](../../../../doc/lexical-population.md).

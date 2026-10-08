@@ -24,6 +24,7 @@ mod letter_ranges;
 pub mod lexical;
 pub mod loading;
 mod nfc_properties;
+pub mod population;
 pub mod reuse;
 pub mod statistics;
 pub mod statistics_artifact;

@@ -94,6 +94,11 @@ impl Bm25Statistics {
         self.document_frequency.get(term).copied().unwrap_or(0)
     }
 
+    /// Sorted vocabulary from the actual population, for registry-owned term allocation.
+    pub fn terms(&self) -> impl Iterator<Item = &str> {
+        self.document_frequency.keys().map(String::as_str)
+    }
+
     /// Export immutable frozen statistics of the actual analyzed document set.
     /// Population hash v1 uses length-prefixed UTF-8 analyzer/document/term bytes,
     /// u64 BE counts and u32 BE frequencies, in BTreeMap byte order; token order is

@@ -16,6 +16,7 @@ use crate::{
         inputs::RENDER_POLICY_VERSION,
         lexical::Bm25Statistics,
         loading::VerifiedIndexInputs,
+        population::{prepare_population, PopulationLimits},
         statistics_artifact::build_analyzer,
     },
     wire::{common, documents, evidence, inference, jobs},
@@ -127,7 +128,11 @@ pub(super) fn exercise_index(
         .load_selected(
             &processor.store,
             &processor.config.normalizer,
-            &selected,
+            &source
+                .chunks
+                .iter()
+                .map(|c| c.meta.record_id.clone())
+                .collect::<Vec<_>>(),
             1024,
             &AtomicBool::new(false),
         )
@@ -136,7 +141,124 @@ pub(super) fn exercise_index(
         .iter()
         .map(|i| analyze_document(&i.text).unwrap())
         .collect();
-    let vocabulary: BTreeSet<_> = terms.iter().flatten().cloned().collect();
+    let population = prepare_population(
+        &processor.store,
+        &[source_ref.clone()],
+        &snapshot,
+        &source.context.auth_scope_ref,
+        &processor.config.normalizer,
+        PopulationLimits::default(),
+        &AtomicBool::new(false),
+    )
+    .unwrap();
+    assert_eq!(population.document_count(), source.chunks.len());
+    let vocabulary: BTreeSet<_> = population.terms().map(str::to_owned).collect();
+    assert_eq!(vocabulary, terms.iter().flatten().cloned().collect());
+    assert_eq!(population.sources(), &[source_ref.clone()]);
+    for (name, scope, limits, cancelled) in [
+        (
+            "text bytes",
+            source.context.auth_scope_ref.as_str(),
+            PopulationLimits {
+                maximum_text_read_bytes: 1,
+                ..PopulationLimits::default()
+            },
+            false,
+        ),
+        ("scope", "foreign", PopulationLimits::default(), false),
+        (
+            "cancelled",
+            source.context.auth_scope_ref.as_str(),
+            PopulationLimits::default(),
+            true,
+        ),
+        (
+            "tokens",
+            source.context.auth_scope_ref.as_str(),
+            PopulationLimits {
+                maximum_tokens: 1,
+                ..PopulationLimits::default()
+            },
+            false,
+        ),
+        (
+            "bytes",
+            source.context.auth_scope_ref.as_str(),
+            PopulationLimits {
+                maximum_source_bytes: 1,
+                ..PopulationLimits::default()
+            },
+            false,
+        ),
+        (
+            "term bytes",
+            source.context.auth_scope_ref.as_str(),
+            PopulationLimits {
+                maximum_term_bytes: 1,
+                ..PopulationLimits::default()
+            },
+            false,
+        ),
+    ] {
+        assert!(
+            prepare_population(
+                &processor.store,
+                &[source_ref.clone()],
+                &snapshot,
+                scope,
+                &processor.config.normalizer,
+                limits,
+                &AtomicBool::new(cancelled)
+            )
+            .is_err(),
+            "{name}"
+        );
+    }
+    assert!(prepare_population(
+        &processor.store,
+        &[source_ref.clone(), source_ref.clone()],
+        &snapshot,
+        &source.context.auth_scope_ref,
+        &processor.config.normalizer,
+        PopulationLimits::default(),
+        &AtomicBool::new(false)
+    )
+    .is_err());
+    let mut duplicate_source = source.clone();
+    duplicate_source.meta.as_mut().unwrap().record_id = "document-batch:duplicate".into();
+    duplicate_source
+        .dependency_manifest
+        .as_mut()
+        .unwrap()
+        .artifact_id = "document-batch:duplicate".into();
+    let duplicate_ref = persist_document_batch(&processor.store, &duplicate_source)
+        .unwrap()
+        .reference;
+    assert_ne!(duplicate_ref.content_hash, source_ref.content_hash);
+    assert!(prepare_population(
+        &processor.store,
+        &[source_ref.clone(), duplicate_ref],
+        &snapshot,
+        &source.context.auth_scope_ref,
+        &processor.config.normalizer,
+        PopulationLimits::default(),
+        &AtomicBool::new(false)
+    )
+    .err()
+    .unwrap()
+    .contains("duplicate chunk"));
+    let mut foreign_snapshot = snapshot.clone();
+    foreign_snapshot.sequence += 1;
+    assert!(prepare_population(
+        &processor.store,
+        &[source_ref.clone()],
+        &foreign_snapshot,
+        &source.context.auth_scope_ref,
+        &processor.config.normalizer,
+        PopulationLimits::default(),
+        &AtomicBool::new(false)
+    )
+    .is_err());
     let entries: Vec<_> = vocabulary
         .into_iter()
         .enumerate()
@@ -175,9 +297,13 @@ pub(super) fn exercise_index(
     )
     .unwrap();
     let mut stats = Bm25Statistics::new(ANALYZER_VERSION).unwrap();
-    for (id, terms) in selected.iter().zip(&terms) {
+    for (chunk, terms) in source.chunks.iter().zip(&terms) {
         stats
-            .upsert(ANALYZER_VERSION, id, terms.iter().map(String::as_str))
+            .upsert(
+                ANALYZER_VERSION,
+                &chunk.meta.record_id,
+                terms.iter().map(String::as_str),
+            )
             .unwrap();
     }
     let mut statistics = stats
@@ -191,6 +317,29 @@ pub(super) fn exercise_index(
         )
         .unwrap();
     statistics.input_policy = RENDER_POLICY_VERSION.into();
+    let produced = population
+        .freeze(&meta("statistics:index"), &checked, 1.2, 0.75)
+        .unwrap();
+    assert_eq!(statistics, produced);
+    let paged = prepare_population(
+        &processor.store,
+        &[source_ref.clone()],
+        &snapshot,
+        &source.context.auth_scope_ref,
+        &processor.config.normalizer,
+        PopulationLimits {
+            chunks_per_selection: 1,
+            ..PopulationLimits::default()
+        },
+        &AtomicBool::new(false),
+    )
+    .unwrap();
+    assert_eq!(
+        produced,
+        paged
+            .freeze(&meta("statistics:index"), &checked, 1.2, 0.75)
+            .unwrap()
+    );
     let analyzer = build_analyzer(&meta("analyzer:index"), Limits::default()).unwrap();
     generation.lexical_analyzer =
         MessageField::some(persist(&processor, &analyzer, &analyzer.meta.record_id));
@@ -345,11 +494,40 @@ pub(super) fn exercise_index(
         std::fs::create_dir_all(&directory).unwrap();
         for (name, bytes) in [
             ("source.pb", source.write_to_bytes().unwrap()),
+            (
+                "source-ref.pb",
+                plan.document_batch.write_to_bytes().unwrap(),
+            ),
+            (
+                "snapshot.pb",
+                plan.source_snapshot.write_to_bytes().unwrap(),
+            ),
             ("plan.pb", plan.write_to_bytes().unwrap()),
             ("plan-ref.pb", plan_ref.write_to_bytes().unwrap()),
             ("batch.pb", batch.write_to_bytes().unwrap()),
         ] {
             std::fs::write(directory.join(name), bytes).unwrap();
+        }
+        std::fs::write(
+            directory.join("auth-scope.txt"),
+            &source.context.auth_scope_ref,
+        )
+        .unwrap();
+        let mut refs = vec![plan.document_batch.as_ref().unwrap()];
+        for text in &source.text_artifacts {
+            refs.extend([
+                text.raw_text_ref.as_ref().unwrap(),
+                text.normalized_text_ref.as_ref().unwrap(),
+                text.mapping_ref.as_ref().unwrap(),
+            ]);
+        }
+        for reference in refs {
+            let descriptor =
+                crate::adapters::storage::ArtifactDescriptor::from_wire_ref(reference).unwrap();
+            let raw = processor.store.read_verified(&descriptor).unwrap();
+            let path = directory.join("objects").join(&reference.storage_key);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, raw).unwrap();
         }
     }
     processor
