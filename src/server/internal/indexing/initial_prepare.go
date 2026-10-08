@@ -5,8 +5,8 @@
 // Worker DocumentBatch/IndexBatch addresses are independent of logical record
 // IDs; plan and lexical references retain their coordinator-owned typed IDs.
 // Exact registered refs, media types, hashes and planned output IDs remain gates.
-// Artifact memory is capped at 64 MiB per prepared write; measure preparation
-// RSS/time separately from batch I/O under configs/benchmark-targets.yaml.
+// Serialized artifact bytes are capped at 64 MiB per prepared write; decoded
+// messages add memory. Measure RSS/time under configs/benchmark-targets.yaml.
 // Quality and required performance remain unmeasured; no model is called here.
 package indexing
 
@@ -59,6 +59,11 @@ func (p *PreparedInitialIndex) ExpectedBackend() *pb.BackendGeneration {
 
 func PrepareInitialIndex(ctx context.Context, authority IndexAuthority, reader IndexArtifactReader,
 	binding domain.IndexCatalogBinding, inputs []InitialIndexInput) (*PreparedInitialIndex, error) {
+	return prepareInitialIndex(ctx, authority, reader, binding, inputs, nil)
+}
+
+func prepareInitialIndex(ctx context.Context, authority IndexAuthority, reader IndexArtifactReader,
+	binding domain.IndexCatalogBinding, inputs []InitialIndexInput, loader *initialArtifactLoader) (*PreparedInitialIndex, error) {
 	if authority == nil || reader == nil || len(inputs) == 0 || len(inputs) > 256 {
 		return nil, errors.New("bounded initial INDEX inputs required")
 	}
@@ -74,7 +79,9 @@ func PrepareInitialIndex(ctx context.Context, authority IndexAuthority, reader I
 		ordered[i].BatchRef = proto.Clone(ordered[i].BatchRef).(*pb.ArtifactRef)
 	}
 	sort.Slice(ordered, func(i, j int) bool { return ordered[i].BatchRef.ArtifactId < ordered[j].BatchRef.ArtifactId })
-	loader := &initialArtifactLoader{authority: authority, reader: reader, corpus: binding.Generation.Meta.CorpusId, remaining: 64 << 20, cache: map[string]initialArtifact{}}
+	if loader == nil {
+		loader = &initialArtifactLoader{authority: authority, reader: reader, corpus: binding.Generation.Meta.CorpusId, remaining: 64 << 20, cache: map[string]initialArtifact{}}
+	}
 	p := &PreparedInitialIndex{binding: binding}
 	type sourceCoverage struct {
 		job    string
@@ -257,40 +264,17 @@ func (l *initialArtifactLoader) read(ctx context.Context, ref *pb.ArtifactRef, t
 }
 
 func verifyInitialLexical(ctx context.Context, l *initialArtifactLoader, plan *pb.IndexBuildPlan, records []*pb.IndexRecord) error {
-	analyzer, stats := new(pb.LexicalAnalyzerArtifact), new(pb.LexicalStatisticsArtifact)
-	if err := l.read(ctx, plan.Generation.LexicalAnalyzer, analyzer); err != nil {
+	stats, parent, err := loadInitialLexical(ctx, l, plan)
+	if err != nil {
 		return err
 	}
-	if err := domain.ValidateLexicalAnalyzerArtifact(analyzer, l.corpus, domain.DefaultWireLimits); err != nil {
-		return err
+	if stats.DocumentCount != uint64(len(records)) {
+		return errors.New("initial BM25 statistics population differs from complete write set")
 	}
-	if err := l.read(ctx, plan.Generation.LexicalStatistics, stats); err != nil {
-		return err
-	}
-	var parent, base *domain.CheckedLexicalDictionary
-	for _, ref := range plan.DictionaryChain {
-		dictionary := new(pb.LexicalDictionaryArtifact)
-		if err := l.read(ctx, ref, dictionary); err != nil {
-			return err
-		}
-		checked, err := domain.CheckLexicalDictionaryArtifact(dictionary, l.corpus, parent, domain.DefaultWireLimits)
-		if err != nil {
-			return err
-		}
-		if err = l.authority.VerifyIndexDictionary(ctx, l.corpus, dictionary); err != nil {
-			return err
-		}
-		if checked.RegistryRevision() == stats.DictionaryRegistryRevision {
-			base = checked
-		}
-		parent = checked
-	}
-	if err := domain.CheckLexicalStatisticsArtifact(stats, base, domain.DefaultWireLimits); err != nil {
-		return err
-	}
-	if stats.InputPolicy != plan.LexicalInputPolicy || !proto.Equal(stats.PopulationSnapshot, plan.TargetSnapshot) || stats.DocumentCount != uint64(len(records)) {
-		return errors.New("initial BM25 statistics population/policy differs from complete write set")
-	}
+	return verifyIndexSparseTerms(parent, records)
+}
+
+func verifyIndexSparseTerms(parent *domain.CheckedLexicalDictionary, records []*pb.IndexRecord) error {
 	terms := map[uint32]bool{}
 	for _, id := range parent.Terms() {
 		terms[id] = true
@@ -303,4 +287,44 @@ func verifyInitialLexical(ctx context.Context, l *initialArtifactLoader, plan *p
 		}
 	}
 	return nil
+}
+
+// loadInitialLexical shares generation admission between planning and writing;
+// only the caller knows the complete selected population count.
+func loadInitialLexical(ctx context.Context, l *initialArtifactLoader, plan *pb.IndexBuildPlan) (*pb.LexicalStatisticsArtifact, *domain.CheckedLexicalDictionary, error) {
+	analyzer, stats := new(pb.LexicalAnalyzerArtifact), new(pb.LexicalStatisticsArtifact)
+	if err := l.read(ctx, plan.Generation.LexicalAnalyzer, analyzer); err != nil {
+		return nil, nil, err
+	}
+	if err := domain.ValidateLexicalAnalyzerArtifact(analyzer, l.corpus, domain.DefaultWireLimits); err != nil {
+		return nil, nil, err
+	}
+	if err := l.read(ctx, plan.Generation.LexicalStatistics, stats); err != nil {
+		return nil, nil, err
+	}
+	var parent, base *domain.CheckedLexicalDictionary
+	for _, ref := range plan.DictionaryChain {
+		dictionary := new(pb.LexicalDictionaryArtifact)
+		if err := l.read(ctx, ref, dictionary); err != nil {
+			return nil, nil, err
+		}
+		checked, err := domain.CheckLexicalDictionaryArtifact(dictionary, l.corpus, parent, domain.DefaultWireLimits)
+		if err != nil {
+			return nil, nil, err
+		}
+		if err = l.authority.VerifyIndexDictionary(ctx, l.corpus, dictionary); err != nil {
+			return nil, nil, err
+		}
+		if checked.RegistryRevision() == stats.DictionaryRegistryRevision {
+			base = checked
+		}
+		parent = checked
+	}
+	if err := domain.CheckLexicalStatisticsArtifact(stats, base, domain.DefaultWireLimits); err != nil {
+		return nil, nil, err
+	}
+	if stats.InputPolicy != plan.LexicalInputPolicy || !proto.Equal(stats.PopulationSnapshot, plan.TargetSnapshot) {
+		return nil, nil, errors.New("initial BM25 statistics population/policy differs from target snapshot")
+	}
+	return stats, parent, nil
 }

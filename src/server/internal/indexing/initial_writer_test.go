@@ -29,6 +29,7 @@ import (
 	pb "regulagraph.local/server/gen/regulagraph/v1"
 	"regulagraph.local/server/internal/adapters/postgres"
 	"regulagraph.local/server/internal/adapters/qdrant"
+	"regulagraph.local/server/internal/adapters/storage"
 	"regulagraph.local/server/internal/domain"
 	"regulagraph.local/server/internal/retrieval"
 )
@@ -311,6 +312,64 @@ func runInitialIndexPublication(t *testing.T, requireGraph, contentAddressed boo
 	}
 	if p.ExpectedBackend().ExpectedCounts.Expected != uint64(len(source.Chunks)) {
 		t.Fatal("prepared count")
+	}
+	// The coordinator now constructs the selection, persists its real plan bytes,
+	// and admits the exact resulting set before the existing publication path.
+	planned, err := PlanInitialIndex(ctx, repo, artifacts, InitialIndexPlanConfig{
+		Binding: binding, Snapshot: snapshot, Producer: plan.Producer,
+		DictionaryChain: plan.DictionaryChain, AuthScope: source.Context.AuthScopeRef, ChunksPerBatch: 128,
+	}, []InitialIndexSource{{SourceJobID: job, DocumentBatch: plan.DocumentBatch}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	planFiles, err := storage.NewFileStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer planFiles.Close()
+	if err = planned.Persist(ctx, planFiles, repo); err != nil {
+		t.Fatal(err)
+	}
+	if err = planned.Persist(ctx, planFiles, repo); err != nil {
+		t.Fatal("plan replay", err)
+	}
+	plannedBatch := planned.Batches()[0]
+	planBytes, err := planFiles.ReadVerified(ctx, plannedBatch.Reference, plannedBatch.Reference.ByteSize)
+	if err != nil {
+		t.Fatal(err)
+	}
+	artifacts[plannedBatch.Reference.ArtifactId] = planBytes
+	generated := proto.Clone(batch).(*pb.IndexBatch)
+	generated.Meta.RecordId = plannedBatch.Plan.OutputBatchId
+	generated.BuildPlan = plannedBatch.Reference
+	generated.Dependencies = &pb.DependencyManifest{ArtifactId: generated.Meta.RecordId, ProducerManifest: plannedBatch.Plan.Producer,
+		Dependencies: []*pb.Dependency{{DependencyId: plannedBatch.Reference.ArtifactId, Fingerprint: plannedBatch.Reference.ContentHash}}}
+	byChunk := map[string]*pb.IndexRecord{}
+	for _, record := range generated.Records {
+		byChunk[record.ChunkId] = record
+	}
+	generated.Records = nil
+	for _, item := range plannedBatch.Plan.Items {
+		record := byChunk[item.ChunkId]
+		if record == nil {
+			t.Fatal("planned fixture chunk absent")
+		}
+		record.Meta.RecordId = item.RecordId
+		record.Dependencies = proto.Clone(generated.Dependencies).(*pb.DependencyManifest)
+		record.Dependencies.ArtifactId = item.RecordId
+		generated.Records = append(generated.Records, record)
+	}
+	generated.OperationsChecksum.Sha256, err = domain.IndexPlanOperationsChecksum(generated)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generatedRef := put(generated.Meta.RecordId, domain.IndexBatchMediaType, generated)
+	p, err = planned.PrepareOutputs(ctx, repo, artifacts, []*pb.ArtifactRef{generatedRef})
+	if err != nil {
+		t.Fatal("planned output admission", err)
+	}
+	if _, e := planned.PrepareOutputs(ctx, repo, artifacts, []*pb.ArtifactRef{batchRef}); e == nil {
+		t.Fatal("locally valid output from an unselected plan admitted")
 	}
 	// A registered physical address cannot authorize a different logical output.
 	// Keep internal dependency ownership consistent so the immutable plan, not
