@@ -16,6 +16,13 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+[registry_semantic_receipt.go](registry_semantic_receipt.go) membaca ulang receipt
+committed tanpa lease RESOLVE atau mutasi registry. Review historis diperiksa read-only;
+writer tetap memakai row lock. [graph_assembly_authority.go](graph_assembly_authority.go)
+memeriksa checkpoint RESOLVE STAGED dan publication/base/registry binding sebelum
+persiapan graph. Pemeriksaan ini belum transaksi scheduling/commit; lihat
+[kontrak coordinator](../../../../../doc/graph-assembly-coordinator.md).
+
 [registry_entity_view.go](registry_entity_view.go) mengekspor exact canonical selection
 pada revision publication-bound dalam satu transaksi read-only. Hash profil, kolom,
 identity dan budget diperiksa; item hilang menggagalkan ekspor. Pembaca ini tidak

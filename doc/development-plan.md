@@ -1,5 +1,11 @@
 # Rencana implementasi berbasis dependency
 
+Lanjutan K01 2026-10-09: reader receipt RESOLVE historis dan authority awal source/
+publication ASSEMBLE tersedia di Go/PostgreSQL. [Verifikasi](verification-report-assembly-authority.md)
+mencakup corruption, stale fence, cancellation, parent/revision drift dan backend nyata.
+[Rencana handoff coordinator](graph-assembly-coordinator.md) mencatat binding snapshot
+serta dependency lintas revision yang diperlukan sebelum inventory/dispatch graph penuh.
+
 Pembaruan K01 2026-10-09: [canonical view exporter dan plan ASSEMBLE](graph-assembly-inputs.md)
 tersedia sebagai library PostgreSQL/Go/Rust; exact selection terikat revision/publication,
 role input dan ontology diperiksa. [Verifikasi](verification-report-graph-assembly-inputs.md)

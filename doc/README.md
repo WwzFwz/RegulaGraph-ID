@@ -1,5 +1,10 @@
 # doc
 
+[graph-assembly-coordinator.md](graph-assembly-coordinator.md) memetakan authority
+receipt/checkpoint/publication Go serta urutan handoff snapshot dan registry lintas sumber.
+[verification-report-assembly-authority.md](verification-report-assembly-authority.md)
+menyimpan hasil PostgreSQL, regresi Go dan review independen gate awal tersebut.
+
 [assembly-worker.md](assembly-worker.md) menjelaskan eksekusi plan graph oleh Rust,
 batas input, hash/provenance, cancellation dan checkpoint sebelum publication Go.
 [verification-report-assembly-worker.md](verification-report-assembly-worker.md)

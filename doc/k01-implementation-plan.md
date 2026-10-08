@@ -91,6 +91,11 @@ membership yang valid. Ketiadaan indeks berarti kemampuan expansion belum tersed
 
 ## 3. Aturan assembly dan publication
 
+[Authority coordinator](graph-assembly-coordinator.md) kini memiliki reader receipt
+historis dan gate checkpoint/publication. Wiring plan/inventory masih memerlukan
+binding snapshot sumber yang diaudit dan revalidasi dependency untuk receipt pada
+revision lama; jangan melonggarkan guard revision sebelum bukti tersebut tersedia.
+
 Implementasi library canonical assertion/support kini tersedia pada
 [graph-canonical-identity.md](graph-canonical-identity.md). ID extraction tidak lagi
 menjadi satu-satunya pilihan keluaran materializer; mapping dan support tetap terjaga.
