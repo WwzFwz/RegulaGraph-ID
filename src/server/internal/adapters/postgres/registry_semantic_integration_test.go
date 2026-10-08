@@ -323,6 +323,20 @@ func TestSemanticRegistryAgainstPostgres(t *testing.T) {
 	}
 	input := SemanticRegistryInputs{SourceRef: sourceRef, SourceBytes: sourceBytes,
 		CandidateRef: candidateRef, CandidateBytes: candidateBytes}
+	if err = repo.VerifyRegistryCandidateView(ctx, corpusID, input, revision, 8, 8, 64, 8); err != nil {
+		t.Fatalf("original candidate view: %v", err)
+	}
+	for _, badRevision := range []uint64{0, revision - 1, revision + 1, ^uint64(0)} {
+		if err = repo.VerifyRegistryCandidateView(ctx, corpusID, input, badRevision, 8, 8, 64, 8); err == nil {
+			t.Fatalf("invalid candidate target revision accepted: %d", badRevision)
+		}
+	}
+	if err = repo.VerifyRegistryCandidateView(ctx, "corpus:foreign", input, revision, 8, 8, 64, 8); err == nil {
+		t.Fatal("foreign corpus candidate view accepted")
+	}
+	if err = repo.VerifyRegistryCandidateView(ctx, corpusID, input, revision, 1, 8, 64, 8); !errors.Is(err, ErrResultLimit) {
+		t.Fatalf("candidate scope budget not enforced: %v", err)
+	}
 	proposal := func(index int, action pb.ResolutionAction, candidateIDs []string) *pb.ResolutionProposal {
 		mention := source.Mentions[index]
 		return &pb.ResolutionProposal{Meta: &pb.RecordMeta{SchemaVersion: 1, CorpusId: corpusID,
@@ -1002,6 +1016,9 @@ func TestSemanticRegistryAgainstPostgres(t *testing.T) {
 	forged := input
 	forged.CandidateBytes = append([]byte(nil), candidateBytes...)
 	forged.CandidateBytes[len(forged.CandidateBytes)-1] ^= 1
+	if err = repo.VerifyRegistryCandidateView(ctx, corpusID, forged, revision, 8, 8, 64, 8); err == nil {
+		t.Fatal("forged candidate bytes revalidated")
+	}
 	if _, err = repo.commitSemanticResolutions(ctx, nil, forged, request,
 		approval, 64, 8); err == nil {
 		t.Fatal("forged candidate bytes committed")
@@ -1013,6 +1030,10 @@ func TestSemanticRegistryAgainstPostgres(t *testing.T) {
 		approval, 64, 8); err == nil {
 		t.Fatal("unregistered EXTRACT artifact committed")
 	}
+	// Freeze a fresh context, advance an unrelated identity, then turn an empty
+	// lookup positive. Global revision movement alone is reusable; new competing
+	// context is not. The retained old view must still reproduce the original.
+	checkCandidateViewRevisionReuse(t, ctx, repo, corpusID, source, sourceRef, sourceBytes, producer, plans, entity)
 	historical, readErr := repo.ReadCommittedSemanticResolution(ctx, input, request, approval, 64, 8)
 	if readErr != nil || !proto.Equal(historical, response) {
 		t.Fatalf("historical receipt changed after later registry writes: %v", readErr)
