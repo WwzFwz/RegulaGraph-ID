@@ -59,15 +59,15 @@ func (b *lostIndexReply) Upsert(ctx context.Context, points []qdrant.Point) erro
 func TestInitialIndexPublicationAgainstStores(t *testing.T) {
 	for _, physical := range []bool{false, true} {
 		t.Run(fmt.Sprintf("content-addressed=%v", physical), func(t *testing.T) {
-			t.Run("isolated Qdrant publication", func(t *testing.T) { runInitialIndexPublication(t, false, physical, false) })
-			t.Run("missing graph receipt blocks publication", func(t *testing.T) { runInitialIndexPublication(t, true, physical, false) })
+			t.Run("isolated Qdrant publication", func(t *testing.T) { runInitialIndexPublication(t, false, physical, "") })
+			t.Run("missing graph receipt blocks publication", func(t *testing.T) { runInitialIndexPublication(t, true, physical, "") })
 		})
 	}
 }
 
-func runInitialIndexPublication(t *testing.T, requireGraph, contentAddressed, inventoryOnly bool) {
+func runInitialIndexPublication(t *testing.T, requireGraph, contentAddressed bool, storageMode string) {
 	dsn, endpoint := os.Getenv("REGULAGRAPH_TEST_POSTGRES_DSN"), os.Getenv("REGULAGRAPH_TEST_QDRANT_ENDPOINT")
-	if inventoryOnly && endpoint == "" {
+	if storageMode != "" && endpoint == "" {
 		endpoint = "http://127.0.0.1:6333" // routing metadata only; no backend calls
 	}
 	if dsn == "" || endpoint == "" {
@@ -216,6 +216,30 @@ func runInitialIndexPublication(t *testing.T, requireGraph, contentAddressed, in
 		}
 	}
 	source.Chunks = chunks
+	if storageMode == "wide-output" {
+		// Exercise the production 128 x 1024 shape with synthetic unit vectors;
+		// each selected chunk keeps valid source closure, with distinct identities.
+		chunkTemplate := proto.Clone(source.Chunks[0]).(*pb.Chunk)
+		recordTemplate := proto.Clone(batch.Records[0]).(*pb.IndexRecord)
+		source.Chunks, batch.Records, plan.Items = nil, nil, nil
+		dimensions := uint32(1024)
+		plan.Generation.DenseManifest.Dimensions = &dimensions
+		for i := range 128 {
+			chunk := proto.Clone(chunkTemplate).(*pb.Chunk)
+			chunk.Meta.RecordId = fmt.Sprintf("chunk:wide:%d", i)
+			record := proto.Clone(recordTemplate).(*pb.IndexRecord)
+			record.Meta.RecordId = fmt.Sprintf("record:wide:%d", i)
+			record.Dependencies.ArtifactId = record.Meta.RecordId
+			record.ChunkId = chunk.Meta.RecordId
+			record.DenseVector.Dimensions = dimensions
+			record.DenseVector.Values = make([]float32, dimensions)
+			record.DenseVector.Values[0] = 1
+			source.Chunks = append(source.Chunks, chunk)
+			batch.Records = append(batch.Records, record)
+			plan.Items = append(plan.Items, &pb.IndexBuildItem{ChunkId: chunk.Meta.RecordId, RecordId: record.Meta.RecordId})
+		}
+		batch.Counts.Expected, batch.Counts.Accepted = 128, 128
+	}
 	// Persist bounded synthetic text through the same registry/hash boundary as
 	// production hydration. Spans stay fixed; model/text quality is not asserted.
 	for _, text := range source.TextArtifacts {
@@ -279,6 +303,12 @@ func runInitialIndexPublication(t *testing.T, requireGraph, contentAddressed, in
 	rebindIndexFixture(stats.ProtoReflect(), corpus, reservation.Sequence)
 	stats.PopulationSnapshot = proto.Clone(snapshot).(*pb.SnapshotRef)
 	stats.DocumentCount = uint64(len(source.Chunks))
+	if storageMode == "wide-output" {
+		stats.TotalTokens = stats.DocumentCount * 20
+		for _, frequency := range stats.DocumentFrequencies {
+			frequency.DocumentCount = stats.DocumentCount
+		}
+	}
 	stats.ZeroTokenDocuments = 0
 	stats.InputPolicy = plan.LexicalInputPolicy
 	statsRef := put(stats.Meta.RecordId, "application/x-protobuf; message=regulagraph.v1.LexicalStatisticsArtifact", stats)
@@ -325,7 +355,7 @@ func runInitialIndexPublication(t *testing.T, requireGraph, contentAddressed, in
 	// The coordinator now constructs the selection, persists its real plan bytes,
 	// and admits the exact resulting set before the existing publication path.
 	chunksPerBatch := 128
-	if inventoryOnly {
+	if storageMode == "inventory" {
 		chunksPerBatch = 1
 	}
 	planned, err := PlanInitialIndex(ctx, repo, artifacts, InitialIndexPlanConfig{
@@ -346,7 +376,7 @@ func runInitialIndexPublication(t *testing.T, requireGraph, contentAddressed, in
 	if err = planned.Persist(ctx, planFiles, repo); err != nil {
 		t.Fatal("plan replay", err)
 	}
-	if inventoryOnly {
+	if storageMode == "inventory" {
 		checkDurableIndexInventory(t, ctx, parsed.String(), conn, planned)
 		return
 	}
@@ -381,6 +411,10 @@ func runInitialIndexPublication(t *testing.T, requireGraph, contentAddressed, in
 		t.Fatal(err)
 	}
 	generatedRef := put(generated.Meta.RecordId, domain.IndexBatchMediaType, generated)
+	if storageMode == "output" || storageMode == "wide-output" {
+		checkIndexOutputCommit(t, ctx, repo, conn, planned, generatedRef, generated)
+		return
+	}
 	p, err = planned.PrepareOutputs(ctx, repo, artifacts, []*pb.ArtifactRef{generatedRef})
 	if err != nil {
 		t.Fatal("planned output admission", err)

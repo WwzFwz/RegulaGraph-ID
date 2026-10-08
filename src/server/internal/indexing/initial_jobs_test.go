@@ -51,7 +51,7 @@ func TestInitialIndexInventoryRestoresAdmission(t *testing.T) {
 }
 
 func TestInitialIndexJobInventoryAgainstPostgres(t *testing.T) {
-	runInitialIndexPublication(t, false, true, true)
+	runInitialIndexPublication(t, false, true, "inventory")
 }
 
 func checkDurableIndexInventory(t *testing.T, ctx context.Context, dsn string, conn *pgx.Conn, plans *InitialIndexPlans) {

@@ -25,6 +25,20 @@ func (p *InitialIndexPlans) JobInventory() (domain.IndexJobInventory, error) {
 	return result, domain.ValidateIndexJobInventory(result)
 }
 
+type IndexCheckpointStore interface {
+	SaveIndexCheckpoint(context.Context, *pb.Checkpoint, string, *pb.ArtifactRef, *pb.IndexBatch) error
+}
+
+// Commit atomically stages the verified output under current storage authority.
+// Registration must have completed first. STAGED never means search-ready.
+func (o *VerifiedIndexOutput) Commit(ctx context.Context, owner string, store IndexCheckpointStore) error {
+	if ctx == nil || o == nil || o.response == nil || o.batch == nil || store == nil {
+		return errors.New("verified INDEX output and checkpoint store required")
+	}
+	return store.SaveIndexCheckpoint(ctx, proto.Clone(o.response.Checkpoint).(*pb.Checkpoint), owner,
+		proto.Clone(o.response.IndexBatch).(*pb.ArtifactRef), proto.Clone(o.batch).(*pb.IndexBatch))
+}
+
 // RestoreInitialIndexPlans re-runs source, dictionary and population admission.
 // A stored inventory is routing state, never a substitute for authenticated
 // source membership. Reconstructed plans must match every persisted byte binding.
