@@ -1,5 +1,13 @@
 # src/server/cmd/ingestion-worker
 
+[index.go](index.go) menambahkan executor INDEX opt-in melalui
+`REGULAGRAPH_INDEX_ENABLED=true`. Coordinator memakai dependency reusable yang
+sama, mengklaim hanya inventory admitted, dan menyimpan checkpoint/STAGED atomik.
+Migration0015, setup native INDEX pada Rust dan auth scope inventory yang sesuai
+wajib tersedia. Loop merotasi kelompok INDEX bersama dokumen/BIND/RESOLVE;
+konfigurasi tidak membuat inventory atau mempublikasikan snapshot otomatis.
+Lihat [kontrak inventory](../../../../doc/index-job-inventory.md).
+
 Coordinator memuat ontology JSONC terpin SHA-256 sekali saat startup. EXTRACT mensyaratkan hash yang sama pada request tersimpan dan manifest producer serta memeriksa typed predicate/qualifier sebelum artefak didaftarkan.
 
 Entry point daemon coordinator ingestion Go. Proses ini membuka pool PostgreSQL, shared FileStore, dan client gRPC Rust sekali, lalu menjalankan workflow PARSE, STRUCTURE, BIND, CHUNK, dan EXTRACT durable. [resolution.go](resolution.go) menambahkan client gRPC reusable dan executor RESOLVE secara opt-in. Executor dokumen merotasi PARSE/STRUCTURE/CHUNK/EXTRACT, sedangkan loop luar merotasi kelompok dokumen, BIND, dan RESOLVE yang diaktifkan. Ia tidak menjalankan parser sendiri dan tidak melakukan publication snapshot.

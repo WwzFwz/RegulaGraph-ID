@@ -26,6 +26,9 @@ Lihat [kontrak inventory](../../../../../doc/index-job-inventory.md).
 telah diverifikasi caller dan status STAGED dalam transaksi yang sama. Plan,
 source checkpoint/cancellation, publisher fence, artifact registration dan lease
 setelah lock wajib cocok. Fungsi ini tidak membaca file atau mempublikasikan indeks.
+`IndexCheckpointCommitted` mengonfirmasi exact payload hash dan STAGED setelah
+acknowledgement commit hilang; `IndexJobPublication` memeriksa lease/source/fence
+sebelum dispatch, termasuk ketika inventory admitted masih berada di cache.
 
 [index_catalog.go](index_catalog.go) menyimpan generation/route dan record point
 immutable dengan collision check UUID di bawah fence publication. Migration 0014

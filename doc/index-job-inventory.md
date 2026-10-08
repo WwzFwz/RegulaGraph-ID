@@ -43,9 +43,28 @@ Batch memakai batas satu juta wire items yang sama dengan admission INDEX;
 checkpoint/reference tetap memakai batas metadata default. Caller harus
 melakukan `ExecuteBatch` dan registrasi output/dependency sebelum commit.
 
-Penutupan berikutnya masih mencakup monitor cancellation/lease, daemon,
-rekonsiliasi acknowledgement hilang, dan pengumpulan seluruh output sebelum
-publication. Tidak ada aktivasi snapshot otomatis dari scheduling atau claim.
+`InitialIndexJobProcessor` kini melakukan preflight job/publication, restore
+inventory, dispatch, validasi output, registrasi, dan commit. Cache menahan satu
+inventory admitted; authority job diperiksa pada setiap pemanggilan dan byte
+batch/sumber diperiksa lagi sebelum worker. Cache tidak menyimpan semua teks
+corpus; ukur peak RSS dan biaya restore ketika publication berganti.
+
+Workflow `IndexExecutor` mengklaim satu job, membatasi waktu ke minimum deadline
+call/lease, memantau cancellation dan menyimpan retry dengan backoff terbatas.
+Lease tidak diperpanjang tanpa batas: pekerjaan melewati deadline dibatalkan,
+kemudian diulang sesuai budget durable. Jika balasan commit hilang, processor
+memeriksa checkpoint byte-identik dan status STAGED selama maksimal dua detik;
+hanya bukti durable tersebut mengubah hasil menjadi sukses. Jika konfirmasi juga
+gagal, error tetap dilaporkan dan state tersimpan menentukan claim selanjutnya.
+
+Daemon `ingestion-worker` mengaktifkan kelompok INDEX dengan
+`REGULAGRAPH_INDEX_ENABLED=true` dan merotasinya bersama kelompok lain. Konfigurasi
+native INDEX pada worker Rust, migration0015, shared artefact store, serta scope
+coordinator yang sama dengan inventory merupakan prasyarat. Opsi ini tidak
+menemukan corpus atau menjadwalkan plan otomatis. Scheduling masih melalui
+library setelah population/plan admission; CLI persiapan inventory dan pengumpulan
+seluruh output menuju publication adalah pekerjaan berikutnya. Tidak ada aktivasi
+snapshot otomatis dari scheduling, claim, atau STAGED.
 
 Ukur queue time, claim/schedule p95/p99, pool wait, contention, RSS dan recovery
 sesuai [target required](../configs/benchmark-targets.yaml). Status target tetap

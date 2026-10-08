@@ -252,3 +252,11 @@ Lanjutan boundary INDEX: commit output terverifikasi kini menyimpan checkpoint
 dan STAGED atomik dengan pemeriksaan ulang source, publication fence dan lease
 setelah lock. Regression PostgreSQL termasuk batch128x1024 lulus; wiring executor,
 daemon dan pengumpulan semua output menuju publication tetap pekerjaan berikutnya.
+
+Pembaruan executor X01: processor memakai preflight authority per job, cache satu
+inventory admitted, worker RPC dan commit STAGED; workflow membatasi deadline,
+cancellation serta retry, dan daemon menambahkan kelompok INDEX opt-in. Lost
+commit acknowledgement dikonfirmasi terhadap checkpoint/STAGED byte-identik.
+Tes PostgreSQL memakai worker sintetis dan belum merupakan run corpus nyata.
+CLI persiapan inventory dan pengumpulan/publication lengkap tetap terbuka.
+Lihat [verifikasi executor](verification-report-index-executor.md).

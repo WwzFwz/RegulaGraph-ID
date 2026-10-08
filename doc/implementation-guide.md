@@ -4,6 +4,16 @@ Dokumen ini memandu agent implementasi berikutnya, termasuk Sol 5.6, untuk merea
 
 ## Mulai setiap sesi
 
+Checkpoint 2026-10-09: population vocabulary/statistik Rust, allocator dictionary
+Go, plan/inventory child INDEX durable, dan checkpoint/STAGED atomik tersedia.
+Processor/executor serta daemon opt-in menyambungkan dispatch dan commit;
+lihat [kontrak INDEX](index-job-inventory.md). Kelanjutan terdekat adalah CLI
+persiapan inventory yang mengikat input resmi, pengumpulan semua output STAGED,
+dan publication menuju query/RAG. Graph assembly/review-resume, answering penuh,
+incremental serta acceptance seluruh proyek tetap diperlukan; deployment tetap
+di luar scope pengerjaan yang diminta. Gold ditunda sesuai arahan pengguna,
+bukan diganti dengan klaim kelulusan fixture.
+
 Baca AGENTS.md, [development-plan](development-plan.md), [verification](verification.md), README seluruh induk folder yang akan diubah, dan catatan verifikasi terbaru. Periksa git status, diff, serta hasil tes aktual; konteks percakapan atau nama model bukan bukti status repo. Pertahankan perubahan pengguna. Jangan mengubah file generated secara manual atau menyalin algoritma produksi ke evaluator.
 
 Untuk satu paket, tulis input–proses–output, kontrak yang dipakai, dependency yang benar-benar tersedia, invariant, resource budget, dan expected failure sebelum coding. Gunakan desain penuh yang telah disepakati. Urutan implementasi mengikuti dependency; tidak harus menuntaskan semua file dalam satu subtree lebih dahulu.

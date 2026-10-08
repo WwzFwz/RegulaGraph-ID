@@ -30,20 +30,20 @@ Ikuti [kebijakan benchmark](../../doc/benchmark-policy.md). Angka wajib mengikut
 
 ## Status
 
-Collector/audit D01, kontrak/validator C01, evaluator E01, adapter control-plane S01, jalur durable sampai EXTRACT, exact identity K01, worker EXTRACT, Semantic Gateway, dan ontology EXTRACT bersama sudah tersedia. Resolusi semantik/merge-split, graph assembly, index/retrieval, mutasi backend, serta provider/model produksi belum aktif. Test correctness tidak membuktikan target kualitas atau latency.
+Collector/audit D01, kontrak/validator C01, evaluator E01, adapter control-plane S01, jalur durable sampai EXTRACT, exact identity K01, worker EXTRACT, Semantic Gateway, dan ontology EXTRACT bersama sudah tersedia. Plan/inventory INDEX, executor opt-in dan commit output STAGED kini tersedia; publication writer Qdrant dan query evidence merupakan komponen callable. Review/resume resolusi, merge/split, graph assembly dan seluruh alur corpus-to-answer masih belum selesai. Test correctness tidak membuktikan target kualitas atau latency.
 
 Gateway RESOLVE kontekstual dan workflow proposal audit/replay tersedia sebagai komponen callable, termasuk katalog EXTRACT atomik dan bukti kandidat lintas dokumen. LINK wajib mengutip konteks mention serta kandidat terpilih. Dispatch proposal otomatis opt-in tersedia; review/resume dan acceptance model lokal belum selesai; lihat [integrasi resolusi](../../doc/semantic-resolution.md).
 
 Client C01 native embedding/reranking tersedia pada `internal/adapters/inference`. Ia memakai koneksi reusable, manifest exact dan deadline; wiring penuh dense retrieval/indexing masih memiliki milestone tersendiri.
 
 Workflow kandidat Vector/Hybrid dan komposisi draft dari evidence kini tersedia
-sebagai library bersama branch native/Qdrant. Alur PDF-to-answer, admission
-snapshot, hydrator storage dan endpoint masih belum aktif; lihat
+sebagai library bersama branch native/Qdrant, admission snapshot dan hydrator
+storage. Alur PDF-to-answer serta endpoint jawaban penuh masih terbuka; lihat
 [status integrasi RAG](../../doc/verification-report-rag-workflow.md).
 
 Factory lexical kini membaca artefak analyzer/dictionary/statistik dengan hash
 dan binding generation yang diperiksa sebelum query; encoder tanpa bukti ditolak.
-Publication/admission dan hidrasi sumber masih terbuka; lihat
+Publication/admission dan hidrasi sumber tersedia pada library snapshot awal; lihat
 [kontrak lexical](../../doc/lexical-generation.md).
 
 CLI operator `query-evidence` kini tersedia untuk pencarian dan hidrasi bukti pada

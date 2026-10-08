@@ -16,7 +16,7 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 Subfolder: [adapters/](adapters/README.md), [answering/](answering/README.md), [api/](api/README.md), [config/](config/README.md), [domain/](domain/README.md), [indexing/](indexing/README.md), [ingestion/](ingestion/README.md), [retrieval/](retrieval/README.md), [workflows/](workflows/README.md).
 
-Akuisisi dan audit inventory D01 sudah aktif melalui CLI, workflow batch, serta adapter sources. Scheduler durable dan publication coordinator S01 juga aktif. Executor PARSE→STRUCTURE menyerahkan artefak ke worker Rust; executor BIND Go menjalankan exact identity/materialization; executor CHUNK menghasilkan chunk struktural terikat versi; EXTRACT memverifikasi dan meng-commit proposal graph berbukti. Graph/index backend dan query/answer produksi masih scaffold.
+Akuisisi dan audit inventory D01 sudah aktif melalui CLI, workflow batch, serta adapter sources. Scheduler durable dan publication coordinator S01 juga aktif. Executor PARSE→STRUCTURE menyerahkan artefak ke worker Rust; executor BIND Go menjalankan exact identity/materialization; executor CHUNK menghasilkan chunk struktural terikat versi; EXTRACT memverifikasi dan meng-commit proposal graph berbukti. Adapter INDEX/Qdrant, query evidence dan draft answering tersedia sebagai library; daemon INDEX opt-in berakhir pada STAGED. Integrasi graph dan alur corpus-to-answer penuh masih terbuka.
 
 ## Benchmark dan perhatian performa
 
@@ -30,7 +30,7 @@ Loader policy kandidat, scheduler submit yang menuntut hash policy corpus, dan h
 
 EXTRACT memakai ontology JSONC bersama: gateway menolak proposal di luar vocabulary dan coordinator memverifikasi versi/hash serta typed graph sebelum commit. Nilai kualitas/performa masih belum diukur.
 
-Collector/audit D01, kontrak/validator C01, evaluator E01, storage/publication S01, durable pipeline sampai EXTRACT, exact identity BIND K01, worker EXTRACT, dan Semantic Gateway sudah tersedia. Graph/index/retrieval, mutasi backend, serta provider/model produksi belum aktif; target kualitas dan latency belum diukur.
+Collector/audit D01, kontrak/validator C01, evaluator E01, storage/publication S01, durable pipeline sampai EXTRACT, exact identity BIND K01, worker EXTRACT, dan Semantic Gateway sudah tersedia. INDEX memiliki inventory/claim/processor dan checkpoint STAGED; Qdrant writer, retrieval lexical/dense, hidrasi dan reranking tersedia sebagai komponen callable. Graph lengkap, pengumpulan/publication corpus otomatis serta answering penuh tetap terbuka; target kualitas dan latency belum diukur.
 
 Adapter inference menyediakan RESOLVE kontekstual; workflow menghydrate input terverifikasi dan menyimpan proposal untuk replay. Dispatch proposal daemon tersedia secara opt-in; review/resume terautentikasi serta acceptance model lokal belum selesai.
 

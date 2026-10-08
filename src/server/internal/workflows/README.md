@@ -14,6 +14,11 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+[index.go](index.go) memiliki lifecycle claim/deadline/cancellation/retry job
+INDEX melalui interface processor. Processor indexing meng-commit output; workflow
+tidak menduplikasi algoritma atau writer. Success berarti STAGED durable, belum
+published. Lost acknowledgement direkonsiliasi melalui exact checkpoint di storage.
+
 Berkas: [answer.go](answer.go), [bind.go](bind.go), [bind_test.go](bind_test.go), [ingest.go](ingest.go), [ingest_test.go](ingest_test.go), [update.go](update.go), [parse.go](parse.go), [parse_test.go](parse_test.go), [collect.go](collect.go), [collect_test.go](collect_test.go), [discover.go](discover.go), [discover_test.go](discover_test.go), [semantic_resolution.go](semantic_resolution.go), dan [semantic_resolution_test.go](semantic_resolution_test.go).
 
 collect menjalankan batch acquisition D01 melalui adapter sources dengan deduplikasi URL, jumlah worker terbatas, cancellation, progress, serta hitungan sukses/reuse/gagal. Scheduler pada ingest.go membuat job persisten S01 dan memilih `PARSE` bila semua source sudah berupa blob; URL tetap dimiliki `ACQUIRE`. `parse.go` merotasi claim PARSE/STRUCTURE/CHUNK/EXTRACT, hanya mengirim setiap tahap dari checkpoint pendahulunya yang sukses, membatasi RPC pada deadline lease, meneruskan cancellation durable, membaca ulang bytes output terverifikasi, menyimpan dependency manifest, lalu menyimpan checkpoint. Pada PARSE, observation hanya diteruskan bila corpus, portal, dan source-blob hash cocok dengan locator request. Hasil parsial masuk `WAITING_REVIEW`; hasil lengkap bergerak melalui handoff berikutnya. [Panduan collector](../../../../doc/acquisition.md) menjelaskan acquisition.

@@ -3,6 +3,8 @@
 [index-job-inventory.md](index-job-inventory.md) menjelaskan inventory/claim
 durable INDEX dan batas executor yang belum tersambung; bukti storage terdapat
 pada [verification-report-index-jobs.md](verification-report-index-jobs.md).
+Integrasi processor/workflow/daemon dan lost acknowledgement dilacak pada
+[verification-report-index-executor.md](verification-report-index-executor.md).
 
 [verification-report-index-planning.md](verification-report-index-planning.md)
 mencatat planner inventory, persistence plan, dispatch/admission worker dan integrasi
