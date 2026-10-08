@@ -168,3 +168,9 @@ write/readback dan commit p95/p99 secara terpisah. Target tetap
 [benchmark-targets.yaml](../configs/benchmark-targets.yaml), status
 REQUIRED_UNMEASURED. [Laporan verifikasi](verification-report-source-publication.md)
 memisahkan bukti fixture/integritas dari kualitas model dan acceptance produksi.
+
+[Run native lintas runtime](verification-report-native-index.md) telah memeriksa
+population/INDEX/publication/query dengan BGE-M3 lokal dan source fixture Rust.
+Reader Go/Rust menerima vendor DocumentBatch dan alias typed exact yang sama;
+source envelope mempertahankan label sumber serta seluruh checks provenance.
+Run seluruh corpus PDF, graph dan jawaban penuh belum dibuktikan oleh tes tersebut.

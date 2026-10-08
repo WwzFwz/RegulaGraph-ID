@@ -1,5 +1,9 @@
 # doc
 
+[verification-report-native-index.md](verification-report-native-index.md) mencatat
+run Rust/Go/C++ dengan embedding BGE-M3 nyata sampai publication dan hybrid evidence,
+termasuk temuan kompatibilitas media DocumentBatch dan batas fixture/gold.
+
 [index-job-inventory.md](index-job-inventory.md) menjelaskan inventory/claim
 durable INDEX dan integrasi executor; bukti storage terdapat
 pada [verification-report-index-jobs.md](verification-report-index-jobs.md).

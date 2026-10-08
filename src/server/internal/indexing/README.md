@@ -110,3 +110,8 @@ sumber, lalu mempersist plan dan menjadwalkan inventory atomik. Dependency impor
 memakai exact replay; gagal admission dapat meninggalkan prerequisites immutable.
 Tes PostgreSQL/FileStore memeriksa replay/model drift tanpa mengklaim DF atau
 embedding fixture sebagai hasil kualitas model nyata.
+
+`native_pipeline_test.go` menguji opt-in statistik/embedding yang benar-benar
+dihitung Rust/C++, publication backend nyata dan query/hidrasi. Sumber tetap
+fixture CHUNK; [laporan](../../../../doc/verification-report-native-index.md)
+memisahkan integrasi ini dari gold dan acceptance performa.

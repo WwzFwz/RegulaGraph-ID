@@ -14,6 +14,11 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+`document_batches.rs` mempertahankan vendor media type saat menulis, dan membaca
+vendor maupun alias protobuf typed DocumentBatch yang persis dari ekspor Go lama.
+Keduanya tetap memerlukan hash/schema/semantic validation yang sama; generic media
+atau typed message lain ditolak. Ini menjaga handoff source snapshot ke worker INDEX.
+
 Berkas: [document_batches.rs](document_batches.rs), [extraction_batches.rs](extraction_batches.rs), [inference.rs](inference.rs), [mod.rs](mod.rs), [pdf_engine.rs](pdf_engine.rs), [storage.rs](storage.rs), dan [text_artifacts.rs](text_artifacts.rs).
 
 ## Benchmark dan perhatian performa
