@@ -23,6 +23,14 @@ harus menunjuk snapshot target yang sama. Preparation membuktikan seluruh chunk
 setiap sumber **yang dinyatakan**, bukan seluruh PDF unduhan atau seluruh job DB.
 Otorisasi pengguna dan pemilihan inventory tetap milik coordinator pemanggil.
 
+`ArtifactRef.artifact_id` untuk `DocumentBatch` dan `IndexBatch` keluaran Rust
+dapat berupa `artifact:<namespace>:<hash>`, berbeda dari `meta.record_id` logis.
+Preparation memeriksa media type pesan yang tepat serta ref/hash/size terdaftar;
+ID logis batch INDEX harus tetap sama dengan `plan.output_batch_id`. Sumber
+diikat transitif oleh byte plan dan checkpoint CHUNK. Identitas typed untuk plan,
+analyzer, dictionary dan statistik tetap wajib persis, bukan dilonggarkan untuk
+seluruh artefak. Cache dan budget byte tetap berdasarkan alamat fisik terverifikasi.
+
 Semua batch memakai generation, target dan ancestry dictionary identik. ID
 record/chunk tidak boleh duplikat. Statistik frozen harus cocok policy,
 snapshot populasi dan jumlah dokumen; sparse term harus berada dalam dictionary.

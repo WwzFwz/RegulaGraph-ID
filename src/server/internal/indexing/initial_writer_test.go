@@ -3,6 +3,8 @@
 // rows and normalized vectors are synthetic seeds, not a run of live ingestion
 // or inference. Both disposable endpoint env vars are required; skip is not PASS.
 // Fault injection proves a lost write reply leaves no publishable partial state.
+// Both legacy logical refs and Rust-style content-addressed batch refs must reach
+// publication and pinned hydration without rewriting their logical record IDs.
 package indexing
 
 import (
@@ -54,11 +56,15 @@ func (b *lostIndexReply) Upsert(ctx context.Context, points []qdrant.Point) erro
 }
 
 func TestInitialIndexPublicationAgainstStores(t *testing.T) {
-	t.Run("isolated Qdrant publication", func(t *testing.T) { runInitialIndexPublication(t, false) })
-	t.Run("missing graph receipt blocks publication", func(t *testing.T) { runInitialIndexPublication(t, true) })
+	for _, physical := range []bool{false, true} {
+		t.Run(fmt.Sprintf("content-addressed=%v", physical), func(t *testing.T) {
+			t.Run("isolated Qdrant publication", func(t *testing.T) { runInitialIndexPublication(t, false, physical) })
+			t.Run("missing graph receipt blocks publication", func(t *testing.T) { runInitialIndexPublication(t, true, physical) })
+		})
+	}
 }
 
-func runInitialIndexPublication(t *testing.T, requireGraph bool) {
+func runInitialIndexPublication(t *testing.T, requireGraph, contentAddressed bool) {
 	dsn, endpoint := os.Getenv("REGULAGRAPH_TEST_POSTGRES_DSN"), os.Getenv("REGULAGRAPH_TEST_QDRANT_ENDPOINT")
 	if dsn == "" || endpoint == "" {
 		t.Skip("disposable PostgreSQL and Qdrant required")
@@ -125,6 +131,18 @@ func runInitialIndexPublication(t *testing.T, requireGraph bool) {
 		raw, e := proto.Marshal(m)
 		if e != nil {
 			t.Fatal(e)
+		}
+		if contentAddressed {
+			var namespace string
+			switch m.(type) {
+			case *pb.DocumentBatch:
+				namespace = "document-batch"
+			case *pb.IndexBatch:
+				namespace = "index-batch"
+			}
+			if namespace != "" {
+				id = fmt.Sprintf("artifact:%s:%x", namespace, sha256.Sum256(raw))
+			}
 		}
 		return putRaw(id, media, raw)
 	}
@@ -282,6 +300,9 @@ func runInitialIndexPublication(t *testing.T, requireGraph bool) {
 		return put(batch.Meta.RecordId, domain.IndexBatchMediaType, batch)
 	}
 	batchRef := seal()
+	if contentAddressed && (batchRef.ArtifactId == batch.Meta.RecordId || plan.DocumentBatch.ArtifactId == source.Meta.RecordId) {
+		t.Fatal("fixture collapsed physical and logical batch identities")
+	}
 	binding := domain.IndexCatalogBinding{PublicationID: pub, Fence: reservation.Fence, Endpoint: endpoint, Collection: fmt.Sprintf("initial_%d", time.Now().UnixNano()), Generation: plan.Generation}
 	input := []InitialIndexInput{{SourceJobID: job, BatchRef: batchRef}}
 	p, err := PrepareInitialIndex(ctx, repo, artifacts, binding, input)
@@ -290,6 +311,16 @@ func runInitialIndexPublication(t *testing.T, requireGraph bool) {
 	}
 	if p.ExpectedBackend().ExpectedCounts.Expected != uint64(len(source.Chunks)) {
 		t.Fatal("prepared count")
+	}
+	// A registered physical address cannot authorize a different logical output.
+	// Keep internal dependency ownership consistent so the immutable plan, not
+	// merely a malformed batch, must reject the substituted identity.
+	unplanned := proto.Clone(batch).(*pb.IndexBatch)
+	unplanned.Meta.RecordId += "-unplanned"
+	unplanned.Dependencies.ArtifactId = unplanned.Meta.RecordId
+	unplannedRef := put(unplanned.Meta.RecordId, domain.IndexBatchMediaType, unplanned)
+	if _, e := PrepareInitialIndex(ctx, repo, artifacts, binding, []InitialIndexInput{{SourceJobID: job, BatchRef: unplannedRef}}); e == nil || !strings.Contains(e.Error(), "INDEX output differs from immutable plan/source") {
+		t.Fatal("unplanned logical batch identity was not rejected by plan admission", e)
 	}
 	// Corrupt bytes must fail even when the reader incorrectly claims verification.
 	saved := artifacts[batchRef.ArtifactId]

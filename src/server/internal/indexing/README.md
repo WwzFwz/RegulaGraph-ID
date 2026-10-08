@@ -15,12 +15,20 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 ## Isi saat ini
 
 Berkas: [publication.go](publication.go), [initial_prepare.go](initial_prepare.go),
-[initial_writer.go](initial_writer.go), dan [initial_writer_test.go](initial_writer_test.go).
+[initial_writer.go](initial_writer.go), [initial_artifacts_test.go](initial_artifacts_test.go),
+dan [initial_writer_test.go](initial_writer_test.go).
 Preparation mengautentikasi batch/plan/source/checkpoint/dictionary untuk daftar
 sumber snapshot awal; writer menyimpan intent, menulis Qdrant, membaca ulang semua
 point dan merekam receipt. Pemanggil wajib membekukan inventory dan backend wajib.
 Lihat [kontrak writer](../../../../doc/initial-index-writer.md) untuk batas resource,
 retry, namespace, dan prasyarat integrasi. Tidak ada route publik/CLI baru.
+
+Preparation membedakan alamat fisik `DocumentBatch`/`IndexBatch` keluaran worker
+dari logical record ID di dalam payload. Plan dan artefak lexical tetap memakai
+identitas typed yang persis. Media type, registered reference, hash/size, corpus,
+checkpoint dan plan output ID tetap wajib; penerimaan alamat berbasis hash tidak
+mengizinkan batch dengan ID keluaran di luar plan. Tes integrasi menjalankan kedua
+bentuk alamat sampai publication/hydration; model dan teks tetap fixture sintetis.
 
 ## Benchmark dan perhatian performa
 

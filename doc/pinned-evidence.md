@@ -43,6 +43,11 @@ eksklusif, berasal dari artefak terverifikasi. Source URL diambil dari observati
 COMPLETE yang terikat blob dan visible, dengan scheme HTTP(S) tanpa userinfo.
 Ini mewarisi otoritas acquisition/publication; bukan validasi ulang portal sumber.
 
+Alamat artefak `DocumentBatch` dapat berbeda dari logical `meta.record_id`, sesuai
+keluaran content-addressed worker Rust. Hidrasi mempertahankan autentikasi ref/hash
+terdaftar, source corpus/snapshot dan proyeksi record; ID plan typed tetap persis.
+Pemetaan record di dalam batch tidak diganti menjadi alamat file yang menampungnya.
+
 Plan terdekode, lookup record, document view dan bytes dipakai ulang selama satu
 request. Cache tidak lintas request/pin. Budget agregat artefak maksimum 64 MiB,
 per artefak 16 MiB, dan bundle evidence maksimum 4 MiB adalah batas resource

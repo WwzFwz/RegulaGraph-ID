@@ -44,6 +44,12 @@ proyeksi teks ditolak. Lihat [kontrak hidrasi](../../../../doc/pinned-evidence.m
 [hydration_test.go](hydration_test.go) memeriksa interval dan unresolved policy;
 integrasi PostgreSQL/Qdrant sampai draft berada pada tes indexing.
 
+Source `DocumentBatch` dapat disimpan worker dengan alamat content-addressed yang
+berbeda dari `meta.record_id`. Hydrator mengautentikasi sumber melalui ref/hash
+dalam plan immutable, registry, corpus, snapshot dan source view; tidak menuntut
+kesamaan ID fisik/logis. Plan typed tetap exact-ID. Uji kedua bentuk alamat ada
+di `initial_writer_test.go` pada komponen indexing.
+
 ## Rekomendasi implementasi anak
 
 Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan status aktif/scaffold; tabel bukan klaim fitur sudah tersedia. Integrasikan keluaran anak melalui kontrak induk dan jalankan [protokol verifikasi](../../../../doc/verification.md) sebelum menyatakan paket selesai. Target angka tetap bersumber dari configs/benchmark-targets.yaml.

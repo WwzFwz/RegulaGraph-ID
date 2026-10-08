@@ -5,6 +5,9 @@
 // unresolved parent/exception references as missing dependencies, never silently
 // claiming complete context. Measure hydration p95/p99, bytes, RSS, exclusions
 // and citation coverage under configs/benchmark-targets.yaml (UNMEASURED).
+// DocumentBatch storage addresses may differ from logical record IDs. The
+// immutable plan, registered hash/ref, corpus and pinned snapshot authenticate
+// source identity; coordinator-owned plan/lexical IDs remain exact.
 package retrieval
 
 import (
@@ -328,7 +331,7 @@ func (l *evidenceLoader) source(ctx context.Context, r *pb.IndexRecord, index *d
 		if err = domain.DecodeWire(raw, source, domain.DefaultWireLimits); err != nil {
 			return nil, err
 		}
-		if source.Meta.RecordId != plan.DocumentBatch.ArtifactId || source.Meta.CorpusId != l.corpus || !proto.Equal(source.Context.SnapshotRef, plan.SourceSnapshot) || !proto.Equal(plan.SourceSnapshot, index.Snapshot) {
+		if source.Meta.CorpusId != l.corpus || !proto.Equal(source.Context.SnapshotRef, plan.SourceSnapshot) || !proto.Equal(plan.SourceSnapshot, index.Snapshot) {
 			return nil, errors.New("source evidence does not belong to pinned initial snapshot")
 		}
 		view, err := domain.NewIndexSourceView(source, 1_000_000)

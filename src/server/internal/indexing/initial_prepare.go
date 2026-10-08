@@ -2,6 +2,9 @@
 // backend mutation. Plans and source bytes are hash-pinned; successful CHUNK
 // checkpoints and dictionary mappings come from PostgreSQL authority. This
 // accepts no parent snapshot, incremental closures or partial source selection.
+// Worker DocumentBatch/IndexBatch addresses are independent of logical record
+// IDs; plan and lexical references retain their coordinator-owned typed IDs.
+// Exact registered refs, media types, hashes and planned output IDs remain gates.
 // Artifact memory is capped at 64 MiB per prepared write; measure preparation
 // RSS/time separately from batch I/O under configs/benchmark-targets.yaml.
 // Quality and required performance remain unmeasured; no model is called here.
@@ -195,6 +198,9 @@ func (l *initialArtifactLoader) read(ctx context.Context, ref *pb.ArtifactRef, t
 	if err := domain.ValidateWire(ref, domain.DefaultWireLimits); err != nil {
 		return err
 	}
+	if ref.MediaType != "application/x-protobuf; message="+string(target.ProtoReflect().Descriptor().FullName()) {
+		return errors.New("initial INDEX artifact media type mismatch")
+	}
 	entry, ok := l.cache[ref.ArtifactId]
 	if ok && !proto.Equal(entry.ref, ref) {
 		return errors.New("artifact reference drift")
@@ -233,8 +239,19 @@ func (l *initialArtifactLoader) read(ctx context.Context, ref *pb.ArtifactRef, t
 		return errors.New("artifact lacks record metadata")
 	}
 	meta, ok := message.Get(metaField).Message().Interface().(*pb.RecordMeta)
-	if !ok || meta.CorpusId != l.corpus || meta.RecordId != ref.ArtifactId {
-		return errors.New("artifact identity/corpus mismatch")
+	if !ok || meta.CorpusId != l.corpus {
+		return errors.New("artifact corpus mismatch")
+	}
+	// Rust stores worker outputs under content-addressed IDs. Their logical IDs
+	// are authenticated inside the hashed bytes, with INDEX output identity
+	// checked against plan.OutputBatchId by ValidatePlannedIndexBatch. Only these
+	// batch types permit separate identities; typed plan/lexical refs stay exact.
+	switch target.(type) {
+	case *pb.DocumentBatch, *pb.IndexBatch:
+	default:
+		if meta.RecordId != ref.ArtifactId {
+			return errors.New("typed artifact identity mismatch")
+		}
 	}
 	return nil
 }
