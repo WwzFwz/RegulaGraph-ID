@@ -4,6 +4,8 @@
 // A transaction serializes allocation on the dictionary row and records an operation
 // digest for idempotent replay. Measure p95/p99, contention, pool wait, and RSS against
 // configs/benchmark-targets.yaml; required release targets remain unmeasured.
+// Serialization/deadlock rollback uses at most four attempts under caller
+// cancellation; semantic conflicts and unknown commit outcomes are not retried.
 package postgres
 
 import (
@@ -15,10 +17,12 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"regulagraph.local/server/internal/domain"
 )
 
@@ -30,6 +34,36 @@ type LexicalTerm = domain.LexicalTerm
 // AllocateLexicalTerms returns IDs in caller order and the resulting revision.
 // An identical operation key replays its historical revision even after later writes.
 func (r *Repository) AllocateLexicalTerms(ctx context.Context, corpusID, analyzerID, operationKey string,
+	expectedRevision uint64, terms []string) ([]LexicalTerm, uint64, error) {
+	return retryDictionaryAllocation(ctx, func() ([]LexicalTerm, uint64, error) {
+		return r.allocateLexicalTerms(ctx, corpusID, analyzerID, operationKey, expectedRevision, terms)
+	})
+}
+
+func retryDictionaryAllocation(ctx context.Context, operation func() ([]LexicalTerm, uint64, error)) ([]LexicalTerm, uint64, error) {
+	if ctx == nil {
+		return nil, 0, errors.New("dictionary context required")
+	}
+	for attempt := 0; ; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return nil, 0, err
+		}
+		mapping, revision, err := operation()
+		var transactionError *pgconn.PgError
+		if err == nil || attempt == 3 || !errors.As(err, &transactionError) || (transactionError.Code != "40001" && transactionError.Code != "40P01") {
+			return mapping, revision, err
+		}
+		timer := time.NewTimer(time.Duration(10<<attempt) * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return nil, 0, ctx.Err()
+		case <-timer.C:
+		}
+	}
+}
+
+func (r *Repository) allocateLexicalTerms(ctx context.Context, corpusID, analyzerID, operationKey string,
 	expectedRevision uint64, terms []string) ([]LexicalTerm, uint64, error) {
 	ordered, digest, err := validateLexicalTerms(corpusID, analyzerID, operationKey, expectedRevision, terms)
 	if err != nil {

@@ -119,3 +119,9 @@ Owner/corpus/sequence/expiry, digest point, payload dan visibility diperiksa;
 missing record tidak berubah menjadi partial success. Snapshot tidak diganti
 ke pointer aktif lain selama request. Lihat [kontrak baca](../../../../../doc/pinned-evidence.md)
 dan [verifikasi](../../../../../doc/verification-report-pinned-evidence.md).
+
+Allocator lexical mengulang transaksi yang dipastikan rollback (SQLSTATE 40001
+atau 40P01) maksimal empat attempts dengan penantian berbatas context. Konflik
+semantik atau commit outcome tidak diketahui tetap error. Regression test
+memeriksa klasifikasi, batas retry dan cancellation; latency antre/retry tetap
+harus masuk pengukuran workload.

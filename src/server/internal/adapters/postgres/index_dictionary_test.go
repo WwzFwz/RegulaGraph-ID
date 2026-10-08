@@ -17,6 +17,43 @@ import (
 	"regulagraph.local/server/internal/domain"
 )
 
+func TestDictionaryRetryOnlyReplaysRolledBackTransactions(t *testing.T) {
+	for _, code := range []string{"40001", "40P01", "23505", "08007"} {
+		t.Run(code, func(t *testing.T) {
+			calls := 0
+			_, revision, err := retryDictionaryAllocation(context.Background(), func() ([]LexicalTerm, uint64, error) {
+				calls++
+				if calls == 1 {
+					return nil, 0, fmt.Errorf("wrapped: %w", &pgconn.PgError{Code: code})
+				}
+				return []LexicalTerm{{Term: "izin", ID: 1}}, 2, nil
+			})
+			if code == "40001" || code == "40P01" {
+				if err != nil || calls != 2 || revision != 2 {
+					t.Fatal("rollback not retried", calls, err)
+				}
+			} else if err == nil || calls != 1 {
+				t.Fatal("non-retryable failure replayed", calls, err)
+			}
+		})
+	}
+	calls := 0
+	_, _, err := retryDictionaryAllocation(context.Background(), func() ([]LexicalTerm, uint64, error) { calls++; return nil, 0, &pgconn.PgError{Code: "40001"} })
+	if err == nil || calls != 4 {
+		t.Fatal("retry budget not enforced", calls, err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	calls = 0
+	_, _, err = retryDictionaryAllocation(ctx, func() ([]LexicalTerm, uint64, error) {
+		calls++
+		cancel()
+		return nil, 0, &pgconn.PgError{Code: "40001"}
+	})
+	if !errors.Is(err, context.Canceled) || calls != 1 {
+		t.Fatal("cancellation ignored", calls, err)
+	}
+}
+
 func TestValidateLexicalTermsCanonicalDigest(t *testing.T) {
 	a, hashA, err := validateLexicalTerms("corpus:one", "analyzer:v1", "operation:one", 1,
 		[]string{"pasal", "12/2020", "tidak"})
