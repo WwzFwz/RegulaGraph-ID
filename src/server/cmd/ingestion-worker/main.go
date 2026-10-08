@@ -1,7 +1,8 @@
 // Runs the durable Go ingestion coordinator against PostgreSQL and the loopback Rust document worker.
 //
 // Configuration is loaded explicitly from REGULAGRAPH_* environment variables. Startup opens each
-// dependency once; the loop advances PARSE through EXTRACT and optional RESOLVE proposals,
+// dependency once; the loop advances PARSE through EXTRACT, optional RESOLVE proposals
+// and inventory-owned INDEX jobs,
 // emits JSON operational events, and drains through signal cancellation. RESOLVE proposals
 // wait for review; migrations, later graph stages and publication remain separate. Measure queue and
 // stage p95/p99 plus retry/cancellation behavior against configs/benchmark-targets.yaml.
@@ -123,6 +124,10 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("configure RESOLVE executor: %w", err)
 	}
 	defer closeResolution()
+	indexExecutor, err := newIndexExecutor(config, repository, artifacts, worker)
+	if err != nil {
+		return fmt.Errorf("configure INDEX executor: %w", err)
+	}
 	encoder := json.NewEncoder(os.Stdout)
 	nextAttempt := 0
 	for ctx.Err() == nil {
@@ -147,6 +152,16 @@ func run(ctx context.Context) error {
 			}, nil
 		}
 		available := []coordinatorAttempt{parseAttempt, bindingAttempt}
+		if indexExecutor != nil {
+			available = append(available, func() (domain.JobRecord, map[string]any, error) {
+				job, response, err := indexExecutor.RunOnce(ctx)
+				if err != nil {
+					return job, nil, err
+				}
+				return job, map[string]any{"level": "info", "component": "ingestion-worker", "stage": "INDEX", "job_id": job.JobID,
+					"attempt": job.Attempt, "fence": job.LeaseFence, "completion": response.Status.String(), "artifact_id": response.IndexBatch.GetArtifactId()}, nil
+			})
+		}
 		if resolutionExecutor != nil {
 			available = append(available, func() (domain.JobRecord, map[string]any, error) {
 				job, result, executeErr := resolutionExecutor.RunOnce(ctx)
