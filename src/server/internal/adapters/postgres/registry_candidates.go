@@ -38,6 +38,34 @@ type RegistryLookupResult struct {
 // must bind this revision and all scope observations to the immutable RESOLVE candidate batch.
 func (r *Repository) LookupCanonicalAliases(ctx context.Context, corpusID string,
 	scopes []RegistryLookupScope, maximumScopes, maximumAliasesPerScope int) ([]RegistryLookupResult, uint64, error) {
+	return r.lookupCanonicalAliases(ctx, corpusID, scopes, maximumScopes, maximumAliasesPerScope, 0, nil)
+}
+
+// LookupCanonicalAliasesAtRevision is an internal historical reader, not an authorization
+// capability. Query workflows must use LookupPinnedCanonicalAliases with a trusted lease.
+func (r *Repository) LookupCanonicalAliasesAtRevision(ctx context.Context, corpusID string, revision uint64,
+	scopes []RegistryLookupScope, maximumScopes, maximumAliasesPerScope int) ([]RegistryLookupResult, uint64, error) {
+	if revision == 0 || revision > math.MaxInt64 {
+		return nil, 0, errors.New("positive bounded registry revision required")
+	}
+	return r.lookupCanonicalAliases(ctx, corpusID, scopes, maximumScopes, maximumAliasesPerScope, revision, nil)
+}
+
+// LookupPinnedCanonicalAliases binds every positive and negative observation to the
+// publication's immutable registry view. It never substitutes the latest registry.
+func (r *Repository) LookupPinnedCanonicalAliases(ctx context.Context, pin domain.SnapshotPin,
+	scopes []RegistryLookupScope, maximumScopes, maximumAliasesPerScope int) ([]RegistryLookupResult, uint64, error) {
+	if err := validateIndexPin(pin); err != nil {
+		return nil, 0, err
+	}
+	bounded, cancel := context.WithDeadline(ctx, pin.ExpiresAt)
+	defer cancel()
+	return r.lookupCanonicalAliases(bounded, pin.CorpusID, scopes, maximumScopes, maximumAliasesPerScope, 0, &pin)
+}
+
+func (r *Repository) lookupCanonicalAliases(ctx context.Context, corpusID string,
+	scopes []RegistryLookupScope, maximumScopes, maximumAliasesPerScope int, revision uint64,
+	pin *domain.SnapshotPin) ([]RegistryLookupResult, uint64, error) {
 	if !storageIDPattern.MatchString(corpusID) || maximumScopes <= 0 || maximumAliasesPerScope <= 0 ||
 		len(scopes) == 0 || len(scopes) > maximumScopes || maximumAliasesPerScope >= math.MaxInt32 ||
 		len(scopes) > domain.MaximumRegistryLookupAliases/maximumAliasesPerScope {
@@ -61,17 +89,47 @@ func (r *Repository) LookupCanonicalAliases(ctx context.Context, corpusID string
 		types[i], canonicalScopes[i], normalized[i], scopeIDs[i] =
 			scope.EntityType, scope.CanonicalScope, scope.NormalizedLookup, scopeID
 	}
-	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
+	iso := pgx.RepeatableRead
+	if pin != nil {
+		// The bound revision is immutable; ReadCommitted lets the final lease
+		// check observe a concurrent release instead of an old MVCC lease row.
+		iso = pgx.ReadCommitted
+	}
+	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: iso, AccessMode: pgx.ReadOnly})
 	if err != nil {
 		return nil, 0, fmt.Errorf("begin registry lookup: %w", err)
 	}
 	defer tx.Rollback(ctx)
-	var current int64
-	if err = tx.QueryRow(ctx, `SELECT registry_revision FROM corpus_state WHERE corpus_id=$1`, corpusID).Scan(&current); err != nil {
+	var current, floor int64
+	if err = tx.QueryRow(ctx, `SELECT registry_revision,registry_history_floor FROM corpus_state WHERE corpus_id=$1`, corpusID).Scan(&current, &floor); err != nil {
 		return nil, 0, fmt.Errorf("read registry revision: %w", err)
 	}
 	if current <= 0 {
 		return nil, 0, fmt.Errorf("invalid registry revision: %w", domain.ErrPersistentIntegrity)
+	}
+	if pin != nil {
+		if err = checkIndexLease(ctx, tx, *pin); err != nil {
+			return nil, 0, err
+		}
+		var bound int64
+		err = tx.QueryRow(ctx, `SELECT b.registry_revision FROM snapshot_registry_bindings b
+ JOIN snapshots s ON s.publication_id=b.publication_id AND s.corpus_id=b.corpus_id AND s.fence=b.fence
+ WHERE s.corpus_id=$1 AND s.snapshot_id=$2 AND s.sequence=$3 AND s.state=$4`,
+			corpusID, pin.SnapshotID, int64(pin.Sequence), int16(pb.SnapshotState_SNAPSHOT_STATE_PUBLISHED)).Scan(&bound)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, 0, ErrNotFound
+		}
+		if err != nil {
+			return nil, 0, err
+		}
+		revision = uint64(bound)
+	}
+	historical := revision != 0
+	if historical {
+		if revision > uint64(current) || revision < uint64(floor) {
+			return nil, 0, fmt.Errorf("registry revision outside retained history: %w", ErrConflict)
+		}
+		current = int64(revision)
 	}
 	rows, err := tx.Query(ctx, `WITH input AS (
 		SELECT entity_type,canonical_scope,normalized_lookup,scope_id,ordinal
@@ -86,8 +144,19 @@ func (r *Repository) LookupCanonicalAliases(ctx context.Context, corpusID string
 		match.profile_revision,match.profile_payload,match.profile_hash,
 		match.identity_type,match.identity_scope,match.identity_key,match.identity_from,match.identity_to
 	FROM input
-	LEFT JOIN lookup_scope_revisions AS revision
-		ON revision.corpus_id=$1 AND revision.scope_key=input.scope_id
+	LEFT JOIN LATERAL (
+	 SELECT revision,alias_result_count FROM lookup_scope_revisions
+	 WHERE NOT $8 AND corpus_id=$1 AND scope_key=input.scope_id
+	 UNION ALL
+	 (SELECT revision,alias_result_count FROM registry_lookup_history
+	 WHERE $8 AND corpus_id=$1 AND scope_key=input.scope_id AND revision <= $6
+	 ORDER BY revision DESC LIMIT 1)
+	 UNION ALL
+	 SELECT revision,alias_result_count FROM lookup_scope_revisions
+	 WHERE $8 AND corpus_id=$1 AND scope_key=input.scope_id AND alias_result_count IS NULL
+	 AND NOT EXISTS (SELECT 1 FROM registry_lookup_history h
+	 WHERE h.corpus_id=$1 AND h.scope_key=input.scope_id AND h.revision <= $6)
+	) AS revision ON true
 	LEFT JOIN LATERAL (
 		SELECT alias.alias_id,alias.canonical_id,alias.surface,alias.language,
 			alias.support_refs,alias.valid_interval,alias.canonical_scope AS alias_scope,
@@ -114,7 +183,7 @@ func (r *Repository) LookupCanonicalAliases(ctx context.Context, corpusID string
 		LIMIT $7
 	) AS match ON true
 	ORDER BY input.ordinal,match.alias_id`, corpusID, types, canonicalScopes, normalized, scopeIDs,
-		current, maximumAliasesPerScope+1)
+		current, maximumAliasesPerScope+1, historical)
 	if err != nil {
 		return nil, 0, fmt.Errorf("batch registry alias lookup: %w", err)
 	}
@@ -180,6 +249,11 @@ func (r *Repository) LookupCanonicalAliases(ctx context.Context, corpusID string
 			return nil, 0, fmt.Errorf("registry alias result count differs from scope revision: %w", domain.ErrPersistentIntegrity)
 		}
 		results[i].Revision.EmptyResult = len(results[i].Candidates) == 0
+	}
+	if pin != nil {
+		if err = checkIndexLease(ctx, tx, *pin); err != nil {
+			return nil, 0, err
+		}
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return nil, 0, fmt.Errorf("commit registry read snapshot: %w", err)

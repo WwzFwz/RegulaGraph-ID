@@ -468,6 +468,10 @@ func advanceAliasLookupScopes(ctx context.Context, tx pgx.Tx, corpusID string, r
 			AND (alias.to_revision IS NULL OR alias.to_revision > $6)
 		GROUP BY input.scope_id
 	)
+	, history AS (
+	 INSERT INTO registry_lookup_history(corpus_id,scope_key,revision,alias_result_count)
+	 SELECT $1,scope_id,$6,result_count FROM counts RETURNING scope_key
+	)
 	INSERT INTO lookup_scope_revisions(corpus_id,scope_key,revision,alias_result_count)
 	SELECT $1,scope_id,$6,result_count FROM counts
 	ON CONFLICT (corpus_id,scope_key) DO UPDATE SET

@@ -275,8 +275,12 @@ func (r *Repository) AdvanceLookupScope(ctx context.Context, corpusID, scopeKey 
 			return 0, ErrConflict
 		}
 		current++
-		_, err = tx.Exec(ctx, `UPDATE lookup_scope_revisions SET revision=$3,updated_at=clock_timestamp()
-          WHERE corpus_id=$1 AND scope_key=$2`, corpusID, scopeKey, current)
+		updated, updateErr := tx.Exec(ctx, `UPDATE lookup_scope_revisions SET revision=$3,updated_at=clock_timestamp()
+          WHERE corpus_id=$1 AND scope_key=$2 AND alias_result_count IS NULL`, corpusID, scopeKey, current)
+		err = updateErr
+		if err == nil && updated.RowsAffected() != 1 {
+			return 0, fmt.Errorf("alias scope must advance with versioned registry records: %w", ErrConflict)
+		}
 	}
 	if err != nil {
 		return 0, fmt.Errorf("advance lookup scope: %w", err)
