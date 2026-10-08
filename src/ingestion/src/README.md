@@ -18,7 +18,8 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 dengan provenance dan mapping ID, budget input/output, dan exception closure acyclic.
 Pemanggil tetap wajib membawa receipt registry terverifikasi; bukan graph publication.
 `assembly/delta.rs` mengomposisikan GraphDelta upsert dengan dependencies, visibility,
-registry type check dan pemeriksaan bytes teks sumber. Worker graph belum tersambung.
+registry type check dan pemeriksaan bytes teks sumber. `worker/assembly.rs` mengeksekusi
+plan dengan FileStore terverifikasi; coordinator receipt/admission dan Neo4j belum tersambung.
 
 Subfolder: [adapters/](adapters/README.md), [bin/](bin/README.md), [document/](document/README.md), [domain/](domain/README.md), [indexing/](indexing/README.md), [knowledge_graph/](knowledge_graph/README.md), dan [worker/](worker/README.md).
 
@@ -32,7 +33,7 @@ Ikuti [kebijakan benchmark](../../../doc/benchmark-policy.md). Angka wajib mengi
 
 ## Status
 
-Modul parsing, normalisasi, structural chunking, validator, persistence batch, incremental planner, selector timeline, statistik BM25 lokal, blocking kandidat, proposal LINK/DEFER dari pilihan eksplisit, dan helper alias dari LINK registry telah aktif. Worker gRPC menjalankan PARSE, STRUCTURE, CHUNK, EXTRACT, dan INDEX terkonfigurasi dengan descriptor terverifikasi, fencing/idempotency, completion eksplisit, serta checkpoint terminal. EXTRACT membagi batch secara terbatas, memanggil Semantic Gateway dalam sub-batch berbatas, mengagregasi accounting/error item, memvalidasi proposal dengan ontology bytes terpin, dan menyimpan `ExtractionBatch` content-addressed. Coordinator Go mengklaim, memverifikasi, meng-commit, dan memulihkan output EXTRACT secara durable; provider/model produksi, stage RESOLVE, table/OCR, graph lanjutan, dispatch INDEX durable, writer indeks, object storage, dan publication penuh belum aktif.
+Modul parsing, normalisasi, structural chunking, validator, persistence batch, incremental planner, selector timeline, statistik BM25 lokal, blocking kandidat, proposal LINK/DEFER dari pilihan eksplisit, dan helper alias dari LINK registry telah aktif. Worker gRPC menjalankan PARSE, STRUCTURE, CHUNK, EXTRACT, ASSEMBLE, dan INDEX terkonfigurasi dengan descriptor terverifikasi, fencing/idempotency, completion eksplisit, serta checkpoint terminal. EXTRACT membagi batch secara terbatas, memanggil Semantic Gateway dalam sub-batch berbatas, mengagregasi accounting/error item, memvalidasi proposal dengan ontology bytes terpin, dan menyimpan `ExtractionBatch` content-addressed. Coordinator Go mengklaim, memverifikasi, meng-commit, dan memulihkan output EXTRACT secara durable; provider/model produksi, stage RESOLVE, table/OCR, graph lanjutan, dispatch INDEX durable, writer indeks, object storage, dan publication penuh belum aktif.
 
 `adapters/native_inference.rs` menambahkan client embedding terpin dengan channel reusable, deadline, bounded decode, serta validasi korelasi/tensor. Pengujian RPC nyata terpisah dari penerimaan kualitas embedding.
 

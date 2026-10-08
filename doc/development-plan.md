@@ -3,8 +3,8 @@
 Pembaruan K01 2026-10-09: [canonical view exporter dan plan ASSEMBLE](graph-assembly-inputs.md)
 tersedia sebagai library PostgreSQL/Go/Rust; exact selection terikat revision/publication,
 role input dan ontology diperiksa. [Verifikasi](verification-report-graph-assembly-inputs.md)
-mencakup backend nyata dan kontrak empat bahasa. Persistence plan/receipt, worker ASSEMBLE
-serta Neo4j publication masih perlu disambungkan; K01 keseluruhan belum selesai.
+mencakup backend nyata dan kontrak empat bahasa. Worker ASSEMBLE kini mempersist delta/checkpoint dari plan. Persistence plan/receipt
+coordinator serta Neo4j publication masih perlu disambungkan; K01 keseluruhan belum selesai.
 
 Dokumen ini memecah desain lengkap RegulaGraph-ID menjadi pekerjaan komponen dan integrasi yang dapat diverifikasi. Perannya menjaga cakupan seluruh produk sambil mengurutkan pekerjaan menurut dependency nyata. Status terkini: D01 berjalan sebagian; C01/E01 dan fondasi storage/publication S01 tersedia; I01 memiliki handoff source observation terikat blob, library PDFium sampai persistence `DocumentBatch`, incremental planner, selector timeline, serta worker/coordinator durable PARSE/STRUCTURE/CHUNK/EXTRACT. K01 telah memiliki planner exact regulation identity, allocator PostgreSQL revisioned/idempotent, registry alias append-only dan lookup kandidat ambigu/negatif, materializer registry-bound regulation/provision, executor BIND durable, proposal extraction berbukti yang di-commit durable, serta ontology EXTRACT terpin lintas Go/Rust. CHUNK memakai tokenizer Hugging Face hash-pinned dan binding node-versi eksak. Alias bersumber, pemeriksaan support, proposal resolusi model, dispatch RESOLVE sampai WAITING_REVIEW, serta parity diagnostik embedding/reranker native telah tersedia. Review/resume remote, canonical baru/merge/split, ASSEMBLE/INDEX, extraction change-event, full-rebuild equivalence, kualitas gold, dan benchmark required tetap belum selesai; tabel menetapkan hasil yang harus dicapai, bukan klaim kelulusan seluruh paket.
 

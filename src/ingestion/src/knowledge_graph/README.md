@@ -14,6 +14,10 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+Worker ASSEMBLE mengeksekusi library GraphDelta melalui plan/source/view terverifikasi
+dan mempersist delta/checkpoint. Coordinator receipt, graph backend dan publication
+masih terpisah; lihat [kontrak worker](../../../../doc/assembly-worker.md).
+
 Assembly kini menyediakan komposisi endpoint resolution dengan canonical ID assertion
 dan support deterministik. Banyak sumber tetap memiliki support terpisah; unknown
 fields/cyclic exceptions gagal eksplisit. Library [GraphDelta](../../../../doc/graph-delta.md)
@@ -36,7 +40,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-EXTRACT memiliki validator, artefak immutable terikat `DocumentBatch`, executor worker, Semantic Gateway deterministic, coordinator durable, dan ontology JSONC bersama yang memvalidasi tipe/predicate/qualifier sebelum persistence. Resolution memiliki blocking kandidat, proposal LINK/DEFER dari pilihan eksplisit, dan helper alias LINK sourced sebagai library; stage RESOLVE, receipt registry terintegrasi, merge/split, assembly, summarization, serta publication graph belum aktif. Provider/model produksi dan kualitas semantik/latency belum dibuktikan.
+EXTRACT memiliki validator, artefak immutable terikat `DocumentBatch`, executor worker, Semantic Gateway deterministic, coordinator durable, dan ontology JSONC bersama yang memvalidasi tipe/predicate/qualifier sebelum persistence. Resolution memiliki blocking kandidat, proposal LINK/DEFER dari pilihan eksplisit, dan helper alias LINK sourced sebagai library; stage RESOLVE, receipt registry terintegrasi, merge/split, coordinator assembly, summarization, serta publication graph belum aktif. Provider/model produksi dan kualitas semantik/latency belum dibuktikan.
 
 ## Rekomendasi implementasi anak
 

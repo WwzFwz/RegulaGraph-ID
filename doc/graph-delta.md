@@ -20,7 +20,8 @@ storage atau membuktikan sendiri bahwa sebuah `ArtifactRef` berisi objek yang di
 Entitas/ref registry harus berasal dari view revision yang sah, bukan ID buatan model.
 [Registry history](registry-history.md) menyediakan bagian storage untuk binding tersebut;
 [ekspor view dan plan ASSEMBLE](graph-assembly-inputs.md) tersedia sebagai library.
-Persistence artefak/receipt dan wiring worker ASSEMBLE masih harus disambungkan.
+[Worker ASSEMBLE](assembly-worker.md) kini memverifikasi artefak dan mempersist delta.
+Persistence plan/view dan admission receipt coordinator masih perlu disambungkan.
 
 Teks normalisasi ber-key ID TextArtifact diperiksa langsung oleh library: SHA-256 dan
 panjang harus sama dengan ref normalisasi di DocumentBatch; UTF-8 harus valid; span
@@ -75,5 +76,5 @@ Tes memeriksa provenance, hash teks, Unicode, canonical type/revision, dependenc
 conflict, negative lookup, visibility, ID collision, ordering dan resource limits.
 Source fixture bukan corpus/gold nyata. Target latency, throughput, memori dan kualitas
 tetap [REQUIRED_UNMEASURED](../configs/benchmark-targets.yaml); aturan kelulusan berada
-di [verification.md](verification.md). Worker ASSEMBLE, publication bersama Neo4j,
+di [verification.md](verification.md). Coordinator ASSEMBLE, publication bersama Neo4j,
 withdrawal/incremental dan acceptance end-to-end belum diselesaikan oleh library ini.

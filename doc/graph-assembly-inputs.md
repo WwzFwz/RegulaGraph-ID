@@ -2,8 +2,9 @@
 
 Dokumen ini menjelaskan handoff bertipe dari registry PostgreSQL ke builder GraphDelta
 Rust. Ia melengkapi [registry history](registry-history.md) dan [GraphDelta](graph-delta.md).
-Exporter dan validator sudah tersedia sebagai library; worker, persiapan artefak/receipt
-oleh coordinator, serta publication Neo4j belum tersambung oleh paket ini.
+Exporter dan validator tersedia sebagai library; [worker ASSEMBLE](assembly-worker.md)
+kini mengeksekusi plan dan mempersist delta. Persiapan artefak/receipt oleh coordinator
+dan publication Neo4j masih perlu disambungkan.
 
 ## Seleksi canonical pada revisi terikat
 
@@ -37,7 +38,7 @@ producer dan ID delta keluaran. Target harus lebih besar dari base dan muat pada
 integer signed 64-bit. Setiap artefak maksimal 16 MiB, total role maksimal 64 MiB;
 library delta juga menerapkan budget gabungan protobuf dan teks normalisasi.
 `ProcessBatchRequest.graph_assembly_plan` menyediakan slot referensi plan di kontrak;
-keberadaan field tidak berarti handler ASSEMBLE sudah berjalan.
+handler Rust mengonsumsi referensi tersebut sesuai [kontrak worker](assembly-worker.md).
 
 Go `domain/graph_assembly.go` memeriksa shape, schema, exact coverage dan binding view.
 Rust `assembly/inputs.rs` memeriksa aturan yang sama, ontology aktual, source refs,

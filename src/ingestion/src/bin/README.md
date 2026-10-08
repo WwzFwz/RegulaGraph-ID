@@ -2,6 +2,10 @@
 
 Worker EXTRACT memuat ontology JSONC dari `REGULAGRAPH_ONTOLOGY_PATH`, menolak beda SHA-256/version, dan membagikan objek immutable tersebut ke validator batch. Ini menjaga aturan graph Rust sejalan dengan Go.
 
+Pin ontology yang sama mengaktifkan ASSEMBLE tanpa endpoint model. Handler membaca
+plan/source/view terverifikasi dan mempersist delta/checkpoint; coordinator receipt dan
+publication tetap pekerjaan Go. Lihat [worker ASSEMBLE](../../../../doc/assembly-worker.md).
+
 Executable entry point untuk proses worker Rust. Binary di folder ini hanya melakukan konfigurasi eksplisit, inisialisasi resource sekali, dan wiring service; kebijakan domain serta transformasi tetap berada di module library agar dapat diuji tanpa membuka listener.
 
 INDEX opt-in memasang channel native reusable dan model C01 protobuf hash-pinned

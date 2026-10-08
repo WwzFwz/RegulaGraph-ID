@@ -1,5 +1,10 @@
 # doc
 
+[assembly-worker.md](assembly-worker.md) menjelaskan eksekusi plan graph oleh Rust,
+batas input, hash/provenance, cancellation dan checkpoint sebelum publication Go.
+[verification-report-assembly-worker.md](verification-report-assembly-worker.md)
+mencatat tes storage/processor/service, review independen dan batas end-to-end.
+
 [graph-assembly-inputs.md](graph-assembly-inputs.md) menjelaskan canonical selection
 revision-bound, role plan ASSEMBLE dan kewajiban source/receipt/fence pemanggil.
 [verification-report-graph-assembly-inputs.md](verification-report-graph-assembly-inputs.md)

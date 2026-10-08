@@ -14,11 +14,11 @@ Pembaruan 2026-10-09: review/resume lokal tersedia pada [panduan](semantic-revie
 Usulan `registry_review.go` direalisasikan oleh `adapters/postgres/semantic_review.go`
 dengan intent/checkpoint existing. Primitive [historical registry view](registry-history.md)
 dan binding publication tersedia; integrasi graph tetap diperlukan. CREATE/MERGE/SPLIT,
-ASSEMBLE worker dan Neo4j tetap pekerjaan berikutnya. Library [GraphDelta](graph-delta.md)
+Coordinator ASSEMBLE dan Neo4j tetap pekerjaan berikutnya. Library [GraphDelta](graph-delta.md)
 tersedia untuk upsert terikat sumber; closure incremental belum aktif.
 
 [Exporter canonical view dan plan ASSEMBLE](graph-assembly-inputs.md) kini tersedia
-di PostgreSQL/Go/Rust. Handoff worker masih membutuhkan persistence plan/view,
+di PostgreSQL/Go/Rust. [Handler worker](assembly-worker.md) tersedia; handoff coordinator masih membutuhkan persistence plan/view,
 receipt keputusan RESOLVE dan pemeriksaan authority pada admission/commit.
 
 Input adalah EXTRACT/CHUNK terverifikasi, candidate policy, registry revision, dan

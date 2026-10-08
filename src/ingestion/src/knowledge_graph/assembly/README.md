@@ -31,7 +31,7 @@ serta mempertahankan mapping ID lama ke ID hasil. Input/output bytes dan jumlah
 record/referensi dibatasi. `delta.rs` menggabungkan hasil tersebut dengan registry rows,
 dependency manifest dan target visibility menjadi GraphDelta upsert. Source DocumentBatch,
 hash/UTF-8 teks dan mention surface diperiksa; caller mengautentikasi ref/receipt sebelum
-dispatch. Closure incremental, worker dan writer Neo4j masih diperlukan sebelum publikasi.
+dispatch. Worker ASSEMBLE kini membaca plan/source/view dan menyimpan delta; coordinator receipt, closure incremental dan writer Neo4j masih diperlukan sebelum publikasi.
 Lihat [kontrak delta](../../../../../doc/graph-delta.md).
 
 Identitas assertion mencakup seluruh temporal scope, sehingga view knowledge berbeda
@@ -53,7 +53,7 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 ## Status
 
 Status subkomponen ini endpoint, identitas graph deterministik dan GraphDelta upsert;
-ASSEMBLE worker, mutasi backend, retrieval graph, gold dataset, dan
+Worker ASSEMBLE tersedia; coordinator graph, mutasi backend, retrieval graph, gold dataset, dan
 acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing;
 tes library tidak membuktikan kebenaran semantik atau target latency.
 

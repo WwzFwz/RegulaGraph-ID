@@ -15,7 +15,8 @@ input/output. [Kontrak](graph-canonical-identity.md) membatasi identitas tempora
 unknown fields. [GraphDelta upsert](graph-delta.md) kini mengomposisikan source-bound
 EXTRACT, registry rows, teks normalisasi dan canonicalization dengan dependencies serta
 visibility. [Exporter registry view dan gate plan](graph-assembly-inputs.md) tersedia;
-lanjutkan persistence artefak/receipt dan wiring ASSEMBLE/Neo4j. Library
+[worker ASSEMBLE](assembly-worker.md) mengeksekusi plan melalui artefak terverifikasi.
+Lanjutkan persistence plan/view, receipt dan wiring coordinator/Neo4j. Library
 ini belum worker/publication atau closure incremental.
 
 Checkpoint lanjutan K01: [review-resolution](semantic-review.md) kini menyediakan

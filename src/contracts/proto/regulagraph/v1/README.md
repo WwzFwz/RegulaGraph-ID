@@ -17,7 +17,7 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 `RegistryEntityView`, `GraphAssemblyPlan` dan `ProcessBatchRequest.graph_assembly_plan`
 menambahkan seleksi registry revision-bound dan role input ASSEMBLE secara aditif.
 Baseline tetap; wire transport mempertahankan unknown fields, sementara gate stage
-menolaknya. Library exporter/validator tersedia; handler worker belum tersambung.
+menolaknya. Library exporter/validator dan handler worker Rust tersedia; coordinator graph belum tersambung.
 Lihat [kontrak input ASSEMBLE](../../../../../doc/graph-assembly-inputs.md).
 
 `IndexBuildPlan`, `ProcessBatchRequest.index_build_plan`, `IndexBatch.build_plan`

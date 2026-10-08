@@ -21,7 +21,7 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 Library `knowledge_graph/assembly/delta.rs` menghasilkan GraphDelta upsert berbukti
 dari EXTRACT/RESOLVE, registry rows dan bytes teks; dependency/visibility dipertahankan.
-Worker graph, incremental closure dan Neo4j belum tersambung; [kontrak](../../doc/graph-delta.md).
+Worker ASSEMBLE tersedia melalui plan terpin; coordinator graph, incremental closure dan Neo4j belum tersambung; [kontrak](../../doc/graph-delta.md).
 
 Assembly graph memiliki library canonical assertion/support setelah endpoint
 resolution, dengan provenance terpisah dan mapping ID. Ini belum GraphDelta/Neo4j;
@@ -41,7 +41,7 @@ Ikuti [kebijakan benchmark](../../doc/benchmark-policy.md). Angka wajib mengikut
 
 Worker EXTRACT memuat ontology berversi dengan hash terpin, memeriksa pin pada request/manifest Semantic Gateway, dan menolak graph typed yang tidak sesuai sebelum persistence. Gate ini belum mengukur akurasi extraction.
 
-Boundary parser PDFium, normalizer, structural chunking, proyeksi/persistence C01, incremental planner, selector timeline, blocking kandidat, dan helper alias LINK sourced aktif sebagai library. Executable worker Tonic menjalankan PARSE dari PDF terverifikasi, STRUCTURE dari `DocumentBatch` immutable, lalu CHUNK dari batch BIND lengkap. CHUNK memverifikasi ulang raw/normalized/mapping dan hierarchy, memasangkan node ke `ProvisionVersion` registry-owned secara eksak, memakai tokenizer Hugging Face hash-pinned, serta menghasilkan chunk parent-aware dengan batas token. Stage RESOLVE, receipt registry terintegrasi, extraction change-event, tabel, graph assembly/writer indeks, OCR, gold temporal, object storage, full-rebuild equivalence, dan acceptance produksi belum aktif.
+Boundary parser PDFium, normalizer, structural chunking, proyeksi/persistence C01, incremental planner, selector timeline, blocking kandidat, dan helper alias LINK sourced aktif sebagai library. Executable worker Tonic menjalankan PARSE dari PDF terverifikasi, STRUCTURE dari `DocumentBatch` immutable, lalu CHUNK dari batch BIND lengkap. CHUNK memverifikasi ulang raw/normalized/mapping dan hierarchy, memasangkan node ke `ProvisionVersion` registry-owned secara eksak, memakai tokenizer Hugging Face hash-pinned, serta menghasilkan chunk parent-aware dengan batas token. Stage RESOLVE, receipt registry terintegrasi, extraction change-event, tabel, coordinator/publication graph, OCR, gold temporal, object storage, full-rebuild equivalence, dan acceptance produksi belum aktif.
 
 ## Penambahan C01 dan panduan verifikasi
 
