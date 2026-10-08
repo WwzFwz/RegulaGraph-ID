@@ -35,8 +35,16 @@ memiliki inventory tetap mengikuti primitive generic sebelumnya.
 
 Claim bukan bukti authority yang berlaku selamanya. Executor wajib memeriksa
 ulang byte plan/sumber, cancellation dan publisher fence sebelum dispatch dan
-commit. Penutupan berikutnya masih mencakup checkpoint output terikat assignment,
-monitor cancellation/lease, daemon, dan pengumpulan seluruh output sebelum
+commit. `VerifiedIndexOutput.Commit` kini mengikat output terverifikasi ke
+assignment lewat `SaveIndexCheckpoint`: checkpoint dan STAGED atomik, source
+checkpoint/cancellation serta publisher fence diperiksa kembali, dan lease dicek
+lagi setelah menunggu lock. STAGED melepaskan lease, tetapi belum search-ready.
+Batch memakai batas satu juta wire items yang sama dengan admission INDEX;
+checkpoint/reference tetap memakai batas metadata default. Caller harus
+melakukan `ExecuteBatch` dan registrasi output/dependency sebelum commit.
+
+Penutupan berikutnya masih mencakup monitor cancellation/lease, daemon,
+rekonsiliasi acknowledgement hilang, dan pengumpulan seluruh output sebelum
 publication. Tidak ada aktivasi snapshot otomatis dari scheduling atau claim.
 
 Ukur queue time, claim/schedule p95/p99, pool wait, contention, RSS dan recovery

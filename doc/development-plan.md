@@ -247,3 +247,8 @@ memeriksa publication aktif, retry budget dan fence; generic claim menghindari
 child berinventory. Executor/output commit durable serta daemon/publication
 masih terbuka. Lihat [kontrak](index-job-inventory.md) dan
 [verifikasi](verification-report-index-jobs.md).
+
+Lanjutan boundary INDEX: commit output terverifikasi kini menyimpan checkpoint
+dan STAGED atomik dengan pemeriksaan ulang source, publication fence dan lease
+setelah lock. Regression PostgreSQL termasuk batch128x1024 lulus; wiring executor,
+daemon dan pengumpulan semua output menuju publication tetap pekerjaan berikutnya.

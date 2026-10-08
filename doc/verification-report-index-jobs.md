@@ -34,3 +34,25 @@ Target latency/throughput, kualitas model, corpus besar, dan acceptance Hybrid
 GraphRAG: NOT_MEASURED. Daemon INDEX, checkpoint/output commit serta publication
 dari seluruh child durable masih pekerjaan integrasi berikutnya. Fixture PASS
 tidak menutup milestone X01 secara keseluruhan.
+
+## Lanjutan: checkpoint output atomik
+
+Paket lanjutan di atas revision `695c495` memiliki log tersendiri pada
+`artifacts/verification/20261009-index-output/`. `SaveIndexCheckpoint` kini
+memeriksa assignment, source dan publication authority, lalu menyimpan checkpoint
+bersama STAGED dan pelepasan lease. Tes PostgreSQL menolak drift plan/snapshot/
+record/owner, sumber/job dibatalkan, publisher fence stale serta artifact belum
+terdaftar; seluruh kegagalan meninggalkan job RUNNING tanpa checkpoint baru.
+Tes lock nyata membuktikan lease yang kedaluwarsa selama menunggu publisher
+ditolak lewat pemeriksaan akhir dan transaksi rollback.
+
+Verifier menemukan batas wire metadata 100000 items terlalu kecil untuk batch
+128 x 1024. Batas IndexBatch kini mengikuti admission yang sudah ada, 1000000;
+batas checkpoint/reference tidak diubah. Regression batch lebar lulus dan
+secara eksplisit membuktikan fixture melampaui batas metadata semula.
+Review independen dan kedua ukuran batch PASS (`independent-final.log`).
+`go test ./src/server/... -count=1` dengan PostgreSQL juga PASS (`go-all.log`).
+Log kegagalan fixture pengamatan lock dan perluasan synthetic source/statistics
+tetap disimpan (`late-lease.log`, `wide.log`, `wide-fixed.log`); bukan hasil PASS.
+Model/vector sintetis tidak membuktikan inference quality. Executor lengkap,
+lost-ack reconciliation dan acceptance tetap belum ditutup oleh paket ini.

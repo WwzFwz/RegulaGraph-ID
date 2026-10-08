@@ -16,7 +16,8 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 [initial_jobs.go](initial_jobs.go) mengekspor inventory child job stabil dan
 memulihkan plan melalui admission sumber/dictionary ulang. PostgreSQL menyimpan
-inventory atomik; daemon dan commit output durable masih perlu dihubungkan.
+inventory atomik; `VerifiedIndexOutput.Commit` menutup checkpoint/STAGED atomik,
+sedangkan daemon dan pengumpulan output publication masih perlu dihubungkan.
 Kontrak dan batasnya ada pada [inventory INDEX](../../../../doc/index-job-inventory.md).
 
 [initial_planning.go](initial_planning.go) membentuk plan INDEX deterministik dari

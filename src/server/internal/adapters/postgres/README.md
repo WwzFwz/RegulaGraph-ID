@@ -22,6 +22,11 @@ publication aktif. Migration 0015 wajib tersedia. Generic claim melewati child
 berinventory; caller wajib memeriksa authority lagi sebelum commit output.
 Lihat [kontrak inventory](../../../../../doc/index-job-inventory.md).
 
+[index_job_output.go](index_job_output.go) meng-commit checkpoint output yang
+telah diverifikasi caller dan status STAGED dalam transaksi yang sama. Plan,
+source checkpoint/cancellation, publisher fence, artifact registration dan lease
+setelah lock wajib cocok. Fungsi ini tidak membaca file atau mempublikasikan indeks.
+
 [index_catalog.go](index_catalog.go) menyimpan generation/route dan record point
 immutable dengan collision check UUID di bawah fence publication. Migration 0014
 wajib tersedia; record terikat byte payload dan replay tidak boleh mengubahnya.
