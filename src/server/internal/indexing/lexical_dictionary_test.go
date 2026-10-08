@@ -39,6 +39,7 @@ func TestPrepareLexicalDictionaryAgainstPostgres(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
+	dsn = isolatedIndexTestDSN(t, ctx, dsn)
 	repo, err := postgres.Open(ctx, postgres.Config{DSN: dsn, MaxConnections: 4, HealthTimeout: 3 * time.Second})
 	if err != nil {
 		t.Fatal(err)
