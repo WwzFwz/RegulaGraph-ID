@@ -202,7 +202,7 @@ tersambung sampai draft bersitasi dalam tes PostgreSQL/Qdrant nyata dengan
 embedding/generator sintetis. Lihat [kontrak](pinned-evidence.md) dan
 [bukti verifikasi](verification-report-pinned-evidence.md). Alur PDF nyata masih
 menunggu wiring coordinator INDEX, API/CLI jawaban dan tokenizer prompt
-generator sebenarnya. Reranker penuh, streaming,
+generator sebenarnya. Reranker terpin opsional telah tersambung pada 2026-10-09; streaming,
 graph serta acceptance juga belum selesai. Lihat
 [laporan integrasi RAG](verification-report-rag-workflow.md).
 
@@ -225,3 +225,10 @@ Uji kedua bentuk alamat mencakup publication, query/hydration dan draft dengan
 PostgreSQL/Qdrant nyata; output model tetap sintetis. Boundary ini tidak lagi
 menjadi penghambat identitas, tetapi coordinator INDEX corpus nyata tetap pekerjaan
 berikutnya. Bukti dan batas ada pada [laporan](verification-report-artifact-identities.md).
+
+Pembaruan Q01 2026-10-09: reranking native berbatas byte/jumlah pasangan kini
+tersambung setelah hidrasi sumber pada library RAG dan CLI query-evidence.
+Kegagalan/truncation tidak turun diam-diam ke fusion; model/skor dan accounting
+tersedia pada output. Integrasi PostgreSQL/Qdrant memakai model sintetis;
+kualitas, latency required dan Hybrid GraphRAG penuh belum dinyatakan lulus.
+Lihat [verifikasi reranking](verification-report-evidence-reranking.md).

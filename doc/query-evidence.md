@@ -25,6 +25,8 @@ Environment berikut dibaca CLI; file `.env` tidak dimuat otomatis:
 | `REGULAGRAPH_QUERY_NATIVE_ENDPOINT` | IP loopback literal dan port, misalnya `127.0.0.1:50053` |
 | `REGULAGRAPH_QDRANT_URL` | Origin yang sama persis dengan endpoint katalog, tanpa path/trailing slash |
 | `REGULAGRAPH_QDRANT_API_KEY` | Credential origin tersebut; boleh kosong pada layanan lokal tanpa auth |
+| `REGULAGRAPH_QUERY_RERANK_MANIFEST` | Opsional: path manifest model RERANK ProtoJSON C01, maksimum 64 KiB |
+| `REGULAGRAPH_QUERY_RERANK_MANIFEST_SHA256` | SHA-256 lowercase atas byte manifest; wajib bersama path |
 
 Qdrant HTTP hanya diterima pada IP loopback literal; endpoint remote memakai
 HTTPS. Native gRPC plaintext juga hanya loopback literal. CLI ini alat operator
@@ -54,6 +56,31 @@ ada jawaban LLM. PARTIAL tetap PARTIAL. Exit 0 berarti query berhasil dengan
 outcome eksplisit, bukan jaminan bukti lengkap atau relevan; exit 1 berarti
 runtime/integrity/output gagal; exit 2 berarti argumen/config invalid. Error
 backend disanitasi agar credential atau dump provider tidak ikut tercetak.
+
+## Reranking native opsional
+
+Tanpa kedua variabel reranker, query memakai urutan fusion. Untuk mengaktifkan
+reranker, gunakan `model.pbjson` dari bundle model yang sudah diverifikasi sesuai
+[panduan native](native-inference.md), bekukan hash byte manifest dalam konfigurasi,
+dan pastikan proses native yang sama memuat model embedding serta reranker tepat.
+CLI mencocokkan keduanya dengan capabilities runtime sebelum query. Hash tidak
+boleh sekadar diperbarui otomatis ketika file model berubah.
+
+Setelah hidrasi dan filter tanggal, semua bukti yang diterima dinilai ulang dalam
+batch maksimum 32 pasangan dan 4 MiB protobuf, dengan deadline request yang sama.
+Satu pasangan yang terlalu besar ditolak sebelum RPC pertama; respons model
+hilang, terpotong atau tidak cocok menggagalkan query. Tidak ada pengurangan
+bukti atau fallback tersembunyi. Skor sama mempertahankan urutan fusion lintas
+batch. Source refs, spans, provenance cabang dan PARTIAL tetap dipertahankan.
+
+Output menambahkan `reranking` dengan `model` dan `scores` ProtoJSON C01 dalam
+urutan evidence, `batches`, dan `duration_ns`. Skor adalah relevansi model, bukan
+probabilitas jawaban benar. Durasi mencakup tahap reranking di client, bukan
+pengukuran terpisah antrean server. Model/policy batch masuk fingerprint query.
+`RAGWorkflow` memakai tahap yang sama sebelum konteks/generation jika caller
+memasang reranker. Benchmark sebelum/sesudah pada gold serta p95/p99 belum
+diukur; [laporan](verification-report-evidence-reranking.md) membatasi bukti
+yang sudah diuji.
 
 ## Integrasi dan resource
 
