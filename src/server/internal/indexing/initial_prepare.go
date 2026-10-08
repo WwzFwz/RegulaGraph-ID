@@ -17,6 +17,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"sort"
 
 	"google.golang.org/protobuf/proto"
@@ -200,36 +201,36 @@ type initialArtifactLoader struct {
 
 func (l *initialArtifactLoader) read(ctx context.Context, ref *pb.ArtifactRef, target proto.Message) error {
 	if ref == nil {
-		return errors.New("missing initial INDEX artifact reference")
+		return errors.Join(errors.New("missing initial INDEX artifact reference"), domain.ErrPersistentIntegrity)
 	}
 	if err := domain.ValidateWire(ref, domain.DefaultWireLimits); err != nil {
-		return err
+		return errors.Join(err, domain.ErrPersistentIntegrity)
 	}
 	if ref.MediaType != "application/x-protobuf; message="+string(target.ProtoReflect().Descriptor().FullName()) {
-		return errors.New("initial INDEX artifact media type mismatch")
+		return errors.Join(errors.New("initial INDEX artifact media type mismatch"), domain.ErrPersistentIntegrity)
 	}
 	entry, ok := l.cache[ref.ArtifactId]
 	if ok && !proto.Equal(entry.ref, ref) {
-		return errors.New("artifact reference drift")
+		return errors.Join(errors.New("artifact reference drift"), domain.ErrPersistentIntegrity)
 	}
 	if !ok {
 		if ref.ByteSize == 0 || ref.ByteSize > 16<<20 || ref.ByteSize > l.remaining {
-			return errors.New("initial INDEX artifact budget exceeded")
+			return errors.Join(errors.New("initial INDEX artifact budget exceeded"), domain.ErrPersistentIntegrity)
 		}
 		registered, err := l.authority.LoadArtifact(ctx, l.corpus, ref.ArtifactId)
 		if err != nil {
-			return err
+			return indexArtifactReadError(err)
 		}
 		if !proto.Equal(registered, ref) {
-			return errors.New("unregistered initial INDEX artifact")
+			return errors.Join(errors.New("unregistered initial INDEX artifact"), domain.ErrPersistentIntegrity)
 		}
 		raw, err := l.reader.ReadVerified(ctx, ref, ref.ByteSize)
 		if err != nil {
-			return err
+			return indexArtifactReadError(err)
 		}
 		sum := sha256.Sum256(raw)
 		if uint64(len(raw)) != ref.ByteSize || hex.EncodeToString(sum[:]) != ref.ContentHash.Sha256 {
-			return errors.New("initial INDEX artifact hash/size mismatch")
+			return errors.Join(errors.New("initial INDEX artifact hash/size mismatch"), domain.ErrPersistentIntegrity)
 		}
 		l.remaining -= uint64(len(raw))
 		entry = initialArtifact{proto.Clone(ref).(*pb.ArtifactRef), raw}
@@ -238,16 +239,16 @@ func (l *initialArtifactLoader) read(ctx context.Context, ref *pb.ArtifactRef, t
 	limits := domain.DefaultWireLimits
 	limits.MaxItems = 1_000_000
 	if err := domain.DecodeWire(entry.raw, target, limits); err != nil {
-		return err
+		return errors.Join(err, domain.ErrPersistentIntegrity)
 	}
 	message := target.ProtoReflect()
 	metaField := message.Descriptor().Fields().ByName("meta")
 	if metaField == nil {
-		return errors.New("artifact lacks record metadata")
+		return errors.Join(errors.New("artifact lacks record metadata"), domain.ErrPersistentIntegrity)
 	}
 	meta, ok := message.Get(metaField).Message().Interface().(*pb.RecordMeta)
 	if !ok || meta.CorpusId != l.corpus {
-		return errors.New("artifact corpus mismatch")
+		return errors.Join(errors.New("artifact corpus mismatch"), domain.ErrPersistentIntegrity)
 	}
 	// Rust stores worker outputs under content-addressed IDs. Their logical IDs
 	// are authenticated inside the hashed bytes, with INDEX output identity
@@ -257,10 +258,19 @@ func (l *initialArtifactLoader) read(ctx context.Context, ref *pb.ArtifactRef, t
 	case *pb.DocumentBatch, *pb.IndexBatch:
 	default:
 		if meta.RecordId != ref.ArtifactId {
-			return errors.New("typed artifact identity mismatch")
+			return errors.Join(errors.New("typed artifact identity mismatch"), domain.ErrPersistentIntegrity)
 		}
 	}
 	return nil
+}
+
+// Missing immutable prerequisites require repair/replan; transient database or
+// filesystem errors keep their original classification and remain retryable.
+func indexArtifactReadError(err error) error {
+	if errors.Is(err, domain.ErrNotFound) || errors.Is(err, os.ErrNotExist) {
+		return errors.Join(err, domain.ErrPersistentIntegrity)
+	}
+	return err
 }
 
 func verifyInitialLexical(ctx context.Context, l *initialArtifactLoader, plan *pb.IndexBuildPlan, records []*pb.IndexRecord) error {

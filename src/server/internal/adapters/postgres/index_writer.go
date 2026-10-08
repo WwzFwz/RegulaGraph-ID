@@ -53,7 +53,8 @@ func (r *Repository) AcquireIndexWriteLock(ctx context.Context, publication stri
 }
 
 // VerifyIndexSourceCheckpoint requires the latest CHUNK checkpoint to succeed and
-// bind this exact artifact, even if EXTRACT/RESOLVE has since advanced the job.
+// bind this exact artifact or its immutable snapshot-source receipt (migration
+// 0016), even if EXTRACT/RESOLVE has since advanced the job.
 // It does not infer membership from a missing visibility. The initial preparer
 // additionally requires source.Context.SnapshotRef == planned target snapshot.
 // The initial writer separately proves full chunk coverage of all declared jobs.
@@ -62,6 +63,13 @@ func (r *Repository) VerifyIndexSourceCheckpoint(ctx context.Context, corpus, jo
 }
 
 func verifyIndexSourceCheckpoint(ctx context.Context, query indexQuerier, corpus, job string, ref *pb.ArtifactRef) error {
+	if found, err := verifyBoundIndexSourceCheckpoint(ctx, query, corpus, job, ref); found || err != nil {
+		return err
+	}
+	return verifyOriginalIndexSourceCheckpoint(ctx, query, corpus, job, ref)
+}
+
+func verifyOriginalIndexSourceCheckpoint(ctx context.Context, query indexQuerier, corpus, job string, ref *pb.ArtifactRef) error {
 	if !storageIDPattern.MatchString(corpus) || !storageIDPattern.MatchString(job) || ref == nil {
 		return errors.New("source job required")
 	}

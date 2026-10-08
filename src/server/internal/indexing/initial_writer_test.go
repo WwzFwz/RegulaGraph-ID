@@ -202,6 +202,9 @@ func runInitialIndexPublication(t *testing.T, requireGraph, contentAddressed boo
 	snapshot.Sequence = reservation.Sequence
 	plan.TargetSnapshot, plan.SourceSnapshot = proto.Clone(snapshot).(*pb.SnapshotRef), proto.Clone(snapshot).(*pb.SnapshotRef)
 	source.Context.SnapshotRef = proto.Clone(snapshot).(*pb.SnapshotRef)
+	if storageMode == "source-binding" {
+		source.Context.SnapshotRef = nil
+	}
 	batch.Context.SnapshotRef = proto.Clone(snapshot).(*pb.SnapshotRef)
 	// The declared test source has exactly the two selected chunks, with the
 	// complete document/version/structure closure retained for provenance checks.
@@ -284,6 +287,10 @@ func runInitialIndexPublication(t *testing.T, requireGraph, contentAddressed boo
 		t.Fatal(err)
 	}
 	analyzer := new(pb.LexicalAnalyzerArtifact)
+	if storageMode == "source-binding" {
+		boundRef, boundSource := checkSnapshotSourceBinding(t, ctx, repo, conn, pub, reservation.Fence, snapshot, job, plan.DocumentBatch, artifacts, source.Context.AuthScopeRef)
+		plan.DocumentBatch, source = boundRef, boundSource
+	}
 	load("lexical-analyzer-artifact-v1.pb", analyzer)
 	analyzer.Meta.RecordId += suffix
 	rebindIndexFixture(analyzer.ProtoReflect(), corpus, reservation.Sequence)
@@ -376,6 +383,9 @@ func runInitialIndexPublication(t *testing.T, requireGraph, contentAddressed boo
 	if err = planned.Persist(ctx, planFiles, repo); err != nil {
 		t.Fatal("plan replay", err)
 	}
+	if storageMode == "source-binding" {
+		return
+	}
 	if storageMode == "inventory" {
 		checkDurableIndexInventory(t, ctx, parsed.String(), conn, planned)
 		return
@@ -412,14 +422,15 @@ func runInitialIndexPublication(t *testing.T, requireGraph, contentAddressed boo
 	}
 	generatedRef := put(generated.Meta.RecordId, domain.IndexBatchMediaType, generated)
 	if storageMode == "processor" {
-		checkIndexProcessor(t, ctx, repo, planned, artifacts, generated)
+		checkIndexProcessor(t, ctx, repo, conn, planned, artifacts, generated, true)
 		return
 	}
 	if storageMode == "output" || storageMode == "wide-output" {
 		checkIndexOutputCommit(t, ctx, repo, conn, planned, generatedRef, generated)
 		return
 	}
-	p, err = planned.PrepareOutputs(ctx, repo, artifacts, []*pb.ArtifactRef{generatedRef})
+	checkIndexProcessor(t, ctx, repo, conn, planned, artifacts, generated, false)
+	p, err = PrepareCompletedInitialIndex(ctx, repo, artifacts, pub)
 	if err != nil {
 		t.Fatal("planned output admission", err)
 	}
@@ -520,10 +531,47 @@ func runInitialIndexPublication(t *testing.T, requireGraph, contentAddressed boo
 		if err = coordinator.Publish(ctx, pub); err == nil {
 			t.Fatal("Qdrant receipt substituted for graph readiness")
 		}
+		if _, err = PublishCompletedVectorIndex(ctx, repo, artifacts, physical, pub); err == nil {
+			t.Fatal("vector publisher removed staged graph requirement")
+		}
 		return
 	}
-	if err = coordinator.Publish(ctx, pub); err != nil {
+	inventory, e := planned.JobInventory()
+	if e != nil {
+		t.Fatal(e)
+	}
+	for _, cancelledJob := range []string{job, inventory.Assignments[0].JobID} {
+		if _, err = conn.Exec(ctx, `UPDATE jobs SET cancellation_requested=true WHERE job_id=$1`, cancelledJob); err != nil {
+			t.Fatal(err)
+		}
+		if err = coordinator.Publish(ctx, pub); !errors.Is(err, postgres.ErrPublicationNotReady) {
+			t.Fatal("late cancellation published", err)
+		}
+		if _, err = conn.Exec(ctx, `UPDATE jobs SET cancellation_requested=false WHERE job_id=$1`, cancelledJob); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Publication must back off, not deadlock, while a checkpoint/cancellation
+	// transaction holds a child lock and may next request the publication lock.
+	blocker, err := conn.Begin(ctx)
+	if err != nil {
 		t.Fatal(err)
+	}
+	defer blocker.Rollback(ctx)
+	if _, err = blocker.Exec(ctx, `SELECT job_id FROM jobs WHERE job_id=$1 FOR UPDATE`, inventory.Assignments[0].JobID); err != nil {
+		t.Fatal(err)
+	}
+	if err = coordinator.Publish(ctx, pub); !errors.Is(err, postgres.ErrPublicationNotReady) {
+		t.Fatal("locked child did not block publication", err)
+	}
+	if err = blocker.Rollback(ctx); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		published, e := PublishCompletedVectorIndex(ctx, repo, artifacts, physical, pub)
+		if e != nil || !proto.Equal(published, snapshot) {
+			t.Fatal("completed inventory publication/replay", e)
+		}
 	}
 	if err = coordinator.Publish(ctx, pub); err != nil {
 		t.Fatal(err)

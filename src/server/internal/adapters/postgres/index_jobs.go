@@ -51,6 +51,9 @@ func (r *Repository) ScheduleIndexJobs(ctx context.Context, inventory domain.Ind
 	if snapshotID != inventory.Snapshot.SnapshotId || sequence != inventory.Snapshot.Sequence {
 		return fmt.Errorf("INDEX inventory snapshot differs from reservation: %w", ErrConflict)
 	}
+	if err = verifyIndexSourceSnapshot(ctx, tx, inventory.Binding.PublicationID, inventory.Snapshot); err != nil {
+		return err
+	}
 	var existing string
 	err = tx.QueryRow(ctx, `SELECT inventory_hash FROM index_job_inventories WHERE publication_id=$1`, inventory.Binding.PublicationID).Scan(&existing)
 	if err == nil {

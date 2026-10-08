@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/proto"
 	pb "regulagraph.local/server/gen/regulagraph/v1"
 	"regulagraph.local/server/internal/adapters/postgres"
@@ -35,7 +36,7 @@ func (s *lostIndexCheckpointReply) SaveIndexCheckpoint(ctx context.Context, cp *
 	return errors.New("injected lost checkpoint commit acknowledgement")
 }
 
-func checkIndexProcessor(t *testing.T, ctx context.Context, repo *postgres.Repository, plans *InitialIndexPlans, artifacts indexMemoryArtifacts, template *pb.IndexBatch) {
+func checkIndexProcessor(t *testing.T, ctx context.Context, repo *postgres.Repository, conn *pgx.Conn, plans *InitialIndexPlans, artifacts indexMemoryArtifacts, template *pb.IndexBatch, testCorruption bool) {
 	t.Helper()
 	inventory, err := plans.JobInventory()
 	if err != nil {
@@ -43,6 +44,9 @@ func checkIndexProcessor(t *testing.T, ctx context.Context, repo *postgres.Repos
 	}
 	if err = repo.ScheduleIndexJobs(ctx, inventory); err != nil {
 		t.Fatal(err)
+	}
+	if outputs, e := repo.LoadIndexJobOutputs(ctx, inventory.Binding.PublicationID); !errors.Is(e, postgres.ErrIndexOutputsPending) || len(outputs) != 0 {
+		t.Fatal("queued inventory yielded outputs", e)
 	}
 	calls := 0
 	worker := indexWorkerFunc(func(_ context.Context, req *pb.ProcessBatchRequest) (*pb.ProcessBatchResponse, error) {
@@ -92,5 +96,61 @@ func checkIndexProcessor(t *testing.T, ctx context.Context, repo *postgres.Repos
 	}
 	if _, err = processor.ProcessIndexJob(ctx, job); !errors.Is(err, domain.ErrIndexReplan) || calls != 1 {
 		t.Fatal("stale/released claim dispatched", err)
+	}
+	outputs, err := repo.LoadIndexJobOutputs(ctx, inventory.Binding.PublicationID)
+	if err != nil || len(outputs) != 1 || !proto.Equal(outputs[0], response.IndexBatch) {
+		t.Fatal("committed output collection", err)
+	}
+	prepared, err := PrepareCompletedInitialIndex(ctx, repo, artifacts, inventory.Binding.PublicationID)
+	if err != nil || prepared.ExpectedBackend().ExpectedCounts.Expected != uint64(len(template.Records)) {
+		t.Fatal("completed output admission", err)
+	}
+	// A committed locator must not authorize subsequently corrupted blob bytes.
+	saved := artifacts[response.IndexBatch.ArtifactId]
+	artifacts[response.IndexBatch.ArtifactId] = []byte("corrupt")
+	if _, e := PrepareCompletedInitialIndex(ctx, repo, artifacts, inventory.Binding.PublicationID); e == nil {
+		t.Fatal("corrupt completed bytes admitted")
+	}
+	artifacts[response.IndexBatch.ArtifactId] = saved
+	// Reproduce the old split transaction state: checkpoint is durable but job
+	// transition was lost. Recovery at exhausted model budget must not call worker.
+	if _, err = conn.Exec(ctx, `UPDATE jobs SET state=$2,lease_owner='legacy',lease_expires_at=clock_timestamp()-interval '1 second',stage_attempt=max_attempts WHERE job_id=$1`, job.JobID, int16(pb.JobState_JOB_STATE_RUNNING)); err != nil {
+		t.Fatal(err)
+	}
+	recoveredJob, recovered, err := executor.RunOnce(ctx)
+	if err != nil || recovered == nil {
+		t.Fatal("legacy checkpoint recovery", err)
+	}
+	if calls != 1 || !proto.Equal(recovered.IndexBatch, response.IndexBatch) || recovered.Checkpoint.Meta.RecordId == response.Checkpoint.Meta.RecordId || recovered.Checkpoint.Fence <= response.Checkpoint.Fence || recoveredJob.StageAttempt == 0 {
+		t.Fatal("legacy recovery repeated inference or changed output")
+	}
+	if _, err = PrepareCompletedInitialIndex(ctx, repo, artifacts, inventory.Binding.PublicationID); err != nil {
+		t.Fatal("recovered output admission", err)
+	}
+	// Child cancellation after completion must prevent output collection.
+	if _, err = conn.Exec(ctx, `UPDATE jobs SET cancellation_requested=true WHERE job_id=$1`, job.JobID); err != nil {
+		t.Fatal(err)
+	}
+	if outputs, e := repo.LoadIndexJobOutputs(ctx, inventory.Binding.PublicationID); !errors.Is(e, postgres.ErrIndexOutputsPending) || len(outputs) != 0 {
+		t.Fatal("cancelled completed child admitted", e)
+	}
+	if _, err = conn.Exec(ctx, `UPDATE jobs SET cancellation_requested=false WHERE job_id=$1`, job.JobID); err != nil {
+		t.Fatal(err)
+	}
+	if testCorruption {
+		artifacts[response.IndexBatch.ArtifactId] = []byte("corrupt")
+		if _, err = conn.Exec(ctx, `UPDATE jobs SET state=$2,lease_owner='legacy',lease_expires_at=clock_timestamp()-interval '1 second',stage_attempt=max_attempts WHERE job_id=$1`, job.JobID, int16(pb.JobState_JOB_STATE_RUNNING)); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err = executor.RunOnce(ctx); !errors.Is(err, domain.ErrPersistentIntegrity) {
+			t.Fatal("corrupt legacy output not classified terminal", err)
+		}
+		var state int16
+		if err = conn.QueryRow(ctx, `SELECT state FROM jobs WHERE job_id=$1`, job.JobID).Scan(&state); err != nil || state != int16(pb.JobState_JOB_STATE_FAILED) {
+			t.Fatal("corrupt legacy recovery did not fail", err)
+		}
+		if _, _, err = executor.RunOnce(ctx); !errors.Is(err, domain.ErrLeaseUnavailable) || calls != 1 {
+			t.Fatal("corrupt legacy recovery loop", err)
+		}
 	}
 }

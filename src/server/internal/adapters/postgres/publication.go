@@ -172,6 +172,9 @@ func (r *Repository) StagePublication(ctx context.Context, manifest *pb.Publicat
 		}
 		return tx.Commit(ctx)
 	}
+	if err = verifyIndexSourceSnapshot(ctx, tx, manifest.Meta.RecordId, manifest.SnapshotRef); err != nil {
+		return fmt.Errorf("publication differs from bound source snapshot: %w", err)
+	}
 	for _, generation := range manifest.BackendGenerations {
 		if generation.ExpectedCounts.Expected > math.MaxInt64 {
 			return errors.New("backend expected count exceeds PostgreSQL bigint")
@@ -333,6 +336,9 @@ func (r *Repository) CommitPublication(ctx context.Context, publicationID string
 	}
 	if active.String != parent.String {
 		return ErrSnapshotCASConflict
+	}
+	if err = verifyIndexPublicationJobs(ctx, tx, publicationID); err != nil {
+		return err
 	}
 	if _, err = tx.Exec(ctx, `UPDATE snapshots SET state=$2,published_at=clock_timestamp()
       WHERE publication_id=$1`, publicationID, int16(pb.SnapshotState_SNAPSHOT_STATE_PUBLISHED)); err != nil {

@@ -26,6 +26,7 @@ type IndexJobProcessorStore interface {
 	IndexJobPublication(context.Context, domain.JobRecord) (string, error)
 	LoadIndexJobInventory(context.Context, string) (domain.IndexJobInventory, error)
 	IndexCheckpointCommitted(context.Context, *pb.Checkpoint) (bool, error)
+	LoadLatestCheckpoint(context.Context, string) (*pb.Checkpoint, error)
 }
 
 type InitialIndexJobProcessor struct {
@@ -101,7 +102,12 @@ func (p *InitialIndexJobProcessor) ProcessIndexJob(ctx context.Context, job doma
 	if err != nil {
 		return nil, err
 	}
-	output, err := plans.ExecuteBatch(ctx, position, request, p.worker, p.store, p.reader)
+	var output *VerifiedIndexOutput
+	if job.LatestCheckpointID != "" {
+		output, err = p.recoverOutput(ctx, plans, position, request, job)
+	} else {
+		output, err = plans.ExecuteBatch(ctx, position, request, p.worker, p.store, p.reader)
+	}
 	if err != nil {
 		return nil, err
 	}
