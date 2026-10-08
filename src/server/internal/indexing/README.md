@@ -77,3 +77,10 @@ binding katalog, memuat BM25 terdaftar, dan menjalankan hybrid search. Resource
 prepared yang sama dipakai kembali untuk query evidence-only di bawah lease baru.
 HTTP Qdrant dan PostgreSQL nyata; embedding/reranker/generator tetap sintetis. Ini belum
 menjalankan executable CLI dengan proses native nyata atau corpus PDF pengguna.
+
+[lexical_dictionary.go](lexical_dictionary.go) mengalokasikan vocabulary dalam
+halaman registry dengan operasi deterministik, mengekspor revision terpin, dan
+menyimpan/mendaftarkan dictionary immutable. Retry setelah interupsi registrasi
+tidak mengganti ID. lexical_dictionary_test.go menguji PostgreSQL/FileStore nyata
+dan artifact statistik Rust yang memakai mapping Go. Membership sumber dan
+statistik tetap harus terikat inventory coordinator sebelum publication.

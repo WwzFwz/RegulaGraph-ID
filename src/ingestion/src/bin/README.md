@@ -11,3 +11,9 @@ dan `REGULAGRAPH_WORKER_EMBED_MANIFEST_SHA256`; lihat [kontrak INDEX](../../../.
 `regulagraph-worker.rs` melayani gRPC pada loopback, memuat PDFium serta tokenizer Hugging Face hash-pinned sekali saat startup, membatasi message/concurrency/status registry, dan melakukan shutdown terkontrol. Deployment lintas host wajib menambahkan termination TLS terautentikasi sebelum listener boleh diperluas dari loopback.
 
 Ukur startup/cold load terpisah dari latency warm, lalu catat queue time, p95/p99, throughput, RSS, cancellation lag, dan error per stage. Angka wajib tetap mengacu pada `configs/benchmark-targets.yaml`; belum ada acceptance benchmark produksi.
+
+`regulagraph-lexical.rs` adalah worker offline untuk vocabulary/freeze BM25 dari
+referensi C01 terpin. Ia memakai library population, membaca dictionary allocation
+Go dan menyimpan statistik immutable; tidak membuka listener atau melakukan
+publication. Output baru dan exit code wajib diperiksa sebelum consumption.
+[Panduan operator](../../../../doc/lexical-population.md) menjelaskan dua pass.

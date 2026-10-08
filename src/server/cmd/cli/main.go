@@ -38,8 +38,11 @@ func (v *urlFlags) String() string     { return strings.Join(*v, ",") }
 func (v *urlFlags) Set(s string) error { *v = append(*v, s); return nil }
 
 func run(ctx context.Context, args []string, out, errOut io.Writer) int {
+	if len(args) > 0 && args[0] == "prepare-dictionary" {
+		return runLexicalDictionary(ctx, args[1:], out, errOut)
+	}
 	if len(args) == 0 || (args[0] != "collect" && args[0] != "discover" && args[0] != "audit" && args[0] != "submit" && args[0] != "query-evidence" && args[0] != "demo") {
-		fmt.Fprintln(errOut, "Usage: regulagraph {collect|discover|audit|submit|query-evidence|demo}; use command -help for options.")
+		fmt.Fprintln(errOut, "Usage: regulagraph {collect|discover|audit|submit|prepare-dictionary|query-evidence|demo}; use command -help for options.")
 		return 2
 	}
 	if args[0] == "demo" {

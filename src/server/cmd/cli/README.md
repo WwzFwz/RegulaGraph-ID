@@ -58,3 +58,9 @@ pin hash pada `REGULAGRAPH_QUERY_RERANK_MANIFEST` dan
 bersama. [query_reranking.go](query_reranking.go) mengekspor skor/model C01 dan
 memeriksa kesamaan urutan bukti; query_reranking_test.go menguji accounting dan
 drift. Tanpa konfigurasi ini, hasil tetap baseline fusion yang eksplisit.
+
+`prepare-dictionary` menerima vocabulary UTF-8/hash terpin dari worker Rust,
+menggunakan allocator PostgreSQL lewat indexing, dan menulis ArtifactRef biner
+ke file baru. Ia memerlukan DSN dan root artefak yang sama; tidak menjalankan
+migrasi atau publication. [Panduan populasi](../../../../doc/lexical-population.md)
+menjelaskan argumen, replay dan batas penggunaan.

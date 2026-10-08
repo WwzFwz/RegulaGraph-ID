@@ -44,3 +44,8 @@ Adapter `NativeEmbeddingClient` menyediakan batch embedding async melalui C++ C0
 Builder analyzer/statistik BM25 typed kini tersedia dengan reader Go dari bytes
 yang sama. Ini menutup handoff representasi lexical, tetapi bukan dispatch coordinator INDEX
 atau publication; lihat [kontrak lexical](../../doc/lexical-generation.md).
+
+Worker offline regulagraph-lexical menghitung vocabulary/statistik dari chunk
+terverifikasi menggunakan rendering INDEX yang sama. Handoff allocator Go telah
+diuji lewat executable; [panduan](../../doc/lexical-population.md) menyatakan
+prasyarat serta registration/scheduling yang masih perlu disambungkan.

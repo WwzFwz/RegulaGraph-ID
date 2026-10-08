@@ -29,3 +29,7 @@ Ikuti [kebijakan benchmark](../../../doc/benchmark-policy.md). Angka wajib mengi
 Modul parsing, normalisasi, structural chunking, validator, persistence batch, incremental planner, selector timeline, statistik BM25 lokal, blocking kandidat, proposal LINK/DEFER dari pilihan eksplisit, dan helper alias dari LINK registry telah aktif. Worker gRPC menjalankan PARSE, STRUCTURE, CHUNK, EXTRACT, dan INDEX terkonfigurasi dengan descriptor terverifikasi, fencing/idempotency, completion eksplisit, serta checkpoint terminal. EXTRACT membagi batch secara terbatas, memanggil Semantic Gateway dalam sub-batch berbatas, mengagregasi accounting/error item, memvalidasi proposal dengan ontology bytes terpin, dan menyimpan `ExtractionBatch` content-addressed. Coordinator Go mengklaim, memverifikasi, meng-commit, dan memulihkan output EXTRACT secara durable; provider/model produksi, stage RESOLVE, table/OCR, graph lanjutan, dispatch INDEX durable, writer indeks, object storage, dan publication penuh belum aktif.
 
 `adapters/native_inference.rs` menambahkan client embedding terpin dengan channel reusable, deadline, bounded decode, serta validasi korelasi/tensor. Pengujian RPC nyata terpisah dari penerimaan kualitas embedding.
+
+Persiapan populasi lexical nyata dari rendered chunk tersedia pada indexing/population.rs
+dan executable offline regulagraph-lexical. Alokasi term tetap di Go/PostgreSQL;
+scheduler INDEX dan publication tidak disimpulkan dari keberhasilan persiapan.
