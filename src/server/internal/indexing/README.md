@@ -1,5 +1,11 @@
 # src/server/internal/indexing
 
+`initial_snapshot.go` mengubah pilihan CHUNK terautentikasi menjadi snapshot awal
+dan corpus-facts manifest, lalu mengikat sumber melalui receipt. Identitas
+snapshot mencakup seluruh pilihan terurut; count graph nol eksplisit untuk
+profil dense/BM25. Output menyediakan referensi population Rust, tanpa
+menjadwalkan model atau menyatakan quality gate lulus.
+
 Koordinasi commit batch indeks dan penerbitan snapshot dalam Go. Dokumen ini mendefinisikan superset tanggung jawab folder dan kontrak integrasi anaknya.
 
 ## Batas tanggung jawab

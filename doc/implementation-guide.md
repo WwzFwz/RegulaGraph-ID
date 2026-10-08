@@ -10,8 +10,9 @@ Processor/executor serta daemon opt-in menyambungkan dispatch dan commit;
 lihat [kontrak INDEX](index-job-inventory.md). Source envelope ber-receipt,
 recovery tanpa inference ulang, pengumpulan output STAGED lengkap, dan CLI
 publication dense/BM25 kini tersambung; lihat [kontrak](index-source-publication.md).
-Kelanjutan terdekat adalah CLI persiapan snapshot/population/inventory yang
-mengikat input resmi, lalu run corpus/native nyata. Graph assembly/review-resume, answering penuh,
+`prepare-snapshot` kini mengekspor source refs dan manifest nyata untuk population
+Rust. Kelanjutan terdekat adalah registrasi statistik/pembuatan generation dan
+scheduling inventory melalui CLI, lalu run corpus/native nyata. Graph assembly/review-resume, answering penuh,
 incremental serta acceptance seluruh proyek tetap diperlukan; deployment tetap
 di luar scope pengerjaan yang diminta. Gold ditunda sesuai arahan pengguna,
 bukan diganti dengan klaim kelulusan fixture.

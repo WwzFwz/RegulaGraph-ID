@@ -74,10 +74,49 @@ commit tidak mengubah snapshot historis; update/retirement memerlukan protokol
 tersendiri. Receipt backend tetap wajib dan intent gagal tetap tersedia untuk
 pemulihan identik.
 
-CLI persiapan snapshot/population/inventory dari pilihan dokumen resmi masih
-perlu dirangkai agar operator tidak menyusun input library secara manual.
 `publish-index` mengonsumsi inventory yang sudah ada; tidak menciptakan corpus,
 menjalankan anotasi gold, atau mengarang manifest statistik.
+
+## Menyiapkan snapshot dari CHUNK nyata
+
+`prepare-snapshot` menerima pilihan job dan artefak CHUNK yang sudah terdaftar.
+Source job bukan child INDEX. Gunakan seluruh pilihan sumber untuk populasi,
+bukan file PDF mentah atau direktori unduhan:
+
+```powershell
+go run ./src/server/cmd/cli prepare-snapshot -corpus corpus:example -publication publication:example -generation generation:example -auth-scope operator:corpus -source "job:document=artifact:document-batch:HASH" -out artifacts/preparation-example
+```
+
+Ulangi `-source` untuk semua pasangan job/artifact, maksimum 256. DSN dan root
+artefak sama seperti publication; scope harus sama dengan coordinator CHUNK.
+Perintah memeriksa bytes terdaftar, checkpoint, completeness, closure dan ID
+chunk sebelum reservasi. Chunk ganda ditolak; batas populasi 32.768 chunk dan
+64 MiB bytes DocumentBatch, bukan ukuran PDF. Overflow ditolak tanpa truncation.
+
+Snapshot ID diturunkan dari daftar job/ref lengkap yang diurutkan, publication,
+corpus, generation dan scope. Replay identik memakai reservation/binding sama;
+input berbeda tidak dapat memakai reservation lama. Ini pilihan operator yang
+eksplisit, bukan klaim bahwa seluruh dokumen portal/direktori sudah tercakup.
+
+`corpus-facts.json` mengikuti format evaluator. `documents` menghitung distinct
+raw source SHA-256 dari CHUNK terverifikasi, `chunks` menghitung ID chunk unik,
+dan jumlah canonical entity/graph edge nol karena profil ini belum membentuk
+graph. Counts bukan eligibility PASS. Hash byte JSON tepat menjadi manifest
+hash snapshot; manifest terdaftar bersama dependency seluruh sumber asli.
+
+Folder output baru berisi `snapshot.pb`, `source-001.pb` dan seterusnya,
+`corpus-facts.json`, serta `sources.json` yang ditulis terakhir. File `.pb` adalah
+C01 biner untuk [CLI population Rust](lexical-population.md). `sources.json`
+merupakan peta operator job/artifact/nama ref, bukan wire schema alternatif.
+Existing directory/file tidak ditimpa. Kegagalan dapat meninggalkan sebagian
+data durable: ulangi input sama dengan folder output baru, jangan menganggap
+keberadaan folder sebagai bukti sukses. Snapshot published tidak dipersiapkan
+ulang sebagai publication baru.
+
+Vocabulary/freeze Rust dan allocator dictionary Go sudah tersedia; wiring
+operator untuk registrasi statistik, generation/model pin dan penjadwalan
+inventory INDEX masih perlu dirangkai. Perintah persiapan ini tidak menjalankan
+inference atau activation otomatis.
 
 ## Pengukuran dan bukti
 

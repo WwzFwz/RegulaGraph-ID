@@ -32,6 +32,12 @@ masih menolak zero-term selection secara eksplisit.
 
 ## Perintah operator
 
+Gunakan `prepare-snapshot` Go untuk mengekspor snapshot/ref C01 dari CHUNK
+terdaftar; [panduan](index-source-publication.md) menjelaskan pilihan source job,
+scope dan replay. Ini menghilangkan kebutuhan menyusun snapshot/source refs
+manual. Generation/statistik/scheduling berikutnya tetap harus memakai seluruh
+pilihan sumber yang sama.
+
 Jalankan `cargo build -p regulagraph-ingestion --bin regulagraph-lexical --locked --offline`.
 Sediakan snapshot dan setiap ArtifactRef sumber sebagai **protobuf biner C01**,
 bukan JSON. Artefak yang ditunjuk sudah berada di root store bersama. Inventory

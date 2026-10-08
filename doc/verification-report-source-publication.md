@@ -42,3 +42,20 @@ yang ditambahkan kemudian mendapat review tambahan PASS; log terpisah
 Pekerjaan tersisa mencakup persiapan inventory melalui CLI dari CHUNK nyata,
 run native/corpus penuh, graph/review-resume, answering produksi, incremental,
 observability/operasi dan gold/acceptance. Deployment tetap di luar scope.
+
+## Persiapan snapshot operator
+
+Lanjutan di atas revision `6504676` menambahkan `PrepareInitialSourceSnapshot`
+dan CLI `prepare-snapshot`. `artifacts/verification/20261009-snapshot-preparation/`
+menyimpan targeted.log, packages.log, vet.log serta independent.log, semuanya
+PASS. Perintah: `go test ./src/server/internal/indexing ./src/server/cmd/cli
+-count=1` dengan PostgreSQL/Qdrant disposable, dan `go vet` pada kedua paket.
+Reviewer `/root/verify_index_jobs` memeriksa boundary ini secara independen.
+
+Fixture memeriksa facts terhitung, exact manifest hash, receipt sumber, replay,
+perubahan generation/scope, duplikasi dan bytes corrupt. Export C01 diperiksa
+dengan validator produksi dan existing file tidak dapat ditimpa. Schema facts
+sesuai loader evaluator; jumlah graph nol tidak dianggap quality/eligibility
+PASS. Seluruh CLI belum dijalankan terhadap corpus PDF pengguna; hasil ini
+membuktikan library/adapter/export, bukan benchmark produksi. Registrasi
+statistik dan penjadwalan generation melalui operator masih perlu dilanjutkan.

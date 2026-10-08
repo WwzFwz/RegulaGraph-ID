@@ -1,5 +1,10 @@
 # src/server/cmd/cli
 
+`prepare_snapshot.go` menyediakan `prepare-snapshot` untuk mengekspor snapshot
+dan source refs C01 dari pilihan job/CHUNK terdaftar. Scope, hash dan authority
+diperiksa indexing; output memakai direktori baru tanpa overwrite. Lihat
+[panduan persiapan](../../../../doc/index-source-publication.md).
+
 Entry point perintah ingestion, update, serta query melalui komponen Go yang sama. Dokumen ini mendefinisikan superset tanggung jawab folder dan kontrak integrasi anaknya.
 
 ## Batas tanggung jawab
