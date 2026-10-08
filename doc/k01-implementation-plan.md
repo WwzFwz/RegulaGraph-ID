@@ -89,7 +89,8 @@ membership yang valid. Ketiadaan indeks berarti kemampuan expansion belum tersed
 Implementasi library canonical assertion/support kini tersedia pada
 [graph-canonical-identity.md](graph-canonical-identity.md). ID extraction tidak lagi
 menjadi satu-satunya pilihan keluaran materializer; mapping dan support tetap terjaga.
-GraphDelta/closure/dependency, snapshot registry view dan writer masih belum aktif.
+Snapshot registry view tersedia sebagai library PostgreSQL. GraphDelta, closure,
+dependency assembly serta writer masih belum terintegrasi dengan view tersebut.
 
 Identitas assertion mencakup subject/predicate/object, arah, qualifier, kondisi,
 pengecualian, interval yang diketahui, serta explicit/inferred. Dukungan sumber disimpan
