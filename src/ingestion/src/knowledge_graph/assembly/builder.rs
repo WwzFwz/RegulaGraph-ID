@@ -15,12 +15,13 @@
 //!
 //! Status: penggantian endpoint LINK/CREATE aktif sebagai library prapublikasi;
 //! ID assertion/support masih ID ekstraksi, belum dedup ke identitas assertion
-//! canonical. GraphDelta, closure, writer Neo4j, dan publication belum tersambung.
+//! canonical. canonical.rs kini mengomposisikan tahap ini dengan dedup/remap ID.
+//! GraphDelta, closure, writer Neo4j, dan publication belum tersambung.
 //!
 //! Keluaran saat ini hanya ResolvedRelations prapublikasi. GraphDelta batch kelak
 //! diserahkan ke coordinator Go, yang menggunakan adapter Neo4j untuk commit.
 //! Worker tidak membuka transaksi Neo4j sendiri.
-//! Rekomendasi implementasi berikutnya: rakit GraphDelta immutable dari hasil ini
+//! Rekomendasi implementasi berikutnya: rakit GraphDelta immutable dari hasil canonical.rs
 //! bersama dependency manifest/closure berversi, lalu validasi seluruh batch.
 //! Bukti verifikasi: Test duplicate extraction and withdrawing one of several sources; no dangling edges or deletion of shared support.
 //! Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
@@ -592,6 +593,50 @@ mod tests {
         );
         assert_eq!(result.supports.len(), 2);
         assert_eq!(result.supports, source.supports);
+    }
+
+    #[test]
+    fn composes_verified_resolution_with_canonical_identity() {
+        use crate::knowledge_graph::assembly::canonical::{
+            assemble_canonical_relations, CanonicalizationError,
+        };
+        let (source, resolution, source_ref, canonical) = fixture();
+        let ontology = Ontology::parse_jsonc(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../configs/ontology-v1.jsonc"
+        )))
+        .unwrap();
+        let output = assemble_canonical_relations(
+            &source,
+            &resolution,
+            &source_ref,
+            &ontology,
+            &canonical,
+            1000,
+            1 << 20,
+        )
+        .unwrap();
+        assert_eq!(output.relations.assertions.len(), 1);
+        assert_eq!(output.relations.supports.len(), 2);
+        assert_eq!(output.relations.assertions[0].subject_id, "canonical:1");
+        assert_eq!(
+            output.relations.supports[0].assertion_id,
+            output.relations.assertions[0].meta.record_id
+        );
+        assert!(matches!(
+            assemble_canonical_relations(
+                &source,
+                &resolution,
+                &source_ref,
+                &ontology,
+                &BTreeSet::new(),
+                1000,
+                1 << 20
+            ),
+            Err(CanonicalizationError::Resolution(
+                AssemblyError::MissingCanonical
+            ))
+        ));
     }
 
     #[test]
