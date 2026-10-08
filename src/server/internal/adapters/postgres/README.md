@@ -16,6 +16,12 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+[registry_entity_view.go](registry_entity_view.go) mengekspor exact canonical selection
+pada revision publication-bound dalam satu transaksi read-only. Hash profil, kolom,
+identity dan budget diperiksa; item hilang menggagalkan ekspor. Pembaca ini tidak
+menyimpan artefak atau membuktikan live fence setelah transaksi; coordinator melakukan
+admission/commit ulang. Lihat [kontrak input ASSEMBLE](../../../../../doc/graph-assembly-inputs.md).
+
 [registry_snapshot.go](registry_snapshot.go) mengikat publication ke revision registry
 immutable di bawah fence. Reader pinned di [registry_candidates.go](registry_candidates.go)
 memeriksa live lease dan history positif/negatif migration 0018. Writer alias menyimpan

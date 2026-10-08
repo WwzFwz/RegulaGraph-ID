@@ -17,6 +17,10 @@ dan binding publication tersedia; integrasi graph tetap diperlukan. CREATE/MERGE
 ASSEMBLE worker dan Neo4j tetap pekerjaan berikutnya. Library [GraphDelta](graph-delta.md)
 tersedia untuk upsert terikat sumber; closure incremental belum aktif.
 
+[Exporter canonical view dan plan ASSEMBLE](graph-assembly-inputs.md) kini tersedia
+di PostgreSQL/Go/Rust. Handoff worker masih membutuhkan persistence plan/view,
+receipt keputusan RESOLVE dan pemeriksaan authority pada admission/commit.
+
 Input adalah EXTRACT/CHUNK terverifikasi, candidate policy, registry revision, dan
 snapshot sumber. Output adalah keputusan resolusi teraudit, GraphDelta immutable,
 dependency manifest, serta graph yang dapat dibaca pada snapshot terpublikasi.

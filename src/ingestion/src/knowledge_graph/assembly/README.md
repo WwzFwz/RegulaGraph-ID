@@ -16,7 +16,11 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 Berkas: [builder.rs](builder.rs), [canonical.rs](canonical.rs),
 [canonical_tests.rs](canonical_tests.rs), [delta.rs](delta.rs),
-[delta_tests.rs](delta_tests.rs), [mod.rs](mod.rs).
+[delta_tests.rs](delta_tests.rs), [inputs.rs](inputs.rs), [mod.rs](mod.rs).
+
+`inputs.rs` menerima GraphAssemblyPlan dan RegistryEntityView C01, mengikat role sumber,
+publication/fence/revision, ontology dan exact canonical selection sebelum membentuk delta.
+Caller tetap memverifikasi bytes/receipt/authority; lihat [kontrak input](../../../../../doc/graph-assembly-inputs.md).
 
 `builder.rs` kini menyediakan fungsi prapublikasi yang mengganti endpoint mention
 berdasarkan keputusan LINK/CREATE RESOLVE terikat EXTRACT, memeriksa canonical yang

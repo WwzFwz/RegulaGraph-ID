@@ -14,6 +14,12 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+`RegistryEntityView`, `GraphAssemblyPlan` dan `ProcessBatchRequest.graph_assembly_plan`
+menambahkan seleksi registry revision-bound dan role input ASSEMBLE secara aditif.
+Baseline tetap; wire transport mempertahankan unknown fields, sementara gate stage
+menolaknya. Library exporter/validator tersedia; handler worker belum tersambung.
+Lihat [kontrak input ASSEMBLE](../../../../../doc/graph-assembly-inputs.md).
+
 `IndexBuildPlan`, `ProcessBatchRequest.index_build_plan`, `IndexBatch.build_plan`
 dan `LexicalStatisticsArtifact.input_policy` menambahkan handoff INDEX terpin secara
 aditif. Konsumen stage INDEX menolak plan/policy hilang; pembaca wire lama tetap

@@ -1,5 +1,10 @@
 # src/server/internal/domain
 
+[graph_assembly.go](graph_assembly.go) memvalidasi plan ASSEMBLE dan canonical view
+terikat publication/revision; gate menolak unknown stage fields, drift, role overlap,
+partial coverage dan overflow. Byte hash, registry receipt serta live authority tetap
+diverifikasi caller. Lihat [kontrak input graph](../../../../doc/graph-assembly-inputs.md).
+
 Definisi data dan invariant lintas komponen: dokumen, versi pasal, chunk, canonical entity, relasi, bukti, dan jawaban. Domain menjadi bahasa bersama kedua alur ingestion dan tanya jawab. Implementasi runtime berada di Go. Dokumen ini mendefinisikan superset tanggung jawab folder dan kontrak integrasi anaknya.
 
 ## Batas tanggung jawab

@@ -1,5 +1,10 @@
 # tests/fixtures
 
+Kasus `registry-view-*` dan `graph-assembly-*` menguji kontrak C01 selection/plan/request,
+field wajib dan unknown-field forwarding melalui empat bahasa. Exact coverage, source
+role dan authority publication diuji terpisah pada domain Rust/Go serta PostgreSQL;
+fixture wire tidak membuktikan worker ASSEMBLE atau kualitas graph sudah tersedia.
+
 `index-source-v1.pb` (8.9 KB) menyimpan DocumentBatch sintetis dari ekspor tes
 Rust CHUNK-to-INDEX, sumber pendamping kasus `index-build-*` pada wire-cases.json.
 Tes writer Go merebind corpus/ID/snapshot, memilih dua chunk dengan closure

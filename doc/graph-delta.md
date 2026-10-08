@@ -19,7 +19,8 @@ receipt keputusan registry sebelum membentuk input bertipe. Library tidak membac
 storage atau membuktikan sendiri bahwa sebuah `ArtifactRef` berisi objek yang diberikan.
 Entitas/ref registry harus berasal dari view revision yang sah, bukan ID buatan model.
 [Registry history](registry-history.md) menyediakan bagian storage untuk binding tersebut;
-export artefak view dan wiring worker ASSEMBLE masih harus disambungkan.
+[ekspor view dan plan ASSEMBLE](graph-assembly-inputs.md) tersedia sebagai library.
+Persistence artefak/receipt dan wiring worker ASSEMBLE masih harus disambungkan.
 
 Teks normalisasi ber-key ID TextArtifact diperiksa langsung oleh library: SHA-256 dan
 panjang harus sama dengan ref normalisasi di DocumentBatch; UTF-8 harus valid; span

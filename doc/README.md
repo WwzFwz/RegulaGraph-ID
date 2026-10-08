@@ -1,5 +1,10 @@
 # doc
 
+[graph-assembly-inputs.md](graph-assembly-inputs.md) menjelaskan canonical selection
+revision-bound, role plan ASSEMBLE dan kewajiban source/receipt/fence pemanggil.
+[verification-report-graph-assembly-inputs.md](verification-report-graph-assembly-inputs.md)
+mencatat uji PostgreSQL, wire empat bahasa, guard input dan review independen.
+
 [graph-delta.md](graph-delta.md) menjelaskan assembly upsert, validasi teks sumber,
 dependency/visibility dan kewajiban caller sebelum worker/publication disambungkan.
 [verification-report-graph-delta.md](verification-report-graph-delta.md) mencatat
