@@ -55,4 +55,19 @@ func TestSnapshotSelectionAndExport(t *testing.T) {
 	if _, err = os.Stat(filepath.Join(dir, "sources.json")); err != nil {
 		t.Fatal("completion manifest missing", err)
 	}
+	snapshot, sources, err := readPreparedSnapshot(dir)
+	if err != nil || !proto.Equal(snapshot, result.Snapshot) || len(sources) != 1 || sources[0].SourceJobID != "job:a" || sources[0].DocumentBatch.ArtifactId != ref.ArtifactId {
+		t.Fatal("export cannot feed INDEX preparation", err)
+	}
+	for _, invalid := range []string{`[]`, `[{"source_job_id":"job:a","artifact_id":"artifact:a","unknown":true}]`, `[{"source_job_id":"job:a","artifact_id":"artifact:a"},{"source_job_id":"job:a","artifact_id":"artifact:b"}]`, `[] {}`} {
+		if err = os.WriteFile(filepath.Join(dir, "sources.json"), []byte(invalid), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err = readPreparedSnapshot(dir); err == nil {
+			t.Fatal("invalid source export accepted", invalid)
+		}
+	}
+	if _, err = readPreparationFile(filepath.Join(dir, "snapshot.pb"), 1); err == nil {
+		t.Fatal("oversized input accepted")
+	}
 }

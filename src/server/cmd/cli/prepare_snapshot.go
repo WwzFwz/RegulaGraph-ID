@@ -133,6 +133,12 @@ func parseSnapshotSelections(corpus string, values []string) ([]indexing.Initial
 	return result, nil
 }
 
+type preparedSourceFile struct {
+	Job      string `json:"source_job_id"`
+	Artifact string `json:"artifact_id"`
+	Ref      string `json:"reference_file"`
+}
+
 func writeSnapshotPreparation(directory string, result *indexing.InitialSourceSnapshot) error {
 	write := func(name string, raw []byte) error {
 		file, err := os.OpenFile(filepath.Join(directory, name), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
@@ -155,12 +161,7 @@ func writeSnapshotPreparation(directory string, result *indexing.InitialSourceSn
 	if err = write("snapshot.pb", raw); err != nil {
 		return err
 	}
-	type sourceFile struct {
-		Job      string `json:"source_job_id"`
-		Artifact string `json:"artifact_id"`
-		Ref      string `json:"reference_file"`
-	}
-	index := []sourceFile{}
+	index := []preparedSourceFile{}
 	for i, source := range result.Sources {
 		name := fmt.Sprintf("source-%03d.pb", i+1)
 		raw, err = (proto.MarshalOptions{Deterministic: true}).Marshal(source.DocumentBatch)
@@ -170,7 +171,7 @@ func writeSnapshotPreparation(directory string, result *indexing.InitialSourceSn
 		if err = write(name, raw); err != nil {
 			return err
 		}
-		index = append(index, sourceFile{source.SourceJobID, source.DocumentBatch.ArtifactId, name})
+		index = append(index, preparedSourceFile{source.SourceJobID, source.DocumentBatch.ArtifactId, name})
 	}
 	raw, err = json.Marshal(index)
 	if err != nil {
