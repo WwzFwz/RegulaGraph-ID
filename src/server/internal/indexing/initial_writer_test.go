@@ -202,7 +202,7 @@ func runInitialIndexPublication(t *testing.T, requireGraph, contentAddressed boo
 	snapshot.Sequence = reservation.Sequence
 	plan.TargetSnapshot, plan.SourceSnapshot = proto.Clone(snapshot).(*pb.SnapshotRef), proto.Clone(snapshot).(*pb.SnapshotRef)
 	source.Context.SnapshotRef = proto.Clone(snapshot).(*pb.SnapshotRef)
-	if storageMode == "source-binding" {
+	if storageMode == "source-binding" || storageMode == "snapshot-preparation" {
 		source.Context.SnapshotRef = nil
 	}
 	batch.Context.SnapshotRef = proto.Clone(snapshot).(*pb.SnapshotRef)
@@ -287,6 +287,13 @@ func runInitialIndexPublication(t *testing.T, requireGraph, contentAddressed boo
 		t.Fatal(err)
 	}
 	analyzer := new(pb.LexicalAnalyzerArtifact)
+	if storageMode == "snapshot-preparation" {
+		if err = repo.AbortPublication(ctx, pub); err != nil {
+			t.Fatal(err)
+		}
+		checkInitialSnapshotPreparation(t, ctx, repo, artifacts, corpus, pub+":prepared", plan.Generation.Meta.RecordId, source.Context.AuthScopeRef, job, plan.DocumentBatch)
+		return
+	}
 	if storageMode == "source-binding" {
 		boundRef, boundSource := checkSnapshotSourceBinding(t, ctx, repo, conn, pub, reservation.Fence, snapshot, job, plan.DocumentBatch, artifacts, source.Context.AuthScopeRef)
 		plan.DocumentBatch, source = boundRef, boundSource
