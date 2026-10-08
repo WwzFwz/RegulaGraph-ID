@@ -231,6 +231,10 @@ impl Ontology {
     pub fn version(&self) -> &str {
         &self.version
     }
+    /// Registry rows must use the same vocabulary as extraction, including isolated nodes.
+    pub fn permits_entity_type(&self, entity_type: &str) -> bool {
+        self.entities.contains(entity_type)
+    }
     pub fn sha256(&self) -> &str {
         &self.hash
     }

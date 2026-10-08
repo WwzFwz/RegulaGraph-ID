@@ -16,13 +16,14 @@
 //! Status: penggantian endpoint LINK/CREATE aktif sebagai library prapublikasi;
 //! ID assertion/support masih ID ekstraksi, belum dedup ke identitas assertion
 //! canonical. canonical.rs kini mengomposisikan tahap ini dengan dedup/remap ID.
-//! GraphDelta, closure, writer Neo4j, dan publication belum tersambung.
+//! delta.rs membangun GraphDelta upsert; closure, worker, writer Neo4j dan publication
+//! belum tersambung.
 //!
 //! Keluaran saat ini hanya ResolvedRelations prapublikasi. GraphDelta batch kelak
 //! diserahkan ke coordinator Go, yang menggunakan adapter Neo4j untuk commit.
 //! Worker tidak membuka transaksi Neo4j sendiri.
-//! Rekomendasi implementasi berikutnya: rakit GraphDelta immutable dari hasil canonical.rs
-//! bersama dependency manifest/closure berversi, lalu validasi seluruh batch.
+//! Rekomendasi implementasi berikutnya: sambungkan output delta.rs ke worker dengan
+//! registry view ber-receipt, lalu lanjutkan closure berversi dan publication backend.
 //! Bukti verifikasi: Test duplicate extraction and withdrawing one of several sources; no dangling edges or deletion of shared support.
 //! Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
 

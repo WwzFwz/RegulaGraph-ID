@@ -10,11 +10,16 @@
 //! Ukur p50/p95/p99, throughput, waktu antre, serta RSS/VRAM sesuai workload. Ambang wajib ada di configs/benchmark-targets.yaml (REQUIRED_UNMEASURED); ukur cold/warm terpisah dan pertahankan kualitas sumber/versi.
 //!
 //! Status: materialisasi endpoint dan canonical assertion/support prapublikasi aktif
-//! sebagai library; canonical.rs mempertahankan mapping dan source support. GraphDelta,
-//! worker, writer Neo4j, dan publication belum tersedia.
+//! sebagai library; canonical.rs mempertahankan mapping dan source support. delta.rs
+//! membangun GraphDelta upsert terikat sumber; worker, writer Neo4j, closure incremental
+//! dan publication belum tersambung.
 
 pub mod builder;
 pub mod canonical;
+pub mod delta;
 
 #[cfg(test)]
 mod canonical_tests;
+
+#[cfg(test)]
+mod delta_tests;

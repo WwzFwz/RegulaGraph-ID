@@ -315,7 +315,7 @@ pub fn canonicalize_relations(
 // C01 transport preserves unknown fields for compatibility. Hash-v1 cannot safely
 // interpret them or serialize their HashMap order canonically, so it rejects them
 // recursively instead of dropping possibly meaningful future qualifiers/constraints.
-fn reject_unknown_fields(
+pub(super) fn reject_unknown_fields(
     message: &dyn MessageDyn,
     depth: u32,
 ) -> Result<(), CanonicalizationError> {
