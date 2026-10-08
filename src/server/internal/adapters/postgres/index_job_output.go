@@ -108,3 +108,36 @@ func (r *Repository) SaveIndexCheckpoint(ctx context.Context, cp *pb.Checkpoint,
 		return nil
 	})
 }
+
+// IndexCheckpointCommitted reconciles a lost commit acknowledgement by checking
+// the exact checkpoint bytes and atomic STAGED state. It never approves new
+// work or publication, and a different checkpoint/fence cannot count as success.
+func (r *Repository) IndexCheckpointCommitted(ctx context.Context, cp *pb.Checkpoint) (bool, error) {
+	if err := domain.ValidateWire(cp, domain.DefaultWireLimits); err != nil {
+		return false, err
+	}
+	if cp.Stage != pb.JobStage_JOB_STAGE_INDEX || cp.TerminalStatus != pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED {
+		return false, errors.New("successful INDEX checkpoint required")
+	}
+	var payload []byte
+	var hash string
+	var state int16
+	err := r.pool.QueryRow(ctx, `SELECT c.payload,c.payload_hash,j.state FROM jobs j
+	 JOIN job_checkpoints c ON c.checkpoint_id=j.latest_checkpoint_id
+	 JOIN index_job_assignments a ON a.job_id=j.job_id
+	 WHERE j.job_id=$1 AND j.corpus_id=$2`, cp.JobId, cp.Meta.CorpusId).Scan(&payload, &hash, &state)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if fmt.Sprintf("%x", sha256.Sum256(payload)) != hash {
+		return false, domain.ErrPersistentIntegrity
+	}
+	expected, err := (proto.MarshalOptions{Deterministic: true}).Marshal(cp)
+	if err != nil {
+		return false, err
+	}
+	return state == int16(pb.JobState_JOB_STATE_STAGED) && hash == fmt.Sprintf("%x", sha256.Sum256(expected)), nil
+}

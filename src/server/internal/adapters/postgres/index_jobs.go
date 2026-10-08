@@ -220,3 +220,24 @@ func (r *Repository) LoadIndexJobInventory(ctx context.Context, publicationID st
 	}
 	return result, nil
 }
+
+// IndexJobPublication is a cheap pre-dispatch authority check even when the
+// immutable admitted inventory is cached. Output commit checks authority again.
+func (r *Repository) IndexJobPublication(ctx context.Context, job domain.JobRecord) (string, error) {
+	var publication string
+	err := r.pool.QueryRow(ctx, `SELECT i.publication_id FROM index_job_assignments a
+	 JOIN index_job_inventories i ON i.publication_id=a.publication_id
+	 JOIN jobs j ON j.job_id=a.job_id JOIN jobs source ON source.job_id=a.source_job_id
+	 JOIN snapshots s ON s.publication_id=i.publication_id
+	 JOIN corpus_state c ON c.corpus_id=i.corpus_id
+	 WHERE j.job_id=$1 AND j.corpus_id=$2 AND i.corpus_id=$2 AND j.lease_owner=$3 AND j.lease_fence=$4
+	 AND j.stage=$5 AND j.state=$6 AND j.lease_expires_at>=clock_timestamp()
+	 AND NOT j.cancellation_requested AND NOT source.cancellation_requested
+	 AND s.fence=i.fence AND c.publisher_fence=i.fence AND s.state IN ($7,$8)`,
+		job.JobID, job.CorpusID, job.LeaseOwner, int64(job.LeaseFence), int16(pb.JobStage_JOB_STAGE_INDEX), int16(pb.JobState_JOB_STATE_RUNNING),
+		int16(pb.SnapshotState_SNAPSHOT_STATE_STAGING), int16(pb.SnapshotState_SNAPSHOT_STATE_VALIDATING)).Scan(&publication)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", domain.ErrIndexReplan
+	}
+	return publication, err
+}

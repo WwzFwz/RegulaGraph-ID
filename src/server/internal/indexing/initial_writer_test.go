@@ -411,6 +411,10 @@ func runInitialIndexPublication(t *testing.T, requireGraph, contentAddressed boo
 		t.Fatal(err)
 	}
 	generatedRef := put(generated.Meta.RecordId, domain.IndexBatchMediaType, generated)
+	if storageMode == "processor" {
+		checkIndexProcessor(t, ctx, repo, planned, artifacts, generated)
+		return
+	}
 	if storageMode == "output" || storageMode == "wide-output" {
 		checkIndexOutputCommit(t, ctx, repo, conn, planned, generatedRef, generated)
 		return

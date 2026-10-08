@@ -33,6 +33,11 @@ func TestInitialIndexInventoryRestoresAdmission(t *testing.T) {
 	}
 	in.Assignments[0].Plan.Items[0].ChunkId = "changed"
 	fresh, _ := p.JobInventory()
+	badScope, _ := p.JobInventory()
+	badScope.AuthScope = "scope with whitespace"
+	if err := domain.ValidateIndexJobInventory(badScope); err == nil {
+		t.Fatal("undispatchable auth scope admitted")
+	}
 	if proto.Equal(in.Assignments[0].Plan, fresh.Assignments[0].Plan) {
 		t.Fatal("inventory aliases internal plan")
 	}

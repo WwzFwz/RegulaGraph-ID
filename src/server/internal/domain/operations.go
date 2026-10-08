@@ -24,6 +24,10 @@ var ErrPersistentIntegrity = errors.New("persistent integrity violation")
 // longer commit. The same job must fail; a new job may build candidates at a fresh revision.
 var ErrResolutionReplan = errors.New("semantic resolution requires a new candidate plan")
 
+// ErrIndexReplan marks an INDEX assignment whose publication/source authority
+// no longer permits work. Replaying inference cannot repair this reservation.
+var ErrIndexReplan = errors.New("index assignment requires a new publication plan")
+
 // ErrCandidateViewChanged means the registry advanced during candidate preparation,
 // before an immutable RESOLVE intent exists. The same claimed job may refresh its view.
 var ErrCandidateViewChanged = errors.New("candidate registry view changed; retry lookup")

@@ -36,6 +36,10 @@ func ValidateIndexJobInventory(in IndexJobInventory) error {
 	if err := ValidateWire(in.Snapshot, DefaultWireLimits); err != nil {
 		return err
 	}
+	// Auth scope is carried as an ascii_id in RequestContext at dispatch.
+	if err := ValidateWire(&pb.RecordMeta{SchemaVersion: 1, CorpusId: in.Snapshot.CorpusId, RecordId: in.AuthScope}, DefaultWireLimits); err != nil {
+		return err
+	}
 	if in.AuthScope == "" || len(in.AuthScope) > 256 || in.Snapshot.CorpusId != in.Binding.Generation.Meta.CorpusId || in.Snapshot.RepresentationGeneration != in.Binding.Generation.Meta.RecordId || len(in.Assignments) == 0 || len(in.Assignments) > 256 {
 		return errors.New("invalid INDEX inventory identity/bounds")
 	}
