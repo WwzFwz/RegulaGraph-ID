@@ -1,5 +1,10 @@
 # doc
 
+[registry-history.md](registry-history.md) menjelaskan lookup historis di bawah lease,
+binding publication immutable dan batas history corpus existing pada migration 0018.
+[verification-report-registry-history.md](verification-report-registry-history.md)
+mencatat upgrade, concurrent lease release dan regresi PostgreSQL independen.
+
 [graph-canonical-identity.md](graph-canonical-identity.md) menjelaskan dedup assertion,
 support provenance, exception remap dan batas library Rust prapublikasi.
 [verification-report-graph-canonical.md](verification-report-graph-canonical.md)

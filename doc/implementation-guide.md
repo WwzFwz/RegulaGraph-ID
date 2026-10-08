@@ -4,6 +4,11 @@ Dokumen ini memandu agent implementasi berikutnya, termasuk Sol 5.6, untuk merea
 
 ## Mulai setiap sesi
 
+[Registry history](registry-history.md) kini memiliki binding publication immutable
+dan lookup di bawah live snapshot lease. Migration 0018 membatasi history corpus lama
+sejak revision upgrade. Library ini belum mengikat GraphDelta/generation atau entity
+linker request; langkah integrasi tersebut harus memakai revision yang sama.
+
 Assembly Rust kini memiliki `assemble_canonical_relations`: endpoint materialization
 diikuti dedup assertion/support dengan mapping, exception closure acyclic dan budget
 input/output. [Kontrak](graph-canonical-identity.md) membatasi identitas temporal dan
@@ -12,7 +17,7 @@ canonicalization library belum worker/Neo4j publication.
 
 Checkpoint lanjutan K01: [review-resolution](semantic-review.md) kini menyediakan
 inspeksi dan acceptance lokal terikat hash/revision. Approval, intent dan resume atomik;
-executor memakai intent tanpa model call ulang. Lanjutkan historical registry view,
+executor memakai intent tanpa model call ulang. Lanjutkan integrasi registry view,
 perubahan canonical dan ASSEMBLE/Neo4j. Fixture bukan review manusia terhadap corpus.
 
 Checkpoint 2026-10-09: population vocabulary/statistik Rust, allocator dictionary

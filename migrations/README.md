@@ -14,6 +14,11 @@ Anak tidak boleh mengubah kontrak input/output secara tersembunyi. Perubahan ben
 
 ## Isi saat ini
 
+[0018_registry_history.up.sql](0018_registry_history.up.sql) mempertahankan count
+lookup dan binding publication immutable. Corpus existing dibatasi mulai revision
+saat upgrade; data sebelum itu dan binding snapshot lama tidak direka. Upgrade
+writer secara terkoordinasi. Lihat [kontrak history](../doc/registry-history.md).
+
 [0017_semantic_review_resume.up.sql](0017_semantic_review_resume.up.sql) menambah
 audit batch immutable tanpa backfill. Terapkan sebelum CLI review. Review, intent
 dan resume ditulis satu transaksi aplikasi; lock time produksi belum diukur.

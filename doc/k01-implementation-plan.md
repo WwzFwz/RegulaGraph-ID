@@ -12,8 +12,9 @@ Perannya menghubungkan resolusi identitas, assembly Rust, dan publication Go den
 
 Pembaruan 2026-10-09: review/resume lokal tersedia pada [panduan](semantic-review.md).
 Usulan `registry_review.go` direalisasikan oleh `adapters/postgres/semantic_review.go`
-dengan intent/checkpoint existing. CREATE/MERGE/SPLIT, historical registry view,
-ASSEMBLE dan Neo4j tetap pekerjaan berikutnya.
+dengan intent/checkpoint existing. Primitive [historical registry view](registry-history.md)
+dan binding publication tersedia; integrasi graph tetap diperlukan. CREATE/MERGE/SPLIT,
+ASSEMBLE GraphDelta dan Neo4j tetap pekerjaan berikutnya.
 
 Input adalah EXTRACT/CHUNK terverifikasi, candidate policy, registry revision, dan
 snapshot sumber. Output adalah keputusan resolusi teraudit, GraphDelta immutable,

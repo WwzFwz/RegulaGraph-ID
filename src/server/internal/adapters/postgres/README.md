@@ -16,6 +16,13 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+[registry_snapshot.go](registry_snapshot.go) mengikat publication ke revision registry
+immutable di bawah fence. Reader pinned di [registry_candidates.go](registry_candidates.go)
+memeriksa live lease dan history positif/negatif migration 0018. Writer alias menyimpan
+count history atomik; scope alias tidak dapat diubah lewat writer lookup generik.
+Lihat [kontrak dan batas migrasi](../../../../../doc/registry-history.md).
+Ini primitive library; wiring graph dan entity linker request masih diperlukan.
+
 [semantic_review.go](semantic_review.go) menyimpan LINK reviews dalam batch, intent,
 audit dan resume dalam satu transaksi corpus/job. Migration 0017 wajib tersedia.
 Caller workflow mengautentikasi operator dan bytes; adapter mengunci state/revision,
