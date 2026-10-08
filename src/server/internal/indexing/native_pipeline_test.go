@@ -291,4 +291,5 @@ func TestNativeIndexPipeline(t *testing.T) {
 		}
 	}
 	t.Logf("native pipeline: %d source chunks, %d INDEX jobs, %d hydrated evidence items; model %s@%s", len(source.Chunks), len(inventory.Assignments), len(result.Evidence.Items), model.ModelId, model.Version)
+	verifyNativeEvidenceAPI(t, ctx, dsn, root, nativeEndpoint, endpoint, scope, question, published)
 }
