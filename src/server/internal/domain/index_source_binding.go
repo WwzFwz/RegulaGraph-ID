@@ -36,7 +36,7 @@ func BindInitialSnapshotSource(sourceJob string, original *pb.DocumentBatch, ori
 		}
 	}
 	if original.Meta.CorpusId != target.CorpusId || original.Context.CorpusId != target.CorpusId || original.Context.AuthScopeRef != scope || original.Context.SnapshotRef != nil ||
-		originalRef.MediaType != "application/x-protobuf; message=regulagraph.v1.DocumentBatch" || originalRef.ByteSize == 0 || len(original.Chunks) == 0 {
+		!IsDocumentBatchMediaType(originalRef.MediaType) || originalRef.ByteSize == 0 || len(original.Chunks) == 0 {
 		return nil, errors.New("initial snapshot binding requires complete unpublished CHUNK source in the same scope/corpus")
 	}
 	refBytes, err := (proto.MarshalOptions{Deterministic: true}).Marshal(originalRef)

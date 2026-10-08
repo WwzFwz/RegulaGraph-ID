@@ -206,7 +206,9 @@ func (l *initialArtifactLoader) read(ctx context.Context, ref *pb.ArtifactRef, t
 	if err := domain.ValidateWire(ref, domain.DefaultWireLimits); err != nil {
 		return errors.Join(err, domain.ErrPersistentIntegrity)
 	}
-	if ref.MediaType != "application/x-protobuf; message="+string(target.ProtoReflect().Descriptor().FullName()) {
+	_, documentBatch := target.(*pb.DocumentBatch)
+	mediaMatches := ref.MediaType == "application/x-protobuf; message="+string(target.ProtoReflect().Descriptor().FullName())
+	if !mediaMatches && !(documentBatch && domain.IsDocumentBatchMediaType(ref.MediaType)) {
 		return errors.Join(errors.New("initial INDEX artifact media type mismatch"), domain.ErrPersistentIntegrity)
 	}
 	entry, ok := l.cache[ref.ArtifactId]

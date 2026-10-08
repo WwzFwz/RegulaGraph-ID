@@ -31,9 +31,8 @@ func ValidateIndexSourceBinding(binding IndexSourceBinding) error {
 			return err
 		}
 	}
-	const media = "application/x-protobuf; message=regulagraph.v1.DocumentBatch"
 	if binding.Fence == 0 || binding.Fence > 1<<63-1 || binding.Original.ArtifactId == binding.Bound.ArtifactId || proto.Equal(binding.Original.ContentHash, binding.Bound.ContentHash) ||
-		binding.Original.MediaType != media || binding.Bound.MediaType != media || binding.Original.ByteSize == 0 || binding.Bound.ByteSize == 0 || binding.Original.ByteSize > 16<<20 || binding.Bound.ByteSize > 16<<20 {
+		!IsDocumentBatchMediaType(binding.Original.MediaType) || binding.Bound.MediaType != binding.Original.MediaType || binding.Original.ByteSize == 0 || binding.Bound.ByteSize == 0 || binding.Original.ByteSize > 16<<20 || binding.Bound.ByteSize > 16<<20 {
 		return errors.New("invalid initial snapshot source binding")
 	}
 	return nil

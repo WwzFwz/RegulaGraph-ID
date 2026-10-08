@@ -27,6 +27,15 @@ import (
 const ProvisionIdentityKeyNamespace = "provision-structural-path:v1"
 const CanonicalEntityTypeProvision int16 = 3
 
+// DocumentBatchMediaType is emitted by the Rust worker and the Go BIND stage.
+const DocumentBatchMediaType = "application/vnd.regulagraph.document-batch+protobuf"
+
+// IsDocumentBatchMediaType also reads the exact typed protobuf form used by
+// earlier index fixtures/exports. Never accept untyped application/x-protobuf.
+func IsDocumentBatchMediaType(media string) bool {
+	return media == DocumentBatchMediaType || media == "application/x-protobuf; message=regulagraph.v1.DocumentBatch"
+}
+
 // RegulationDocumentBinding supplies registry-owned identities for one exact source candidate.
 // IssuerID is resolved separately because a sourced issuer label is not itself a stable identity.
 type RegulationDocumentBinding struct {

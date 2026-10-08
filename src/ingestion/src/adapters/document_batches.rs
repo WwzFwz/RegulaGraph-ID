@@ -9,6 +9,8 @@
 //! Validasi wire dan invariant semantik DocumentBatch dilakukan sebelum serialisasi dan sesudah load.
 //! Media type serta schema descriptor dibekukan pada boundary ini. Retry payload identik menghasilkan
 //! descriptor identik; kegagalan write tidak menghasilkan response sukses dan tidak mengubah visibility.
+//! Reader menerima alias protobuf typed persis dari ekspor indeks Go lama; writer tetap memakai
+//! vendor media type. Alias tidak melewati verifikasi hash/schema/semantik atau menerima tipe umum.
 //!
 //! Benchmark dan gate penerimaan:
 //! Ukur serialization/deserialization throughput, p95/p99 write/read, payload bytes/record, peak RSS,
@@ -16,7 +18,7 @@
 //! roundtrip unit tidak membuktikan throughput, durability, atau wire parity lintas bahasa.
 //!
 //! Status: persistence dan verified load DocumentBatch lokal aktif pada worker PARSE/STRUCTURE;
-//! publication Go serta binding provision-version/CHUNK belum terhubung.
+//! binding provision-version/CHUNK dan source snapshot Go tersedia; graph/publication lengkap terpisah.
 
 use crate::adapters::storage::{ArtifactDescriptor, ArtifactStore, ArtifactStoreError};
 use crate::domain::document_batch::{
@@ -100,7 +102,9 @@ pub fn load_document_batch(
     store: &ArtifactStore,
     descriptor: &ArtifactDescriptor,
 ) -> Result<documents::DocumentBatch, DocumentBatchArtifactError> {
-    if descriptor.media_type != DOCUMENT_BATCH_MEDIA_TYPE {
+    if descriptor.media_type != DOCUMENT_BATCH_MEDIA_TYPE
+        && descriptor.media_type != "application/x-protobuf; message=regulagraph.v1.DocumentBatch"
+    {
         return Err(DocumentBatchArtifactError::InvalidDescriptor("media_type"));
     }
     if descriptor.schema_version != SCHEMA_VERSION {
@@ -244,6 +248,9 @@ mod tests {
         assert_eq!(first, second);
         assert_eq!(first.reference, first.descriptor.to_wire_ref().unwrap());
         assert_eq!(first.reference.media_type, DOCUMENT_BATCH_MEDIA_TYPE);
+        let mut legacy = first.descriptor.clone();
+        legacy.media_type = "application/x-protobuf; message=regulagraph.v1.DocumentBatch".into();
+        assert_eq!(load_document_batch(&store, &legacy).unwrap(), batch);
         assert_eq!(
             load_document_batch(&store, &first.descriptor).unwrap(),
             batch

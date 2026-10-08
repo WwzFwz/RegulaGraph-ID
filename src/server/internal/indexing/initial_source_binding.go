@@ -50,7 +50,9 @@ func BindInitialIndexSource(ctx context.Context, store IndexSourceBindingStore, 
 		return InitialIndexSource{}, err
 	}
 	hash := fmt.Sprintf("%x", sha256.Sum256(raw))
-	ref := &pb.ArtifactRef{ArtifactId: "artifact:document-batch:" + hash, ContentHash: &pb.ContentHash{Sha256: hash}, StorageKey: "sha256/" + hash[:2] + "/" + hash[2:4] + "/" + hash + ".bin", SchemaVersion: 1, ByteSize: uint64(len(raw)), MediaType: "application/x-protobuf; message=regulagraph.v1.DocumentBatch"}
+	// Preserve the admitted media label, including legacy exact typed exports,
+	// so replay never mutates registered metadata for otherwise identical bytes.
+	ref := &pb.ArtifactRef{ArtifactId: "artifact:document-batch:" + hash, ContentHash: &pb.ContentHash{Sha256: hash}, StorageKey: "sha256/" + hash[:2] + "/" + hash[2:4] + "/" + hash + ".bin", SchemaVersion: 1, ByteSize: uint64(len(raw)), MediaType: input.DocumentBatch.MediaType}
 	binding := domain.IndexSourceBinding{PublicationID: publication, Fence: fence, SourceJobID: input.SourceJobID, Snapshot: snapshot, AuthScope: scope, Original: input.DocumentBatch, Bound: ref}
 	if err = domain.ValidateIndexSourceBinding(binding); err != nil {
 		return InitialIndexSource{}, err

@@ -14,6 +14,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 	pb "regulagraph.local/server/gen/regulagraph/v1"
+	"regulagraph.local/server/internal/domain"
 )
 
 type artifactTestAuthority struct {
@@ -59,11 +60,14 @@ func TestInitialArtifactIdentityAdmission(t *testing.T) {
 				ContentHash: &pb.ContentHash{Sha256: sum}, StorageKey: "objects/" + sum,
 				MediaType: "application/x-protobuf; message=" + string(fixture.msg.ProtoReflect().Descriptor().FullName()),
 				ByteSize:  uint64(len(raw)), SchemaVersion: 1}
-			for _, scenario := range []string{"logical", "physical", "wrong corpus", "wrong media", "corrupt bytes", "unregistered", "insufficient budget", "reference drift"} {
+			for _, scenario := range []string{"logical", "physical", "worker media", "wrong corpus", "wrong media", "corrupt bytes", "unregistered", "insufficient budget", "reference drift"} {
 				t.Run(scenario, func(t *testing.T) {
 					ref := proto.Clone(original).(*pb.ArtifactRef)
 					if scenario == "physical" {
 						ref.ArtifactId = "artifact:document-batch:" + sum
+					}
+					if scenario == "worker media" {
+						ref.MediaType = domain.DocumentBatchMediaType
 					}
 					corpus := fixture.msg.GetMeta().CorpusId
 					if scenario == "wrong corpus" {
@@ -94,7 +98,7 @@ func TestInitialArtifactIdentityAdmission(t *testing.T) {
 					}
 					decoded := fixture.msg.ProtoReflect().New().Interface()
 					err := loader.read(context.Background(), ref, decoded)
-					wantOK := scenario == "logical" || scenario == "physical" && fixture.physicalAllowed
+					wantOK := scenario == "logical" || (scenario == "physical" || scenario == "worker media") && fixture.physicalAllowed
 					if (err == nil) != wantOK {
 						t.Fatalf("accepted=%v want=%v: %v", err == nil, wantOK, err)
 					}
