@@ -21,6 +21,10 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+[semantic_review.go](semantic_review.go) membawa queue dan input commit review antar
+workflow/storage Go. Ini bukan schema publik atau bukti autentikasi; principal milik
+boundary operator, byte validation milik workflow, atomic resume milik PostgreSQL.
+
 [index_jobs.go](index_jobs.go) membatasi inventory local coordinator: job/plan,
 source ownership, snapshot, generation, hash byte dan keunikan chunk/record.
 Validasi bentuk tidak menggantikan authority PostgreSQL atau admission sumber.

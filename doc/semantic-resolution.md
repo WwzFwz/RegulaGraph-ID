@@ -4,6 +4,10 @@ Dokumen ini menjelaskan jalur proposal resolusi model, batas integrasinya, dan c
 
 ## Input, proses, output
 
+Pembaruan 2026-10-09: [review operator lokal](semantic-review.md) kini menyambungkan
+proposal WAITING_REVIEW ke acceptance/intent atomik dan resume executor. Ini bukan
+auto-approval; canonical CREATE/MERGE/SPLIT serta ASSEMBLE masih belum aktif.
+
 `PrepareAndStorePlannedCandidates` sekarang membangun lookup exact dari setiap mention EXTRACT dengan `CandidatePlanningPolicy`: scope per tipe di konfigurasi corpus dan, untuk tipe yang diizinkan, regulation ID dari provenance sumber. Seluruh scope, termasuk namespace ambigu, tetap dicari; batas yang terlampaui menghentikan batch tanpa memangkas kandidat. Normalisasi key Go cocok dengan Rust untuk whitespace dan casing Unicode kontekstual, tanpa menghapus nomor pasal, tanda baca, atau diakritik. Setiap tipe ontology v1 memiliki kode registry stabil, termasuk `provision`; ID lama `regulation`/`organization` tetap sama.
 
 Policy harus dipin saat submit pada `IngestionRequest.ConfigManifest.InputHashes`, lalu pada producer kandidat. Scheduler memerlukan policy untuk corpus yang dipilih, sedangkan CLI submit menambahkan hash ontology/policy dari file yang telah diverifikasi. Handoff RESOLVE membekukan hash policy tepercaya per corpus, memuat ulang request durable dengan deadline lease, memeriksa corpus serta hash policy, dan membandingkan fingerprint konfigurasi EXTRACT dengan manifest request sebelum lookup. Hash policy tambahan di request atau manifest kandidat tidak dapat memilih policy lain. Rotasi konfigurasi yang belum memuat policy lama membuat job lama gagal secara eksplisit; job lama tanpa pin policy memerlukan submit ulang. Jalur rencana eksplisit yang sudah ada tetap tersedia untuk caller tepercaya, tetapi tidak mengklaim policy corpus terpin. Penentuan isi scope adalah keputusan konfigurasi domain/hukum yang belum dibekukan untuk corpus produksi; fixture `national` dan `regional` hanya menguji mekanisme.

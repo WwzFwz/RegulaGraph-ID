@@ -1,5 +1,10 @@
 # src/server/cmd/cli
 
+`semantic_review.go` menyediakan `review-resolution` untuk inspeksi dan acceptance
+batch LINK/DEFER exact. Akun OS menjadi identitas audit; corpus/scope dan kredensial
+operator menjadi batas akses. Approval belum berarti registry committed/published;
+lihat [panduan](../../../../doc/semantic-review.md).
+
 `prepare_snapshot.go` menyediakan `prepare-snapshot` untuk mengekspor snapshot
 dan source refs C01 dari pilihan job/CHUNK terdaftar. Scope, hash dan authority
 diperiksa indexing; output memakai direktori baru tanpa overwrite. Lihat

@@ -16,6 +16,11 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+[semantic_review.go](semantic_review.go) menyimpan LINK reviews dalam batch, intent,
+audit dan resume dalam satu transaksi corpus/job. Migration 0017 wajib tersedia.
+Caller workflow mengautentikasi operator dan bytes; adapter mengunci state/revision,
+checkpoint dan cancellation. Exact replay tidak mengubah status atau budget job.
+
 `artifacts.go` menyediakan `EnsureArtifactDependencyManifest` untuk import
 statistik: artifact row dikunci dan replay harus memakai seluruh dependency serta
 producer hash identik. Metode replacement lama tetap tersedia bagi pipeline yang

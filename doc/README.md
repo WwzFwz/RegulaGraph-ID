@@ -1,5 +1,10 @@
 # doc
 
+[semantic-review.md](semantic-review.md) menjelaskan inspeksi/acceptance operator
+lokal, hash/revision binding dan resume tanpa model call ulang.
+[verification-report-semantic-review.md](verification-report-semantic-review.md)
+membedakan bukti DEFER end-to-end dan LINK transaction dari kualitas model.
+
 [evidence-api.md](evidence-api.md) menjelaskan runtime HTTP lokal untuk query
 evidence terpin, autentikasi, resource reuse, readiness dan cara menghentikannya.
 [verification-report-evidence-api.md](verification-report-evidence-api.md)

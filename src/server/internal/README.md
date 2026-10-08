@@ -14,6 +14,10 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+Review operator lokal menghubungkan queue RESOLVE ke approval/intent durable dan
+resume executor. PostgreSQL memiliki transaksi; CLI memiliki principal/config.
+Lihat [kontrak review](../../../doc/semantic-review.md).
+
 Subfolder: [adapters/](adapters/README.md), [answering/](answering/README.md), [api/](api/README.md), [config/](config/README.md), [domain/](domain/README.md), [indexing/](indexing/README.md), [ingestion/](ingestion/README.md), [retrieval/](retrieval/README.md), [workflows/](workflows/README.md).
 
 Akuisisi dan audit inventory D01 sudah aktif melalui CLI, workflow batch, serta adapter sources. Scheduler durable dan publication coordinator S01 juga aktif. Executor PARSE→STRUCTURE menyerahkan artefak ke worker Rust; executor BIND Go menjalankan exact identity/materialization; executor CHUNK menghasilkan chunk struktural terikat versi; EXTRACT memverifikasi dan meng-commit proposal graph berbukti. Adapter INDEX/Qdrant, query evidence dan draft answering tersedia sebagai library; daemon INDEX opt-in berakhir pada STAGED. Integrasi graph dan alur corpus-to-answer penuh masih terbuka.

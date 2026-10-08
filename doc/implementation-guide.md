@@ -4,6 +4,11 @@ Dokumen ini memandu agent implementasi berikutnya, termasuk Sol 5.6, untuk merea
 
 ## Mulai setiap sesi
 
+Checkpoint lanjutan K01: [review-resolution](semantic-review.md) kini menyediakan
+inspeksi dan acceptance lokal terikat hash/revision. Approval, intent dan resume atomik;
+executor memakai intent tanpa model call ulang. Lanjutkan historical registry view,
+perubahan canonical dan ASSEMBLE/Neo4j. Fixture bukan review manusia terhadap corpus.
+
 Checkpoint 2026-10-09: population vocabulary/statistik Rust, allocator dictionary
 Go, plan/inventory child INDEX durable, dan checkpoint/STAGED atomik tersedia.
 Processor/executor serta daemon opt-in menyambungkan dispatch dan commit;
@@ -16,7 +21,7 @@ manifest model biner untuk worker, dan menjadwalkan inventory lengkap. Kelanjuta
 terdekat adalah menjalankan seluruh corpus nyata. Jalur native dengan source fixture
 Rust sudah lulus sampai HTTP evidence, termasuk dua query concurrent dan warm reuse;
 lihat [laporan native](verification-report-native-index.md) dan
-[laporan API](verification-report-evidence-api.md). Graph assembly/review-resume, answering penuh,
+[laporan API](verification-report-evidence-api.md). Graph assembly/review remote, answering penuh,
 incremental serta acceptance seluruh proyek tetap diperlukan; deployment tetap
 di luar scope pengerjaan yang diminta. Gold ditunda sesuai arahan pengguna,
 bukan diganti dengan klaim kelulusan fixture.
@@ -60,7 +65,7 @@ Catat perubahan perilaku, file pemilik, perintah verifikasi, hasil/exit code, ra
 
 ## Titik lanjut resolusi kontekstual
 
-Gateway `Semantic.ResolveBatch`, client reusable, workflow `ProposeWithModel`, planner kandidat lintas scope, loader policy terpin, CLI submit durable, serta katalog/hidrasi bukti kandidat lintas dokumen tersedia. Lihat [semantic-resolution.md](semantic-resolution.md): dispatch RESOLVE opt-in sampai antrean proposal tersedia; nilai scope produksi, review/resume terautentikasi, keputusan canonical baru/merge/split, serta acceptance model lokal masih perlu diselesaikan. Smoke Ollama menguji protokol pada fixture sintetis; proposal model bukan review tersimpan.
+Gateway `Semantic.ResolveBatch`, client reusable, workflow `ProposeWithModel`, planner kandidat lintas scope, loader policy terpin, CLI submit durable, serta katalog/hidrasi bukti kandidat lintas dokumen tersedia. Lihat [semantic-resolution.md](semantic-resolution.md): dispatch RESOLVE opt-in sampai antrean proposal tersedia; nilai scope produksi, review/resume remote, keputusan canonical baru/merge/split, serta acceptance model lokal masih perlu diselesaikan. Smoke Ollama menguji protokol pada fixture sintetis; proposal model bukan review tersimpan.
 
 ## Handoff native model
 
