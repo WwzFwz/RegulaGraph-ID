@@ -110,7 +110,15 @@ func (h *SourceHydrator) Hydrate(ctx context.Context, request *pb.QuestionReques
 		return nil, errors.New("incomplete catalog response")
 	}
 	l := &evidenceLoader{catalog: h.catalog, reader: h.reader, corpus: h.snapshot.CorpusId, remaining: h.config.MaximumArtifactBytes, cache: map[string]evidenceArtifact{}, documents: map[string]*evidenceDocument{}, plans: map[string]evidencePlan{}}
-	bundle := &pb.EvidenceBundle{Meta: &pb.RecordMeta{SchemaVersion: 1, CorpusId: h.snapshot.CorpusId, RecordId: "evidence:hydrated"},
+	// A bundle is one query's result, distinct from its stable evidence item IDs.
+	// Bind its identity to the trusted read lease, snapshot and exact C01 question
+	// so concurrent requests cannot collide in HTTP/export/audit records.
+	questionBytes, err := (proto.MarshalOptions{Deterministic: true}).Marshal(request)
+	if err != nil {
+		return nil, err
+	}
+	bundleHash := sha256.Sum256([]byte(h.pin.LeaseID + "\x00" + h.snapshot.CorpusId + "\x00" + h.snapshot.SnapshotId + "\x00" + string(questionBytes)))
+	bundle := &pb.EvidenceBundle{Meta: &pb.RecordMeta{SchemaVersion: 1, CorpusId: h.snapshot.CorpusId, RecordId: "evidence:" + hex.EncodeToString(bundleHash[:])},
 		Snapshot: proto.Clone(h.snapshot).(*pb.SnapshotRef), RetrievalManifest: proto.Clone(h.config.Producer).(*pb.ProducerManifest), Completeness: pb.Completeness_COMPLETENESS_COMPLETE, CompletionStatus: pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED}
 	result := &HydratedEvidence{Evidence: bundle, Rejected: map[string]string{}}
 	urls := map[string][]string{}
