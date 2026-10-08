@@ -35,3 +35,9 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
 | [config.go](config.go) | Load typed config once; reject unknown fields, invalid limits and incompatible model/index manifests; emit a redacted deterministic fingerprint. | Test precedence, missing secrets, semantic validation and identical fingerprints across equivalent inputs; measure startup separately. |
+
+[native_model.go](native_model.go) memuat manifest model native ProtoJSON
+C01 dengan pin SHA-256 byte file, task EMBED/RERANK dan batas 64 KiB. Loader
+hanya berjalan saat persiapan, tidak membuka koneksi atau memuat weights.
+[native_model_test.go](native_model_test.go) menguji hash, task, ukuran dan tipe
+file; capabilities runtime masih harus dicocokkan oleh pemakai.
