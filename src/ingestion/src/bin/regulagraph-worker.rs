@@ -2,6 +2,7 @@
 //!
 //! Configuration is explicit through REGULAGRAPH_WORKER_* environment variables. The process binds
 //! PDFium and one pinned Hugging Face tokenizer once, serves bounded C01 messages, and writes immutable outputs under the shared artifact root.
+//! A pinned ontology also enables ASSEMBLE without a semantic-model endpoint.
 //! Production remote transport requires a TLS front end; this binary refuses non-loopback listeners.
 
 use protobuf::{EnumOrUnknown, MessageField};
@@ -60,7 +61,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
             sync_data: true,
         },
     )?;
-    let extraction = if let Some(endpoint) = configured("REGULAGRAPH_WORKER_SEMANTIC_ENDPOINT") {
+    // Ontology enables model-free ASSEMBLE independently of the EXTRACT gateway.
+    let ontology = if configured("REGULAGRAPH_ONTOLOGY_PATH").is_some()
+        || configured("REGULAGRAPH_ONTOLOGY_SHA256").is_some()
+        || configured("REGULAGRAPH_WORKER_SEMANTIC_ENDPOINT").is_some()
+    {
         let ontology_path = PathBuf::from(required("REGULAGRAPH_ONTOLOGY_PATH")?);
         let ontology_file = fs::File::open(&ontology_path)?;
         let ontology_metadata = ontology_file.metadata()?;
@@ -74,10 +79,22 @@ async fn main() -> Result<(), Box<dyn Error>> {
         ontology_file
             .take((1 << 20) + 1)
             .read_to_end(&mut ontology_bytes)?;
+        if ontology_bytes.len() > (1 << 20) {
+            return Err("ontology file grew beyond 1 MiB while reading".into());
+        }
         let ontology = Arc::new(Ontology::parse_jsonc(&ontology_bytes)?);
         if ontology.sha256() != required("REGULAGRAPH_ONTOLOGY_SHA256")? {
             return Err("ontology bytes differ from REGULAGRAPH_ONTOLOGY_SHA256".into());
         }
+        Some(ontology)
+    } else {
+        None
+    };
+    let extraction = if let Some(endpoint) = configured("REGULAGRAPH_WORKER_SEMANTIC_ENDPOINT") {
+        let ontology = ontology
+            .as_ref()
+            .ok_or("EXTRACT ontology required")?
+            .clone();
         let ontology_version = required("REGULAGRAPH_WORKER_EXTRACTION_ONTOLOGY_VERSION")?;
         if ontology.version() != ontology_version {
             return Err("ontology version differs from pinned source".into());
@@ -157,6 +174,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
         tokenizer,
         ParseBatchProcessorConfig::default(),
     )?;
+    let processor = if let Some(ontology) = ontology {
+        processor.with_assembly(ontology)
+    } else {
+        processor
+    };
     let processor = if let Some((client, config)) = extraction {
         processor.with_extraction(client, config)?
     } else {
