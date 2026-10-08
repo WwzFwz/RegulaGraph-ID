@@ -11,8 +11,8 @@
 //!
 //! Status: materialisasi endpoint dan canonical assertion/support prapublikasi aktif
 //! sebagai library; canonical.rs mempertahankan mapping dan source support. delta.rs
-//! membangun GraphDelta upsert terikat sumber; worker, writer Neo4j, closure incremental
-//! dan publication belum tersambung.
+//! membangun GraphDelta upsert terikat sumber dan worker/assembly.rs mempersist hasilnya.
+//! Coordinator receipt/admission, writer Neo4j, closure incremental dan publication belum lengkap.
 
 pub mod builder;
 pub mod canonical;
@@ -23,4 +23,4 @@ pub mod inputs;
 mod canonical_tests;
 
 #[cfg(test)]
-mod delta_tests;
+pub(crate) mod delta_tests;

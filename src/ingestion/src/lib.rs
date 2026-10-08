@@ -12,7 +12,8 @@
 //!
 //! Status: pipeline struktur/chunk I01, proyeksi TextArtifact/structure/chunk, assembler serta
 //! persistence DocumentBatch C01, artifact store lokal, incremental change planner, selector timeline,
-//! dan executable worker PARSE/STRUCTURE/CHUNK aktif; event extraction, graph, serta indexing belum aktif.
+//! dan worker PARSE/STRUCTURE/CHUNK/EXTRACT/ASSEMBLE/INDEX aktif sesuai konfigurasi.
+//! ASSEMBLE menghasilkan delta immutable; receipt/publication graph dan acceptance belum lengkap.
 
 pub mod adapters;
 pub mod document;

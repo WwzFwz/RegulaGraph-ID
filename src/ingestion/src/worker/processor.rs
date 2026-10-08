@@ -1,4 +1,4 @@
-//! PARSE/STRUCTURE/CHUNK/EXTRACT/INDEX processor backed by pinned native, tokenizer,
+//! PARSE/STRUCTURE/CHUNK/EXTRACT/ASSEMBLE/INDEX processor backed by pinned native, tokenizer,
 //! and semantic-model dependencies.
 //!
 //! STRUCTURE emits hierarchy, while CHUNK consumes a registry-bound immutable `DocumentBatch` and
@@ -6,6 +6,7 @@
 //! publication state; every node-to-version binding must already be explicit and unambiguous.
 //! EXTRACT and INDEX share source/version/page projection. INDEX delegates bounded
 //! plan assembly and native embedding to index.rs; publication remains Go-owned.
+//! ASSEMBLE delegates verified plan/source loading and delta persistence to assembly.rs.
 //! Measure stage throughput, p95/p99, queue delay, and peak RSS against
 //! configs/benchmark-targets.yaml (REQUIRED_UNMEASURED).
 
@@ -93,6 +94,7 @@ pub struct ParseBatchProcessor {
     pub(super) config: ParseBatchProcessorConfig,
     extraction: Option<ExtractionRuntime>,
     pub(super) indexing: Option<Arc<dyn super::index::IndexEmbedding>>,
+    pub(super) assembly_ontology: Option<Arc<Ontology>>,
 }
 
 impl ParseBatchProcessor {
@@ -131,6 +133,7 @@ impl ParseBatchProcessor {
             config,
             extraction: None,
             indexing: None,
+            assembly_ontology: None,
         })
     }
 
@@ -152,6 +155,11 @@ impl BatchProcessor for ParseBatchProcessor {
         cancelled: &AtomicBool,
         progress: &dyn Fn(jobs::JobStage, u64, u64),
     ) -> Result<jobs::ProcessBatchResponse, ProcessError> {
+        if request.stages.len() == 1
+            && request.stages[0].enum_value() == Ok(jobs::JobStage::JOB_STAGE_ASSEMBLE)
+        {
+            return self.process_assembly(request, cancelled, progress);
+        }
         if request.stages.len() == 1
             && request.stages[0].enum_value() == Ok(jobs::JobStage::JOB_STAGE_INDEX)
         {
@@ -177,7 +185,7 @@ impl BatchProcessor for ParseBatchProcessor {
         {
             return Err(ProcessError::new(
                 Code::Unimplemented,
-                "worker accepts exactly one PARSE, STRUCTURE, CHUNK, EXTRACT, or INDEX stage",
+                "worker accepts exactly one PARSE, STRUCTURE, CHUNK, EXTRACT, ASSEMBLE, or INDEX stage",
             ));
         }
         let context = request

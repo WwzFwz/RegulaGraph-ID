@@ -16,15 +16,15 @@ use protobuf::{EnumOrUnknown, Message, MessageField};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 
-struct Fixture {
-    docs: documents::DocumentBatch,
-    extraction: graph::ExtractionBatch,
-    resolution: graph::ResolutionBatch,
+pub(crate) struct Fixture {
+    pub(crate) docs: documents::DocumentBatch,
+    pub(crate) extraction: graph::ExtractionBatch,
+    pub(crate) resolution: graph::ResolutionBatch,
     extraction_ref: common::ArtifactRef,
     resolution_ref: common::ArtifactRef,
     registry_ref: common::ArtifactRef,
     entities: Vec<graph::CanonicalEntity>,
-    texts: BTreeMap<String, Vec<u8>>,
+    pub(crate) texts: BTreeMap<String, Vec<u8>>,
     producer: common::ProducerManifest,
 }
 fn hash(c: char) -> common::ContentHash {
@@ -52,14 +52,14 @@ fn meta(id: &str) -> MessageField<common::RecordMeta> {
         ..Default::default()
     })
 }
-fn ontology() -> Ontology {
+pub(crate) fn ontology() -> Ontology {
     Ontology::parse_jsonc(include_bytes!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../configs/ontology-v1.jsonc"
     )))
     .unwrap()
 }
-fn fixture() -> Fixture {
+pub(crate) fn fixture() -> Fixture {
     let mut docs = source_batch();
     let mut parts = fixture_parts();
     let base = common::SnapshotRef {
@@ -179,7 +179,7 @@ fn fixture() -> Fixture {
     }
 }
 impl Fixture {
-    fn plan_and_view(&self) -> (graph::GraphAssemblyPlan, graph::RegistryEntityView) {
+    pub(crate) fn plan_and_view(&self) -> (graph::GraphAssemblyPlan, graph::RegistryEntityView) {
         let mut registry = self.registry_ref.clone();
         registry.media_type = super::inputs::REGISTRY_ENTITY_VIEW_MEDIA_TYPE.into();
         let plan = graph::GraphAssemblyPlan {

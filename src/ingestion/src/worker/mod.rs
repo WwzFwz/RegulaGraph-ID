@@ -10,6 +10,9 @@ pub mod transport {
     tonic::include_proto!("regulagraph.v1");
 }
 
+mod assembly;
+#[cfg(test)]
+mod assembly_tests;
 mod index;
 mod processor;
 pub use index::{IndexEmbedding, NativeIndexEmbedding};
