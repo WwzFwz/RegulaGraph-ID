@@ -51,3 +51,10 @@ exit code dijelaskan di [panduan query](../../../../doc/query-evidence.md).
 http://127.0.0.1:8096 memakai profil Ollama regulagraph-demo:latest; `-model=`
 menjalankan pencarian saja. Ini tidak membuat publication atau menggantikan jalur
 query-evidence terpin. [Panduan](../../../../doc/interview-demo.md) memuat setup.
+
+Reranking native dapat diaktifkan untuk query-evidence dengan manifest ProtoJSON dan
+pin hash pada `REGULAGRAPH_QUERY_RERANK_MANIFEST` dan
+`REGULAGRAPH_QUERY_RERANK_MANIFEST_SHA256` sesuai panduan query. Kedua nilai wajib
+bersama. [query_reranking.go](query_reranking.go) mengekspor skor/model C01 dan
+memeriksa kesamaan urutan bukti; query_reranking_test.go menguji accounting dan
+drift. Tanpa konfigurasi ini, hasil tetap baseline fusion yang eksplisit.

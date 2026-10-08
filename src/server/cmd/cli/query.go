@@ -34,6 +34,7 @@ import (
 	"regulagraph.local/server/internal/adapters/inference"
 	"regulagraph.local/server/internal/adapters/postgres"
 	"regulagraph.local/server/internal/adapters/storage"
+	"regulagraph.local/server/internal/config"
 	"regulagraph.local/server/internal/domain"
 	"regulagraph.local/server/internal/retrieval"
 	"regulagraph.local/server/internal/workflows"
@@ -44,6 +45,7 @@ type queryOptions struct {
 	Limit                                                        int
 	Timeout                                                      time.Duration
 	dsn, artifacts, native, qdrant, key                          string
+	rerankManifest, rerankHash                                   string
 }
 
 func runQueryEvidence(ctx context.Context, args []string, out, errOut io.Writer) int {
@@ -74,6 +76,8 @@ func runQueryEvidenceWith(ctx context.Context, args []string, out, errOut io.Wri
 	opts.native = env("REGULAGRAPH_QUERY_NATIVE_ENDPOINT")
 	opts.qdrant = env("REGULAGRAPH_QDRANT_URL")
 	opts.key = env("REGULAGRAPH_QDRANT_API_KEY")
+	opts.rerankManifest = env("REGULAGRAPH_QUERY_RERANK_MANIFEST")
+	opts.rerankHash = env("REGULAGRAPH_QUERY_RERANK_MANIFEST_SHA256")
 	request, err := prepareEvidenceQuestion(opts)
 	if err != nil || fs.NArg() != 0 {
 		fmt.Fprintln(errOut, "Invalid query configuration: require question, AS_OF date, supported profile, bounded limits, corpus/build/storage settings and a loopback native endpoint")
@@ -103,12 +107,18 @@ func runQueryEvidenceWith(ctx context.Context, args []string, out, errOut io.Wri
 		fmt.Fprintln(errOut, "Evidence serialization failed")
 		return 1
 	}
+	reranking, err := queryRerankOutput(result, opts.rerankManifest != "")
+	if err != nil {
+		fmt.Fprintln(errOut, "Reranking output validation failed")
+		return 1
+	}
 	// The JSON envelope is a CLI result, not a competing evidence wire contract.
 	output := struct {
-		Mode     string            `json:"mode"`
-		Evidence json.RawMessage   `json:"evidence"`
-		Rejected map[string]string `json:"rejected"`
-	}{"evidence", raw, result.Rejected}
+		Mode      string            `json:"mode"`
+		Evidence  json.RawMessage   `json:"evidence"`
+		Rejected  map[string]string `json:"rejected"`
+		Reranking *queryRerankJSON  `json:"reranking,omitempty"`
+	}{"evidence", raw, result.Rejected, reranking}
 	if err = json.NewEncoder(out).Encode(output); err != nil {
 		fmt.Fprintln(errOut, "Writing evidence output failed")
 		return 1
@@ -117,6 +127,15 @@ func runQueryEvidenceWith(ctx context.Context, args []string, out, errOut io.Wri
 }
 
 func prepareEvidenceQuestion(o queryOptions) (*pb.QuestionRequest, error) {
+	if (o.rerankManifest == "") != (o.rerankHash == "") {
+		return nil, errors.New("reranker manifest and hash must be configured together")
+	}
+	if o.rerankHash != "" {
+		decoded, err := hex.DecodeString(o.rerankHash)
+		if err != nil || len(decoded) != sha256.Size || strings.ToLower(o.rerankHash) != o.rerankHash {
+			return nil, errors.New("lowercase SHA-256 reranker pin required")
+		}
+	}
 	if o.Corpus == "" || o.Build == "" || o.dsn == "" || o.artifacts == "" || o.Limit < 1 || o.Limit > 128 || o.Timeout <= 0 || o.Timeout > 5*time.Minute || len(o.Question) > 64<<10 {
 		return nil, errors.New("missing configuration or invalid limits")
 	}
@@ -149,6 +168,14 @@ func prepareEvidenceQuestion(o queryOptions) (*pb.QuestionRequest, error) {
 }
 
 func executeEvidenceQuery(ctx context.Context, o queryOptions, request *pb.QuestionRequest) (*workflows.RAGResult, error) {
+	var rerankModel *pb.ModelManifest
+	if o.rerankManifest != "" {
+		var err error
+		rerankModel, err = config.LoadNativeModel(o.rerankManifest, o.rerankHash, pb.ModelTask_MODEL_TASK_RERANK)
+		if err != nil {
+			return nil, err
+		}
+	}
 	repo, err := postgres.Open(ctx, postgres.Config{DSN: o.dsn, MaxConnections: 4, ConnectTimeout: 5 * time.Second, HealthTimeout: 5 * time.Second})
 	if err != nil {
 		return nil, err
@@ -168,7 +195,8 @@ func executeEvidenceQuery(ctx context.Context, o queryOptions, request *pb.Quest
 	defer transport.CloseIdleConnections()
 	httpClient := &http.Client{Transport: transport, Timeout: o.Timeout}
 	// Config pin excludes secrets and question, includes route/limits/policy/build.
-	configBytes, _ := json.Marshal(map[string]any{"corpus": o.Corpus, "build": o.Build, "profile": o.Profile, "unresolved": o.Unresolved, "limit": o.Limit, "timeout_ns": int64(o.Timeout), "native": o.native, "qdrant": o.qdrant, "rrf_k": 60, "artifact_bytes": 64 << 20, "evidence_bytes": 4 << 20})
+	configBytes, _ := json.Marshal(map[string]any{"corpus": o.Corpus, "build": o.Build, "profile": o.Profile, "unresolved": o.Unresolved, "limit": o.Limit, "timeout_ns": int64(o.Timeout), "native": o.native, "qdrant": o.qdrant, "rrf_k": 60, "artifact_bytes": 64 << 20, "evidence_bytes": 4 << 20,
+		"rerank_manifest_sha256": o.rerankHash, "rerank_pairs_per_batch": 32, "rerank_maximum_request_bytes": 4 << 20, "rerank_truncation_policy": "reject"})
 	hash := sha256.Sum256(configBytes)
 	fingerprint := &pb.ContentHash{Sha256: hex.EncodeToString(hash[:])}
 	var nonce [16]byte
@@ -179,7 +207,11 @@ func executeEvidenceQuery(ctx context.Context, o queryOptions, request *pb.Quest
 	deadline, _ := ctx.Deadline()
 	call := &pb.RequestContext{SchemaVersion: 1, RequestId: "query:" + id, TraceId: "trace:" + id, CorpusId: o.Corpus, AuthScopeRef: "operator:local-query", ConfigFingerprint: fingerprint, Deadline: timestamppb.New(deadline)}
 	session := &workflows.RAGSession{Store: repo, OwnerID: "query:" + id, MaximumDuration: o.Timeout, SearchLimit: o.Limit, Factory: func(c context.Context, index *domain.PinnedIndex) (*workflows.RAGWorkflow, error) {
-		native, err := inference.NewNativeClient(conn, index.Binding.Generation.DenseManifest)
+		models := []*pb.ModelManifest{index.Binding.Generation.DenseManifest}
+		if rerankModel != nil {
+			models = append(models, rerankModel)
+		}
+		native, err := inference.NewNativeClient(conn, models...)
 		if err != nil {
 			return nil, err
 		}
@@ -188,10 +220,17 @@ func executeEvidenceQuery(ctx context.Context, o queryOptions, request *pb.Quest
 		if _, err = native.GetCapabilities(c, &pb.CapabilitiesRequest{Context: admitted}); err != nil {
 			return nil, err
 		}
+		var reranker *retrieval.EvidenceReranker
+		if rerankModel != nil {
+			reranker, err = retrieval.NewEvidenceReranker(native, retrieval.EvidenceRerankConfig{Model: rerankModel, MaximumCandidates: 2 * o.Limit, PairsPerBatch: 32, MaximumRequestBytes: 4 << 20})
+			if err != nil {
+				return nil, err
+			}
+		}
 		producer := &pb.ProducerManifest{Software: "regulagraph-query", Build: o.Build, SchemaVersion: 1, ConfigHash: fingerprint, Models: []*pb.ModelManifest{index.Binding.Generation.DenseManifest}}
 		prepared, err := workflows.PreparePublishedQuery(c, index, repo, files, native, nil, workflows.PublishedQueryConfig{QdrantCredentials: map[string]string{o.qdrant: o.key}, HTTPClient: httpClient, Profile: request.RequestedProfile,
 			Fusion:    retrieval.RRFConfig{K: 60, MaximumPerBranch: o.Limit, MaximumTotalInputs: 2 * o.Limit, Weights: map[pb.RetrieverKind]float64{pb.RetrieverKind_RETRIEVER_KIND_DENSE: 1, pb.RetrieverKind_RETRIEVER_KIND_BM25: 1}},
-			Hydration: retrieval.HydrationConfig{MaximumCandidates: 2 * o.Limit, MaximumArtifactBytes: 64 << 20, MaximumEvidenceBytes: 4 << 20, Producer: producer}, MaximumLexicalBytes: 64 << 20})
+			Hydration: retrieval.HydrationConfig{MaximumCandidates: 2 * o.Limit, MaximumArtifactBytes: 64 << 20, MaximumEvidenceBytes: 4 << 20, Producer: producer}, MaximumLexicalBytes: 64 << 20, Reranker: reranker})
 		if err != nil {
 			return nil, err
 		}

@@ -27,6 +27,7 @@ type PublishedQueryConfig struct {
 	Fusion              retrieval.RRFConfig
 	Hydration           retrieval.HydrationConfig
 	MaximumLexicalBytes uint64
+	Reranker            *retrieval.EvidenceReranker // Optional explicit baseline choice, never failure fallback.
 }
 
 type PreparedQuery struct {
@@ -121,7 +122,7 @@ func (p *PreparedQuery) Bind(ctx context.Context, index *domain.PinnedIndex) (*R
 	for kind, value := range p.search.Fusion.Weights {
 		search.Fusion.Weights[kind] = value
 	}
-	return &RAGWorkflow{Search: &search, Hydrate: hydrate, Answer: p.answer, profile: p.config.Profile}, nil
+	return &RAGWorkflow{Search: &search, Hydrate: hydrate, Answer: p.answer, Reranker: p.config.Reranker, profile: p.config.Profile}, nil
 }
 
 type registeredQueryArtifacts struct {

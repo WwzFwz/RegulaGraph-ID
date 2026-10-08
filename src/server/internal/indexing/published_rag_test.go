@@ -35,6 +35,17 @@ type publishedGenerator struct {
 	calls      int
 }
 
+type publishedReranker struct{ calls int }
+
+func (r *publishedReranker) RerankBatch(_ context.Context, req *pb.RerankBatchRequest) (*pb.RerankBatchResponse, error) {
+	r.calls++
+	out := &pb.RerankBatchResponse{RequestId: req.Context.RequestId, Model: proto.Clone(req.Model).(*pb.ModelManifest)}
+	for i, pair := range req.Pairs {
+		out.Results = append(out.Results, &pb.RerankItemResult{PairId: pair.PairId, Result: &pb.RerankItemResult_Score{Score: &pb.RerankScore{Score: float64(i), InputTokens: 12, Truncation: &pb.TruncationInfo{OriginalTokens: 12, RetainedTokens: 12}}}})
+	}
+	return out, nil
+}
+
 func (g *publishedGenerator) Generate(_ context.Context, _ inference.StructuredRequest) (inference.StructuredResponse, error) {
 	g.calls++
 	raw, err := json.Marshal(map[string]any{"status": "answer", "claims": []any{map[string]any{"text": "Perizinan usaha memerlukan bukti.", "evidence_ids": []string{g.evidenceID}}}})
@@ -46,6 +57,11 @@ func verifyPublishedRAG(t *testing.T, ctx context.Context, repo *postgres.Reposi
 	hash := &pb.ContentHash{Sha256: strings.Repeat("a", 64)}
 	model := &pb.ModelManifest{ModelId: "generator:fixture", Version: "1", WeightsHash: hash, TokenizerHash: hash, Task: pb.ModelTask_MODEL_TASK_GENERATE, MaxTokens: 32768, Precision: "fp32", Backend: "fixture", PromptHash: answering.DraftPromptHash()}
 	provider := &publishedGenerator{evidenceID: p.records[0].Meta.RecordId}
+	rankProvider := &publishedReranker{}
+	ranker, err := retrieval.NewEvidenceReranker(rankProvider, retrieval.EvidenceRerankConfig{Model: &pb.ModelManifest{ModelId: "reranker:fixture", Version: "1", WeightsHash: hash, TokenizerHash: hash, Task: pb.ModelTask_MODEL_TASK_RERANK, MaxTokens: 8192, Precision: "fp32", Backend: "fixture"}, MaximumCandidates: 4, PairsPerBatch: 2, MaximumRequestBytes: 4 << 20})
+	if err != nil {
+		t.Fatal(err)
+	}
 	generator, err := answering.NewDraftGenerator(provider, func(context.Context, inference.StructuredRequest) (uint64, error) { return 100, nil }, answering.DraftGeneratorConfig{Model: model, Producer: &pb.ProducerManifest{Software: "fixture", Build: "test", SchemaVersion: 1, ConfigHash: hash, Models: []*pb.ModelManifest{model}, PromptHashes: []*pb.ContentHash{answering.DraftPromptHash()}}, MaximumInputBytes: 1 << 20, MaximumOutputBytes: 64 << 10, MaximumClaims: 8, MaximumCitations: 32, MaximumConcurrent: 1, OutputTokens: 512, AllowUnreviewedDrafts: true})
 	if err != nil {
 		t.Fatal(err)
@@ -59,7 +75,7 @@ func verifyPublishedRAG(t *testing.T, ctx context.Context, repo *postgres.Reposi
 				var err error
 				prepared, err = workflows.PreparePublishedQuery(c, index, repo, artifacts, publishedEmbedding{p.records[0].DenseVector.Values},
 					&workflows.EvidenceAnswerWorkflow{Generator: generator, ContextTokenizer: hash, MaximumContextTokens: 30000, MaximumEvidence: 2, CountContext: func(_ context.Context, s string) (uint64, error) { return uint64(len(s)), nil }},
-					workflows.PublishedQueryConfig{QdrantCredentials: map[string]string{physical.Endpoint(): ""}, HTTPClient: &http.Client{Timeout: 10 * time.Second}, Profile: pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_RAG, MaximumLexicalBytes: 16 << 20,
+					workflows.PublishedQueryConfig{Reranker: ranker, QdrantCredentials: map[string]string{physical.Endpoint(): ""}, HTTPClient: &http.Client{Timeout: 10 * time.Second}, Profile: pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_RAG, MaximumLexicalBytes: 16 << 20,
 						Fusion: retrieval.RRFConfig{K: 60, MaximumPerBranch: 2, MaximumTotalInputs: 4, Weights: map[pb.RetrieverKind]float64{pb.RetrieverKind_RETRIEVER_KIND_DENSE: 1, pb.RetrieverKind_RETRIEVER_KIND_BM25: 1}}, Hydration: retrieval.HydrationConfig{MaximumCandidates: 4, MaximumArtifactBytes: 16 << 20, MaximumEvidenceBytes: 1 << 20, Producer: producer}})
 				if err != nil {
 					return nil, err
@@ -75,6 +91,9 @@ func verifyPublishedRAG(t *testing.T, ctx context.Context, repo *postgres.Reposi
 	}
 	if provider.calls != 1 || len(result.Answer.Draft.Answer.Citations) == 0 || len(result.Evidence.Items) != 2 || !proto.Equal(result.Evidence.Snapshot, p.snapshot) {
 		t.Fatal("published search did not reach cited draft")
+	}
+	if rankProvider.calls != 1 || result.Reranking == nil || len(result.Reranking.Scores) != 2 || result.Reranking.Scores[0].Score <= result.Reranking.Scores[1].Score {
+		t.Fatal("published answer skipped reranking")
 	}
 	if result.Answer.Draft.Answer.Claims[0].SupportStatus != pb.SupportStatus_SUPPORT_STATUS_UNREVIEWED || result.Answer.Context.Completeness != pb.Completeness_COMPLETENESS_PARTIAL {
 		t.Fatal("fixture draft overstated support/completeness")
@@ -101,6 +120,9 @@ func verifyPublishedRAG(t *testing.T, ctx context.Context, repo *postgres.Reposi
 	searched, err := session.SearchQuestion(ctx, request, call)
 	if err != nil || searched == nil || searched.Answer != nil || len(searched.Evidence.Items) != 2 || len(searched.Search.Branches) != 2 || provider.calls != 1 {
 		t.Fatal("warm evidence query changed generation/model behavior", err)
+	}
+	if rankProvider.calls != 2 || searched.Reranking == nil || len(searched.Reranking.Scores) != 2 {
+		t.Fatal("warm evidence query skipped reranking")
 	}
 	if _, err = repo.LoadPinnedIndex(ctx, observed); err == nil {
 		t.Fatal("evidence query leaked lease")

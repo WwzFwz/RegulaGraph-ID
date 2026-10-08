@@ -35,6 +35,8 @@ func TestQueryEvidenceRejectsInvalidInputBeforeIO(t *testing.T) {
 		{"remote plaintext qdrant", nil, "REGULAGRAPH_QDRANT_URL", "http://example.org"},
 		{"credential URL", nil, "REGULAGRAPH_QDRANT_URL", "https://secret@example.org"},
 		{"missing corpus", nil, "REGULAGRAPH_QUERY_CORPUS_ID", ""},
+		{"reranker path without pin", nil, "REGULAGRAPH_QUERY_RERANK_MANIFEST", "fixture.pb"},
+		{"reranker pin without path", nil, "REGULAGRAPH_QUERY_RERANK_MANIFEST_SHA256", strings.Repeat("a", 64)},
 		{"invalid unresolved", []string{"-question", "izin", "-as-of", "2026-01-01", "-unresolved", "guess"}, "", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

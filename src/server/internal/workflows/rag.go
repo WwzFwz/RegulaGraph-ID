@@ -1,4 +1,4 @@
-// Connects candidate retrieval, authoritative evidence hydration and cited draft
+// Connects candidate retrieval, authoritative hydration, optional reranking and cited draft
 // generation for a caller-owned snapshot lease. No model/index algorithms are
 // copied here. Hydration must authenticate storage bytes and legal-time policy;
 // this workflow rejects missing/extra accounting and cross-version evidence.
@@ -33,16 +33,18 @@ type HydratedCandidates struct {
 type CandidateHydrator func(context.Context, *pb.QuestionRequest, *CandidateSearchResult) (*HydratedCandidates, error)
 
 type RAGWorkflow struct {
-	Search  *CandidateSearch
-	Hydrate CandidateHydrator
-	Answer  *EvidenceAnswerWorkflow
-	profile pb.RetrievalProfile // Nonzero pins a prepared factory's enabled profile.
+	Search   *CandidateSearch
+	Hydrate  CandidateHydrator
+	Answer   *EvidenceAnswerWorkflow
+	Reranker *retrieval.EvidenceReranker
+	profile  pb.RetrievalProfile // Nonzero pins a prepared factory's enabled profile.
 }
 
 type RAGResult struct {
 	Search     *CandidateSearchResult
 	Evidence   *pb.EvidenceBundle
 	Answer     *EvidenceAnswerResult
+	Reranking  *retrieval.EvidenceRerankResult
 	Rejected   map[string]string
 	Duration   time.Duration
 	sourceURLs domain.SourceURLLookup
@@ -111,7 +113,16 @@ func (w *RAGWorkflow) SearchPinnedQuestion(ctx context.Context, request *pb.Ques
 	if err = validateHydratedCandidates(found, hydrated); err != nil {
 		return nil, err
 	}
-	return &RAGResult{Search: found, Evidence: hydrated.Evidence, Rejected: hydrated.Rejected, Duration: time.Since(started), sourceURLs: hydrated.SourceURLs}, nil
+	result := &RAGResult{Search: found, Evidence: hydrated.Evidence, Rejected: hydrated.Rejected, sourceURLs: hydrated.SourceURLs}
+	if w.Reranker != nil {
+		result.Reranking, err = w.Reranker.Rank(call, input.Context, request.Question, hydrated.Evidence)
+		if err != nil {
+			return nil, fmt.Errorf("rerank authenticated evidence: %w", err)
+		}
+		result.Evidence = result.Reranking.Evidence
+	}
+	result.Duration = time.Since(started)
+	return result, nil
 }
 
 // Hydration receives its own search view: its callback must not be able to

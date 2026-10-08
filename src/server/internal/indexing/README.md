@@ -68,12 +68,12 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 `initial_writer_test.go` juga menguji pembacaan katalog, batas byte, korupsi teks,
 unresolved policy dan lease yang dilepas. [published_rag_test.go](published_rag_test.go)
 menyambungkan publication PostgreSQL/Qdrant nyata sampai draft bersitasi melalui
-RAGSession dan SourceHydrator. Embedding/generator serta token counter sintetis,
+RAGSession dan SourceHydrator. Embedding/reranker/generator serta token counter sintetis,
 Versi tes awal memakai store fixture yang sudah dibuat; pembaruan berikut
 menguji factory berbasis katalog. Kualitas model belum diukur. Lihat [laporan](../../../../doc/verification-report-pinned-evidence.md).
 
 Tes published RAG kini memanggil PreparePublishedQuery untuk memilih store dari
 binding katalog, memuat BM25 terdaftar, dan menjalankan hybrid search. Resource
 prepared yang sama dipakai kembali untuk query evidence-only di bawah lease baru.
-HTTP Qdrant dan PostgreSQL nyata; embedding/generator tetap sintetis. Ini belum
+HTTP Qdrant dan PostgreSQL nyata; embedding/reranker/generator tetap sintetis. Ini belum
 menjalankan executable CLI dengan proses native nyata atau corpus PDF pengguna.

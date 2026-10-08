@@ -79,8 +79,10 @@ snapshot aktif sampai generation dan cleanup; [rag_hydration.go](rag_hydration.g
 memasang hydrator storage ke urutan hasil fusion. Factory milik caller wajib
 memakai binding katalog dan client/model reusable, dengan akses corpus yang
 sudah diautentikasi. [rag_session_test.go](rag_session_test.go) menguji lifecycle,
-cancellation dan error. Reranker penuh, tokenizer generator nyata dan API/CLI
-jawaban masih belum tersambung; CLI evidence-only sudah tersedia. Lihat [kontrak](../../../../doc/pinned-evidence.md).
+cancellation dan error. Reranker opsional terpin kini berjalan setelah hidrasi dan sebelum konteks pada
+jalur evidence-only maupun answering. Kegagalannya menghentikan generation.
+Tokenizer generator nyata dan API/CLI jawaban masih belum tersambung; CLI
+evidence-only sudah tersedia. Lihat [kontrak](../../../../doc/pinned-evidence.md).
 
 [published_query.go](published_query.go) mempersiapkan dependency dari binding
 katalog: origin credential harus cocok persis, admission Qdrant hanya membaca,
