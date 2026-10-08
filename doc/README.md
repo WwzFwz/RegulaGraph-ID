@@ -1,5 +1,9 @@
 # doc
 
+[index-job-inventory.md](index-job-inventory.md) menjelaskan inventory/claim
+durable INDEX dan batas executor yang belum tersambung; bukti storage terdapat
+pada [verification-report-index-jobs.md](verification-report-index-jobs.md).
+
 [verification-report-index-planning.md](verification-report-index-planning.md)
 mencatat planner inventory, persistence plan, dispatch/admission worker dan integrasi
 writer snapshot awal; scheduler durable dan statistik corpus masih tahap berikutnya.

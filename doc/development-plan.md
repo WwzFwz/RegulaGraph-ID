@@ -240,3 +240,10 @@ input policy INDEX yang sama. Penyimpanan inventory durable, registration
 dependencies statistik dan scheduler INDEX masih diperlukan untuk corpus otomatis.
 Lihat [panduan populasi](lexical-population.md) dan
 [verifikasi](verification-report-lexical-population.md).
+
+Pembaruan X01 2026-10-09 berikutnya: inventory plan/child job kini disimpan atomik,
+direplay identik dan dipulihkan melalui admission sumber ulang. Claim INDEX
+memeriksa publication aktif, retry budget dan fence; generic claim menghindari
+child berinventory. Executor/output commit durable serta daemon/publication
+masih terbuka. Lihat [kontrak](index-job-inventory.md) dan
+[verifikasi](verification-report-index-jobs.md).

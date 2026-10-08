@@ -16,6 +16,12 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+[index_jobs.go](index_jobs.go) menyimpan inventory dan child job INDEX atomik;
+[index_job_claim.go](index_job_claim.go) mengklaim child dengan fence/retry dan
+publication aktif. Migration 0015 wajib tersedia. Generic claim melewati child
+berinventory; caller wajib memeriksa authority lagi sebelum commit output.
+Lihat [kontrak inventory](../../../../../doc/index-job-inventory.md).
+
 [index_catalog.go](index_catalog.go) menyimpan generation/route dan record point
 immutable dengan collision check UUID di bawah fence publication. Migration 0014
 wajib tersedia; record terikat byte payload dan replay tidak boleh mengubahnya.

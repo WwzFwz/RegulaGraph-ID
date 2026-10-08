@@ -14,6 +14,13 @@ Anak tidak boleh mengubah kontrak input/output secara tersembunyi. Perubahan ben
 
 ## Isi saat ini
 
+[0015_index_job_inventory.up.sql](0015_index_job_inventory.up.sql) menambah
+inventory/assignment immutable tanpa backfill. Terapkan sebelum scheduler dan
+generic claim versi baru. Seluruh child dibuat atomik; generation prerequisite
+dapat tertinggal setelah scheduling gagal. Retirement/GC belum tersedia; rehearsal
+lock dan pertumbuhan produksi belum dilakukan. Jangan mengedit checksum setelah
+migration diterapkan; kegagalan penerapan dipulihkan lewat replay revision sama.
+
 [0014_index_catalog.up.sql](0014_index_catalog.up.sql) menambah generation/route
 immutable dan katalog point dengan UUID unik serta digest penuh untuk mendeteksi
 collision. Satu namespace fisik literal endpoint/collection hanya dimiliki satu

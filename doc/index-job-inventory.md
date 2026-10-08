@@ -1,0 +1,45 @@
+# Durable initial INDEX inventory
+
+Dokumen ini menjelaskan penyimpanan plan dan child job INDEX di PostgreSQL serta
+batas integrasinya. Ini melanjutkan [persiapan plan](initial-index-writer.md),
+bukan klaim bahwa daemon INDEX dan seluruh Hybrid GraphRAG sudah selesai.
+
+`InitialIndexPlans.JobInventory` menghasilkan satu child job deterministik untuk
+setiap plan yang sudah melalui admission sumber lengkap. `ScheduleIndexJobs`
+mengunci reservation snapshot, memeriksa publisher fence, sumber CHUNK yang
+belum dibatalkan, checksum request sumber dan metadata plan terdaftar. Inventory
+dan semua child job dibuat dalam satu transaksi. Jika assignment terakhir gagal,
+assignment serta job sebelumnya ikut rollback. Registrasi generation merupakan
+prasyarat idempotent terpisah dan boleh tertinggal tanpa child job setelah gagal.
+
+Migration `0015_index_job_inventory.up.sql` wajib diterapkan sebelum memakai
+versi coordinator ini, termasuk generic claim yang kini menghindari child INDEX
+berinventory. Migration forward-only tanpa backfill. Inventory/assignment tidak
+boleh diubah atau dihapus; GC/retirement memerlukan desain tersendiri. Retry wajib
+membawa binding, snapshot, auth scope, urutan job, sumber, dan plan identik.
+Digest JSON adalah detail persistence internal Go; wire tetap C01 Protobuf.
+
+`LoadIndexJobInventory` memeriksa checksum inventory dan mengembalikan urutan
+assignment semula. `RestoreInitialIndexPlans` membaca ulang artefak dan authority
+sumber/dictionary, menyusun ulang partisi, lalu membandingkan semua plan serta
+child ID. Hilangnya satu plan, berubahnya sumber, atau tercabutnya authority
+tidak boleh lolos hanya karena inventory database masih ada. Batas saat ini
+256 child, 128 chunk per plan, dan 64 MiB total payload plan; overflow ditolak.
+
+`ClaimIndexJob` hanya mengambil child terdaftar dengan publication aktif dan
+sumber belum dibatalkan. Worker attempt dan fence meningkat saat reclaim;
+terminal checkpoint dapat dipulihkan tanpa menghabiskan budget stage attempt.
+Tanpa checkpoint terminal, attempt yang habis menjadi FAILED. Generic claim
+tidak mengambil child ini, termasuk setelah STAGED. Job INDEX lama yang belum
+memiliki inventory tetap mengikuti primitive generic sebelumnya.
+
+Claim bukan bukti authority yang berlaku selamanya. Executor wajib memeriksa
+ulang byte plan/sumber, cancellation dan publisher fence sebelum dispatch dan
+commit. Penutupan berikutnya masih mencakup checkpoint output terikat assignment,
+monitor cancellation/lease, daemon, dan pengumpulan seluruh output sebelum
+publication. Tidak ada aktivasi snapshot otomatis dari scheduling atau claim.
+
+Ukur queue time, claim/schedule p95/p99, pool wait, contention, RSS dan recovery
+sesuai [target required](../configs/benchmark-targets.yaml). Status target tetap
+REQUIRED_UNMEASURED. [Laporan verifikasi](verification-report-index-jobs.md)
+membedakan fixture storage dari acceptance produksi.

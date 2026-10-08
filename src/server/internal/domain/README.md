@@ -21,6 +21,10 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+[index_jobs.go](index_jobs.go) membatasi inventory local coordinator: job/plan,
+source ownership, snapshot, generation, hash byte dan keunikan chunk/record.
+Validasi bentuk tidak menggantikan authority PostgreSQL atau admission sumber.
+
 [index_catalog.go](index_catalog.go) mendefinisikan binding fisik indeks internal
 dan derivasi UUID/digest point deterministik. PostgreSQL tetap wajib memeriksa
 collision dan payload immutable; fungsi hash saja bukan bukti alokasi/otorisasi.
