@@ -73,6 +73,14 @@ func (r *Repository) decodeSemanticInputs(ctx context.Context, corpusID string,
 func verifyStoredSemanticReviews(ctx context.Context, tx pgx.Tx, corpusID, sourceArtifactID string,
 	candidateRef *pb.ArtifactRef, proposals []*pb.ResolutionProposal,
 	approvals map[string]ReviewedLink) error {
+	return checkStoredSemanticReviews(ctx, tx, corpusID, sourceArtifactID, candidateRef, proposals, approvals, true)
+}
+
+// Historical receipt reads need no row locks: committed reviews are immutable.
+// Writers retain FOR SHARE while deciding whether a new LINK is authorized.
+func checkStoredSemanticReviews(ctx context.Context, tx pgx.Tx, corpusID, sourceArtifactID string,
+	candidateRef *pb.ArtifactRef, proposals []*pb.ResolutionProposal,
+	approvals map[string]ReviewedLink, lock bool) error {
 	if len(approvals) == 0 {
 		return nil
 	}
@@ -97,10 +105,13 @@ func verifyStoredSemanticReviews(ctx context.Context, tx pgx.Tx, corpusID, sourc
 		byReviewID[approval.ReviewID] = approval
 		ids = append(ids, approval.ReviewID)
 	}
-	rows, err := tx.Query(ctx, `SELECT review_id,source_artifact_id,candidate_artifact_id,
+	query := `SELECT review_id,source_artifact_id,candidate_artifact_id,
 		candidate_hash,proposal_id,proposal_hash,canonical_id,actor,reason,revoked_at IS NOT NULL
-		FROM registry_semantic_reviews WHERE corpus_id=$1 AND review_id=ANY($2) FOR SHARE`,
-		corpusID, ids)
+		FROM registry_semantic_reviews WHERE corpus_id=$1 AND review_id=ANY($2)`
+	if lock {
+		query += " FOR SHARE"
+	}
+	rows, err := tx.Query(ctx, query, corpusID, ids)
 	if err != nil {
 		return fmt.Errorf("load semantic reviews: %w", err)
 	}

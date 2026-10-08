@@ -756,6 +756,52 @@ func TestSemanticRegistryAgainstPostgres(t *testing.T) {
 	if _, err = fileStore.ReadVerified(ctx, output.Artifact, uint64(domain.DefaultWireLimits.MaxBytes)); err != nil {
 		t.Fatalf("checkpointed RESOLVE bytes are not readable: %v", err)
 	}
+	// Historical receipt reads authorize ASSEMBLE inputs without reacquiring the
+	// original RESOLVE lease or changing its terminal state/revision.
+	historical, err := repo.ReadCommittedSemanticResolution(ctx, input, request, approval, 64, 8)
+	if err != nil || !proto.Equal(historical, response) {
+		t.Fatalf("read committed receipt after staging: receipt=%v err=%v", historical, err)
+	}
+	if err = repo.VerifyGraphAssemblySourceCheckpoint(ctx, corpusID, jobID, output.Checkpoint.Meta.RecordId, output.Artifact); err != nil {
+		t.Fatalf("staged RESOLVE did not authorize graph source: %v", err)
+	}
+	if err = repo.VerifyGraphAssemblySourceCheckpoint(ctx, corpusID, jobID, "checkpoint:other", output.Artifact); err == nil {
+		t.Fatal("graph source accepted a different checkpoint")
+	}
+	wrongRef := proto.Clone(output.Artifact).(*pb.ArtifactRef)
+	wrongRef.ContentHash.Sha256 = strings.Repeat("0", 64)
+	if err = repo.VerifyGraphAssemblySourceCheckpoint(ctx, corpusID, jobID, output.Checkpoint.Meta.RecordId, wrongRef); err == nil {
+		t.Fatal("graph source accepted a different artifact hash")
+	}
+	if _, err = repo.pool.Exec(ctx, `UPDATE jobs SET lease_fence=lease_fence+1 WHERE job_id=$1`, jobID); err != nil {
+		t.Fatal(err)
+	}
+	if err = repo.VerifyGraphAssemblySourceCheckpoint(ctx, corpusID, jobID, output.Checkpoint.Meta.RecordId, output.Artifact); err == nil {
+		t.Fatal("graph source accepted checkpoint from superseded fence")
+	}
+	if _, err = repo.pool.Exec(ctx, `UPDATE jobs SET lease_fence=lease_fence-1,cancellation_requested=true WHERE job_id=$1`, jobID); err != nil {
+		t.Fatal(err)
+	}
+	if err = repo.VerifyGraphAssemblySourceCheckpoint(ctx, corpusID, jobID, output.Checkpoint.Meta.RecordId, output.Artifact); err == nil {
+		t.Fatal("graph source accepted cancelled job")
+	}
+	if _, err = repo.pool.Exec(ctx, `UPDATE jobs SET cancellation_requested=false WHERE job_id=$1`, jobID); err != nil {
+		t.Fatal(err)
+	}
+	missingOperation := proto.Clone(request).(*pb.RegistryResolveRequest)
+	emptyLink := proto.Clone(request).(*pb.RegistryResolveRequest)
+	emptyLink.Proposals[0].CandidateIds = nil
+	if _, err = repo.ReadCommittedSemanticResolution(ctx, input, emptyLink, approval, 64, 8); err == nil {
+		t.Fatal("historical read accepted LINK without candidate")
+	}
+	missingOperation.OperationKey = "semantic:never-committed"
+	if _, err = repo.ReadCommittedSemanticResolution(ctx, input, missingOperation, approval, 64, 8); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("historical read created or accepted an absent operation: %v", err)
+	}
+	var absentCount int
+	if err = repo.pool.QueryRow(ctx, `SELECT count(*) FROM registry_semantic_operations WHERE corpus_id=$1 AND operation_key=$2`, corpusID, missingOperation.OperationKey).Scan(&absentCount); err != nil || absentCount != 0 {
+		t.Fatalf("read-only receipt mutated operation ledger: count=%d err=%v", absentCount, err)
+	}
 	// Recreate the crash window after SaveCheckpoint and before completion: the latest
 	// RESOLVE output is durable, but the old RUNNING lease has expired.
 	if _, err = repo.pool.Exec(ctx, `UPDATE jobs SET state=$2,lease_owner='owner:crashed',
@@ -809,6 +855,9 @@ func TestSemanticRegistryAgainstPostgres(t *testing.T) {
 	}
 	changedApproval := append([]ReviewedLink(nil), approval...)
 	changedApproval[0].Reason = "different review"
+	if _, err = repo.ReadCommittedSemanticResolution(ctx, input, request, changedApproval, 64, 8); !errors.Is(err, ErrConflict) {
+		t.Fatalf("historical receipt accepted changed approval: %v", err)
+	}
 	if _, err = repo.commitSemanticResolutions(ctx, nil, input, request,
 		changedApproval, 64, 8); !errors.Is(err, ErrConflict) {
 		t.Fatalf("changed review reused operation key: %v", err)
@@ -964,6 +1013,10 @@ func TestSemanticRegistryAgainstPostgres(t *testing.T) {
 		approval, 64, 8); err == nil {
 		t.Fatal("unregistered EXTRACT artifact committed")
 	}
+	historical, readErr := repo.ReadCommittedSemanticResolution(ctx, input, request, approval, 64, 8)
+	if readErr != nil || !proto.Equal(historical, response) {
+		t.Fatalf("historical receipt changed after later registry writes: %v", readErr)
+	}
 	corruptTx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -988,5 +1041,8 @@ func TestSemanticRegistryAgainstPostgres(t *testing.T) {
 	if _, err = repo.commitSemanticResolutions(ctx, nil, input, request,
 		approval, 64, 8); !errors.Is(err, domain.ErrPersistentIntegrity) {
 		t.Fatalf("corrupt semantic decision replay accepted: %v", err)
+	}
+	if _, err = repo.ReadCommittedSemanticResolution(ctx, input, request, approval, 64, 8); !errors.Is(err, domain.ErrPersistentIntegrity) {
+		t.Fatalf("historical read accepted corrupt decision: %v", err)
 	}
 }
