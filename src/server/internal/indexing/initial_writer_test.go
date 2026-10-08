@@ -384,6 +384,10 @@ func runInitialIndexPublication(t *testing.T, requireGraph, contentAddressed boo
 		t.Fatal(err)
 	}
 	defer planFiles.Close()
+	if storageMode == "bootstrap" {
+		checkInitialIndexBootstrap(t, ctx, repo, planFiles, artifacts, binding, snapshot, source.Context.AuthScopeRef, job, plan.DocumentBatch, dictionaryRef, statsRef)
+		return
+	}
 	if err = planned.Persist(ctx, planFiles, repo); err != nil {
 		t.Fatal(err)
 	}

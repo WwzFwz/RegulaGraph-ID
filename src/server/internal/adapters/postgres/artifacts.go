@@ -4,6 +4,8 @@
 // Kontrak: artifact ID boleh direplay hanya jika seluruh metadata identik; dependency
 // replacement transaksional; lookup kosong tetap dicatat melalui scope revision agar
 // penambahan data di masa depan dapat menginvalidasi hasil lama.
+// EnsureArtifactDependencyManifest menyediakan insert/exact replay untuk import;
+// ReplaceArtifactDependencies tetap API replacement, bukan ledger immutable global.
 // Benchmark: ukur batch registration, reverse lookup, write amplification, p95/p99, dan
 // pertumbuhan index pada volume corpus referensi.
 // Target numerik required: configs/benchmark-targets.yaml; status REQUIRED_UNMEASURED.
@@ -38,6 +40,20 @@ type ArtifactDependency struct {
 // The adapter computes one deterministic producer hash and retains zero-revision empty lookups so
 // later scope advances can invalidate outputs that previously observed no registry candidates.
 func (r *Repository) ReplaceArtifactDependencyManifest(ctx context.Context, corpusID, artifactID string, manifest *pb.DependencyManifest) error {
+	return r.saveArtifactDependencyManifest(ctx, corpusID, artifactID, manifest, false)
+}
+
+// EnsureArtifactDependencyManifest freezes a nonempty import dependency set.
+// Exact replay succeeds; a changed producer/dependency cannot overwrite an
+// already imported artifact used by a different job or generation.
+func (r *Repository) EnsureArtifactDependencyManifest(ctx context.Context, corpusID, artifactID string, manifest *pb.DependencyManifest) error {
+	if manifest == nil || len(manifest.Dependencies)+len(manifest.LookupScopeRevisions) == 0 {
+		return errors.New("immutable dependency import requires a nonempty set")
+	}
+	return r.saveArtifactDependencyManifest(ctx, corpusID, artifactID, manifest, true)
+}
+
+func (r *Repository) saveArtifactDependencyManifest(ctx context.Context, corpusID, artifactID string, manifest *pb.DependencyManifest, immutable bool) error {
 	if manifest == nil || manifest.GetProducerManifest() == nil {
 		return errors.New("dependency manifest and producer are required")
 	}
@@ -63,7 +79,10 @@ func (r *Repository) ReplaceArtifactDependencyManifest(ctx context.Context, corp
 			EmptyResult: lookup.EmptyResult, ProducerHash: producerHash,
 		})
 	}
-	return r.ReplaceArtifactDependencies(ctx, corpusID, artifactID, dependencies)
+	if immutable && manifest.ArtifactId != artifactID {
+		return errors.New("dependency manifest owner mismatch")
+	}
+	return r.saveArtifactDependencies(ctx, corpusID, artifactID, dependencies, immutable)
 }
 
 func (r *Repository) RegisterArtifact(ctx context.Context, corpusID string, ref *pb.ArtifactRef) error {
@@ -139,6 +158,10 @@ func loadArtifact(ctx context.Context, query indexQuerier, corpusID, artifactID 
 }
 
 func (r *Repository) ReplaceArtifactDependencies(ctx context.Context, corpusID, artifactID string, dependencies []ArtifactDependency) error {
+	return r.saveArtifactDependencies(ctx, corpusID, artifactID, dependencies, false)
+}
+
+func (r *Repository) saveArtifactDependencies(ctx context.Context, corpusID, artifactID string, dependencies []ArtifactDependency, immutable bool) error {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -149,6 +172,45 @@ func (r *Repository) ReplaceArtifactDependencies(ctx context.Context, corpusID, 
 		return ErrNotFound
 	} else if err != nil {
 		return fmt.Errorf("lock artifact dependency owner: %w", err)
+	}
+	if immutable {
+		rows, e := tx.Query(ctx, `SELECT dependency_kind,dependency_key,COALESCE(dependency_revision,0),empty_result,COALESCE(dependency_fingerprint,''),producer_manifest_hash FROM artifact_dependencies WHERE artifact_id=$1`, artifactID)
+		if e != nil {
+			return e
+		}
+		expected := map[string]ArtifactDependency{}
+		for _, dep := range dependencies {
+			key := dep.Kind + "\x00" + dep.Key
+			if _, ok := expected[key]; ok {
+				rows.Close()
+				return ErrConflict
+			}
+			expected[key] = dep
+		}
+		count := 0
+		for rows.Next() {
+			var dep ArtifactDependency
+			if e = rows.Scan(&dep.Kind, &dep.Key, &dep.Revision, &dep.EmptyResult, &dep.Fingerprint, &dep.ProducerHash); e != nil {
+				rows.Close()
+				return e
+			}
+			if expected[dep.Kind+"\x00"+dep.Key] != dep {
+				rows.Close()
+				return ErrConflict
+			}
+			count++
+		}
+		e = rows.Err()
+		rows.Close()
+		if e != nil {
+			return e
+		}
+		if count > 0 {
+			if count != len(expected) {
+				return ErrConflict
+			}
+			return tx.Commit(ctx)
+		}
 	}
 	if _, err = tx.Exec(ctx, `DELETE FROM artifact_dependencies WHERE artifact_id=$1`, artifactID); err != nil {
 		return fmt.Errorf("clear artifact dependencies: %w", err)
