@@ -1,5 +1,9 @@
 # doc
 
+[verification-report-candidate-revalidation.md](verification-report-candidate-revalidation.md)
+mencatat revalidasi konteks kandidat historis, lookup kosong dan perubahan profil/alias
+sebagai salah satu prasyarat reuse hasil RESOLVE pada publication berikutnya.
+
 [graph-assembly-coordinator.md](graph-assembly-coordinator.md) memetakan authority
 receipt/checkpoint/publication Go serta urutan handoff snapshot dan registry lintas sumber.
 [verification-report-assembly-authority.md](verification-report-assembly-authority.md)

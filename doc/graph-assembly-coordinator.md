@@ -36,6 +36,21 @@ fungsi kembali. Inventory scheduling dan output commit harus mengulang predicate
 yang relevan dalam transaksi dengan lock publication/job/source yang konsisten.
 Gate read tidak boleh dianggap sebagai bukti bahwa fence tetap hidup saat RPC selesai.
 
+`VerifyRegistryCandidateView` mengautentikasi ref/bytes EXTRACT dan candidate batch
+yang telah terdaftar, lalu membaca seluruh key alias secara batch pada revision tujuan
+eksplisit. Scope positif/negatif, revision scope, membership kandidat, seluruh payload
+alias/support dan profil canonical harus sama dengan konteks yang dilihat resolver.
+Perubahan global yang tidak menyentuh konteks tersebut tidak membatalkan reuse;
+perubahan kandidat yang tidak dipilih pun menghasilkan `ErrResolutionReplan`.
+Artefak asli tidak diubah. Method ini tidak menghasilkan keputusan atau receipt baru.
+
+Pemeriksaan kandidat ini belum cukup untuk memperluas guard revision GraphDelta.
+Caller harus membuktikan receipt committed, dependency EXTRACT/dokumen (termasuk
+scope luas `canonical-registry` dari BIND), keanggotaan snapshot sumber, serta binding
+revision publication. Receipt pada revision R tidak otomatis dapat dipakai pada R+1
+hanya karena candidate view sama. Alias baru dari commit RESOLVE sendiri juga tidak
+dikecualikan diam-diam: jika mengubah konteks, perlu replan/reaffirmation eksplisit.
+
 ## Integrasi yang perlu diselesaikan
 
 1. Baca RESOLVE output/checkpoint dan intent immutable; autentikasi EXTRACT/kandidat,
@@ -50,6 +65,8 @@ Gate read tidak boleh dianggap sebagai bukti bahwa fence tetap hidup saat RPC se
    Guard delta saat ini masih mensyaratkan revision sama. Sebelum memperluasnya ke
    `receipt_revision <= view_revision`, buktikan receipt historis, canonical tetap aktif
    dan bertipe sama, serta dependency lookup positif/negatif belum berubah pada view.
+   Reader candidate view di atas sudah tersedia untuk konteks RESOLVE; dependency
+   dari tahap sebelumnya dan bukti binding lintas tahap masih harus disambungkan.
    Bila lookup berubah, replan sumber terdampak atau gunakan reaffirmation durable
    yang eksplisit. Jangan mengganti recorded lookup/decision revision secara diam-diam.
 4. Ekspor exact canonical view, simpan plan/view content-addressed, register dependency,
