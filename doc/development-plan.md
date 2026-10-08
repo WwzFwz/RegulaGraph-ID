@@ -260,3 +260,5 @@ commit acknowledgement dikonfirmasi terhadap checkpoint/STAGED byte-identik.
 Tes PostgreSQL memakai worker sintetis dan belum merupakan run corpus nyata.
 CLI persiapan inventory dan pengumpulan/publication lengkap tetap terbuka.
 Lihat [verifikasi executor](verification-report-index-executor.md).
+
+Pembaruan X01 2026-10-09: CHUNK daemon tanpa snapshot dapat diikat melalui envelope dan receipt immutable; recovery INDEX lama memakai ulang output terverifikasi tanpa RPC. Aggregation lengkap tersambung ke publication dense/BM25 dan CLI `publish-index`, dengan late cancellation diperiksa sebelum activation. Fixture PostgreSQL/Qdrant dan review independen PASS; native/corpus penuh serta benchmark belum diukur. Persiapan snapshot/population/inventory lewat CLI dari data nyata tetap langkah berikutnya. Lihat [kontrak](index-source-publication.md) dan [verifikasi](verification-report-source-publication.md).

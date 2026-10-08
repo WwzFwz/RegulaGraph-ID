@@ -7,9 +7,11 @@ Dokumen ini memandu agent implementasi berikutnya, termasuk Sol 5.6, untuk merea
 Checkpoint 2026-10-09: population vocabulary/statistik Rust, allocator dictionary
 Go, plan/inventory child INDEX durable, dan checkpoint/STAGED atomik tersedia.
 Processor/executor serta daemon opt-in menyambungkan dispatch dan commit;
-lihat [kontrak INDEX](index-job-inventory.md). Kelanjutan terdekat adalah CLI
-persiapan inventory yang mengikat input resmi, pengumpulan semua output STAGED,
-dan publication menuju query/RAG. Graph assembly/review-resume, answering penuh,
+lihat [kontrak INDEX](index-job-inventory.md). Source envelope ber-receipt,
+recovery tanpa inference ulang, pengumpulan output STAGED lengkap, dan CLI
+publication dense/BM25 kini tersambung; lihat [kontrak](index-source-publication.md).
+Kelanjutan terdekat adalah CLI persiapan snapshot/population/inventory yang
+mengikat input resmi, lalu run corpus/native nyata. Graph assembly/review-resume, answering penuh,
 incremental serta acceptance seluruh proyek tetap diperlukan; deployment tetap
 di luar scope pengerjaan yang diminta. Gold ditunda sesuai arahan pengguna,
 bukan diganti dengan klaim kelulusan fixture.

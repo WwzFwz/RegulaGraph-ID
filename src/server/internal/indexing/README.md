@@ -93,3 +93,5 @@ menyimpan/mendaftarkan dictionary immutable. Retry setelah interupsi registrasi
 tidak mengganti ID. lexical_dictionary_test.go menguji PostgreSQL/FileStore nyata
 dan artifact statistik Rust yang memakai mapping Go. Membership sumber dan
 statistik tetap harus terikat inventory coordinator sebelum publication.
+
+`initial_source_binding.go` mengautentikasi CHUNK lalu menyimpan envelope/receipt snapshot. `initial_job_recovery.go` memulihkan checkpoint sukses lama tanpa inference ulang. `initial_completed.go` mengumpulkan dan mengadmit seluruh output durable; `initial_publish.go` meneruskan profil dense/BM25 melalui writer dan publication, termasuk replay tanpa upsert. Graph requirement yang sudah staged tetap wajib. Integrasi, batas ukuran dan prasyarat CLI dijelaskan dalam [kontrak sumber/publication](../../../../doc/index-source-publication.md).

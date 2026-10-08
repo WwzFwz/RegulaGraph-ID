@@ -34,3 +34,5 @@ run berikut belum dibuktikan oleh fixture ini: corpus pengguna melalui Rust dan
 model sungguhan, otomatisasi CLI persiapan inventory, pengumpulan seluruh output
 dan publication. Required performance dan model/legal quality NOT_MEASURED;
 seluruh Hybrid GraphRAG belum dinyatakan selesai.
+
+Review lanjutan executor telah selesai bersama source/publication. Pemulihan checkpoint lama, error integritas terminal dan final cancellation guard ditambahkan serta diuji independen; lihat [laporan lanjutan](verification-report-source-publication.md). Catatan pending di atas menggambarkan keadaan run awal, bukan status review terbaru.

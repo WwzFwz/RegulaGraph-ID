@@ -58,3 +58,5 @@ Migration fondasi S01 dan registry K01 sudah aktif. Schema kosong, replay checks
 ## Pekerjaan berikutnya dan integrasi
 
 Migration berikutnya harus memakai nomor baru dan menjelaskan kompatibilitas, backfill, lock impact, serta recovery. Uji upgrade dari revision sebelumnya ketika schema telah dirilis; jangan mengedit checksum migration yang sudah diterapkan atau menganggap transaksi ini mencakup Neo4j/Qdrant.
+
+`0015_index_job_inventory.up.sql` membekukan inventory/assignment INDEX. `0016_index_source_bindings.up.sql` menyimpan envelope receipt dan snapshot/scope yang immutable. Terapkan berurutan sebelum runtime reader/index/publication baru; tanpa backfill atau perubahan sumber historis. Upgrade/migrasi diuji pada PostgreSQL disposable, rehearsal lock/data produksi belum dilakukan. File yang telah diterapkan tetap dipulihkan melalui replay checksum identik.

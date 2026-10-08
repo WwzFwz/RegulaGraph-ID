@@ -1,7 +1,7 @@
 # doc
 
 [index-job-inventory.md](index-job-inventory.md) menjelaskan inventory/claim
-durable INDEX dan batas executor yang belum tersambung; bukti storage terdapat
+durable INDEX dan integrasi executor; bukti storage terdapat
 pada [verification-report-index-jobs.md](verification-report-index-jobs.md).
 Integrasi processor/workflow/daemon dan lost acknowledgement dilacak pada
 [verification-report-index-executor.md](verification-report-index-executor.md).
@@ -240,3 +240,5 @@ dipisahkan dari kualitas gold dan target benchmark required.
 allocator PostgreSQL dan statistik BM25 dari rendered chunk.
 [verification-report-lexical-population.md](verification-report-lexical-population.md)
 memisahkan tes artifact/interop dari acceptance corpus dan benchmark.
+
+[index-source-publication.md](index-source-publication.md) menjelaskan source envelope, recovery output dan perintah publication dense/BM25. Bukti reviewer/backend nyata serta keterbatasannya dicatat pada [verification-report-source-publication.md](verification-report-source-publication.md).

@@ -139,3 +139,5 @@ atau 40P01) maksimal empat attempts dengan penantian berbatas context. Konflik
 semantik atau commit outcome tidak diketahui tetap error. Regression test
 memeriksa klasifikasi, batas retry dan cancellation; latency antre/retry tetap
 harus masuk pengukuran workload.
+
+`index_source_bindings.go` menyimpan receipt immutable original/bound (migration0016 wajib untuk runtime baru). `index_job_results.go` membaca output lengkap dengan checkpoint/state/fence/hash; `index_publication.go` mengunci seluruh child/source sebelum activation untuk menolak late cancellation. NOWAIT menghasilkan not-ready saat job sedang berubah, sehingga tidak menunggu lock terbalik. Lihat [kontrak](../../../../../doc/index-source-publication.md).

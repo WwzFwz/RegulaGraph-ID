@@ -59,11 +59,12 @@ gagal, error tetap dilaporkan dan state tersimpan menentukan claim selanjutnya.
 
 Daemon `ingestion-worker` mengaktifkan kelompok INDEX dengan
 `REGULAGRAPH_INDEX_ENABLED=true` dan merotasinya bersama kelompok lain. Konfigurasi
-native INDEX pada worker Rust, migration0015, shared artefact store, serta scope
+native INDEX pada worker Rust, migration0015/0016, shared artefact store, serta scope
 coordinator yang sama dengan inventory merupakan prasyarat. Opsi ini tidak
 menemukan corpus atau menjadwalkan plan otomatis. Scheduling masih melalui
-library setelah population/plan admission; CLI persiapan inventory dan pengumpulan
-seluruh output menuju publication adalah pekerjaan berikutnya. Tidak ada aktivasi
+library setelah population/plan admission; CLI persiapan inventory masih perlu
+dirangkai. Pengumpulan seluruh output dan CLI publication tersedia melalui
+[kontrak sumber/publication](index-source-publication.md). Tidak ada aktivasi
 snapshot otomatis dari scheduling, claim, atau STAGED.
 
 Ukur queue time, claim/schedule p95/p99, pool wait, contention, RSS dan recovery

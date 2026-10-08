@@ -159,3 +159,5 @@ expiry dan publication saat membaca. Lihat [kontrak](../../../../doc/pinned-evid
 `local_preview.go` berisi nilai in-process/UI untuk sampel demo: halaman, passage,
 klaim dan hasil. Blob SHA-256 serta offset tidak dianggap canonical/version ID.
 Nilai ini bukan pengganti wire contract C01 atau EvidenceBundle produksi.
+
+`index_source_binding.go` membentuk envelope snapshot awal tanpa mengubah record hukum; `index_source_receipt.go` memvalidasi receipt lokal original/bound. Otoritas checkpoint dan fence tetap diperiksa storage. Lihat [kontrak sumber](../../../../doc/index-source-publication.md).

@@ -39,3 +39,5 @@ Berkas `preview.go` pada storage, retrieval, answering, workflows, dan API
 mengimplementasikan baseline demo lokal yang terpisah dari jalur C01 terpublikasi.
 Nilai internal/UI berada pada domain/local_preview.go, tanpa kontrak worker baru.
 Scope dan batas dijelaskan pada [panduan demo](../../../doc/interview-demo.md).
+
+Jalur INDEX kini menghubungkan source envelope ber-receipt, job durable/recovery, pengumpulan output lengkap dan publication dense/BM25. Workflow/storage tetap pemilik authority; Rust/C++ menghasilkan representasi, dan source/citation ditelusuri kembali ke artefak asli. [Kontrak lanjutan](../../../doc/index-source-publication.md) membatasi status ini dari graph/answering serta acceptance menyeluruh.

@@ -64,3 +64,5 @@ menggunakan allocator PostgreSQL lewat indexing, dan menulis ArtifactRef biner
 ke file baru. Ia memerlukan DSN dan root artefak yang sama; tidak menjalankan
 migrasi atau publication. [Panduan populasi](../../../../doc/lexical-population.md)
 menjelaskan argumen, replay dan batas penggunaan.
+
+`publish_index.go` menambahkan `publish-index -corpus ... -publication ... -profile hybrid` untuk inventory durable yang sudah lengkap. Ia merakit dependency dan memanggil publisher dense/BM25; scope corpus/endpoint harus cocok dan tidak menurunkan graph requirement yang sudah staged. [Panduan](../../../../doc/index-source-publication.md) menjelaskan environment, replay, exit code serta persiapan inventory yang masih perlu dirangkai.
