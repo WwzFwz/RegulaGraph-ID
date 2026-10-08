@@ -14,7 +14,8 @@ Pembaruan 2026-10-09: review/resume lokal tersedia pada [panduan](semantic-revie
 Usulan `registry_review.go` direalisasikan oleh `adapters/postgres/semantic_review.go`
 dengan intent/checkpoint existing. Primitive [historical registry view](registry-history.md)
 dan binding publication tersedia; integrasi graph tetap diperlukan. CREATE/MERGE/SPLIT,
-ASSEMBLE GraphDelta dan Neo4j tetap pekerjaan berikutnya.
+ASSEMBLE worker dan Neo4j tetap pekerjaan berikutnya. Library [GraphDelta](graph-delta.md)
+tersedia untuk upsert terikat sumber; closure incremental belum aktif.
 
 Input adalah EXTRACT/CHUNK terverifikasi, candidate policy, registry revision, dan
 snapshot sumber. Output adalah keputusan resolusi teraudit, GraphDelta immutable,
@@ -89,8 +90,9 @@ membership yang valid. Ketiadaan indeks berarti kemampuan expansion belum tersed
 Implementasi library canonical assertion/support kini tersedia pada
 [graph-canonical-identity.md](graph-canonical-identity.md). ID extraction tidak lagi
 menjadi satu-satunya pilihan keluaran materializer; mapping dan support tetap terjaga.
-Snapshot registry view tersedia sebagai library PostgreSQL. GraphDelta, closure,
-dependency assembly serta writer masih belum terintegrasi dengan view tersebut.
+Snapshot registry view tersedia sebagai library PostgreSQL. GraphDelta upsert dan
+dependency assembly tersedia sebagai library Rust; export view terverifikasi, worker,
+closure incremental serta writer masih harus diintegrasikan.
 
 Identitas assertion mencakup subject/predicate/object, arah, qualifier, kondisi,
 pengecualian, interval yang diketahui, serta explicit/inferred. Dukungan sumber disimpan

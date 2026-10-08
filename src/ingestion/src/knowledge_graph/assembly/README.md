@@ -15,7 +15,8 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 ## Isi saat ini
 
 Berkas: [builder.rs](builder.rs), [canonical.rs](canonical.rs),
-[canonical_tests.rs](canonical_tests.rs), [mod.rs](mod.rs).
+[canonical_tests.rs](canonical_tests.rs), [delta.rs](delta.rs),
+[delta_tests.rs](delta_tests.rs), [mod.rs](mod.rs).
 
 `builder.rs` kini menyediakan fungsi prapublikasi yang mengganti endpoint mention
 berdasarkan keputusan LINK/CREATE RESOLVE terikat EXTRACT, memeriksa canonical yang
@@ -23,9 +24,11 @@ disediakan pembaca registry terverifikasi, dan mempertahankan seluruh support as
 Keluaran fungsi raw masih membawa ID ekstraksi. `assemble_canonical_relations` pada
 `canonical.rs` mengomposisikannya dengan dedup assertion/support dan remap exception,
 serta mempertahankan mapping ID lama ke ID hasil. Input/output bytes dan jumlah
-record/referensi dibatasi. Ini belum `GraphDelta` siap publikasi: closure, dependency
-manifest, validasi seluruh delta/span terhadap teks, dan writer Neo4j belum aktif.
-Validasi ontology serta bentuk span EXTRACT/RESOLVE sudah aktif.
+record/referensi dibatasi. `delta.rs` menggabungkan hasil tersebut dengan registry rows,
+dependency manifest dan target visibility menjadi GraphDelta upsert. Source DocumentBatch,
+hash/UTF-8 teks dan mention surface diperiksa; caller mengautentikasi ref/receipt sebelum
+dispatch. Closure incremental, worker dan writer Neo4j masih diperlukan sebelum publikasi.
+Lihat [kontrak delta](../../../../../doc/graph-delta.md).
 
 Identitas assertion mencakup seluruh temporal scope, sehingga view knowledge berbeda
 dipisahkan secara konservatif. Qualifier/kondisi, arah, origin dan ontology tidak
@@ -45,8 +48,8 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Status subkomponen ini prapublikasi endpoint serta identitas graph deterministik;
-ASSEMBLE worker, GraphDelta, mutasi backend, retrieval graph, gold dataset, dan
+Status subkomponen ini endpoint, identitas graph deterministik dan GraphDelta upsert;
+ASSEMBLE worker, mutasi backend, retrieval graph, gold dataset, dan
 acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing;
 tes library tidak membuktikan kebenaran semantik atau target latency.
 
@@ -56,4 +59,4 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
-| [builder.rs](builder.rs), [canonical.rs](canonical.rs) | Lanjutkan output canonical prapublikasi menjadi GraphDelta dengan closure, registry view historis dan dependency manifest. | Integrasikan penarikan support pada backend, exact receipt, dangling edge, dan full-rebuild equivalence. |
+| [builder.rs](builder.rs), [canonical.rs](canonical.rs), [delta.rs](delta.rs) | Sambungkan upsert delta ke worker dan view registry ber-receipt; lanjutkan closure incremental. | Integrasikan penarikan support pada backend, exact receipt, dangling edge, dan full-rebuild equivalence. |

@@ -19,6 +19,10 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+Library `knowledge_graph/assembly/delta.rs` menghasilkan GraphDelta upsert berbukti
+dari EXTRACT/RESOLVE, registry rows dan bytes teks; dependency/visibility dipertahankan.
+Worker graph, incremental closure dan Neo4j belum tersambung; [kontrak](../../doc/graph-delta.md).
+
 Assembly graph memiliki library canonical assertion/support setelah endpoint
 resolution, dengan provenance terpisah dan mapping ID. Ini belum GraphDelta/Neo4j;
 lihat [kontrak identitas](../../doc/graph-canonical-identity.md).

@@ -1,5 +1,10 @@
 # doc
 
+[graph-delta.md](graph-delta.md) menjelaskan assembly upsert, validasi teks sumber,
+dependency/visibility dan kewajiban caller sebelum worker/publication disambungkan.
+[verification-report-graph-delta.md](verification-report-graph-delta.md) mencatat
+regresi source/UTF-8/identity, rerun independen serta batas bukti library.
+
 [registry-history.md](registry-history.md) menjelaskan lookup historis di bawah lease,
 binding publication immutable dan batas history corpus existing pada migration 0018.
 [verification-report-registry-history.md](verification-report-registry-history.md)

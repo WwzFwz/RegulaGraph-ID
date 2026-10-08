@@ -17,6 +17,8 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 `knowledge_graph/assembly/canonical.rs` menormalkan assertion/support teresolusi
 dengan provenance dan mapping ID, budget input/output, dan exception closure acyclic.
 Pemanggil tetap wajib membawa receipt registry terverifikasi; bukan graph publication.
+`assembly/delta.rs` mengomposisikan GraphDelta upsert dengan dependencies, visibility,
+registry type check dan pemeriksaan bytes teks sumber. Worker graph belum tersambung.
 
 Subfolder: [adapters/](adapters/README.md), [bin/](bin/README.md), [document/](document/README.md), [domain/](domain/README.md), [indexing/](indexing/README.md), [knowledge_graph/](knowledge_graph/README.md), dan [worker/](worker/README.md).
 

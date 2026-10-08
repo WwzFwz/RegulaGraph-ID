@@ -12,8 +12,10 @@ linker request; langkah integrasi tersebut harus memakai revision yang sama.
 Assembly Rust kini memiliki `assemble_canonical_relations`: endpoint materialization
 diikuti dedup assertion/support dengan mapping, exception closure acyclic dan budget
 input/output. [Kontrak](graph-canonical-identity.md) membatasi identitas temporal dan
-unknown fields. Lanjutkan GraphDelta setelah registry view/receipt authority siap;
-canonicalization library belum worker/Neo4j publication.
+unknown fields. [GraphDelta upsert](graph-delta.md) kini mengomposisikan source-bound
+EXTRACT, registry rows, teks normalisasi dan canonicalization dengan dependencies serta
+visibility. Lanjutkan export registry view/receipt dan wiring ASSEMBLE/Neo4j; library
+ini belum worker/publication atau closure incremental.
 
 Checkpoint lanjutan K01: [review-resolution](semantic-review.md) kini menyediakan
 inspeksi dan acceptance lokal terikat hash/revision. Approval, intent dan resume atomik;
