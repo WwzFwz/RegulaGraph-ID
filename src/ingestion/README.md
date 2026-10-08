@@ -19,6 +19,10 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+Assembly graph memiliki library canonical assertion/support setelah endpoint
+resolution, dengan provenance terpisah dan mapping ID. Ini belum GraphDelta/Neo4j;
+lihat [kontrak identitas](../../doc/graph-canonical-identity.md).
+
 Subfolder: [src/](src/README.md), termasuk [worker](src/worker/README.md) dan executable [bin](src/bin/README.md).
 
 Berkas: [Cargo.toml](Cargo.toml).

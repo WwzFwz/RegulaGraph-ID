@@ -85,6 +85,11 @@ membership yang valid. Ketiadaan indeks berarti kemampuan expansion belum tersed
 
 ## 3. Aturan assembly dan publication
 
+Implementasi library canonical assertion/support kini tersedia pada
+[graph-canonical-identity.md](graph-canonical-identity.md). ID extraction tidak lagi
+menjadi satu-satunya pilihan keluaran materializer; mapping dan support tetap terjaga.
+GraphDelta/closure/dependency, snapshot registry view dan writer masih belum aktif.
+
 Identitas assertion mencakup subject/predicate/object, arah, qualifier, kondisi,
 pengecualian, interval yang diketahui, serta explicit/inferred. Dukungan sumber disimpan
 terpisah. Dua sumber mendukung assertion sama tidak memaksa dua fakta; mencabut satu

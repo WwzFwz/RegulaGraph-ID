@@ -14,15 +14,26 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
-Berkas: [builder.rs](builder.rs), [mod.rs](mod.rs).
+Berkas: [builder.rs](builder.rs), [canonical.rs](canonical.rs),
+[canonical_tests.rs](canonical_tests.rs), [mod.rs](mod.rs).
 
 `builder.rs` kini menyediakan fungsi prapublikasi yang mengganti endpoint mention
 berdasarkan keputusan LINK/CREATE RESOLVE terikat EXTRACT, memeriksa canonical yang
 disediakan pembaca registry terverifikasi, dan mempertahankan seluruh support asli.
-Keluaran masih membawa ID assertion/support dari ekstraksi dan belum boleh menjadi
-`GraphDelta` siap publikasi: deduplikasi assertion canonical, remap support, closure,
-dependency manifest, validasi keseluruhan delta/span terhadap byte teks sumber, dan
-writer Neo4j belum aktif. Validasi ontology serta bentuk span EXTRACT/RESOLVE sudah aktif.
+Keluaran fungsi raw masih membawa ID ekstraksi. `assemble_canonical_relations` pada
+`canonical.rs` mengomposisikannya dengan dedup assertion/support dan remap exception,
+serta mempertahankan mapping ID lama ke ID hasil. Input/output bytes dan jumlah
+record/referensi dibatasi. Ini belum `GraphDelta` siap publikasi: closure, dependency
+manifest, validasi seluruh delta/span terhadap teks, dan writer Neo4j belum aktif.
+Validasi ontology serta bentuk span EXTRACT/RESOLVE sudah aktif.
+
+Identitas assertion mencakup seluruh temporal scope, sehingga view knowledge berbeda
+dipisahkan secara konservatif. Qualifier/kondisi, arah, origin dan ontology tidak
+dihilangkan. Support menyimpan evidence, versi sumber, producer dan independent group;
+duplicate extraction tidak membuat dukungan independen baru. Unknown protobuf fields
+ditolak secara rekursif sebelum hashing; cyclic exception refs gagal eksplisit.
+Lihat [kontrak identitas](../../../../../doc/graph-canonical-identity.md). Pemanggil
+harus memverifikasi registry receipt dan bytes sumber sebelum memakai library.
 
 ## Benchmark dan perhatian performa
 
@@ -34,7 +45,7 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Status subkomponen ini hanya prapublikasi endpoint graph dan tes deterministik kecil;
+Status subkomponen ini prapublikasi endpoint serta identitas graph deterministik;
 ASSEMBLE worker, GraphDelta, mutasi backend, retrieval graph, gold dataset, dan
 acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing;
 tes library tidak membuktikan kebenaran semantik atau target latency.
@@ -45,4 +56,4 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
-| [builder.rs](builder.rs) | Lanjutkan endpoint prapublikasi menjadi GraphDelta idempotent dengan canonical assertion key, remap support, closure, dan dependency manifest. | Uji duplikasi extraction, dua support satu assertion, penarikan satu support, dangling edge, dan full-rebuild equivalence. |
+| [builder.rs](builder.rs), [canonical.rs](canonical.rs) | Lanjutkan output canonical prapublikasi menjadi GraphDelta dengan closure, registry view historis dan dependency manifest. | Integrasikan penarikan support pada backend, exact receipt, dangling edge, dan full-rebuild equivalence. |

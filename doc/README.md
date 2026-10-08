@@ -1,5 +1,10 @@
 # doc
 
+[graph-canonical-identity.md](graph-canonical-identity.md) menjelaskan dedup assertion,
+support provenance, exception remap dan batas library Rust prapublikasi.
+[verification-report-graph-canonical.md](verification-report-graph-canonical.md)
+mencatat pengujian serta temuan determinisme/identity yang sudah diperbaiki.
+
 [semantic-review.md](semantic-review.md) menjelaskan inspeksi/acceptance operator
 lokal, hash/revision binding dan resume tanpa model call ulang.
 [verification-report-semantic-review.md](verification-report-semantic-review.md)

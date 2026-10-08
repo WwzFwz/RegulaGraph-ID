@@ -4,6 +4,12 @@ Dokumen ini memandu agent implementasi berikutnya, termasuk Sol 5.6, untuk merea
 
 ## Mulai setiap sesi
 
+Assembly Rust kini memiliki `assemble_canonical_relations`: endpoint materialization
+diikuti dedup assertion/support dengan mapping, exception closure acyclic dan budget
+input/output. [Kontrak](graph-canonical-identity.md) membatasi identitas temporal dan
+unknown fields. Lanjutkan GraphDelta setelah registry view/receipt authority siap;
+canonicalization library belum worker/Neo4j publication.
+
 Checkpoint lanjutan K01: [review-resolution](semantic-review.md) kini menyediakan
 inspeksi dan acceptance lokal terikat hash/revision. Approval, intent dan resume atomik;
 executor memakai intent tanpa model call ulang. Lanjutkan historical registry view,

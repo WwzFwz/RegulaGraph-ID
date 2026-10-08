@@ -14,6 +14,11 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+Assembly kini menyediakan komposisi endpoint resolution dengan canonical ID assertion
+dan support deterministik. Banyak sumber tetap memiliki support terpisah; unknown
+fields/cyclic exceptions gagal eksplisit. Ini library prapublikasi, belum GraphDelta
+atau writer Neo4j; [kontrak](../../../../doc/graph-canonical-identity.md).
+
 Subfolder: [assembly/](assembly/README.md), [extraction/](extraction/README.md), [resolution/](resolution/README.md), [summarization/](summarization/README.md), [validation/](validation/README.md).
 
 Berkas: [mod.rs](mod.rs), [schema.rs](schema.rs).

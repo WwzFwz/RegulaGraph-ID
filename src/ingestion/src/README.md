@@ -14,6 +14,10 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+`knowledge_graph/assembly/canonical.rs` menormalkan assertion/support teresolusi
+dengan provenance dan mapping ID, budget input/output, dan exception closure acyclic.
+Pemanggil tetap wajib membawa receipt registry terverifikasi; bukan graph publication.
+
 Subfolder: [adapters/](adapters/README.md), [bin/](bin/README.md), [document/](document/README.md), [domain/](domain/README.md), [indexing/](indexing/README.md), [knowledge_graph/](knowledge_graph/README.md), dan [worker/](worker/README.md).
 
 Berkas: [lib.rs](lib.rs).
