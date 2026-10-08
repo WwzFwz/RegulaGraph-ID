@@ -27,6 +27,10 @@ Anak tidak boleh mengubah kontrak input/output secara tersembunyi. Perubahan ben
 
 ## Isi saat ini
 
+[verification-report-artifact-identities.md](verification-report-artifact-identities.md)
+mencatat perbaikan alamat fisik/logis batch worker pada admission INDEX dan hidrasi,
+tes PostgreSQL/Qdrant sampai draft, review independen, dan batas terhadap acceptance.
+
 [lexical-generation.md](lexical-generation.md) mendefinisikan artefak analyzer dan
 statistik frozen, formula serta handoff Rust ke Go. Bukti parity, backend dan
 batas kesiapannya ada pada [laporan](verification-report-lexical-generation.md).

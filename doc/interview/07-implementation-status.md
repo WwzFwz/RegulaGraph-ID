@@ -32,9 +32,12 @@ benar-benar dapat dijalankan dan dibuktikan sekarang.
 | Evaluasi | Harness/metrics tersedia; gold manusia lengkap, empat baseline dan acceptance required belum selesai |
 | Deployment | Tidak dilakukan pada pekerjaan ini |
 
-Ada pula temuan integrasi terbuka: `indexing/initial_prepare.go` dan
-`retrieval/hydration.go` perlu memperbaiki asumsi ID artefak fisik sama dengan ID
-record logis sebelum hasil Rust content-addressed dipakai sepenuhnya.
+Pembaruan 8 Oktober 2026: asumsi ID artefak fisik harus sama dengan ID record logis
+pada `indexing/initial_prepare.go` dan `retrieval/hydration.go` sudah diperbaiki
+untuk batch keluaran worker. Pengujian PostgreSQL/Qdrant menghubungkan kedua bentuk
+alamat sampai draft bersitasi dengan model sintetis. Ini memperbaiki satu boundary,
+belum menyelesaikan coordinator corpus nyata atau acceptance. Lihat
+[laporan identitas artefak](../verification-report-artifact-identities.md).
 
 ## Jalur demo nyata
 

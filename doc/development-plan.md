@@ -210,3 +210,11 @@ Prioritas pengguna 2026-10-05: demo runnable sebelum interview. Baseline lokal
 BM25 + model Ollama dari sampel PDF tersedia melalui CLI `demo`, dengan panduan
 di [interview-demo.md](interview-demo.md). Ini bukan penutupan K01/X01/Q01/A01
 produksi; pekerjaan coordinator, graph/dense dan acceptance tetap berlaku.
+
+Pembaruan 2026-10-08: admission writer dan source hydration kini menerima alamat
+content-addressed `DocumentBatch`/`IndexBatch` Rust yang berbeda dari logical record
+ID, sambil mempertahankan exact identity plan/lexical serta hash/corpus/checkpoint.
+Uji kedua bentuk alamat mencakup publication, query/hydration dan draft dengan
+PostgreSQL/Qdrant nyata; output model tetap sintetis. Boundary ini tidak lagi
+menjadi penghambat identitas, tetapi coordinator INDEX corpus nyata tetap pekerjaan
+berikutnya. Bukti dan batas ada pada [laporan](verification-report-artifact-identities.md).
