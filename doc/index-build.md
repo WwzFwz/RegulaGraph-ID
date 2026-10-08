@@ -93,7 +93,9 @@ Bootstrap worker memakai tiga variabel opsional yang harus lengkap bersama:
 Manifest ini bukan bundle JSON export model. Channel native dan handle Tokio dipasang
 sekali; eksekusi sinkron worker berada pada blocking pool. Native memvalidasi pin model
 setiap request. Tanpa konfigurasi native, INDEX gagal `FailedPrecondition`; tahap lain
-tetap tersedia. Pembuatan plan otomatis dari registry, dispatch durable coordinator,
+tetap tersedia. Library Go kini membentuk/persist plan dari inventory CHUNK terverifikasi
+dan menyediakan dispatch dengan admission output. Producer statistik corpus, persistent
+inventory/child-job scheduling, dispatch durable coordinator,
 wiring backend/publication dan antarmuka query RAG masih pekerjaan berikutnya.
 Library [writer snapshot awal](initial-index-writer.md) sudah tersedia terpisah:
 hash/checkpoint admission, katalog PostgreSQL, Qdrant dan receipt telah diuji

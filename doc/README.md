@@ -1,5 +1,9 @@
 # doc
 
+[verification-report-index-planning.md](verification-report-index-planning.md)
+mencatat planner inventory, persistence plan, dispatch/admission worker dan integrasi
+writer snapshot awal; scheduler durable dan statistik corpus masih tahap berikutnya.
+
 [initial-index-writer.md](initial-index-writer.md) menjelaskan preparation sumber,
 catalog/intent PostgreSQL, writer Qdrant awal, readback dan receipt publication.
 [verification-report-initial-index.md](verification-report-initial-index.md)

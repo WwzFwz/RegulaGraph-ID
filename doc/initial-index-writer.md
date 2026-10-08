@@ -7,6 +7,47 @@ ini belum wiring ingestion daemon atau bukti Hybrid GraphRAG siap digunakan.
 
 ## Kontrak pemanggilan
 
+`PlanInitialIndex` sekarang menyiapkan `InitialIndexPlans` dari daftar job CHUNK
+yang dipilih operator tepercaya, target snapshot, generation, producer, auth scope
+dan ukuran batch 1–128 chunk. Ia membaca artefak terdaftar, membuktikan checkpoint
+CHUNK, snapshot/scope identik, closure dokumen dan otoritas dictionary. Setiap sumber
+wajib nonempty/COMPLETE; sumber/job/chunk duplikat ditolak. Urutan sumber dan chunk
+stabil, seluruh chunk dibagi tepat sekali, maksimal 256 plan. Ini bukan discovery
+otomatis atau bukti bahwa daftar pilihan mencakup semua regulasi di corpus.
+
+Statistik harus memiliki snapshot, input policy dan jumlah dokumen yang sama dengan
+seluruh chunk terpilih. Fingerprint populasi dan nilai DF tidak dihitung ulang oleh
+planner; producer statistik tetap wajib menghitungnya dari rendered input yang tepat.
+Planner belum menyediakan producer statistik corpus tersebut.
+
+Plan/record ID memakai SHA-256 domain terpisah dan field berpanjang u64 big-endian.
+Plan ID mengikat publication/fence, source job serta byte protobuf deterministik plan
+sebelum ID plan/output diisi. Identitas ini berlaku untuk versi producer Go ini,
+bukan janji canonical serialization lintas bahasa. Reference plan memakai record ID
+typed dan storage key Rust `sha256/aa/bb/<sha256>.bin`; hash mengikat byte final.
+
+`Persist` menulis semua plan secara immutable, mendaftarkan metadata dan dependency
+source/analyzer/statistics/dictionary. Retry identik memperbaiki registrasi yang
+terputus. Caller hanya menjadwalkan setelah seluruh pemanggilan sukses. `Batches`
+mengembalikan salinan; perubahan input atau salinan tidak mengubah inventory privat.
+
+`WorkerRequest` menerima claim INDEX aktif dari scheduler dan menuntut request
+context dengan scope/snapshot/config yang tepat, membatasi deadline terhadap lease.
+Satu child job durable harus memiliki satu plan karena worker menyimpan satu request
+per job/attempt/fence. `ExecuteBatch` memverifikasi ulang plan terdaftar, checkpoint
+sumber dan lexical authority sebelum RPC; output harus sukses, hanya INDEX, dan
+checkpoint/producer/attempt/fence serta context batch harus identik. Byte output
+diperiksa hash, ukuran, schema dan `ValidatePlannedIndexBatch` sebelum diserahkan
+sebagai `VerifiedIndexOutput`. `Register` menyimpan reference/dependency output;
+caller tetap wajib commit checkpoint dengan fence dan mengelola recovery/cancel.
+Library tidak menganggap object `JobRecord` sebagai autentikasi API publik.
+
+`PrepareOutputs` menuntut satu batch untuk setiap plan yang disetujui. Jumlah sama
+dengan plan duplikat, reference plan diganti, atau plan lain yang secara lokal valid
+tetap ditolak. Setelah itu admission writer lama memeriksa ulang seluruh coverage.
+Cache output dipakai bersama agar tidak membaca byte embedding dua kali. Batas
+64 MiB adalah jumlah serialized artefacts; decoded protobuf menambah pemakaian RAM.
+
 Coordinator lebih dahulu membekukan daftar job sumber yang diizinkan dan reserve
 publication. Ia menyediakan `IndexCatalogBinding` dari konfigurasi tepercaya,
 bukan input query: publication/fence, generation, origin Qdrant dan collection.
@@ -89,7 +130,8 @@ publication lama memeriksa semua backend yang tercantum; ia tidak menentukan pro
 aplikasi. Tes publication Qdrant saja memakai corpus terisolasi. Tes kedua menuntut
 Neo4j dan membuktikan publication diblokir tanpa receipt-nya, tanpa memalsukan ack.
 
-Belum tersedia: incremental parent/closures, copy-forward parent points, recovery
+Belum tersedia: persistent inventory/child-job scheduler INDEX, producer statistik
+corpus dari rendered input, incremental parent/closures, copy-forward parent points, recovery
 bootstrap, retire/GC, topology terdistribusi, writer Neo4j, coordinator INDEX daemon,
 dan alur PDF nyata sampai jawaban. Reader katalog/hydration kini tersedia sebagai
 [library terpin](pinned-evidence.md), dengan uji draft memakai model sintetis. Preparation belum

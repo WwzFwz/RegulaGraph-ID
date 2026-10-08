@@ -14,6 +14,18 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+[initial_planning.go](initial_planning.go) membentuk plan INDEX deterministik dari
+inventory CHUNK yang dipilih pemanggil tepercaya. Seluruh chunk dibagi tepat sekali,
+checkpoint/snapshot/scope diperiksa, dan jumlah populasi statistik harus cocok.
+[initial_plan_storage.go](initial_plan_storage.go) menyimpan byte plan beserta
+dependency sumber/lexical, mendukung replay registrasi, lalu menuntut keluaran untuk
+setiap plan tanpa substitusi atau duplikasi. Pemeriksaan keluaran memakai ulang
+cache byte terverifikasi dalam satu budget agregat 64 MiB; ini bukan batas peak RSS.
+[initial_dispatch.go](initial_dispatch.go) membangun request dari claim INDEX milik
+scheduler, memanggil worker, dan mengautentikasi response/byte/context sebelum output
+bisa diregistrasikan. Pemanggil tetap memiliki penyimpanan lease-plan, cancellation
+durable, retry dan commit checkpoint fenced; library ini belum daemon INDEX.
+
 Berkas: [publication.go](publication.go), [initial_prepare.go](initial_prepare.go),
 [initial_writer.go](initial_writer.go), [initial_artifacts_test.go](initial_artifacts_test.go),
 dan [initial_writer_test.go](initial_writer_test.go).
