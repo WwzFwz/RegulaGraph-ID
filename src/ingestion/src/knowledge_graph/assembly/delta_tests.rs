@@ -179,6 +179,58 @@ fn fixture() -> Fixture {
     }
 }
 impl Fixture {
+    fn plan_and_view(&self) -> (graph::GraphAssemblyPlan, graph::RegistryEntityView) {
+        let mut registry = self.registry_ref.clone();
+        registry.media_type = super::inputs::REGISTRY_ENTITY_VIEW_MEDIA_TYPE.into();
+        let plan = graph::GraphAssemblyPlan {
+            meta: meta("plan:assembly"),
+            context: self.extraction.context.clone(),
+            publication_id: "publication:graph".into(),
+            publication_fence: 2,
+            target_sequence: 2,
+            registry_revision: 7,
+            document_batch: self.extraction.source_document_batch.clone(),
+            extraction_batch: MessageField::some(self.extraction_ref.clone()),
+            resolution_batch: MessageField::some(self.resolution_ref.clone()),
+            registry_view: MessageField::some(registry),
+            output_artifact_id: "delta:fixture".into(),
+            source_checkpoint_id: "checkpoint:resolve".into(),
+            producer_manifest: MessageField::some(self.producer.clone()),
+            ontology_hash: MessageField::some(ontology().content_hash()),
+            ..Default::default()
+        };
+        let view = graph::RegistryEntityView {
+            meta: meta(&self.registry_ref.artifact_id),
+            publication_id: plan.publication_id.clone(),
+            publication_fence: 2,
+            registry_revision: 7,
+            requested_ids: self
+                .entities
+                .iter()
+                .map(|e| e.meta.record_id.clone())
+                .collect(),
+            entities: self.entities.clone(),
+            producer_manifest: MessageField::some(self.producer.clone()),
+            ..Default::default()
+        };
+        (plan, view)
+    }
+    fn planned(
+        &self,
+        plan: &graph::GraphAssemblyPlan,
+        view: &graph::RegistryEntityView,
+    ) -> Result<graph::GraphDelta, E> {
+        super::inputs::assemble_planned_graph_delta(
+            plan,
+            view,
+            &self.docs,
+            &self.extraction,
+            &self.resolution,
+            &self.texts,
+            &ontology(),
+            Limits::default(),
+        )
+    }
     fn input(&self) -> DeltaInput<'_> {
         DeltaInput {
             delta_id: "delta:fixture",
@@ -198,6 +250,97 @@ impl Fixture {
     fn build(&self) -> Result<graph::GraphDelta, E> {
         assemble_graph_delta(self.input(), &ontology(), Limits::default())
     }
+}
+
+#[test]
+fn planned_graph_delta_binds_exact_registry_selection_and_source_roles() {
+    let f = fixture();
+    let (plan, view) = f.plan_and_view();
+    assert_eq!(f.planned(&plan, &view).unwrap(), f.build().unwrap());
+    for mutate in [
+        (|v: &mut graph::RegistryEntityView| v.publication_fence += 1)
+            as fn(&mut graph::RegistryEntityView),
+        |v| v.publication_id = "publication:other".into(),
+        |v| v.registry_revision += 1,
+        |v| v.meta.as_mut().unwrap().record_id = "artifact:other".into(),
+        |v| {
+            v.entities.pop();
+        },
+        |v| v.entities.reverse(),
+        |v| v.requested_ids[1] = v.requested_ids[0].clone(),
+        |v| v.entities[0].registry_revision = 8,
+        |v| v.entities[0].meta.as_mut().unwrap().corpus_id = "foreign".into(),
+        |v| v.special_fields.mut_unknown_fields().add_varint(100, 1),
+        |v| {
+            v.entities[0]
+                .special_fields
+                .mut_unknown_fields()
+                .add_varint(100, 1)
+        },
+    ] {
+        let mut bad = view.clone();
+        mutate(&mut bad);
+        assert!(f.planned(&plan, &bad).is_err());
+    }
+    for mutate in [
+        (|p: &mut graph::GraphAssemblyPlan| p.target_sequence = 1)
+            as fn(&mut graph::GraphAssemblyPlan),
+        |p| p.target_sequence = u64::MAX,
+        |p| p.document_batch.as_mut().unwrap().artifact_id = "artifact:other".into(),
+        |p| p.extraction_batch.as_mut().unwrap().artifact_id = "artifact:other".into(),
+        |p| p.registry_view.as_mut().unwrap().media_type = "application/x-protobuf".into(),
+        |p| p.document_batch.as_mut().unwrap().byte_size = 17 << 20,
+        |p| p.output_artifact_id = p.resolution_batch.artifact_id.clone(),
+        |p| p.ontology_hash = MessageField::some(hash('0')),
+        |p| p.context.as_mut().unwrap().auth_scope_ref = "scope:other".into(),
+        |p| p.special_fields.mut_unknown_fields().add_varint(100, 1),
+        |p| {
+            p.registry_view
+                .as_mut()
+                .unwrap()
+                .special_fields
+                .mut_unknown_fields()
+                .add_varint(100, 1)
+        },
+    ] {
+        let mut bad = plan.clone();
+        mutate(&mut bad);
+        assert!(f.planned(&bad, &view).is_err());
+    }
+    let mut empty = view.clone();
+    empty.entities.clear();
+    empty.requested_ids.clear();
+    assert!(
+        super::inputs::validate_registry_entity_view(&empty, &ontology(), Limits::default())
+            .is_ok()
+    );
+    assert_eq!(f.planned(&plan, &empty), Err(E::RegistryMismatch));
+}
+
+#[test]
+fn planned_graph_delta_bounds_resolution_before_selection_allocation() {
+    let mut f = fixture();
+    let (plan, view) = f.plan_and_view();
+    let limits = Limits {
+        max_bytes: 16_384,
+        ..Limits::default()
+    };
+    super::inputs::validate_graph_assembly_plan(&plan, limits).unwrap();
+    super::inputs::validate_registry_entity_view(&view, &ontology(), limits).unwrap();
+    f.resolution.decisions[0].reason = "x".repeat(16_385);
+    assert_eq!(
+        super::inputs::assemble_planned_graph_delta(
+            &plan,
+            &view,
+            &f.docs,
+            &f.extraction,
+            &f.resolution,
+            &f.texts,
+            &ontology(),
+            limits
+        ),
+        Err(E::InvalidInput)
+    );
 }
 
 #[test]

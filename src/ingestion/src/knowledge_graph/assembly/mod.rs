@@ -17,6 +17,7 @@
 pub mod builder;
 pub mod canonical;
 pub mod delta;
+pub mod inputs;
 
 #[cfg(test)]
 mod canonical_tests;
