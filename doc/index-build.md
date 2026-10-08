@@ -94,8 +94,8 @@ Manifest ini bukan bundle JSON export model. Channel native dan handle Tokio dip
 sekali; eksekusi sinkron worker berada pada blocking pool. Native memvalidasi pin model
 setiap request. Tanpa konfigurasi native, INDEX gagal `FailedPrecondition`; tahap lain
 tetap tersedia. Library Go kini membentuk/persist plan dari inventory CHUNK terverifikasi
-dan menyediakan dispatch dengan admission output. Producer statistik corpus, persistent
-inventory/child-job scheduling, dispatch durable coordinator,
+dan menyediakan dispatch dengan admission output. Producer statistik corpus tersedia lewat [persiapan populasi](lexical-population.md);
+persistent inventory/child-job scheduling, dispatch durable coordinator,
 wiring backend/publication dan antarmuka query RAG masih pekerjaan berikutnya.
 Library [writer snapshot awal](initial-index-writer.md) sudah tersedia terpisah:
 hash/checkpoint admission, katalog PostgreSQL, Qdrant dan receipt telah diuji

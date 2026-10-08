@@ -229,3 +229,8 @@ mencatat tes serta batas klaimnya; ini tidak menutup milestone produksi.
 mencatat integrasi reranker terpin setelah hidrasi, pengujian storage nyata dengan
 model sintetis, dan smoke reranker BGE melalui C++ native. Hasil tersebut tetap
 dipisahkan dari kualitas gold dan target benchmark required.
+
+[lexical-population.md](lexical-population.md) menjelaskan persiapan vocabulary,
+allocator PostgreSQL dan statistik BM25 dari rendered chunk.
+[verification-report-lexical-population.md](verification-report-lexical-population.md)
+memisahkan tes artifact/interop dari acceptance corpus dan benchmark.

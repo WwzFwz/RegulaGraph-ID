@@ -232,3 +232,11 @@ Kegagalan/truncation tidak turun diam-diam ke fusion; model/skor dan accounting
 tersedia pada output. Integrasi PostgreSQL/Qdrant memakai model sintetis;
 kualitas, latency required dan Hybrid GraphRAG penuh belum dinyatakan lulus.
 Lihat [verifikasi reranking](verification-report-evidence-reranking.md).
+
+Pembaruan X01 2026-10-09: population Rust kini menghitung vocabulary/DF dari
+rendered chunk terverifikasi; CLI vocabulary/freeze dan allocator Go
+prepare-dictionary diuji bersama PostgreSQL/FileStore nyata. Statistik memakai
+input policy INDEX yang sama. Penyimpanan inventory durable, registration
+dependencies statistik dan scheduler INDEX masih diperlukan untuk corpus otomatis.
+Lihat [panduan populasi](lexical-population.md) dan
+[verifikasi](verification-report-lexical-population.md).
