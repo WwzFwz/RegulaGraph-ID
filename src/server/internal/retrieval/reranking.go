@@ -11,10 +11,10 @@
 // Target numerik required: configs/benchmark-targets.yaml; status REQUIRED_UNMEASURED.
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
-// Status: korelasi dan pengurutan hasil batch reranker aktif; pemilihan budget pasangan,
-// transport inference, dan evaluasi kualitas belum aktif.
+// Status: korelasi dan pengurutan hasil batch aktif; evidence_reranking.go
+// mengikat teks terhidrasi, budget byte/pasangan dan client inference. Kualitas belum diukur.
 // Rekomendasi implementasi berikutnya:
-// Select budgeted candidate pairs, call reranker in batches and map scores back without losing required multi-hop evidence.
+// Evaluate before/after quality and latency on frozen corpora; retain complete evidence/path coverage.
 // Bukti verifikasi: Test truncation, partial results and stable ties; measure ranking quality together with queue-inclusive latency.
 // Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
 

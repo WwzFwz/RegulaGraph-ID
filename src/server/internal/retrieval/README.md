@@ -30,9 +30,9 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. Pipeline parsing/graph/retrieval, mutasi backend, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan target kualitas atau latency.
+Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. Native inference, dense/BM25, publication dan hidrasi tersedia pada komponen pemiliknya; graph, gold dataset dan acceptance produksi belum lengkap. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan target kualitas atau latency.
 
-Fusion RRF deterministik pada [fusion.go](fusion.go) aktif sebagai fungsi lokal: input cabang berbatas, rank dan keputusan filter divalidasi, hasil ambigu antar cabang dideduplikasi berdasarkan evidence key, dan seluruh provenance dipertahankan. [reranking.go](reranking.go) kini mengorelasikan seluruh hasil batch model ke kandidat, menolak hasil hilang/gagal/salah model, menyalin provenance, serta mempertahankan urutan fusion saat skor seri. Pemanggil tetap wajib membentuk key dari bukti/versi tepercaya, menerapkan filter corpus/snapshot/versi, dan mengikat pair ke teks bukti yang benar. Branch dense dan BM25 kini callable dengan client native/Qdrant; graph serta hidrasi storage dan admission snapshot produksi belum tersambung; tes lokal tidak membuktikan Recall@k atau p95/p99.
+Fusion RRF deterministik pada [fusion.go](fusion.go) aktif sebagai fungsi lokal: input cabang berbatas, rank dan keputusan filter divalidasi, hasil ambigu antar cabang dideduplikasi berdasarkan evidence key, dan seluruh provenance dipertahankan. [reranking.go](reranking.go) kini mengorelasikan seluruh hasil batch model ke kandidat, menolak hasil hilang/gagal/salah model, menyalin provenance, serta mempertahankan urutan fusion saat skor seri. Pemanggil tetap wajib membentuk key dari bukti/versi tepercaya, menerapkan filter corpus/snapshot/versi, dan mengikat pair ke teks bukti yang benar. Branch dense dan BM25 kini callable dengan client native/Qdrant; hidrasi storage dan admission snapshot tersambung; graph belum tersedia; tes lokal tidak membuktikan Recall@k atau p95/p99.
 
 ## Hidrasi sumber terpublikasi
 
@@ -60,7 +60,7 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | [filters.go](filters.go) | Apply consistent corpus/snapshot/effective-date/visibility policy before evidence acceptance; retain explicit unknown/conflict dates. | Test boundary dates, repeals, historical snapshots and unknown-date policy; measure filter selectivity and false exclusion. |
 | [fusion.go](fusion.go) | Fuse ranked lists deterministically, preserve source ranks and deduplicate by evidence/version; expose configurable RRF baseline. | Test ties, empty branches and duplicate evidence with different supports; compare recall/nDCG and candidate cost on fixed corpus. |
 | [lexical.go](lexical.go) | Implement BM25 query path using the pinned analyzer/statistics generation; keep learned sparse as a distinct representation. | Test exact legal identifiers, typo/code-switch strata and empty queries; evaluate recall and latency without merging score scales. |
-| [reranking.go](reranking.go) | Korelasi hasil batch aktif; lanjutkan pemilihan pasangan berbatas, integrasi adapter model, dan perlindungan bukti multi-hop saat budget habis. | Tes hasil reordered/missing/duplicate, salah model, token/truncation, alias provenance, dan ties lulus; nDCG, coverage, queue latency tetap NOT_MEASURED. |
+| [reranking.go](reranking.go) | Korelasi dan transport berbatas aktif lewat evidence_reranking.go; ukur efek urutan baru terhadap kualitas dan kelengkapan konteks. | Tes hasil reordered/missing/duplicate, salah model, token/truncation, alias provenance, dan ties lulus; nDCG, coverage, queue latency tetap NOT_MEASURED. |
 
 `RetrieveDense` mempertahankan query asli, memakai purpose QUERY pada model milik
 generation, menolak truncation/vektor invalid, dan meneruskan deadline ke backend.
@@ -86,3 +86,16 @@ memakai statistik masa depan. Tes tidak membuktikan kualitas atau publication co
 bersama, offset UTF-8 halaman, overlap window dan ranking deterministik. Ini tidak
 menggunakan dense/graph atau filter temporal produksi. `preview_test.go` menguji
 ranking, OOV, pembatalan dan exact source offsets; kualitas gold belum diukur.
+
+[evidence_reranking.go](evidence_reranking.go) menilai semua item terhidrasi dengan
+model RERANK terpin. Request dibagi menurut jumlah pasangan dan ukuran protobuf
+sebelum RPC pertama; skor hilang, salah model, atau terpotong menggagalkan tahap.
+Ties mempertahankan urutan fusion lintas batch, seluruh sumber/dependency/path dan
+completeness tetap utuh. Tidak ada pruning atau fallback tersembunyi. Model dan
+client dipakai ulang; hasil menyertakan skor terurut, jumlah batch dan durasi.
+[evidence_reranking_test.go](evidence_reranking_test.go) menguji budget, urutan,
+ownership, cancellation dan failure; model fixture tidak membuktikan kualitas.
+
+[evidence_reranking_integration_test.go](evidence_reranking_integration_test.go)
+memakai endpoint/model native opt-in untuk memeriksa batching dan urutan skor
+nyata. Teksnya fixture; laporan terpisah tidak mengklaim kualitas corpus/gold.
