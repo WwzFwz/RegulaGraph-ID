@@ -58,13 +58,17 @@ func (r *Repository) AcquireIndexWriteLock(ctx context.Context, publication stri
 // additionally requires source.Context.SnapshotRef == planned target snapshot.
 // The initial writer separately proves full chunk coverage of all declared jobs.
 func (r *Repository) VerifyIndexSourceCheckpoint(ctx context.Context, corpus, job string, ref *pb.ArtifactRef) error {
+	return verifyIndexSourceCheckpoint(ctx, r.pool, corpus, job, ref)
+}
+
+func verifyIndexSourceCheckpoint(ctx context.Context, query indexQuerier, corpus, job string, ref *pb.ArtifactRef) error {
 	if !storageIDPattern.MatchString(corpus) || !storageIDPattern.MatchString(job) || ref == nil {
 		return errors.New("source job required")
 	}
 	if err := domain.ValidateWire(ref, domain.DefaultWireLimits); err != nil {
 		return err
 	}
-	registered, err := r.LoadArtifact(ctx, corpus, ref.ArtifactId)
+	registered, err := loadArtifact(ctx, query, corpus, ref.ArtifactId)
 	if err != nil {
 		return err
 	}
@@ -76,7 +80,7 @@ func (r *Repository) VerifyIndexSourceCheckpoint(ctx context.Context, corpus, jo
 	var terminal int16
 	var fence int64
 	var checkpointID string
-	err = r.pool.QueryRow(ctx, `SELECT c.payload,c.payload_hash,COALESCE(c.terminal_status,0),c.fence,c.checkpoint_id FROM job_checkpoints c
+	err = query.QueryRow(ctx, `SELECT c.payload,c.payload_hash,COALESCE(c.terminal_status,0),c.fence,c.checkpoint_id FROM job_checkpoints c
  JOIN jobs j ON j.job_id=c.job_id WHERE j.job_id=$1 AND j.corpus_id=$2 AND NOT j.cancellation_requested
  AND c.stage=$3 ORDER BY c.fence DESC,c.created_at DESC LIMIT 1`, job, corpus,
 		int16(pb.JobStage_JOB_STAGE_CHUNK)).Scan(&raw, &digest, &terminal, &fence, &checkpointID)

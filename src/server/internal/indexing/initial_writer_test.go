@@ -59,14 +59,17 @@ func (b *lostIndexReply) Upsert(ctx context.Context, points []qdrant.Point) erro
 func TestInitialIndexPublicationAgainstStores(t *testing.T) {
 	for _, physical := range []bool{false, true} {
 		t.Run(fmt.Sprintf("content-addressed=%v", physical), func(t *testing.T) {
-			t.Run("isolated Qdrant publication", func(t *testing.T) { runInitialIndexPublication(t, false, physical) })
-			t.Run("missing graph receipt blocks publication", func(t *testing.T) { runInitialIndexPublication(t, true, physical) })
+			t.Run("isolated Qdrant publication", func(t *testing.T) { runInitialIndexPublication(t, false, physical, false) })
+			t.Run("missing graph receipt blocks publication", func(t *testing.T) { runInitialIndexPublication(t, true, physical, false) })
 		})
 	}
 }
 
-func runInitialIndexPublication(t *testing.T, requireGraph, contentAddressed bool) {
+func runInitialIndexPublication(t *testing.T, requireGraph, contentAddressed, inventoryOnly bool) {
 	dsn, endpoint := os.Getenv("REGULAGRAPH_TEST_POSTGRES_DSN"), os.Getenv("REGULAGRAPH_TEST_QDRANT_ENDPOINT")
+	if inventoryOnly && endpoint == "" {
+		endpoint = "http://127.0.0.1:6333" // routing metadata only; no backend calls
+	}
 	if dsn == "" || endpoint == "" {
 		t.Skip("disposable PostgreSQL and Qdrant required")
 	}
@@ -241,8 +244,14 @@ func runInitialIndexPublication(t *testing.T, requireGraph, contentAddressed boo
 	}
 	checkpointRaw, _ := proto.Marshal(checkpoint)
 	checkpointSum := sha256.Sum256(checkpointRaw)
-	hash := strings.Repeat("a", 64)
-	_, err = conn.Exec(ctx, `INSERT INTO jobs(job_id,corpus_id,operation,state,stage,input_fingerprint,idempotency_key,request_hash,request_payload) VALUES($1,$2,1,3,$3,$4,$1,$4,$5)`, job, corpus, int16(pb.JobStage_JOB_STAGE_CHUNK), hash, []byte("synthetic test seed"))
+	request := &pb.IngestionRequest{CorpusId: corpus, Operation: pb.JobOperation_JOB_OPERATION_INGEST, IdempotencyKey: job,
+		Sources: []*pb.SourceLocator{{PortalId: "bpk", Locator: &pb.SourceLocator_Url{Url: "https://example.test/source.pdf"}}}, ConfigManifest: plan.Producer}
+	requestBytes, err := proto.Marshal(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hash := fmt.Sprintf("%x", sha256.Sum256(requestBytes))
+	_, err = conn.Exec(ctx, `INSERT INTO jobs(job_id,corpus_id,operation,state,stage,input_fingerprint,idempotency_key,request_hash,request_payload) VALUES($1,$2,1,3,$3,$4,$1,$4,$5)`, job, corpus, int16(pb.JobStage_JOB_STAGE_CHUNK), hash, requestBytes)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -315,9 +324,13 @@ func runInitialIndexPublication(t *testing.T, requireGraph, contentAddressed boo
 	}
 	// The coordinator now constructs the selection, persists its real plan bytes,
 	// and admits the exact resulting set before the existing publication path.
+	chunksPerBatch := 128
+	if inventoryOnly {
+		chunksPerBatch = 1
+	}
 	planned, err := PlanInitialIndex(ctx, repo, artifacts, InitialIndexPlanConfig{
 		Binding: binding, Snapshot: snapshot, Producer: plan.Producer,
-		DictionaryChain: plan.DictionaryChain, AuthScope: source.Context.AuthScopeRef, ChunksPerBatch: 128,
+		DictionaryChain: plan.DictionaryChain, AuthScope: source.Context.AuthScopeRef, ChunksPerBatch: chunksPerBatch,
 	}, []InitialIndexSource{{SourceJobID: job, DocumentBatch: plan.DocumentBatch}})
 	if err != nil {
 		t.Fatal(err)
@@ -332,6 +345,10 @@ func runInitialIndexPublication(t *testing.T, requireGraph, contentAddressed boo
 	}
 	if err = planned.Persist(ctx, planFiles, repo); err != nil {
 		t.Fatal("plan replay", err)
+	}
+	if inventoryOnly {
+		checkDurableIndexInventory(t, ctx, parsed.String(), conn, planned)
+		return
 	}
 	plannedBatch := planned.Batches()[0]
 	planBytes, err := planFiles.ReadVerified(ctx, plannedBatch.Reference, plannedBatch.Reference.ByteSize)

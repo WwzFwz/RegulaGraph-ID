@@ -104,12 +104,16 @@ func (r *Repository) RegisterArtifact(ctx context.Context, corpusID string, ref 
 
 // LoadArtifact reconstructs immutable metadata for a checkpoint-bound artifact.
 func (r *Repository) LoadArtifact(ctx context.Context, corpusID, artifactID string) (*pb.ArtifactRef, error) {
+	return loadArtifact(ctx, r.pool, corpusID, artifactID)
+}
+
+func loadArtifact(ctx context.Context, query indexQuerier, corpusID, artifactID string) (*pb.ArtifactRef, error) {
 	if !storageIDPattern.MatchString(corpusID) || !storageIDPattern.MatchString(artifactID) {
 		return nil, errors.New("valid corpus and artifact IDs required")
 	}
 	var digest, key, mediaType, schemaVersion string
 	var byteSize int64
-	err := r.pool.QueryRow(ctx, `SELECT digest,storage_key,media_type,byte_size,schema_version
+	err := query.QueryRow(ctx, `SELECT digest,storage_key,media_type,byte_size,schema_version
 		FROM artifacts WHERE corpus_id=$1 AND artifact_id=$2`, corpusID, artifactID).
 		Scan(&digest, &key, &mediaType, &byteSize, &schemaVersion)
 	if err == pgx.ErrNoRows {
