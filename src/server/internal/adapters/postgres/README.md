@@ -16,6 +16,11 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+`artifacts.go` menyediakan `EnsureArtifactDependencyManifest` untuk import
+statistik: artifact row dikunci dan replay harus memakai seluruh dependency serta
+producer hash identik. Metode replacement lama tetap tersedia bagi pipeline yang
+memerlukannya; tidak ada klaim dependency immutable pada seluruh API database.
+
 [index_jobs.go](index_jobs.go) menyimpan inventory dan child job INDEX atomik;
 [index_job_claim.go](index_job_claim.go) mengklaim child dengan fence/retry dan
 publication aktif. Migration 0015 wajib tersedia. Generic claim melewati child

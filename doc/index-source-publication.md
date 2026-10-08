@@ -113,10 +113,53 @@ data durable: ulangi input sama dengan folder output baru, jangan menganggap
 keberadaan folder sebagai bukti sukses. Snapshot published tidak dipersiapkan
 ulang sebagai publication baru.
 
-Vocabulary/freeze Rust dan allocator dictionary Go sudah tersedia; wiring
-operator untuk registrasi statistik, generation/model pin dan penjadwalan
-inventory INDEX masih perlu dirangkai. Perintah persiapan ini tidak menjalankan
-inference atau activation otomatis.
+Vocabulary/freeze Rust dan allocator dictionary Go dilanjutkan dengan
+`prepare-index` di bawah. Persiapan snapshot sendiri tidak menjalankan inference
+atau activation otomatis.
+
+## Menjadwalkan embedding dan BM25
+
+Sesudah vocabulary, `prepare-dictionary`, dan freeze Rust selesai mengikuti
+[panduan population](lexical-population.md), jalankan:
+
+```powershell
+go run ./src/server/cmd/cli prepare-index -snapshot-directory artifacts/preparation-example -publication publication:example -collection regulagraph_example -auth-scope operator:corpus -ontology-version ontology:v1 -dictionary-ref dictionary-ref.pb -statistics-ref statistics-ref.pb -model-manifest artifacts/models/bge-m3-fp16-ort1220/model.pbjson -model-sha256 <sha256-byte-model.pbjson>
+```
+
+Gunakan DSN, artifact root dan Qdrant URL yang sama. Collection adalah nama
+binding baru yang immutable. Nilai scope/ontology/model harus berasal dari
+konfigurasi run, bukan menyalin contoh tanpa pemeriksaan. Snapshot, seluruh
+sumber, statistik dan vocabulary harus berasal dari pilihan CHUNK yang sama.
+Bootstrap operator ini menerima root dictionary keluaran `prepare-dictionary`;
+planner library tetap mendukung rantai dictionary untuk integrasi berikutnya.
+
+Go memeriksa registry dictionary, hash/schema statistik, population snapshot,
+input policy, model generation dan seluruh source authority sebelum menyimpan
+inventory. Statistik Rust diregistrasikan bersama dependency dictionary/sumber.
+`EnsureArtifactDependencyManifest` hanya menerima replay set identik melalui
+metode tersebut; ini bukan immutability global database, karena API replacement
+lama masih tersedia. DF tidak dihitung ulang oleh Go: pemeriksaan consistency
+tidak menggantikan pembuktian producer population maupun evaluasi kualitas.
+
+Semua chunk dibagi menjadi child job stabil; `-chunks-per-batch` default 64,
+rentang 1..128. Scheduling seluruh inventory atomik. Retry memakai input dan
+publication sama; drift model atau dependency ditolak. Kegagalan persiapan bisa
+meninggalkan artefak immutable, tetapi tidak inventory separuh terjadwal.
+
+Perintah menulis `embedding-model.pb` ke direktori snapshot sebelum scheduling.
+Byte C01 biner ini berisi manifest model yang sama dengan JSON native; SHA-256
+biner berbeda dari pin JSON. Output sukses mengembalikan `worker_model_manifest`
+dan `worker_model_manifest_sha256`, untuk `REGULAGRAPH_WORKER_EMBED_MANIFEST`
+dan `REGULAGRAPH_WORKER_EMBED_MANIFEST_SHA256`. Ekspor identik dapat direplay;
+file berbeda/parsial ditolak tanpa overwrite. Kegagalan sesudah ekspor belum
+berarti job terjadwal; gunakan exit code dan output `status: scheduled`.
+
+Jalankan native inference sesuai [panduan native](native-inference.md), lalu
+worker Rust dengan ketiga variabel native pada [kontrak worker](index-build.md).
+Coordinator Go memerlukan `REGULAGRAPH_INDEX_ENABLED=true`; sesudah seluruh
+child STAGED, jalankan `publish-index`, kemudian `query-evidence`. Alur ini
+menyediakan indeks dense/BM25 dengan bukti terpin; graph dan generation jawaban
+penuh tetap pekerjaan terpisah. Status scheduled tidak berarti search-ready.
 
 ## Pengukuran dan bukti
 

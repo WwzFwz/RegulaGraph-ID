@@ -58,4 +58,27 @@ dengan validator produksi dan existing file tidak dapat ditimpa. Schema facts
 sesuai loader evaluator; jumlah graph nol tidak dianggap quality/eligibility
 PASS. Seluruh CLI belum dijalankan terhadap corpus PDF pengguna; hasil ini
 membuktikan library/adapter/export, bukan benchmark produksi. Registrasi
-statistik dan penjadwalan generation melalui operator masih perlu dilanjutkan.
+statistik dan penjadwalan generation melalui operator dilanjutkan pada paket berikut.
+
+## Bootstrap inventory dan handoff model worker
+
+Paket di atas revision `51ed789` menambahkan `BootstrapInitialIndex`, exact-replay
+dependency import dan CLI `prepare-index`. Raw log berada pada
+`artifacts/verification/20261009-index-bootstrap/`. `targeted.log` dan
+`go-all.log` PASS untuk bootstrap serta seluruh paket Go dengan PostgreSQL16.8
+dan Qdrant1.18.0 disposable; `vet.log` PASS. Perintah utama:
+`go test ./src/server/... -count=1`, Go1.26.8 Windows amd64. Fixture sumber,
+statistik dan vektor sintetis; expected replay stabil, model drift/dependency
+drift ditolak, tidak ada perubahan inventory yang sudah tersimpan.
+
+Reviewer `/root/verify_index_jobs` menjalankan pemeriksaan independen pada
+`independent.log`, PASS tanpa blocker konkret. Metode Ensure menjamin exact
+replay pada jalur import, bukan immutability global dependency karena Replace
+masih tersedia. Import memeriksa consistency statistik, tidak menghitung DF ulang.
+
+Sesudah broad suite, CLI ditambah ekspor model embedding C01 biner untuk Rust.
+Seluruh tes CLI dijalankan ulang (`cli-export.log`, PASS); review/tes independen
+terfokus (`independent-model-export.log`) PASS. Tes membuktikan semantik model
+dan binary SHA, exact replay, drift ditolak, serta file parsial tidak ditimpa.
+Tes ini belum menjalankan seluruh executable operator bersama proses Rust dan
+native model nyata. Kualitas/latency required tetap NOT_MEASURED, bukan PASS.

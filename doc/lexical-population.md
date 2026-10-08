@@ -78,10 +78,12 @@ Go dictionary export dibatasi kapasitas wire (49.999 terms dengan default limits
 Registry dapat memiliki vocabulary lebih besar; bila export melampaui batas,
 hasil bukan dictionary parsial. Semua artefak, source refs dan analyzer/dictionary
 dependencies harus diregistrasikan sebelum PlanInitialIndex menerima generation.
-Rust CLI menulis statistik tetapi tidak mendaftarkannya ke PostgreSQL; scheduler
-Go tetap harus memverifikasi hasil dan menyimpan dependencies tersebut. Durable
-inventory/child-job dispatch dan pengikatan seluruh statistik ke publication masih
-pekerjaan lanjutan. Tidak ada perubahan target required atau klaim benchmark PASS.
+Rust CLI menulis statistik tetapi tidak mendaftarkannya ke PostgreSQL.
+`prepare-index` Go kini memverifikasi dan mengimpor statistik, membentuk generation
+terpin dan menjadwalkan inventory lengkap; ikuti [handoff operator](index-source-publication.md).
+Importer memeriksa consistency dan provenance, bukan menghitung ulang DF.
+Child job durable diproses coordinator INDEX opt-in sebelum publication eksplisit.
+Tidak ada perubahan target required atau klaim benchmark PASS.
 
 Lihat [verifikasi populasi](verification-report-lexical-population.md),
 [kontrak lexical](lexical-generation.md), dan [worker INDEX](index-build.md).

@@ -5,6 +5,13 @@ dan source refs C01 dari pilihan job/CHUNK terdaftar. Scope, hash dan authority
 diperiksa indexing; output memakai direktori baru tanpa overwrite. Lihat
 [panduan persiapan](../../../../doc/index-source-publication.md).
 
+`prepare_index.go` menyediakan `prepare-index`: membaca ekspor snapshot, refs
+dictionary/statistik C01 dan manifest embedding JSON terpin, lalu memanggil
+bootstrap indexing untuk menjadwalkan semua child. Manifest model biner beserta
+hash diekspor untuk worker Rust; existing file harus identik saat replay.
+Output `scheduled` belum berarti search-ready. Selanjutnya coordinator INDEX
+opt-in, `publish-index`, dan `query-evidence` memakai snapshot/generation sama.
+
 Entry point perintah ingestion, update, serta query melalui komponen Go yang sama. Dokumen ini mendefinisikan superset tanggung jawab folder dan kontrak integrasi anaknya.
 
 ## Batas tanggung jawab

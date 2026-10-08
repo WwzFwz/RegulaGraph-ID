@@ -90,13 +90,16 @@ Bootstrap worker memakai tiga variabel opsional yang harus lengkap bersama:
 - `REGULAGRAPH_WORKER_EMBED_MANIFEST`, file protobuf C01 `ModelManifest`, maksimal 64 KiB.
 - `REGULAGRAPH_WORKER_EMBED_MANIFEST_SHA256`, hash exact byte file tersebut.
 
-Manifest ini bukan bundle JSON export model. Channel native dan handle Tokio dipasang
+Manifest ini bukan bundle JSON export model. CLI `prepare-index` mengekspor
+`embedding-model.pb` beserta SHA-256 biner dari JSON native yang terpin;
+ikuti [handoff operator](index-source-publication.md). Channel native dan handle Tokio dipasang
 sekali; eksekusi sinkron worker berada pada blocking pool. Native memvalidasi pin model
 setiap request. Tanpa konfigurasi native, INDEX gagal `FailedPrecondition`; tahap lain
 tetap tersedia. Library Go kini membentuk/persist plan dari inventory CHUNK terverifikasi
 dan menyediakan dispatch dengan admission output. Producer statistik corpus tersedia lewat [persiapan populasi](lexical-population.md);
-persistent inventory/child-job scheduling, dispatch durable coordinator,
-wiring backend/publication dan antarmuka query RAG masih pekerjaan berikutnya.
+persistent inventory/child-job scheduling, dispatch durable coordinator dan CLI
+publication/query evidence kini tersedia. Alur nyata corpus/native serta answering
+dan graph lengkap tetap memerlukan integrasi/verifikasi berikutnya.
 Library [writer snapshot awal](initial-index-writer.md) sudah tersedia terpisah:
 hash/checkpoint admission, katalog PostgreSQL, Qdrant dan receipt telah diuji
 dengan backend nyata; daemon INDEX belum memanggil library ini secara otomatis.

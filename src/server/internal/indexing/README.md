@@ -26,7 +26,8 @@ inventory atomik; `VerifiedIndexOutput.Commit` menutup checkpoint/STAGED atomik.
 [initial_job_processor.go](initial_job_processor.go) menghubungkan admitted
 inventory, RPC worker, registrasi dan commit untuk executor workflow/daemon.
 Cache satu inventory tidak menghilangkan pemeriksaan authority dan byte per job.
-CLI persiapan serta pengumpulan semua output publication masih perlu dihubungkan.
+CLI persiapan dan pengumpulan seluruh output publication kini tersambung melalui
+`initial_bootstrap.go`, `initial_completed.go`, dan `initial_publish.go`.
 Kontrak dan batasnya ada pada [inventory INDEX](../../../../doc/index-job-inventory.md).
 
 [initial_planning.go](initial_planning.go) membentuk plan INDEX deterministik dari
@@ -39,7 +40,8 @@ cache byte terverifikasi dalam satu budget agregat 64 MiB; ini bukan batas peak 
 [initial_dispatch.go](initial_dispatch.go) membangun request dari claim INDEX milik
 scheduler, memanggil worker, dan mengautentikasi response/byte/context sebelum output
 bisa diregistrasikan. Pemanggil tetap memiliki penyimpanan lease-plan, cancellation
-durable, retry dan commit checkpoint fenced; library ini belum daemon INDEX.
+durable, retry dan commit checkpoint fenced; daemon INDEX memakai processor/executor
+yang menyusun library ini.
 
 Berkas: [publication.go](publication.go), [initial_prepare.go](initial_prepare.go),
 [initial_writer.go](initial_writer.go), [initial_artifacts_test.go](initial_artifacts_test.go),
@@ -48,7 +50,7 @@ Preparation mengautentikasi batch/plan/source/checkpoint/dictionary untuk daftar
 sumber snapshot awal; writer menyimpan intent, menulis Qdrant, membaca ulang semua
 point dan merekam receipt. Pemanggil wajib membekukan inventory dan backend wajib.
 Lihat [kontrak writer](../../../../doc/initial-index-writer.md) untuk batas resource,
-retry, namespace, dan prasyarat integrasi. Tidak ada route publik/CLI baru.
+retry, namespace, dan prasyarat integrasi. CLI operator tersedia; route publik belum.
 
 Preparation membedakan alamat fisik `DocumentBatch`/`IndexBatch` keluaran worker
 dari logical record ID di dalam payload. Plan dan artefak lexical tetap memakai
@@ -68,7 +70,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 Publication coordinator S01 aktif untuk reserve, stage, acknowledge, pre-commit
 validation, snapshot CAS, dan abort melalui durable store. Writer Qdrant snapshot
 awal kini diuji dengan PostgreSQL/Qdrant nyata, termasuk lost reply/retry dan
-receipt graph hilang. Wiring daemon, mutation Neo4j, incremental/compensation,
+receipt graph hilang. Daemon INDEX opt-in tersedia; mutation Neo4j, incremental/compensation,
 serta benchmark indexing/retrieval masih mengikuti X01/U01. Fixture sintetis
 tidak membuktikan target kualitas atau latency.
 
@@ -101,3 +103,10 @@ dan artifact statistik Rust yang memakai mapping Go. Membership sumber dan
 statistik tetap harus terikat inventory coordinator sebelum publication.
 
 `initial_source_binding.go` mengautentikasi CHUNK lalu menyimpan envelope/receipt snapshot. `initial_job_recovery.go` memulihkan checkpoint sukses lama tanpa inference ulang. `initial_completed.go` mengumpulkan dan mengadmit seluruh output durable; `initial_publish.go` meneruskan profil dense/BM25 melalui writer dan publication, termasuk replay tanpa upsert. Graph requirement yang sudah staged tetap wajib. Integrasi, batas ukuran dan prasyarat CLI dijelaskan dalam [kontrak sumber/publication](../../../../doc/index-source-publication.md).
+
+`initial_bootstrap.go` mengimpor statistik Rust yang terverifikasi, memeriksa
+root dictionary registry, membentuk analyzer/model generation, mengadmit seluruh
+sumber, lalu mempersist plan dan menjadwalkan inventory atomik. Dependency import
+memakai exact replay; gagal admission dapat meninggalkan prerequisites immutable.
+Tes PostgreSQL/FileStore memeriksa replay/model drift tanpa mengklaim DF atau
+embedding fixture sebagai hasil kualitas model nyata.

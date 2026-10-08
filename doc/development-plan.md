@@ -10,7 +10,10 @@ Pembaruan X01 2026-10-09: planner inventory CHUNK, persistence plan/dependency,
 dispatch worker berbatas lease dan exact output-set admission tersedia sebagai library
 Go. Integrasi planner/persistence sampai publication/hydration diuji dengan PostgreSQL
 dan Qdrant nyata serta model fixture. Persistent inventory/child-job scheduling dan
-producer statistik dari rendered corpus masih diperlukan sebelum daemon INDEX lengkap.
+producer statistik dari rendered corpus telah dilanjutkan: population Rust,
+snapshot source binding, bootstrap operator, inventory durable dan daemon INDEX
+opt-in kini tersambung sampai publication dense/BM25. Run corpus/native nyata,
+incremental dan benchmark seluruh X01 masih diperlukan.
 Lihat [kontrak writer](initial-index-writer.md); ini belum kelulusan seluruh X01.
 
 Status D01 diperbarui: [collector dan audit PDF](acquisition.md) sudah memverifikasi integrity manifest 616 record, 619 observation, serta 650 PDF unik/2.999.240.002 byte dari batch BPK/Kemkomdigi dan percobaan JDIHN. Inventory seluruh corpus, connector JDIHN, 2.545 URL queue pending, 526 missing document reference, klasifikasi gold format, dan gold dataset belum selesai. C01, E01, serta control-plane S01 sudah direalisasikan. I01 mengikat metadata portal ke source blob sebagai assertion, memverifikasi hash/identity, menghasilkan teks/locator/status halaman, mapping byte canonical, hierarchy structure, parent-aware chunk, reference closure, persistence content-addressed, incremental plan, serta timeline as-of. Worker gRPC dan coordinator Go menjalankan handoff PARSE→STRUCTURE→BIND→CHUNK→EXTRACT dengan deadline/fence/cancellation, artifact/checkpoint binding, dependency evidence, terminal outcome, retry, dan crash recovery per stage. EXTRACT mengikat source version, model/prompt/ontology bytes, accounting, typed graph, exact mention bytes, dan UTF-8 evidence sebelum commit. OCR, tabel, extraction change-event, resolusi issuer/semantic merge-split, temporal/structure gold, penyelesaian review RESOLVE serta stage ASSEMBLE/INDEX, full-rebuild equivalence, dan benchmark produksi masih terbuka. Parity diagnostik tokenizer/model native sudah diuji; hasil tersebut tidak membuktikan kualitas gold atau workload produksi.
