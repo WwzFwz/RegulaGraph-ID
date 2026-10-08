@@ -14,6 +14,12 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+`dependencies.go` membuka PostgreSQL/FileStore/native/HTTP clients eksplisit dan
+memakai satu cache generation immutable; setiap request mempunyai snapshot lease
+baru. `server.go` merakit route evidence, auth/concurrency/deadline, request ID
+server dan log redacted. `server_test.go` memeriksa graceful drain; native HTTP
+diuji melalui indexing/native_api_test.go. Lihat [panduan](../../../../doc/evidence-api.md).
+
 Subfolder: [routes/](routes/README.md), [schemas/](schemas/README.md).
 
 Berkas: [dependencies.go](dependencies.go), [server.go](server.go).
@@ -26,7 +32,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. Pipeline parsing/graph/retrieval, mutasi backend, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan target kualitas atau latency.
+Status komponen: evidence HTTP lokal vector/hybrid aktif, dengan autentikasi, bounded admission, fresh snapshot lease, shared clients, readiness dan graceful drain. Route generation jawaban, documents, graph dan streaming belum aktif. Unit/native integration PASS tidak membuktikan kualitas hukum atau required benchmark.
 
 ## Rekomendasi implementasi anak
 
@@ -39,6 +45,6 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 `preview.go` dan `preview.html` menyediakan UI localhost serta status, ask dan PDF
 routes untuk workflow preview. Route membatasi body/deadline, Host/Origin dan
 memverifikasi PDF terhadap receipt; teks model ditampilkan melalui textContent.
-Tes boundary berada di `preview_test.go`. Server produksi dalam cmd/api tetap
-scaffold; UI aktif dirakit CLI demo, dijelaskan dalam
+Tes boundary berada di `preview_test.go`. Cmd/api menyediakan evidence HTTP
+terpisah; UI preview dirakit CLI demo, dijelaskan dalam
 [panduan](../../../../doc/interview-demo.md).

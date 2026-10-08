@@ -115,3 +115,7 @@ embedding fixture sebagai hasil kualitas model nyata.
 dihitung Rust/C++, publication backend nyata dan query/hidrasi. Sumber tetap
 fixture CHUNK; [laporan](../../../../doc/verification-report-native-index.md)
 memisahkan integrasi ini dari gold dan acceptance performa.
+
+`native_api_test.go` melanjutkan run tersebut melalui API HTTP nyata: cold query
+concurrent, warm reuse, readiness, C01 response dan cleanup seluruh read lease.
+Tes tidak mengklaim source fixture sebagai evaluasi legal/gold.

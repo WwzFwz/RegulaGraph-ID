@@ -14,6 +14,12 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+`evidence.go` menyediakan `/v1/evidence` dan `/readyz` dengan bearer auth satu
+corpus/profile, input C01, batas body, deadline dan fail-fast overload. Ia hanya
+memanggil interface workflow dan tidak mengambil model/backend dari JSON caller.
+`evidence_test.go` menguji unauthorized/malformed/overload/cancel dan error redaction.
+Route documents serta question generation lainnya tetap scaffold.
+
 Berkas: [documents.go](documents.go), [health.go](health.go), [questions.go](questions.go).
 
 ## Benchmark dan perhatian performa
@@ -24,7 +30,7 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. Pipeline parsing/graph/retrieval, mutasi backend, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan target kualitas atau latency.
+Status komponen: evidence HTTP lokal vector/hybrid aktif, dengan autentikasi, bounded admission, fresh snapshot lease, shared clients, readiness dan graceful drain. Route generation jawaban, documents, graph dan streaming belum aktif. Unit/native integration PASS tidak membuktikan kualitas hukum atau required benchmark.
 
 ## Rekomendasi implementasi anak
 

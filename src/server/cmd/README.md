@@ -8,7 +8,7 @@ Logika di luar cakupan ini ditempatkan pada komponen pemiliknya. Jika fungsi bar
 
 ## Peran dan integrasi anak
 
-CLI collect memanggil internal/workflows untuk acquisition PDF/metadata; CLI submit memanggil scheduler durable dengan ontology dan candidate policy terpin. `ingestion-worker` menyusun coordinator durable; `semantic-gateway` menyusun boundary model EXTRACT yang dibatasi loopback. API tetap entry point scaffold yang keluar dengan kode 2. Entry point tidak menggandakan algoritma domain, parser, atau proyeksi output model.
+CLI collect memanggil internal/workflows untuk acquisition PDF/metadata; CLI submit memanggil scheduler durable dengan ontology dan candidate policy terpin. `ingestion-worker` menyusun coordinator durable; `semantic-gateway` menyusun boundary model EXTRACT yang dibatasi loopback. API menyediakan evidence HTTP lokal dengan bearer auth, readiness dan graceful drain; generation jawaban belum aktif. Entry point tidak menggandakan algoritma domain, parser, atau proyeksi output model.
 
 Pertahankan source/canonical/provision-version/snapshot ID dan schema version lintas anak. Boundary runtime mengikuti [src/contracts](../../contracts/README.md), dengan pekerjaan batch atau inference yang jelas. Perubahan bentuk data, error/status, serta offset sumber harus didokumentasikan bersama konsumennya; jangan menggandakan kebijakan publikasi di beberapa runtime.
 

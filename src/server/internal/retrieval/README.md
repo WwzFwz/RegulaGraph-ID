@@ -14,6 +14,11 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+Bundle yang dihasilkan `hydration.go` memiliki ID terikat lease, corpus/snapshot
+dan pertanyaan agar hasil concurrent dapat dilacak berbeda. Item evidence tetap
+memakai identitas record index/sumber yang stabil. Hash identitas ini tidak
+menggantikan admission bytes, snapshot atau dukungan citation.
+
 Subfolder: [graph/](graph/README.md), [query/](query/README.md).
 
 Berkas: [dense.go](dense.go), [filters.go](filters.go), [fusion.go](fusion.go), [lexical.go](lexical.go), [reranking.go](reranking.go).

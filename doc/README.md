@@ -1,5 +1,10 @@
 # doc
 
+[evidence-api.md](evidence-api.md) menjelaskan runtime HTTP lokal untuk query
+evidence terpin, autentikasi, resource reuse, readiness dan cara menghentikannya.
+[verification-report-evidence-api.md](verification-report-evidence-api.md)
+mencatat native concurrency/HTTP lifecycle serta keterbatasan benchmark.
+
 [verification-report-native-index.md](verification-report-native-index.md) mencatat
 run Rust/Go/C++ dengan embedding BGE-M3 nyata sampai publication dan hybrid evidence,
 termasuk temuan kompatibilitas media DocumentBatch dan batas fixture/gold.

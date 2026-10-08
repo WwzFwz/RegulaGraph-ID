@@ -1,6 +1,8 @@
 # src/server/cmd/api
 
-Entry point layanan HTTP Go yang nantinya menyediakan request, response, dan streaming. Dokumen ini mendefinisikan superset tanggung jawab folder dan kontrak integrasi anaknya.
+Entry point layanan HTTP Go untuk request, response, dan integrasi streaming.
+Saat ini melayani evidence vector/hybrid lokal; jawaban dan streaming belum aktif.
+Dokumen ini mendefinisikan superset tanggung jawab folder dan integrasi anaknya.
 
 ## Batas tanggung jawab
 
@@ -8,7 +10,10 @@ Logika di luar cakupan ini ditempatkan pada komponen pemiliknya. Jika fungsi bar
 
 ## Peran dan integrasi anak
 
-Wiring memanggil internal/api dan workflow; lifecycle membuka pool secara eksplisit. Saat ini executable hanya melaporkan status scaffold.
+Wiring memanggil internal/api dan workflow; lifecycle membuka pool secara eksplisit,
+mengikat listener loopback dan menghentikan request baru sebelum graceful drain.
+`main_test.go` memeriksa konfigurasi profile/token/listen. Panduan environment,
+query, dan Ctrl+C ada pada [evidence API](../../../../doc/evidence-api.md).
 
 Pertahankan source/canonical/provision-version/snapshot ID dan schema version lintas anak. Boundary runtime mengikuti [src/contracts](../../../contracts/README.md), dengan pekerjaan batch atau inference yang jelas. Perubahan bentuk data, error/status, serta offset sumber harus didokumentasikan bersama konsumennya; jangan menggandakan kebijakan publikasi di beberapa runtime.
 
@@ -24,7 +29,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. Pipeline parsing/graph/retrieval, mutasi backend, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan target kualitas atau latency.
+Status komponen: evidence HTTP lokal vector/hybrid aktif, dengan autentikasi, bounded admission, fresh snapshot lease, shared clients, readiness dan graceful drain. Route generation jawaban, documents, graph dan streaming belum aktif. Unit/native integration PASS tidak membuktikan kualitas hukum atau required benchmark.
 
 ## Rekomendasi implementasi anak
 
