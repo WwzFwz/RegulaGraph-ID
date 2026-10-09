@@ -78,10 +78,14 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("configure structured provider: %w", err)
 	}
+	schemaName, err := inference.SemanticSchemaName(config.model.Task, schema)
+	if err != nil {
+		return err
+	}
 	service, err := inference.NewSemanticService(provider, inference.SemanticConfig{
 		Model: config.model, Ontology: config.ontology,
 		OutputSchemaHash: contentHash(schema), SystemPrompt: string(prompt), OutputSchema: schema,
-		SchemaName: semanticSchemaName(config.model.Task), Software: "regulagraph-semantic-gateway",
+		SchemaName: schemaName, Software: "regulagraph-semantic-gateway",
 		Build: config.build, ConfigHash: configHash, TokenizerID: config.model.ModelId + ":provider",
 		MaximumItems: config.maximumItems, MaximumInputBytes: config.maximumInputBytes,
 		MaximumOutputTokens: uint32(config.maximumOutputTokens),

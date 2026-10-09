@@ -40,6 +40,14 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
+`semantic_quote_spans.go` memproyeksikan schema EXTRACT v2 melalui locator kutipan
+unik dengan prefix/suffix persis. Offset dihitung dalam byte sumber, kemudian
+diperiksa lagi oleh projector C01 bersama. Cache locator per item menghindari
+pencarian ulang; budget scan 64 MiB menolak output berbiaya berlebihan tanpa
+pruning fakta. Schema ID v2 mengaktifkan jalur ini; output v1 tetap wajib mempunyai
+offset benar dan tidak diperbaiki otomatis. Ukur mismatch/ambiguity rate, biaya
+scan, token dan precision/recall pada corpus beku sebelum acceptance.
+
 SemanticConfig mewajibkan `MaximumOutputTokens` positif di bawah context limit.
 EXTRACT/RESOLVE meneruskan cap ke provider dan mencatat identitasnya pada producer;
 adapter HTTP menolak completion usage yang melampaui cap eksplisit. Ini menghindari

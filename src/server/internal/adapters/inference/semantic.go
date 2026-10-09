@@ -56,6 +56,7 @@ type SemanticService struct {
 	config            SemanticConfig
 	producer          *pb.ProducerManifest
 	extractionContext string
+	quotedExtraction  bool
 	semaphore         chan struct{}
 	operations        chan struct{}
 	cache             *semanticCache
@@ -102,6 +103,11 @@ func NewSemanticService(provider StructuredProvider, config SemanticConfig) (*Se
 		InputHashes:  []*pb.ContentHash{proto.Clone(config.OutputSchemaHash).(*pb.ContentHash), config.Ontology.ContentHash()},
 	}
 	var extractionContext string
+	selectedSchema, err := SemanticSchemaName(config.Model.Task, config.OutputSchema)
+	if err != nil {
+		return nil, err
+	}
+	quotedExtraction := selectedSchema == "regulagraph_extraction_v2"
 	producer.InputHashes = append(producer.InputHashes, &pb.ContentHash{Sha256: sha256String([]byte(
 		fmt.Sprintf("regulagraph-semantic-output-budget-v1:%d", config.MaximumOutputTokens)))})
 	if config.Model.Task == pb.ModelTask_MODEL_TASK_EXTRACT {
@@ -116,6 +122,7 @@ func NewSemanticService(provider StructuredProvider, config SemanticConfig) (*Se
 		config:            config,
 		producer:          producer,
 		extractionContext: extractionContext,
+		quotedExtraction:  quotedExtraction,
 		semaphore:         make(chan struct{}, config.MaximumConcurrent),
 		operations:        make(chan struct{}, config.MaximumConcurrent),
 		cache:             newSemanticCache(config.MaximumCacheEntries, config.MaximumCacheBytes),
@@ -245,7 +252,11 @@ func (s *SemanticService) executeExtract(ctx context.Context, request *pb.Extrac
 				s.cache.storeItem(request.Batch.OperationKey, item.ItemId, fingerprint, outcomes[index])
 				return
 			}
-			proposal, proposalErr := projectExtractionProposal(request, item, generated.JSON, s.producer, s.config.Ontology.Version())
+			project := projectExtractionProposal
+			if s.quotedExtraction {
+				project = projectQuotedExtractionProposal
+			}
+			proposal, proposalErr := project(request, item, generated.JSON, s.producer, s.config.Ontology.Version())
 			if proposalErr == nil {
 				proposalErr = s.config.Ontology.ValidateExtractionRecords(s.config.Ontology.Version(), proposal.Mentions, proposal.Assertions)
 			}
@@ -374,6 +385,10 @@ func projectExtractionProposal(request *pb.ExtractBatchRequest, item *pb.TextIte
 	if err := rejectTrailingJSON(decoder); err != nil {
 		return nil, err
 	}
+	return projectRawExtractionProposal(request, item, value, producer, ontologyVersion)
+}
+
+func projectRawExtractionProposal(request *pb.ExtractBatchRequest, item *pb.TextItem, value rawProposal, producer *pb.ProducerManifest, ontologyVersion string) (*pb.ExtractionProposal, error) {
 	if value.Mentions == nil || value.Assertions == nil || value.Supports == nil {
 		return nil, errors.New("mentions, assertions, and supports must be JSON arrays")
 	}

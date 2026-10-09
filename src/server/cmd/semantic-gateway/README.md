@@ -1,5 +1,12 @@
 # src/server/cmd/semantic-gateway
 
+Format quote v2 dapat dipilih dengan `REGULAGRAPH_SEMANTIC_PROMPT_PATH` menunjuk
+`configs/prompts/extraction-v2.md` dan `REGULAGRAPH_WORKER_EXTRACTION_OUTPUT_SCHEMA`
+menunjuk `src/contracts/jsonschema/extraction-output-v2.json`. Hitung ulang prompt
+SHA-256, perbarui pin schema worker, ekspor producer baru, dan submit request baru.
+Jangan mengganti schema saja sambil memakai prompt/model pins lama. Gateway
+memilih projector quote dari `$id` schema v2 yang byte-nya dipin; v1 tetap tersedia.
+
 `REGULAGRAPH_SEMANTIC_MAX_OUTPUT_TOKENS` menetapkan completion cap eksplisit
 (default 4096) untuk setiap panggilan EXTRACT maupun RESOLVE. Nilainya harus
 positif dan lebih kecil dari konteks model terpin. Cap dikirim sebagai `max_tokens`,
