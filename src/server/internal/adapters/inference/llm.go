@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"regulagraph.local/server/internal/domain"
 	"strings"
 	"time"
 )
@@ -29,11 +30,7 @@ type StructuredRequest struct {
 	MaxOutputTokens uint32 // Zero preserves provider policy; production answering/semantic callers set a cap.
 }
 
-type StructuredResponse struct {
-	JSON         json.RawMessage
-	InputTokens  uint64
-	OutputTokens uint64
-}
+type StructuredResponse = domain.ModelCompletion
 
 type StructuredProvider interface {
 	Generate(context.Context, StructuredRequest) (StructuredResponse, error)

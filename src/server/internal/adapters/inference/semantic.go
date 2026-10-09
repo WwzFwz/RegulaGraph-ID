@@ -1,7 +1,8 @@
 // Configures the internal Semantic EXTRACT/RESOLVE gateway and projects strict provider JSON into C01.
 // Source text remains untrusted data; the gateway owns IDs, provenance, manifests, review state, and
 // absolute UTF-8 byte spans. In-memory operation caching prevents duplicate sampling within a process;
-// durable replay across restarts remains a coordinator storage task. Required quality/latency is unmeasured.
+// optional completion storage retains sampling across restarts; job recovery and
+// publication remain coordinator tasks. Required quality/latency is unmeasured.
 // EXTRACT sends a separate trusted ontology context, pinned by exact bytes in producer inputs.
 // Model/schema configuration is owned at construction; source text never enters system context.
 // A positive, producer-pinned completion cap is sent on every model call; it does not replace
@@ -50,6 +51,7 @@ type SemanticConfig struct {
 	MaximumConcurrent   int
 	MaximumCacheEntries int
 	MaximumCacheBytes   int64
+	ExtractionStore     domain.ModelCompletionStore
 }
 
 type SemanticService struct {
@@ -115,6 +117,12 @@ func NewSemanticService(provider StructuredProvider, config SemanticConfig) (*Se
 	quotedExtraction := selectedSchema == "regulagraph_extraction_v2"
 	producer.InputHashes = append(producer.InputHashes, &pb.ContentHash{Sha256: sha256String([]byte(
 		fmt.Sprintf("regulagraph-semantic-output-budget-v1:%d", config.MaximumOutputTokens)))})
+	if config.ExtractionStore != nil {
+		if config.Model.Task != pb.ModelTask_MODEL_TASK_EXTRACT {
+			return nil, errors.New("completion replay currently supports EXTRACT only")
+		}
+		producer.InputHashes = append(producer.InputHashes, &pb.ContentHash{Sha256: sha256String([]byte("regulagraph-extract-completion-replay-v1"))})
+	}
 	if config.Model.Task == pb.ModelTask_MODEL_TASK_EXTRACT {
 		extractionContext = config.Ontology.ExtractionModelContext()
 		producer.InputHashes = append(producer.InputHashes, config.Ontology.ExtractionModelContextHash())
@@ -244,7 +252,7 @@ func (s *SemanticService) executeExtract(ctx context.Context, request *pb.Extrac
 				outcomes[index].result = itemError(item.ItemId, contextError(ctx.Err()))
 				return
 			}
-			generated, generateErr := s.provider.Generate(ctx, StructuredRequest{
+			generated, generateErr := s.generateExtract(ctx, fingerprint, StructuredRequest{
 				ModelID: s.config.Model.ModelId, SystemPrompt: s.config.SystemPrompt,
 				SystemContext:   s.extractionContext,
 				MaxOutputTokens: s.config.MaximumOutputTokens,
