@@ -51,3 +51,30 @@ func BuildGraphAssemblyRequest(a GraphJobAssignment, job JobRecord, call *pb.Req
 	}
 	return request, nil
 }
+
+// ValidateGraphWorkerEnvelope authenticates response correlation/roles before
+// reading output bytes. Physical output locator IDs may differ from the logical
+// delta ID; the latter is bound to the plan by ValidatePlannedGraphDelta.
+func ValidateGraphWorkerEnvelope(request *pb.ProcessBatchRequest, response *pb.ProcessBatchResponse, plan *pb.GraphAssemblyPlan) error {
+	if err := ValidateGraphAssemblyPlan(plan); err != nil {
+		return err
+	}
+	if err := VerifyWorkerResponse(request, response); err != nil {
+		return err
+	}
+	if !graphAssemblyKnownFields(response.ProtoReflect()) || len(request.Stages) != 1 || request.Stages[0] != pb.JobStage_JOB_STAGE_ASSEMBLE ||
+		response.Status != pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED || response.GraphDelta == nil || response.Checkpoint == nil ||
+		response.GraphDelta.SchemaVersion != 1 || response.GraphDelta.MediaType != GraphDeltaMediaType || response.GraphDelta.ByteSize == 0 || response.GraphDelta.ByteSize > uint64(DefaultWireLimits.MaxBytes) ||
+		response.Checkpoint.Meta.SchemaVersion != 1 || response.Checkpoint.Meta.Visibility != nil || !proto.Equal(response.Checkpoint.Manifest, plan.ProducerManifest) {
+		return errors.New("ASSEMBLE requires one successful known-schema delta and bound checkpoint")
+	}
+	for _, ref := range request.Sources {
+		if ref.ArtifactId == response.GraphDelta.ArtifactId {
+			return errors.New("graph output aliases source role")
+		}
+	}
+	if request.GraphAssemblyPlan == nil || request.GraphAssemblyPlan.ArtifactId == response.GraphDelta.ArtifactId {
+		return errors.New("graph output aliases plan")
+	}
+	return nil
+}
