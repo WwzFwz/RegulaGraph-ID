@@ -175,6 +175,7 @@ func TestExecuteGraphAssemblyWithRustArtifacts(t *testing.T) {
 				if out.Delta().Assertions[0].PredicateId == "mutated" {
 					t.Fatal("verified output is mutable")
 				}
+				checkGraphCommitRecovery(t, out)
 			} else if err == nil || out != nil {
 				t.Fatal("failed execution exposed verified output")
 			}

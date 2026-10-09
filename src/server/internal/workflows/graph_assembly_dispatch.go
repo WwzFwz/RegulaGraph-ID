@@ -2,7 +2,7 @@
 // verifies returned GraphDelta bytes against its exact source projection. Reads
 // are bounded before I/O, the RPC observes caller/pin/claim deadlines, and live
 // authority is rechecked after validation. This library does not advance jobs or
-// publish graph storage: durable fenced output commit remains a separate step.
+// publish graph storage: VerifiedGraphOutput.Commit is the separate durable step.
 // Measure read/hash/RPC/admission p95, cancellation lag and peak RSS against
 // configs/benchmark-targets.yaml; fixture parity is not a production benchmark.
 package workflows
@@ -31,6 +31,9 @@ type GraphBatchWorker interface {
 // delta before registration/commit. It is not a durable completion receipt.
 type VerifiedGraphOutput struct {
 	assignment domain.GraphJobAssignment
+	request    *pb.ProcessBatchRequest
+	pin        domain.SnapshotPin
+	job        domain.JobRecord
 	response   *pb.ProcessBatchResponse
 	delta      *pb.GraphDelta
 }
@@ -174,7 +177,8 @@ func ExecuteGraphAssembly(ctx context.Context, authority GraphDispatchAuthority,
 	}
 	ownedAssignment := domain.GraphJobAssignment{JobID: a.JobID, SourceJobID: a.SourceJobID,
 		Plan: proto.Clone(plan).(*pb.GraphAssemblyPlan), Reference: proto.Clone(a.Reference).(*pb.ArtifactRef)}
-	return &VerifiedGraphOutput{assignment: ownedAssignment, response: proto.Clone(response).(*pb.ProcessBatchResponse), delta: delta}, nil
+	return &VerifiedGraphOutput{assignment: ownedAssignment, request: proto.Clone(request).(*pb.ProcessBatchRequest), pin: pin, job: job,
+		response: proto.Clone(response).(*pb.ProcessBatchResponse), delta: delta}, nil
 }
 
 func readGraphBytes(ctx context.Context, reader DocumentArtifactReader, ref *pb.ArtifactRef, remaining *uint64) ([]byte, error) {
