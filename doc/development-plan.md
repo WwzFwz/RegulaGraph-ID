@@ -1,5 +1,9 @@
 # Rencana implementasi berbasis dependency
 
+[Panduan operasional/handoff](operational-handoff.md) merinci dependency PDF nyata
+hingga aplikasi dapat digunakan, status saat ini, gap registry/model, lokasi kode,
+perintah dan syarat selesai. Gunakan bersama backlog lengkap di dokumen ini.
+
 Checkpoint eksperimen extraction: request chunk pembuka yang sama pada llama.cpp
 CPU timeout 300 detik; prompt dengan contoh copying pada Ollama mengulang mention
 sampai cap 4096 dan terpotong. Tidak ada output valid atau prompt baru yang

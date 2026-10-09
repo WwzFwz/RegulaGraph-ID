@@ -8,6 +8,8 @@ Indonesian regulations are distributed across sources, reference one another, ch
 
 **Try it now:** the [local demo](#running-the-local-demo) runs without a database. The [full GraphRAG pipeline](#running-the-local-graphrag-pipeline) requires backend services, pinned models, and a published corpus.
 
+**Development handoff:** the [operational continuation guide](doc/operational-handoff.md) records the current blockers, dependency order, code locations, run instructions, and evidence needed to make the full local application usable. It also separates operational readiness from quality and performance acceptance.
+
 **Latest extraction work:** EXTRACT/RESOLVE send an explicit, producer-pinned output token cap. The optional v2 extraction schema lets the gateway compute byte offsets from unique exact quotations and adjacent context. Boundary tests pass, but a local model replay still produced four invalid locators and was rejected. Model integration remains unfinished. See [quote-extraction verification](doc/verification-report-quote-extraction.md) and [completion-budget verification](doc/verification-report-semantic-budget.md).
 
 Validation errors now identify invalid locator fields without including source quotations. Two local correction experiments still failed source validation, so automatic model retries remain disabled. See the [feedback experiment report](doc/verification-report-extraction-feedback.md).

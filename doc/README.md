@@ -1,5 +1,10 @@
 # doc
 
+[Panduan melanjutkan sampai aplikasi bisa digunakan](operational-handoff.md)
+menyimpan status, dependency, lokasi kode, langkah operasional dan bukti selesai
+untuk melanjutkan setelah pergantian sesi/model. Mulai dari sini untuk jalur PDF
+nyata sampai graph, indeks dan akses aplikasi; evaluasi release tetap terpisah.
+
 [Diagnostik runtime extraction](verification-report-extraction-runtime.md)
 mencatat timeout llama.cpp CPU dan repetition/truncation pada eksperimen contoh
 copying di Ollama. Keduanya belum memberi completion valid; prompt produksi dan

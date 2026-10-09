@@ -1,0 +1,303 @@
+# Panduan melanjutkan sampai aplikasi bisa digunakan
+
+Dokumen ini adalah catatan serah-terima pekerjaan agar pengembangan dapat
+dilanjutkan setelah pergantian sesi/model atau token habis. Isinya adalah kondisi
+aktual, urutan pekerjaan, lokasi kode, cara verifikasi, dan titik berhenti yang
+aman. Ini bukan pernyataan bahwa pipeline lengkap sudah berjalan. Pembagian
+pekerjaan mengikuti dependency, tidak dibatasi nomor tahap pada percakapan.
+
+**Checkpoint: 2026-10-09; baseline kode `dc99d46`.** Periksa `git status` dan
+`git log` sebelum melanjutkan karena commit setelah baseline dapat menutup bagian
+yang masih terbuka di sini. Status terbaru berada di [development-plan](development-plan.md)
+dan laporan verifikasi bertanggal; beberapa dokumen desain lama masih mempunyai
+paragraf status historis. Cocokkan status dengan implementasi dan bukti run.
+
+## Tujuan operasional dan batas klaim
+
+Tujuan yang sedang dikejar: PDF resmi lokal dapat diproses menjadi chunk, graph
+dan indeks, diterbitkan sebagai snapshot konsisten, lalu dipakai untuk mencari
+bukti dan menjawab pertanyaan melalui CLI/API dengan citation. Operator mengetahui
+cara menyalakan, mematikan, memeriksa kegagalan dan melanjutkan proses.
+
+Gold dataset dan acceptance kualitas/performa dapat dikerjakan setelah jalur
+operasional tersedia. Keduanya **tetap kewajiban proyek keseluruhan**; target dalam
+`configs/benchmark-targets.yaml` tidak berubah. Validasi input, kutipan sumber,
+identitas/versi, snapshot, keamanan dasar, dan integritas storage tetap diperlukan
+agar versi operasional tidak menerbitkan data rusak. Deployment dikecualikan dari
+pekerjaan yang diotorisasi saat ini; menjalankan layanan lokal bukan deployment.
+
+Demo BM25 lokal sudah tersedia melalui `scripts/start_demo.ps1`. Demo itu berguna
+untuk mencoba UI tetapi tidak membuktikan jalur Hybrid GraphRAG produksi selesai.
+GUI lengkap untuk pipeline produksi belum menjadi hasil yang dibuktikan di sini;
+CLI/API adalah antarmuka operasional yang sudah mempunyai implementasi.
+
+## Ringkasan keadaan sekarang
+
+| Bagian | Bukti yang sudah ada | Yang belum selesai |
+| --- | --- | --- |
+| Akuisisi PDF | Collector, audit, impor immutable dan submit job tersedia | Coverage sumber lengkap, semua jenis PDF/scan belum teruji |
+| PARSE → STRUCTURE → BIND → CHUNK | Satu PDF BPK nyata berhasil menjadi 35 chunk dengan PDFium/tokenizer aktual | Perlu menjalankan inventory operasional yang dipilih; scan/OCR/layout sulit belum lengkap |
+| EXTRACT | Prompt/schema, ontology, exact-source projection, cap dan admission lokal tersedia | Model pada chunk pembuka masih menghasilkan locator salah atau completion gagal; belum satu full-PDF EXTRACT berhasil |
+| Recovery EXTRACT | Completion tersimpan di PostgreSQL dan divalidasi ulang setelah restart; tes database nyata lulus | Full-PDF restart dengan model nyata belum dibuktikan; bukan exactly-once sampling |
+| RESOLVE | Kandidat, konteks bukti, proposal LINK/DEFER, review dan registry commit tersedia | Entitas tanpa kandidat membutuhkan jalur pembuatan canonical yang sah; CREATE/MERGE/SPLIT semantik lengkap belum tersedia |
+| Native embedding/reranking | Implementasi C++/ONNX dan integrasi native mempunyai bukti fixture | Model/artifact/runtime harus diikat ke corpus nyata yang akan diterbitkan |
+| Index + graph publication | Inventory, worker, backend write/readback, receipts dan snapshot activation teruji pada fixture | Belum membuktikan seluruh jalur dari PDF contoh tadi sampai publication graph nyata |
+| Retrieval + draft answer | Empat profil, fusion, hidrasi, opsi rerank dan local answer CLI/API tersedia | Uji akhir memakai snapshot dari ingestion PDF nyata, setup yang dapat diulang operator |
+
+## Urutan dependency yang benar
+
+```text
+PDF + metadata → import/submit → PARSE → STRUCTURE → BIND → CHUNK
+                                                            |
+                         +----------------------------------+-------------------+
+                         |                                                      |
+                         v                                                      v
+                EXTRACT → RESOLVE/review                         snapshot → vocabulary
+                         |                                      → dictionary/statistics
+                         |                                      → INDEX → publish-index
+                         |                                                      |
+                         +---------------------+--------------------------------+
+                                               v
+                             prepare-graph → ASSEMBLE → publish-graph
+                                               |
+                                               v
+                         query-evidence → optional rerank → answer + citations
+```
+
+**Publication indeks mendahului preparation graph pada implementasi sekarang.**
+Cabang indeks dapat dikerjakan dari CHUNK sambil memperbaiki EXTRACT/RESOLVE.
+Graph membutuhkan seluruh sumber indeks mempunyai resolusi dan authority valid;
+DEFER tidak otomatis membuat graph siap diterbitkan.
+
+## Pekerjaan A — selesaikan ekstraksi sumber nyata
+
+**Input:** DocumentBatch CHUNK, teks normalisasi, provenance, ontology dan manifest
+model/prompt/schema yang benar-benar digunakan. **Output:** ExtractionBatch valid
+untuk seluruh item, terdaftar dan di-checkpoint coordinator.
+
+Langkah berikutnya:
+
+1. Gunakan chunk gagal yang sama untuk membandingkan konfigurasi. Catat semua
+   request, response, hash, waktu, usage dan finish reason; jangan membuang attempt
+   gagal. Perbaikan tidak boleh berupa menghapus fakta sulit atau melonggarkan
+   exact-source validation.
+2. Setelah satu item valid, cek isi faktanya: output kosong atau tanpa relasi
+   bukan keberhasilan hanya karena JSON dapat di-parse. Smoke ini belum gold eval.
+3. Bekukan profil yang dipilih, ekspor producer aktual, samakan pin Go/Rust, lalu
+   jalankan seluruh PDF. Perubahan prompt/schema/config perlu identitas producer
+   baru; jangan mengubah hasil historis.
+4. Aktifkan completion replay EXTRACT dan buktikan restart pada input/corpus/batch
+   yang sama. Completion yang sudah tersimpan tidak perlu disampling ulang, tetapi
+   tetap wajib melewati semantic validation. Model invalid yang tersimpan akan
+   tetap invalid saat replay; retry identik bukan perbaikan kualitas.
+
+Kode utama: `src/server/internal/adapters/inference/semantic.go`,
+`semantic_quote_spans.go`, `semantic_replay.go`, `llm_request.go`,
+`src/ingestion/src/worker/processor.rs`, dan
+`src/server/internal/workflows/acquisition_pipeline_integration_test.go`.
+Konfigurasi: `.env.example`, `configs/prompts/extraction-v2.md`,
+`src/contracts/jsonschema/extraction-output-v2.json`.
+
+**Syarat selesai A:** seluruh chunk yang dipilih terhitung; tidak ada completion
+terpotong/locator invalid yang diterima; ExtractionBatch dan checkpoint valid;
+restart tidak menyamarkan model failure atau mengulang item committed secara
+tidak perlu. Simpan bukti aktual, bukan hanya tes provider mock.
+
+### Titik reproduksi yang sudah tersedia
+
+PDF PP 12/2006 mempunyai SHA-256
+`c2c761194c0a15d1858c38c7c45308e045539a80be5fd67b23cd4a050f7dbbfb`.
+Record acquisition:
+
+```text
+data/acquisition/records/423b6a542356f377cf9c0bfe1f3382c91700e2464ab82a06946add0204bf91c9.json
+```
+
+[Bukti PARSE sampai CHUNK](verification-report-real-pdf.md) mencatat artefak dan
+perintah. Tes `TestAcquiredPDFThroughNativeDocumentPipeline` memakai database
+terisolasi dan corpus baru per invocation; itu bukan inventory operasional
+persisten. Corpus baru menghasilkan replay key baru. Jangan mengklaim dua run
+tes terpisah membuktikan reuse completion untuk job/corpus yang sama.
+
+```powershell
+# Hanya setelah worker, DB test terisolasi, artefak dan environment test siap.
+# REGULAGRAPH_TEST_DOCUMENT_WORKER
+# REGULAGRAPH_TEST_ACQUISITION_ROOT
+# REGULAGRAPH_TEST_ACQUISITION_RECORD
+# REGULAGRAPH_TEST_DOCUMENT_ARTIFACT_ROOT
+# REGULAGRAPH_TEST_EXTRACTION_PRODUCER: file producer EXTRACT untuk mengaktifkan tahap ini
+go test ./src/server/internal/workflows -run '^TestAcquiredPDFThroughNativeDocumentPipeline$' -count=1 -v
+```
+
+Tes saat checkpoint ini memiliki context keseluruhan 10 menit dan RPC PARSE
+executor 4 menit. Model yang lambat pada 35 chunk dapat melampauinya. Profil
+diagnostik baru harus menyatakan deadline/lease dan alasan perubahan; jangan
+melaporkan deadline yang diperpanjang sebagai kelulusan benchmark lama.
+
+Eksperimen tersimpan di `artifacts/verification/20261009-llama-extraction/`:
+`run.py` timeout CPU; `run_examples.py` menghasilkan repetition/truncation;
+`run_contiguous.py` selesai tetapi 10/15 locator invalid dan tanpa assertion.
+`run_literal.py` menguji source dengan newline literal dan selesai dalam 219,25
+detik dengan `finish_reason=length`, cap 4096 habis; output terpotong, tidak valid
+untuk diterima. Tidak ada prompt/input format eksperimen yang dipromosikan ke
+runtime. Semua run tersebut telah terminal pada checkpoint ini; tidak ada
+generation eksperimen yang perlu ditunggu. Periksa ulang jika ada run berikutnya.
+File request saja tidak membuktikan proses masih hidup atau telah selesai.
+
+## Pekerjaan B — resolusi dan kesiapan bahan graph
+
+**Input:** ExtractionBatch valid, candidate policy per corpus, registry revision,
+serta konteks sumber/kandidat. **Output:** keputusan canonical dengan provenance
+dan checkpoint RESOLVE yang dapat dipakai ASSEMBLE.
+
+1. Bekukan `scopes_by_type` untuk tipe yang benar-benar dikeluarkan extractor.
+   Jangan menyamakan nomor regulasi tanpa issuer/type/year, atau alias sama dengan
+   entitas sama. Konfigurasi domain yang ambigu perlu dikonfirmasi kepada pengguna.
+2. Jalankan gateway RESOLVE terpisah dan coordinator. Model menilai LINK/DEFER;
+   commit dan audit tetap milik Go/PostgreSQL. Review operator harus benar-benar
+   membaca konteks; jangan membuat alasan persetujuan manusia secara fiktif.
+3. Periksa entitas baru/tanpa kandidat. BIND sudah dapat membuat identitas
+   regulasi/provision dari sumber, tetapi itu tidak berarti semua entitas semantik
+   mempunyai canonical. Tutup kekurangan jalur CREATE yang diperlukan corpus
+   melalui workflow/registry yang teruji; jangan menyisipkan row manual atau
+   meluluskan DEFER agar publication terlihat siap.
+4. Tangani registry revision yang berubah menggunakan reaffirmation yang sudah
+   tersedia bila konteks masih identik, atau replan bila dependency berubah.
+
+Kode utama: `src/server/internal/workflows/semantic_resolution*.go`,
+`semantic_review.go`, `src/server/internal/adapters/postgres/registry_semantic*.go`,
+`src/ingestion/src/knowledge_graph/resolution/` dan `assembly/`.
+
+[Resolusi](semantic-resolution.md), [review](semantic-review.md), dan
+[reaffirmation](graph-reaffirmation.md) menjelaskan kontrak serta cara menjalankan.
+Dokumen lama yang menyebut ASSEMBLE belum ada bersifat historis; implementasi dan
+[preparation graph](graph-preparation.md) kini tersedia.
+
+**Syarat selesai B:** seluruh sumber yang akan diterbitkan memiliki keputusan
+yang dapat dieksekusi, review yang diwajibkan, revision/scope yang valid, serta
+bukti sumber. Empty/DEFER/status STAGED saja tidak membuktikan graph siap.
+
+## Pekerjaan C — indeks, assembly dan publication
+
+**Input:** seluruh CHUNK terpilih, model embedding, dictionary/statistics dan
+hasil RESOLVE. **Output:** snapshot published dengan indeks Qdrant dan graph
+Neo4j yang memiliki receipts serta dapat dibaca kembali.
+
+Urutan operasional:
+
+1. Jalankan native inference dengan model/tokenizer/manifests yang sudah diverifikasi.
+2. `prepare-snapshot` memilih source job + artifact CHUNK yang terdaftar.
+3. Jalankan vocabulary → `prepare-dictionary` → freeze statistics atas **populasi
+   yang sama**, kemudian `prepare-index` dan worker INDEX sampai semua child STAGED.
+4. `publish-index` mengaktifkan indeks dense/BM25 setelah readback dan receipts.
+5. Setelah seluruh RESOLVE siap, jalankan `prepare-graph` dengan parent snapshot
+   indeks yang benar, worker ASSEMBLE sampai seluruh child STAGED, lalu `publish-graph`.
+
+Perintah nyata beserta placeholders berada di [README utama](../README.md#running-the-local-graphrag-pipeline),
+[native inference](native-inference.md), [lexical population](lexical-population.md),
+[index publication](index-source-publication.md), [prepare graph](graph-preparation.md),
+dan [publish graph](graph-publication.md). Placeholder harus diganti identitas dari
+output command/registry; jangan menebak hash, snapshot ID atau source artifact.
+
+Kode utama: `src/server/internal/indexing/`, `src/server/cmd/cli/`,
+`src/ingestion/src/indexing/`, `src/ingestion/src/knowledge_graph/assembly/`,
+serta adapter PostgreSQL/Qdrant/Neo4j.
+
+**Syarat selesai C:** manifest sesuai corpus/scope/model, semua child lengkap,
+backend readback dan receipts valid, active snapshot terbit, serta query benar-benar
+membaca snapshot itu. PDF ada, job scheduled, atau node terlihat di Neo4j belum
+cukup. Publication gagal tidak boleh mengganti pointer aktif dengan hasil parsial.
+
+## Pekerjaan D — akses aplikasi dan operasi lokal
+
+Bagian ini mendokumentasikan kebutuhan agar hasil pipeline dapat digunakan.
+Prioritas implementasi dapat disesuaikan setelah klarifikasi pengguna, tetapi
+keberadaannya tidak berarti stage ini sudah lulus.
+
+1. Uji `query-evidence` pada snapshot nyata: mulai profil hybrid, lalu graph dan
+   hybrid-graph. Periksa teks, version/source refs, ranking provenance dan paths.
+2. Pasang generator GENERATE terpin, lalu jalankan `-answer`. Jalur answering lokal
+   sekarang memerlukan llama.cpp dengan counting/admission; keberhasilan EXTRACT
+   pada Ollama tidak otomatis membuat konfigurasi answering valid.
+3. Uji pertanyaan berbukti, bukti tidak cukup, filter tanggal, serta backend gagal.
+   Citation harus menunjuk evidence yang benar; PARTIAL/ABSTAIN/error harus eksplisit.
+   Ini smoke fungsional, bukan klaim akurasi atau kualitas hukum.
+4. Jalankan API dengan corpus/auth scope/token dan model yang sama. Dokumentasikan
+   readiness, request, restart dan shutdown. Jika UI produksi dibutuhkan, sambungkan
+   ke endpoint ini; jangan menyebut UI demo BM25 sebagai UI Hybrid GraphRAG.
+
+```powershell
+# DSN, shared artifact root, corpus/scope, native model dan graph route harus sudah siap.
+go run ./src/server/cmd/cli query-evidence -question 'Apa ketentuan yang diubah dalam peraturan ini?' -as-of 2026-01-01 -profile hybrid-graph -unresolved report -limit 20 -timeout 5m
+# Sesudah REGULAGRAPH_ANSWER_CONFIG dan hash/config generator valid:
+go run ./src/server/cmd/cli query-evidence -question 'Apa ketentuan yang diubah dalam peraturan ini?' -as-of 2026-01-01 -profile hybrid-graph -unresolved report -limit 20 -timeout 5m -answer
+```
+
+Pertanyaan/tanggal di atas contoh, bukan gold answer atau tanggal berlaku yang
+disahkan. Pilih pertanyaan sesuai dokumen. [Query](query-evidence.md),
+[jawaban lokal](local-answer.md), [API](evidence-api.md), dan
+[batas token](generator-tokenization.md) adalah referensi konfigurasi.
+Kode: `workflows/answer.go`, `workflows/rag_hydration.go`, `retrieval/`,
+`answering/`, `cmd/cli/query.go`, dan `cmd/api/` di `src/server`.
+
+**Syarat selesai D:** operator lain dapat menjalankan ulang dari konfigurasi dan
+inventory tercatat, mendapat evidence/jawaban dari corpus nyata, serta mematikan
+dan melanjutkan layanan tanpa menghapus data. Belum ada klaim target latency.
+
+## Persiapan dan catatan yang wajib disimpan
+
+Semua contoh dijalankan dari root repo. `.env.example` adalah referensi; executable
+tidak otomatis memuat `.env`. Jangan memasukkan API key/DSN berpassword ke laporan
+atau Git. Layanan lokal masih memerlukan credential backend bila dikonfigurasi.
+
+Simpan satu manifest run operasional yang mencatat revision kode, corpus/auth scope,
+source job dan artifact refs, snapshot/publication/generation, path artifact root,
+model/prompt/schema/ontology/policy hashes, endpoint nonrahasia, perintah, exit code
+dan lokasi log. Saat ini belum ada manifest full-PDF → graph → answer yang lulus;
+agent berikutnya harus membuatnya dari output nyata, bukan mengisi tebakan.
+
+```powershell
+git status --short
+git log -5 --oneline
+# Terapkan migration pada DB yang memang dipilih; termasuk 0024 untuk EXTRACT replay.
+go run ./src/server/cmd/cli migrate -dir migrations -timeout 5m
+```
+
+Urutan layanan: PostgreSQL/Qdrant/Neo4j → model + native inference → gateway
+EXTRACT/RESOLVE → Rust worker → Go coordinator → API. Worker dan Go harus memakai
+artifact store yang sama. Jangan mengaktifkan print-producer saat bermaksud
+menyalakan gateway; mode itu mencetak konfigurasi lalu keluar.
+
+Saat berhenti, gunakan Ctrl+C untuk proses foreground. Untuk background, verifikasi
+PID **dan path executable**, lalu hentikan hanya proses milik run. Jangan mematikan
+semua Go/Ollama/Docker. Saat lanjut, periksa proses/job nyata; jangan menyimpulkan
+masih berjalan dari file `.pid`, log lama, atau nama folder saja. Timeout pengamatan
+bukan bukti task sudah terminal. Jangan mengirim ulang inference sebelum memastikan
+task lama selesai/dibatalkan.
+
+## Urutan kerja agent penerus
+
+1. Baca `AGENTS.md`, dokumen ini dan checkpoint terbaru; periksa worktree sebelum edit.
+2. Periksa hasil/handle eksperimen terakhir. Jika masih hidup, tunggu/pantau handle
+   yang sama. Jika terminal, simpan hasil dan tentukan perubahan berdasarkan bukti.
+3. Jangan mengulang implementasi durable completion replay atau graph publication
+   yang sudah ada. Fokus pada input nyata dan gap yang terbukti.
+4. Pilih paket koheren, implementasikan, jalankan tes sesuai perubahan. Untuk
+   boundary kritis gunakan reviewer independen sesuai [verification](verification.md).
+5. Update dokumen ini pada checkpoint, simpan raw evidence di `artifacts/verification`,
+   commit per fitur/komponen dengan pesan jelas; tidak memakai ID milestone saja
+   dan tidak menambah coauthor OpenAI. Push ke origin sesuai otorisasi sebelumnya.
+
+Untuk perubahan dokumentasi saja, periksa tautan/perintah/status; tidak perlu
+menjalankan ulang semua model. Untuk implementasi, fixture PASS tidak menggantikan
+run sumber/model nyata. Jangan mengklaim aplikasi siap sebelum A–D dan operasi
+yang dipilih terbukti, atau proyek selesai sebelum seluruh requirement awal lulus.
+
+## Setelah versi operasional tersedia
+
+Rencana lengkap tetap mencakup gold evaluation dan empat baseline, benchmark
+required, adaptive routing/retrieve ulang, temporal CURRENT/COMPARE, streaming,
+incremental update lengkap, OCR/layout sulit, canonical lifecycle, observability,
+backup/restore dan retention/GC. Lihat [rencana keseluruhan](development-plan.md).
+Daftar ini bukan alasan menunda integrasi versi operasional; juga bukan fitur
+yang boleh dinyatakan selesai hanya karena happy path lokal berhasil.
