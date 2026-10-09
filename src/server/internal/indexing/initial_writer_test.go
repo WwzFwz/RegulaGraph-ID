@@ -66,6 +66,10 @@ func TestInitialIndexPublicationAgainstStores(t *testing.T) {
 }
 
 func runInitialIndexPublication(t *testing.T, requireGraph, contentAddressed bool, storageMode string) {
+	graphRPC := storageMode == "graph-rpc"
+	if graphRPC {
+		storageMode = "graph-membership"
+	}
 	dsn, endpoint := os.Getenv("REGULAGRAPH_TEST_POSTGRES_DSN"), os.Getenv("REGULAGRAPH_TEST_QDRANT_ENDPOINT")
 	if storageMode != "" && storageMode != "graph-membership" && endpoint == "" {
 		endpoint = "http://127.0.0.1:6333" // routing metadata only; no backend calls
@@ -124,6 +128,10 @@ func runInitialIndexPublication(t *testing.T, requireGraph, contentAddressed boo
 		t.Helper()
 		sum := sha256.Sum256(raw)
 		ref := &pb.ArtifactRef{ArtifactId: id, SchemaVersion: 1, MediaType: media, ByteSize: uint64(len(raw)), ContentHash: &pb.ContentHash{Sha256: fmt.Sprintf("%x", sum)}, StorageKey: fmt.Sprintf("objects/%x", sum)}
+		if graphRPC {
+			hash := ref.ContentHash.Sha256
+			ref.StorageKey = "sha256/" + hash[:2] + "/" + hash[2:4] + "/" + hash + ".bin"
+		}
 		if e := repo.RegisterArtifact(ctx, corpus, ref); e != nil {
 			t.Fatal(e)
 		}
@@ -601,7 +609,7 @@ func runInitialIndexPublication(t *testing.T, requireGraph, contentAddressed boo
 	verifyPublishedRAG(t, ctx, repo, physical, p, artifacts, source.DependencyManifest.ProducerManifest)
 	if graphSourceBinding != nil {
 		checkPublishedGraphMembership(t, ctx, repo, *graphSourceBinding)
-		checkGraphSourceBindingReceipt(t, ctx, repo, conn, parsed.String(), *graphSourceBinding, artifacts)
+		checkGraphSourceBindingReceipt(t, ctx, repo, conn, parsed.String(), *graphSourceBinding, artifacts, graphRPC)
 	}
 }
 

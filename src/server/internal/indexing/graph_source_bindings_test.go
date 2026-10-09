@@ -1,6 +1,7 @@
 // Exercises graph source receipt storage after a real INDEX publication fixture.
-// Empty EXTRACT/RESOLVE and their successful checkpoint are explicitly synthesized;
-// this tests transactional authority/replay, not a live LLM or full ingestion run.
+// Default EXTRACT/RESOLVE and checkpoint are empty synthetic inputs. The native
+// variant supplies nonempty EXTRACT/review fixtures, commits real RESOLVE and
+// dispatches Rust; neither variant proves live LLM quality or full ingestion.
 // Derived artifacts use FileStore; PostgreSQL/Qdrant establish base membership.
 package indexing
 
@@ -27,14 +28,21 @@ import (
 )
 
 func checkGraphSourceBindingReceipt(t *testing.T, ctx context.Context, repo *postgres.Repository, conn *pgx.Conn, dsn string,
-	sourceBinding domain.IndexSourceBinding, artifacts indexMemoryArtifacts) {
+	sourceBinding domain.IndexSourceBinding, artifacts indexMemoryArtifacts, nativeRPC bool) {
 	t.Helper()
 	corpus, job := sourceBinding.Snapshot.CorpusId, sourceBinding.SourceJobID
 	original := new(pb.DocumentBatch)
 	if err := domain.DecodeWire(artifacts[sourceBinding.Original.ArtifactId], original, domain.DefaultWireLimits); err != nil {
 		t.Fatal(err)
 	}
-	files, err := storage.NewFileStore(t.TempDir())
+	root := t.TempDir()
+	if nativeRPC {
+		root = os.Getenv("REGULAGRAPH_TEST_GRAPH_ARTIFACT_ROOT")
+		if root == "" {
+			t.Fatal("REGULAGRAPH_TEST_GRAPH_ARTIFACT_ROOT required for native ASSEMBLE")
+		}
+	}
+	files, err := storage.NewFileStore(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,6 +83,9 @@ func checkGraphSourceBindingReceipt(t *testing.T, ctx context.Context, repo *pos
 			Dependencies: []*pb.Dependency{{DependencyId: sourceBinding.Original.ArtifactId, Fingerprint: sourceBinding.Original.ContentHash}}},
 		Completeness: pb.Completeness_COMPLETENESS_COMPLETE, OntologyVersion: "id-regulation-ontology-v1", ModelManifest: model, PromptHash: hash,
 		ItemCounts: &pb.Counts{Expected: uint64(len(original.Chunks)), Accepted: uint64(len(original.Chunks))}, TokenUsage: &pb.TokenUsage{TokenizerId: "fixture"}}
+	if nativeRPC {
+		populateNativeGraphExtraction(t, original, extraction, artifacts)
+	}
 	extract := put(extraction, "original-extract", domain.ExtractionBatchMediaType)
 	var revision uint64
 	if err = conn.QueryRow(ctx, `SELECT registry_revision FROM corpus_state WHERE corpus_id=$1`, corpus).Scan(&revision); err != nil {
@@ -90,7 +101,28 @@ func checkGraphSourceBindingReceipt(t *testing.T, ctx context.Context, repo *pos
 			Dependencies: []*pb.Dependency{{DependencyId: extract.Reference.ArtifactId, Fingerprint: extract.Reference.ContentHash}}},
 		Completeness: pb.Completeness_COMPLETENESS_COMPLETE, OntologyVersion: extraction.OntologyVersion, RegistryRevision: revision,
 		ModelManifest: resolveModel, ItemCounts: &pb.Counts{}, TokenUsage: &pb.TokenUsage{TokenizerId: "fixture"}}
-	resolve := put(resolution, "original-resolve", "application/x-protobuf")
+	var resolve domain.GraphSourceArtifact
+	sourceCheckpointID := "checkpoint:graph-binding"
+	if nativeRPC {
+		var output *workflows.SemanticResolutionOutput
+		output = commitNativeGraphResolution(t, ctx, repo, conn, files, job, extraction, extract, resolveModel, resolveProducer, put)
+		resolution, revision, sourceCheckpointID = output.Batch, output.Batch.RegistryRevision, output.Checkpoint.Meta.RecordId
+		raw, e := files.ReadVerified(ctx, output.Artifact, uint64(domain.DefaultWireLimits.MaxBytes))
+		if e != nil {
+			t.Fatal(e)
+		}
+		resolve = domain.GraphSourceArtifact{Reference: output.Artifact, Bytes: raw}
+		intent, e := repo.LoadSemanticResolutionIntent(ctx, corpus, job)
+		if e != nil {
+			t.Fatal(e)
+		}
+		artifacts[intent.CandidateRef.ArtifactId], e = files.ReadVerified(ctx, intent.CandidateRef, uint64(domain.DefaultWireLimits.MaxBytes))
+		if e != nil {
+			t.Fatal(e)
+		}
+	} else {
+		resolve = put(resolution, "original-resolve", "application/x-protobuf")
+	}
 	artifacts[extract.Reference.ArtifactId] = extract.Bytes
 	artifacts[resolve.Reference.ArtifactId] = resolve.Bytes
 	checkpoint := func(id string) {
@@ -109,7 +141,9 @@ func checkGraphSourceBindingReceipt(t *testing.T, ctx context.Context, repo *pos
 			t.Fatal(e)
 		}
 	}
-	checkpoint("checkpoint:graph-binding")
+	if !nativeRPC {
+		checkpoint(sourceCheckpointID)
+	}
 	boundE, boundR, err := domain.BindGraphSourceEnvelopes(job,
 		domain.GraphSourceArtifact{Reference: sourceBinding.Original, Bytes: artifacts[sourceBinding.Original.ArtifactId]},
 		domain.GraphSourceArtifact{Reference: sourceBinding.Bound, Bytes: artifacts[sourceBinding.Bound.ArtifactId]}, extract, resolve, 4096)
@@ -124,7 +158,7 @@ func checkGraphSourceBindingReceipt(t *testing.T, ctx context.Context, repo *pos
 		t.Fatal(err)
 	}
 	binding := domain.GraphSourceBinding{Policy: domain.GraphSourceEnvelopePolicy, PublicationID: target.PublicationID, Fence: target.Fence,
-		TargetSequence: target.Sequence, RegistryRevision: revision, SourceCheckpointID: "checkpoint:graph-binding", Source: sourceBinding,
+		TargetSequence: target.Sequence, RegistryRevision: revision, SourceCheckpointID: sourceCheckpointID, Source: sourceBinding,
 		OriginalExtraction: extract.Reference, OriginalResolution: resolve.Reference, BoundExtraction: boundE.Reference, BoundResolution: boundR.Reference}
 	input := domain.GraphSourceBindingInputs{OriginalDocument: artifacts[sourceBinding.Original.ArtifactId], SnapshotDocument: artifacts[sourceBinding.Bound.ArtifactId], Extraction: extract.Bytes, Resolution: resolve.Bytes}
 	pin, err := repo.PinActiveSnapshot(ctx, corpus, "lease:graph-binding", "owner:graph-binding", 30*time.Second)
@@ -308,13 +342,13 @@ func checkGraphSourceBindingReceipt(t *testing.T, ctx context.Context, repo *pos
 	}
 	// Corrupt a seeded identity while preserving all source bytes and receipts.
 	// Preparation must execute the registry gate, not merely trust artifact hashes.
-	if _, err = conn.Exec(ctx, `UPDATE canonical_identities SET identity_scope=identity_scope || ':fault' WHERE corpus_id=$1 AND entity_type=$2`, corpus, domain.CanonicalEntityTypeOrganization); err != nil {
+	if _, err = conn.Exec(ctx, `UPDATE canonical_identities SET identity_scope=identity_scope || ':fault' WHERE corpus_id=$1 AND canonical_id=$2`, corpus, original.Regulations[0].IssuerId); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = workflows.PrepareGraphAssembly(ctx, repo, artifacts, files, pin, assemblyConfig); !errors.Is(err, domain.ErrResolutionReplan) {
 		t.Fatalf("changed document registry identity admitted by graph preparation: %v", err)
 	}
-	if _, err = conn.Exec(ctx, `UPDATE canonical_identities SET identity_scope=$2 WHERE corpus_id=$1 AND entity_type=$3`, corpus, domain.IssuerIdentityKeyNamespace, domain.CanonicalEntityTypeOrganization); err != nil {
+	if _, err = conn.Exec(ctx, `UPDATE canonical_identities SET identity_scope=$2 WHERE corpus_id=$1 AND canonical_id=$3`, corpus, domain.IssuerIdentityKeyNamespace, original.Regulations[0].IssuerId); err != nil {
 		t.Fatal(err)
 	}
 	wrongOntology := assemblyConfig
@@ -339,10 +373,18 @@ func checkGraphSourceBindingReceipt(t *testing.T, ctx context.Context, repo *pos
 		t.Fatal(err)
 	}
 	readView := new(pb.RegistryEntityView)
-	if err = domain.DecodeWire(viewBytes, readView, domain.DefaultWireLimits); err != nil || len(readView.Entities) != 0 || domain.ValidateAssemblyRegistryBinding(readPlan, readView) != nil {
+	wantEntities := 0
+	if nativeRPC {
+		wantEntities = 2
+	}
+	if err = domain.DecodeWire(viewBytes, readView, domain.DefaultWireLimits); err != nil || len(readView.Entities) != wantEntities || domain.ValidateAssemblyRegistryBinding(readPlan, readView) != nil {
 		t.Fatalf("persisted ASSEMBLE canonical view drift: %v", err)
 	}
-	checkGraphJobInventory(t, ctx, repo, conn, dsn, pin, prepared, binding, input, viewBytes)
+	if nativeRPC {
+		checkNativeGraphExecution(t, ctx, repo, conn, files, artifacts, pin, prepared, binding, input, viewBytes, ontology)
+	} else {
+		checkGraphJobInventory(t, ctx, repo, conn, dsn, pin, prepared, binding, input, viewBytes)
+	}
 	cancelling := graphPreparationCancelledStore{Repository: repo, cancel: func() error {
 		_, e := conn.Exec(ctx, `UPDATE jobs SET cancellation_requested=true WHERE job_id=$1`, job)
 		return e
