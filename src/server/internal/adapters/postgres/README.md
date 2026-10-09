@@ -1,5 +1,12 @@
 # src/server/internal/adapters/postgres
 
+`model_completion.go` menyimpan completion EXTRACT dengan first-committed-wins,
+payload/usage checksum terikat replay key dan read berbatas byte. Migration 0024
+membuat tabel append-only. Tidak ada lock/transaksi selama model berjalan;
+concurrent miss dapat sampling dua kali, tetapi caller memakai completion pemenang
+yang sama. Row ini bukan checkpoint job/registry/publication; lihat
+[kontrak](../../../../../doc/semantic-completion-replay.md).
+
 Runner `migrate.go` dipanggil eksplisit oleh CLI `migrate`; checksum replay dan
 transaksi per file tetap sama. Cleanup advisory lock dibatasi lima detik memakai
 context baru; kegagalan unlock menutup koneksi agar session lock tidak kembali

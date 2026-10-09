@@ -1,5 +1,10 @@
 # doc
 
+[Completion replay EXTRACT](semantic-completion-replay.md) menjelaskan penyimpanan
+provider JSON di PostgreSQL, identity binding dan validasi ulang setelah restart.
+[Bukti](verification-report-durable-extraction.md) mencakup DB nyata dan batas
+antara completion checkpoint, job recovery dan publication.
+
 [Retry semantic setelah cancellation](verification-report-semantic-retry.md)
 membuktikan perbaikan error permanen palsu pada item yang terputus. Cache lokal
 memakai ulang item sukses; recovery lintas restart belum disediakan paket ini.

@@ -1,5 +1,11 @@
 # migrations
 
+Migration 0024 menambah `semantic_completions` append-only untuk replay provider
+JSON EXTRACT lintas restart. Payload maksimal 4 MiB; checksum meliputi key dan
+usage. Tidak ada backfill atau perubahan source/job/registry. Terapkan sebelum
+`REGULAGRAPH_SEMANTIC_REPLAY=postgres`; jangan menandai row sebagai publikasi graph.
+Retensi/GC memerlukan kebijakan terpisah. [Kontrak](../doc/semantic-completion-replay.md).
+
 Migrasi schema persisten yang dikelola aplikasi, dimulai dari metadata PostgreSQL sesuai rancangan arsitektur. Dokumen ini menjadi kontrak cakupan folder dan panduan penempatan komponennya.
 
 ## Batas tanggung jawab

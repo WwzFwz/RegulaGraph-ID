@@ -1,5 +1,10 @@
 # src/server/internal/domain
 
+`model_completion.go` mendefinisikan DTO Go untuk provider JSON dan token usage,
+batas byte/token serta checksum terikat replay key. Ini bukan fakta graph atau
+schema wire baru. Adapter PostgreSQL menyimpan completion immutable; gateway
+memvalidasi ulang source/ontology saat replay sebelum membuat C01 proposal.
+
 `ontology.go` mengekspor vocabulary JSON tervalidasi yang immutable serta rendered
 EXTRACT context/hash untuk dipakai producer dan coordinator admission bersama.
 Aturan endpoint, origin dan qualifier tetap diperiksa setelah generation;

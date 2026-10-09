@@ -14,7 +14,7 @@ Validation errors now identify invalid locator fields without including source q
 
 An optional local llama.cpp mode now checks the complete EXTRACT/RESOLVE prompt against the pinned context window before inference and verifies token-usage parity afterwards. A real local-model smoke test passed these checks; full-PDF extraction and quality acceptance remain unfinished. See [semantic admission verification](doc/verification-report-semantic-admission.md).
 
-Interrupted semantic items now remain retryable instead of becoming permanently cached failures. Successful items are reused within the same gateway process; recovery across restarts still needs durable item checkpoints. See [retry verification](doc/verification-report-semantic-retry.md).
+Interrupted semantic items now remain retryable instead of becoming permanently cached failures. Successful items are reused within the gateway process; optional PostgreSQL completion replay now also survives restarts and reruns semantic validation. See [durable replay](doc/semantic-completion-replay.md). See [retry verification](doc/verification-report-semantic-retry.md).
 
 ## System Overview
 

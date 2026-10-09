@@ -1,5 +1,13 @@
 # Rencana implementasi berbasis dependency
 
+Checkpoint durable EXTRACT: gateway dapat menyimpan completion model per item di
+PostgreSQL (migration 0024) dan mereplay setelah instance/pool dibuat ulang.
+Input/scope/actual producer terikat; output selalu melewati semantic validation
+lagi. Ini menghindari resampling completion yang sudah committed, bukan menandai
+job/graph complete. RESOLVE replay, full-PDF restart run, kualitas model dan
+acceptance tetap terbuka. [Kontrak](semantic-completion-replay.md),
+[bukti](verification-report-durable-extraction.md).
+
 Checkpoint retry semantic: cancellation/deadline langsung atau wrapped kini
 transient; EXTRACT tidak menyimpan opaque adapter error sebagai terminal setelah
 context RPC berakhir. Red/green membuktikan bug lama dan recovery cache lokal,

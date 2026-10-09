@@ -30,7 +30,7 @@ Provider memiliki transport sendiri dan Close setelah drain;
 
 Berkas: [cross_encoder.go](cross_encoder.go), [embeddings.go](embeddings.go), [llm.go](llm.go), [semantic.go](semantic.go). Test boundary berada pada file `_test.go` pendamping.
 
-`llm.go` menyediakan adapter HTTP structured output OpenAI-compatible tanpa retry implisit. `semantic.go` mengimplementasikan `Semantic.ExtractBatch`: validasi request/model/schema/ontology, concurrency terbatas, cache operation-key dalam proses, proyeksi ID deterministik, exact UTF-8 span, provenance, support closure, manifest termasuk hash ontology, accounting token, dan error eksplisit per item. Replay durable lintas restart tetap milik coordinator.
+`llm.go` menyediakan adapter HTTP structured output OpenAI-compatible tanpa retry implisit. `semantic.go` mengimplementasikan `Semantic.ExtractBatch`: validasi request/model/schema/ontology, concurrency terbatas, cache operation-key dalam proses, proyeksi ID deterministik, exact UTF-8 span, provenance, support closure, manifest termasuk hash ontology, accounting token, dan error eksplisit per item. Completion EXTRACT dapat direplay lintas restart melalui PostgreSQL; checkpoint job dan publication tetap milik coordinator.
 
 ## Benchmark dan perhatian performa
 
@@ -40,11 +40,17 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
+`semantic_replay.go` menyediakan replay completion EXTRACT melalui store opsional.
+Key mengikat request/corpus/scope/provenance, producer aktual dan envelope model;
+provider JSON disimpan sebelum acknowledgement dan selalu melewati projection,
+ontology serta C01 lagi sesudah load. Store bukan publication authority. Lihat
+[kontrak replay](../../../../../doc/semantic-completion-replay.md).
+
 Cancellation/deadline dari adapter lokal maupun cause yang dibungkus tetap
 transient. EXTRACT memprioritaskan context RPC yang berakhir sebelum menyimpan
 error item; retry tidak lagi memakai ulang kegagalan permanen palsu. Item sukses
-tetap digunakan dari cache. Ini recovery dalam proses yang sama; checkpoint
-per-item lintas restart masih perlu storage/coordinator durable.
+tetap digunakan dari cache. Untuk bertahan lintas restart, aktifkan completion
+store PostgreSQL pada gateway; job/checkpoint/publication tetap milik coordinator.
 
 Kegagalan quote v2 kini membawa field-path diagnostik, misalnya
 `mentions[1].span` atau `supports[0].spans[0]`, dan alasan validator statis tanpa
@@ -88,7 +94,7 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | [cross_encoder.go](cross_encoder.go) | Batch query-document pairs with stable IDs and verify model/results correlation, truncation and cancellation. | Test partial scores, timeout, unexpected pairs and length limits; keep original evidence identity through ranking. |
 | [embeddings.go](embeddings.go) | Reuse a native client; send purpose/model-bound batches and validate one-to-one results before retrieval/indexing. | Test reordered/duplicate/missing outputs, dimension drift and explicit per-item errors; trace queue vs compute time. |
 | [llm.go](llm.go) | Tambahkan provider-specific capability probe dan telemetry biaya sesudah provider produksi dipilih; pertahankan satu request per item serta tanpa retry tersembunyi. | Uji status provider, timeout, refusal, respons oversized/malformed, dan accounting pada sandbox provider. |
-| [semantic.go](semantic.go) | Terapkan ontology endpoint/predicate/qualifier allowlist dan cache durable; perluas RPC RESOLVE/SUMMARIZE pada milestone masing-masing. | Uji unknown ontology terms, replay lintas restart, collision operation-key, span multibyte, cancellation, serta evaluasi extraction pada gold split. |
+| [semantic.go](semantic.go) | Pertahankan ontology/evidence gates dan completion replay EXTRACT; berikutnya durable replay RESOLVE, telemetry biaya/replay dan RPC SUMMARIZE. | Uji unknown ontology terms, replay lintas restart, collision operation-key, span multibyte, cancellation, serta evaluasi extraction pada gold split. |
 
 `semantic_resolution.go`, `semantic_resolution_cache.go`, dan `semantic_resolution_client.go` mengimplementasikan gateway/context projection, bounded replay cache, dan client gRPC RESOLVE. Satu gateway memakai task EXTRACT atau RESOLVE terpin; producer/model/schema/context/candidate identity divalidasi. LINK harus merujuk konteks yang mencakup mention dan support kandidat terpilih; metadata label saja tidak cukup. Tes membuktikan projection, malformed input, provenance, cancellation, eviction/coalescing, dan RPC; kualitas model tetap belum diukur. `semantic_provider_integration_test.go` menyediakan smoke endpoint nyata opt-in; konfigurasi serta batas pembuktiannya berada di [panduan resolusi](../../../../../doc/semantic-resolution.md).
 
