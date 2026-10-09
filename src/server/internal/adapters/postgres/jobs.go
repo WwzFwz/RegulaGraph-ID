@@ -3,6 +3,7 @@
 // checkpoint, dan state transition bagi workflow Go serta worker Rust.
 // Kontrak: idempotency key sama hanya menerima payload sama; hasil worker setelah lease
 // expired ditolak oleh SaveCheckpoint/TransitionJob; satu claim tidak boleh dimiliki dua worker.
+// Pembacaan checkpoint membatasi payload 16MiB di SQL sebelum transfer/hash/decode.
 // Benchmark: ukur queue time, claim throughput, p50/p95/p99 query, pool saturation, retry,
 // dan contention pada concurrency profil referensi.
 // Target numerik required: configs/benchmark-targets.yaml; status REQUIRED_UNMEASURED.
@@ -564,7 +565,7 @@ func (r *Repository) LoadLatestCheckpoint(ctx context.Context, jobID string) (*p
 	var payload []byte
 	var expectedHash string
 	var storedTerminal sql.NullInt16
-	err := r.pool.QueryRow(ctx, `SELECT c.payload,c.payload_hash,c.terminal_status FROM jobs j
+	err := r.pool.QueryRow(ctx, `SELECT CASE WHEN octet_length(c.payload)<=16777216 THEN c.payload ELSE NULL END,c.payload_hash,c.terminal_status FROM jobs j
 		JOIN job_checkpoints c ON c.checkpoint_id=j.latest_checkpoint_id WHERE j.job_id=$1`, jobID).Scan(&payload, &expectedHash, &storedTerminal)
 	if err == pgx.ErrNoRows {
 		return nil, ErrNotFound
