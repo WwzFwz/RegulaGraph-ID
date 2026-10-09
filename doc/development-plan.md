@@ -1,5 +1,12 @@
 # Rencana implementasi berbasis dependency
 
+Checkpoint admission semantic: mode lokal llama.cpp menghitung envelope lengkap
+EXTRACT/RESOLVE sebelum generation, menolak overflow, dan menolak usage mismatch.
+Unit/regresi, review independen, serta smoke GGUF nyata lulus; provider generik
+tetap belum mempunyai exact counting. Ekstraksi PDF aktual masih belum lulus.
+Berikutnya perbandingan model/profil evidence copying dan checkpoint per item.
+[Bukti dan batas](verification-report-semantic-admission.md).
+
 Checkpoint diagnostic EXTRACT: kegagalan quote v2 kini membawa field paths dan
 alasan statis, dibatasi 32 dengan marker truncation; item tetap ditolak seluruhnya.
 Review/regresi lulus. Dua feedback experiment lokal masih gagal empat locator;

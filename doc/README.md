@@ -1,5 +1,9 @@
 # doc
 
+[Admission prompt semantic lokal](verification-report-semantic-admission.md)
+mencatat mode llama.cpp terpin, pemeriksaan full prompt + completion cap dan
+usage parity, termasuk smoke model nyata. Ini bukan acceptance extraction corpus.
+
 [Diagnostik dan feedback extraction](verification-report-extraction-feedback.md)
 mencatat locator errors yang dibatasi dan tidak memuat kutipan sumber, serta dua
 eksperimen koreksi lokal yang masih gagal. Retry otomatis belum diaktifkan.
