@@ -69,6 +69,13 @@ Cabang indeks dapat dikerjakan dari CHUNK sambil memperbaiki EXTRACT/RESOLVE.
 Graph membutuhkan seluruh sumber indeks mempunyai resolusi dan authority valid;
 DEFER tidak otomatis membuat graph siap diterbitkan.
 
+Untuk menyiapkan dokumen/indeks tanpa menjalankan model EXTRACT, set
+`REGULAGRAPH_EXTRACT_ENABLED=false` sebelum menyalakan coordinator. Default `true`.
+Flag menunda claim EXTRACT pada proses itu saja; tidak mengubah checkpoint atau
+mengklaim ekstraksi selesai. Semua coordinator yang dapat mengambil sumber yang
+sama harus memakai pilihan konsisten. Restart dengan `true` setelah model siap.
+Lihat [kontrak coordinator](../src/server/cmd/ingestion-worker/README.md).
+
 ## Pekerjaan A — selesaikan ekstraksi sumber nyata
 
 **Input:** DocumentBatch CHUNK, teks normalisasi, provenance, ontology dan manifest

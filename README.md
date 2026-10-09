@@ -294,6 +294,8 @@ Prepare local PostgreSQL, Qdrant, and Neo4j services. Apply [migrations](migrati
 
 Go's `REGULAGRAPH_ARTIFACTS_DIR` and Rust's `REGULAGRAPH_WORKER_ARTIFACT_ROOT` must refer to the same store. Go's `REGULAGRAPH_WORKER_ENDPOINT` must match the Rust listener. RESOLVE/INDEX/ASSEMBLE are enabled explicitly; enabling a flag does not create an inventory or publication. Run services in separate foreground terminals. Local models do not require a cloud API key; protected backends still require local credentials.
 
+To prepare documents and indexes while extraction is deferred, start the coordinator with `REGULAGRAPH_EXTRACT_ENABLED=false` (default `true`). Pending extraction jobs remain unchanged; restart with `true` to resume normal claims. This flag affects only that coordinator, so other enabled coordinators can still claim extraction work. It does not make the graph ready or change benchmark requirements.
+
 ### 3. Import and process sources
 
 ```powershell

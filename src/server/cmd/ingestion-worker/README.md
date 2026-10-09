@@ -1,5 +1,16 @@
 # src/server/cmd/ingestion-worker
 
+`REGULAGRAPH_EXTRACT_ENABLED=false` menunda pengambilan job EXTRACT oleh proses
+coordinator ini. Default kosong/`true` tetap menjalankan EXTRACT; nilai selain
+`true`/`false` ditolak saat startup. PARSE/STRUCTURE/BIND/CHUNK dan kelompok
+INDEX/ASSEMBLE/RESOLVE yang diaktifkan tetap bekerja sesuai dependency masing-masing.
+Job/checkpoint tertunda tidak dihapus, dibatalkan, dilewati atau ditandai selesai.
+Restart dengan `true` untuk melanjutkan claim EXTRACT melalui validasi normal.
+Flag bersifat per-proses: coordinator lain yang masih enabled dapat mengambil job,
+dan pekerjaan yang sedang berjalan tidak dibatalkan hanya dengan mengubah environment.
+Ini pilihan penjadwalan untuk menyiapkan indeks sambil profil model diperbaiki,
+bukan kelulusan graph atau cara menurunkan workload benchmark.
+
 [graph.go](graph.go) menambahkan ASSEMBLE opt-in melalui
 `REGULAGRAPH_ASSEMBLE_ENABLED=true`, migration0020 dan inventory graph yang sudah
 admitted. Claim difilter menurut auth scope sebelum dipilih. Processor memulihkan

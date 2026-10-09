@@ -1,5 +1,11 @@
 # src/server/internal/workflows
 
+`ParseExecutorConfig.DisableExtraction` menghilangkan hanya claim EXTRACT dari
+rotasi. Zero value mempertahankan perilaku empat tahap. Suspension tidak menyentuh
+state durable; executor enabled berikutnya memakai pending job dan validation
+yang sama. `parse_suspension_test.go` memeriksa tidak adanya claim/mutasi/call
+worker saat tertunda, rotasi tahap lain, propagasi error storage dan resume.
+
 EXTRACT preflight dan output admission sekarang mewajibkan rendered ontology
 context pin yang sama dengan versi runtime. Request/producer lama tanpa pin
 memerlukan ekspor producer dan submit baru; output historis tidak ditulis ulang.

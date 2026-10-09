@@ -1,5 +1,10 @@
 # Rencana implementasi berbasis dependency
 
+Checkpoint penjadwalan: `REGULAGRAPH_EXTRACT_ENABLED=false` menunda claim EXTRACT
+tanpa mengubah pending job, sehingga dokumen dan indeks dapat dipersiapkan ketika
+profil model belum siap. Default tetap true. Tes/review scheduler lulus; run
+indeks corpus nyata masih berikutnya. [Bukti](verification-report-extraction-suspension.md).
+
 [Panduan operasional/handoff](operational-handoff.md) merinci dependency PDF nyata
 hingga aplikasi dapat digunakan, status saat ini, gap registry/model, lokasi kode,
 perintah dan syarat selesai. Gunakan bersama backlog lengkap di dokumen ini.

@@ -1,5 +1,9 @@
 # doc
 
+[Penundaan claim EXTRACT](verification-report-extraction-suspension.md) mencatat
+flag coordinator untuk menyiapkan dokumen/indeks tanpa mengubah pending job atau
+mengklaim graph selesai. Default extraction tetap aktif.
+
 [Panduan melanjutkan sampai aplikasi bisa digunakan](operational-handoff.md)
 menyimpan status, dependency, lokasi kode, langkah operasional dan bukti selesai
 untuk melanjutkan setelah pergantian sesi/model. Mulai dari sini untuk jalur PDF
