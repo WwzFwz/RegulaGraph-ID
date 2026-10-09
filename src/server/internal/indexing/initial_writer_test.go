@@ -78,7 +78,7 @@ func runInitialIndexPublication(t *testing.T, requireGraph, contentAddressed boo
 		t.Skip("disposable PostgreSQL and Qdrant required")
 	}
 	fixtureTimeout := 60 * time.Second
-	if graphRPC && os.Getenv("REGULAGRAPH_TEST_LLAMA_GRAPH_ANSWER") == "1" {
+	if graphRPC && (os.Getenv("REGULAGRAPH_TEST_LLAMA_GRAPH_ANSWER") == "1" || os.Getenv("REGULAGRAPH_TEST_LLAMA_API_ANSWER") == "1") {
 		fixtureTimeout = 5 * time.Minute
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), fixtureTimeout)

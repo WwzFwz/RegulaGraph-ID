@@ -30,7 +30,7 @@ func checkPublishedGraphRead(t *testing.T, ctx context.Context, repo *postgres.R
 		t.Fatal("index-only parent admitted graph")
 	}
 	readLease := 20 * time.Second
-	if os.Getenv("REGULAGRAPH_TEST_LLAMA_GRAPH_ANSWER") == "1" {
+	if os.Getenv("REGULAGRAPH_TEST_LLAMA_GRAPH_ANSWER") == "1" || os.Getenv("REGULAGRAPH_TEST_LLAMA_API_ANSWER") == "1" {
 		readLease = 4 * time.Minute
 	}
 	pin, err := repo.PinActiveSnapshot(ctx, basePin.CorpusID, "read:graph:"+basePin.CorpusID, "reader:graph", readLease)

@@ -72,6 +72,12 @@ func checkPublishedGraphCLI(t *testing.T, ctx context.Context, repo *postgres.Re
 			cfg.GraphHash = fmt.Sprintf("%x", sha256.Sum256(raw))
 			cfg.GraphUsername = "neo4j"
 			cfg.GraphPassword = os.Getenv("REGULAGRAPH_TEST_NEO4J_PASSWORD")
+			if os.Getenv("REGULAGRAPH_TEST_LLAMA_API_ANSWER") == "1" {
+				cfg.EnableAnswers = true
+				cfg.AnswerPath, cfg.AnswerHash = nativeAnswerProfile(t, q.CorpusId)
+				cfg.AnswerKey = os.Getenv("REGULAGRAPH_TEST_LLAMA_KEY")
+				cfg.Timeout = 3 * time.Minute
+			}
 		})
 	}
 	if binary == "" {

@@ -8,6 +8,7 @@ package indexing
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -63,7 +64,7 @@ func verifyNativeEvidenceAPI(t *testing.T, ctx context.Context, dsn, root, nativ
 	defer runtime.Close()
 	const token = "native-integration-only-operator-token"
 	var logs synchronizedAPILog
-	server, err := api.NewEvidenceServer("127.0.0.1:8097", runtime, routes.EvidenceConfig{Token: token, Corpus: question.CorpusId, Profile: question.RequestedProfile, Concurrent: 2, Timeout: 20 * time.Second}, slog.New(slog.NewJSONHandler(&logs, nil)))
+	server, err := api.NewEvidenceServer("127.0.0.1:8097", runtime, routes.EvidenceConfig{Token: token, Corpus: question.CorpusId, Profile: question.RequestedProfile, Concurrent: 2, Timeout: cfg.Timeout, EnableAnswers: cfg.EnableAnswers}, slog.New(slog.NewJSONHandler(&logs, nil)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +72,7 @@ func verifyNativeEvidenceAPI(t *testing.T, ctx context.Context, dsn, root, nativ
 	// get their own evidence identity and lease while sharing immutable resources.
 	httpServer := httptest.NewServer(server.Handler)
 	defer httpServer.Close()
-	client := &http.Client{Timeout: 25 * time.Second}
+	client := &http.Client{Timeout: cfg.Timeout + 5*time.Second}
 	raw, err := protojson.Marshal(question)
 	if err != nil {
 		t.Fatal(err)
@@ -170,6 +171,44 @@ func verifyNativeEvidenceAPI(t *testing.T, ctx context.Context, dsn, root, nativ
 				}
 			}
 		}
+	}
+	if cfg.EnableAnswers {
+		request, e := http.NewRequestWithContext(ctx, http.MethodPost, httpServer.URL+"/v1/questions", bytes.NewReader(raw))
+		if e != nil {
+			t.Fatal(e)
+		}
+		request.Header.Set("Authorization", "Bearer "+token)
+		request.Header.Set("Content-Type", "application/json")
+		response, e := client.Do(request)
+		if e != nil {
+			t.Fatal(e)
+		}
+		encoded, e := io.ReadAll(io.LimitReader(response.Body, 16<<20))
+		response.Body.Close()
+		if e != nil || response.StatusCode != 200 {
+			t.Fatalf("native answer HTTP %d: %s %v", response.StatusCode, encoded, e)
+		}
+		var output struct {
+			Mode     string
+			Answer   json.RawMessage
+			Evidence json.RawMessage
+			Input    uint64 `json:"input_tokens"`
+			Output   uint64 `json:"output_tokens"`
+		}
+		if e = json.Unmarshal(encoded, &output); e != nil {
+			t.Fatal(e)
+		}
+		a, b := new(pb.Answer), new(pb.EvidenceBundle)
+		if protojson.Unmarshal(output.Answer, a) != nil || protojson.Unmarshal(output.Evidence, b) != nil || output.Mode != "answer_draft" || !proto.Equal(a.Snapshot, snapshot) || !proto.Equal(b.Snapshot, snapshot) || output.Input == 0 || output.Output == 0 || response.Header.Get("X-Answer-ID") != a.Meta.RecordId {
+			t.Fatal("native HTTP answer lost snapshot/accounting")
+		}
+		if a.SemanticStatus != pb.SemanticStatus_SEMANTIC_STATUS_PARTIAL && a.SemanticStatus != pb.SemanticStatus_SEMANTIC_STATUS_ABSTAIN {
+			t.Fatal("native draft promoted")
+		}
+		if a.SemanticStatus == pb.SemanticStatus_SEMANTIC_STATUS_PARTIAL && len(a.Citations) == 0 {
+			t.Fatal("native draft lost citations")
+		}
+		t.Logf("native HTTP answer PASS: input=%d output=%d status=%s citations=%d", output.Input, output.Output, a.SemanticStatus, len(a.Citations))
 	}
 	if bytes.Contains(logs.Bytes(), []byte(token)) || bytes.Contains(logs.Bytes(), []byte(question.Question)) || bytes.Contains(logs.Bytes(), []byte(dsn)) {
 		t.Fatal("API logs disclosed request/credentials")
