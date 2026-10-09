@@ -1,7 +1,7 @@
 # Diagnostik runtime dan contoh penyalinan EXTRACT
 
-Dokumen ini mencatat dua eksperimen lanjutan pada chunk PDF nyata yang sebelumnya
-gagal quote alignment. Keduanya gagal menghasilkan completion yang dapat diterima.
+Dokumen ini mencatat eksperimen lanjutan pada chunk PDF nyata yang sebelumnya
+gagal quote alignment. Semua run gagal menghasilkan completion yang dapat diterima.
 Tidak ada perubahan prompt produksi, validator, target benchmark, atau klaim
 peningkatan kualitas dari eksperimen ini.
 
@@ -80,6 +80,37 @@ khusus menjawab pertanyaan hukum. Status resident mencatat context 8192 dan
 sekitar 4,25 GB `size_vram`; ini bukan pengukuran peak VRAM. Tidak ada cloud call.
 
 ## Keputusan berikutnya
+
+### Pemeriksaan dan eksperimen lanjutan pada baseline `dc99d46`
+
+Pemeriksaan [kode template Ollama v0.32.1](https://github.com/ollama/ollama/blob/v0.32.1/template/template.go)
+menunjukkan pesan system digabung saat rendering. Karena itu, template lokal
+yang tidak mempunyai branch system dalam loop Messages saja tidak membuktikan
+instruksi extractor dibuang. Tidak ada perubahan encoder produksi dari dugaan itu.
+
+`run_contiguous.py` menguji prompt Indonesia yang membedakan surface form literal
+dari canonical name, memakai source/schema/ontology, temperature 0 dan cap 4096
+yang sama. Run selesai 115,594 detik, 2757 prompt + 2270 completion tokens,
+finish `stop`. Output berisi 15 mentions, nol assertions/supports; **10 dari 15
+locator tidak ada di sumber**. Replay produksi `TestQuotedExtractionSavedModelProjection`
+gagal exit 1 dengan sepuluh field paths invalid. Prompt ini tidak dipromosikan;
+JSON selesai tidak berarti fakta lengkap atau valid. Bukti berada pada
+`contiguous-mention/actual-request.json`, `actual-response.json`, `result.json`,
+`locator-diagnostic.json` dan `actual-projection.log`.
+
+`run_literal.py` kembali memakai prompt Inggris v2, tetapi mengganti instruksi
+envelope dan user content menjadi teks sumber literal dengan newline asli.
+Source SHA/item ID dicatat pada `literal-source/source-identity.json`; metadata
+ini bukan producer C01. Run selesai 219,25 detik, 2375 prompt + 4096 completion
+tokens, finish `length`. Output tidak lengkap, sehingga tidak diterima; projection
+dan kualitas semantik tidak diukur. Source JSON produksi tidak diubah. Bukti berada
+di `literal-source/actual-request.json`, `actual-response.json`, dan `result.json`.
+
+Kedua skrip HTTP exit 0 karena berhasil menyimpan respons, bukan karena extraction
+PASS. Seluruh run dalam laporan ini telah terminal. Eksperimen tidak membuktikan
+keunggulan suatu bahasa prompt, runtime, atau model secara umum.
+
+### Tindak lanjut
 
 Eksperimen contoh copying tidak dipromosikan karena menghasilkan repetition dan
 truncation. Mengangkat cap saja tidak menyelesaikan pengulangan atau quote yang
