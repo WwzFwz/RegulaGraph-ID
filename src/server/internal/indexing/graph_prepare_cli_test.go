@@ -95,7 +95,13 @@ func checkPrepareGraphCLI(t *testing.T, ctx context.Context, repo *postgres.Repo
 	if _, err = db.Exec(ctx, `UPDATE jobs SET cancellation_requested=false WHERE job_id=$1`, source.SourceJobID); err != nil {
 		t.Fatal(err)
 	}
+	if os.Getenv("REGULAGRAPH_TEST_GRAPH_REAFFIRM") == "1" {
+		advanceUnrelatedGraphRegistry(t, ctx, repo, db, corpus, "7")
+	}
 	first := invoke(args, true)
+	if os.Getenv("REGULAGRAPH_TEST_GRAPH_REAFFIRM") == "1" {
+		advanceUnrelatedGraphRegistry(t, ctx, repo, db, corpus, "8")
+	}
 	second := invoke(args, true)
 	if first[0] != second[0] {
 		t.Fatal("preparation replay changed child identity")
@@ -111,6 +117,9 @@ func checkPrepareGraphCLI(t *testing.T, ctx context.Context, repo *postgres.Repo
 	binding, err := repo.LoadGraphSourceBinding(ctx, corpus, publication, source.SourceJobID)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if os.Getenv("REGULAGRAPH_TEST_GRAPH_REAFFIRM") == "1" {
+		checkReaffirmedSource(t, ctx, files, binding)
 	}
 	inputs, err := workflows.ReadGraphInventoryInputs(ctx, repo, files, in)
 	if err != nil {
@@ -133,6 +142,9 @@ func checkPrepareGraphCLI(t *testing.T, ctx context.Context, repo *postgres.Repo
 	a := in.Assignments[0]
 	prepared := &workflows.PreparedGraphAssembly{Plan: a.Plan, Reference: a.Reference}
 	input := inputs[source.SourceJobID]
+	if os.Getenv("REGULAGRAPH_TEST_GRAPH_REAFFIRM") == "1" {
+		checkReaffirmationReceiptRace(t, ctx, repo, db, pin, binding, input)
+	}
 	t.Log("actual prepare-graph: fresh reservation, complete source binding, atomic child scheduling, exact replay, wrong scope/base/cancellation rejected")
 	checkNativeGraphExecution(t, ctx, repo, db, files, artifacts, pin, prepared, binding, input.Source, input.RegistryView, ontology)
 }
