@@ -189,4 +189,5 @@ CREATE TRIGGER graph_stage_fixture BEFORE UPDATE ON jobs FOR EACH ROW EXECUTE FU
 	if manifest.ArtifactId != a.Plan.OutputArtifactId {
 		t.Fatal("logical dependency owner mutated")
 	}
+	checkCompletedGraphResults(t, ctx, db, admitted, pin, a, ref)
 }
