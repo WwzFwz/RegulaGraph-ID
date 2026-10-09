@@ -54,7 +54,7 @@ func NewEvidence(service EvidenceService, cfg EvidenceConfig) (*Evidence, error)
 }
 
 func ValidateEvidenceConfig(cfg EvidenceConfig) error {
-	if len(cfg.Token) < 32 || len(cfg.Token) > 256 || strings.ContainsAny(cfg.Token, " \t\r\n") || cfg.Corpus == "" || cfg.Concurrent < 1 || cfg.Concurrent > 128 || cfg.Timeout < time.Second || cfg.Timeout > 5*time.Minute || (cfg.Profile != pb.RetrievalProfile_RETRIEVAL_PROFILE_VECTOR_RAG && cfg.Profile != pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_RAG) {
+	if len(cfg.Token) < 32 || len(cfg.Token) > 256 || strings.ContainsAny(cfg.Token, " \t\r\n") || cfg.Corpus == "" || cfg.Concurrent < 1 || cfg.Concurrent > 128 || cfg.Timeout < time.Second || cfg.Timeout > 5*time.Minute || (cfg.Profile != pb.RetrievalProfile_RETRIEVAL_PROFILE_VECTOR_RAG && cfg.Profile != pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_RAG && cfg.Profile != pb.RetrievalProfile_RETRIEVAL_PROFILE_GRAPH_RAG && cfg.Profile != pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_GRAPH_RAG) {
 		return errors.New("invalid evidence HTTP configuration")
 	}
 	return nil

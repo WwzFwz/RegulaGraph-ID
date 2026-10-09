@@ -1,5 +1,6 @@
 // Extends the native INDEX test through the actual API composition root and HTTP
-// handler. Two authenticated queries reuse process dependencies while taking new
+// handler, including graph-only when configured by the ASSEMBLE fixture. Cold
+// concurrent and warm authenticated queries reuse dependencies while taking new
 // snapshot leases; C01 evidence and provenance must survive JSON serialization.
 // This remains synthetic source content, not a gold/latency acceptance dataset.
 package indexing
@@ -40,9 +41,22 @@ func (b *synchronizedAPILog) Bytes() []byte {
 	return append([]byte(nil), b.buffer.Bytes()...)
 }
 
-func verifyNativeEvidenceAPI(t *testing.T, ctx context.Context, dsn, root, native, qdrant, scope string, question *pb.QuestionRequest, snapshot *pb.SnapshotRef) {
+func verifyNativeEvidenceAPI(t *testing.T, ctx context.Context, dsn, root, native, qdrant, scope string, question *pb.QuestionRequest, snapshot *pb.SnapshotRef, configure ...func(*api.EvidenceRuntimeConfig)) {
 	t.Helper()
-	runtime, err := api.OpenEvidenceRuntime(ctx, api.EvidenceRuntimeConfig{DSN: dsn, ArtifactRoot: root, NativeEndpoint: native, QdrantEndpoint: qdrant, Corpus: question.CorpusId, AuthScope: scope, Build: "native-integration", Profile: question.RequestedProfile, Limit: 8, Timeout: 20 * time.Second})
+	conn, err := pgx.Connect(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close(ctx)
+	var before int
+	if err = conn.QueryRow(ctx, "SELECT count(*) FROM snapshot_read_leases").Scan(&before); err != nil {
+		t.Fatal(err)
+	}
+	cfg := api.EvidenceRuntimeConfig{DSN: dsn, ArtifactRoot: root, NativeEndpoint: native, QdrantEndpoint: qdrant, Corpus: question.CorpusId, AuthScope: scope, Build: "native-integration", Profile: question.RequestedProfile, Limit: 8, Timeout: 20 * time.Second}
+	for _, option := range configure {
+		option(&cfg)
+	}
+	runtime, err := api.OpenEvidenceRuntime(ctx, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,6 +162,9 @@ func verifyNativeEvidenceAPI(t *testing.T, ctx context.Context, dsn, root, nativ
 				t.Fatal("HTTP evidence identity lost")
 			}
 			for _, item := range bundle.Items {
+				if question.RequestedProfile == pb.RetrievalProfile_RETRIEVAL_PROFILE_GRAPH_RAG && len(item.GraphPaths) == 0 {
+					t.Fatal("graph API lost graph proof")
+				}
 				if len(item.SourceRefs) == 0 {
 					t.Fatal("HTTP source provenance lost")
 				}
@@ -157,16 +174,11 @@ func verifyNativeEvidenceAPI(t *testing.T, ctx context.Context, dsn, root, nativ
 	if bytes.Contains(logs.Bytes(), []byte(token)) || bytes.Contains(logs.Bytes(), []byte(question.Question)) || bytes.Contains(logs.Bytes(), []byte(dsn)) {
 		t.Fatal("API logs disclosed request/credentials")
 	}
-	conn, err := pgx.Connect(ctx, dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer conn.Close(ctx)
 	var leases int
 	if err = conn.QueryRow(ctx, "SELECT count(*) FROM snapshot_read_leases").Scan(&leases); err != nil {
 		t.Fatal(err)
 	}
-	if leases != 0 {
+	if leases != before {
 		t.Fatal("HTTP request/readiness leaked read leases", leases)
 	}
 	t.Log("native HTTP: two concurrent cold queries, readiness and two warm queries PASS; no leaked leases")

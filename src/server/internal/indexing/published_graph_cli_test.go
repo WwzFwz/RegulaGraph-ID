@@ -1,4 +1,4 @@
-// Invokes the actual operator CLI against a freshly published native graph.
+// Invokes the operator CLI and/or HTTP runtime against a published native graph.
 // The fixture persists registered in-memory artifacts to its dedicated FileStore;
 // the executable must perform its own pin, catalog routing, alias lookup, traversal
 // and hydration. No native model endpoint is supplied for graph-only evidence.
@@ -23,13 +23,14 @@ import (
 	"regulagraph.local/server/internal/adapters/neo4j"
 	"regulagraph.local/server/internal/adapters/postgres"
 	"regulagraph.local/server/internal/adapters/storage"
+	"regulagraph.local/server/internal/api"
 	"regulagraph.local/server/internal/domain"
 )
 
 func checkPublishedGraphCLI(t *testing.T, ctx context.Context, repo *postgres.Repository, backend *neo4j.Store, index *domain.PinnedIndex, scope, question string, artifacts indexMemoryArtifacts) {
 	t.Helper()
 	binary := os.Getenv("REGULAGRAPH_TEST_QUERY_CLI")
-	if binary == "" {
+	if binary == "" && os.Getenv("REGULAGRAPH_TEST_GRAPH_API") != "1" {
 		t.Log("actual graph CLI executable check not configured")
 		return
 	}
@@ -63,6 +64,18 @@ func checkPublishedGraphCLI(t *testing.T, ctx context.Context, repo *postgres.Re
 	queryDSN := os.Getenv("REGULAGRAPH_TEST_QUERY_DSN")
 	if queryDSN == "" {
 		t.Fatal("isolated CLI fixture DSN required")
+	}
+	if os.Getenv("REGULAGRAPH_TEST_GRAPH_API") == "1" {
+		q := &pb.QuestionRequest{CorpusId: index.Pin.CorpusID, Question: question, RequestedProfile: pb.RetrievalProfile_RETRIEVAL_PROFILE_GRAPH_RAG, ResponseMode: pb.ResponseMode_RESPONSE_MODE_COMPLETE, TemporalScope: &pb.TemporalScope{Mode: pb.TemporalMode_TEMPORAL_MODE_AS_OF, EffectiveAt: &pb.CalendarDate{Year: 2026, Month: 1, Day: 1}, UnresolvedPolicy: pb.UnresolvedPolicy_UNRESOLVED_POLICY_REPORT}}
+		verifyNativeEvidenceAPI(t, ctx, queryDSN, root, "", index.Binding.Endpoint, scope, q, index.Snapshot, func(cfg *api.EvidenceRuntimeConfig) {
+			cfg.GraphPath = path
+			cfg.GraphHash = fmt.Sprintf("%x", sha256.Sum256(raw))
+			cfg.GraphUsername = "neo4j"
+			cfg.GraphPassword = os.Getenv("REGULAGRAPH_TEST_NEO4J_PASSWORD")
+		})
+	}
+	if binary == "" {
+		return
 	}
 	env := append(os.Environ(), "REGULAGRAPH_QUERY_CORPUS_ID="+index.Pin.CorpusID, "REGULAGRAPH_BUILD_ID=fixture:cli-native", "REGULAGRAPH_POSTGRES_DSN="+queryDSN, "REGULAGRAPH_ARTIFACTS_DIR="+root, "REGULAGRAPH_QUERY_NATIVE_ENDPOINT=", "REGULAGRAPH_QDRANT_URL="+index.Binding.Endpoint, "REGULAGRAPH_QDRANT_API_KEY=", "REGULAGRAPH_QUERY_GRAPH_CONFIG="+path, "REGULAGRAPH_QUERY_GRAPH_CONFIG_SHA256="+fmt.Sprintf("%x", sha256.Sum256(raw)), "REGULAGRAPH_NEO4J_USERNAME=neo4j", "REGULAGRAPH_NEO4J_PASSWORD="+os.Getenv("REGULAGRAPH_TEST_NEO4J_PASSWORD"), "REGULAGRAPH_QUERY_AUTH_SCOPE="+scope, "REGULAGRAPH_QUERY_RERANK_MANIFEST=", "REGULAGRAPH_QUERY_RERANK_MANIFEST_SHA256=")
 	call, cancel := context.WithTimeout(ctx, 15*time.Second)

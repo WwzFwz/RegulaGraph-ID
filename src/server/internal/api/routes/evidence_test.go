@@ -21,6 +21,27 @@ import (
 const questionJSON = `{"corpus_id":"corpus:test","question":"Apa ketentuan izin?","response_mode":"RESPONSE_MODE_COMPLETE","requested_profile":"RETRIEVAL_PROFILE_HYBRID_RAG","temporal_scope":{"mode":"TEMPORAL_MODE_AS_OF","effective_at":{"year":2026,"month":1,"day":1},"unresolved_policy":"UNRESOLVED_POLICY_REPORT"}}`
 const token = "test-token-with-at-least-32-characters"
 
+func TestEvidenceGraphProfileAdmission(t *testing.T) {
+	for _, profile := range []pb.RetrievalProfile{pb.RetrievalProfile_RETRIEVAL_PROFILE_GRAPH_RAG, pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_GRAPH_RAG} {
+		f := &evidenceFake{search: func(context.Context) (*pb.EvidenceBundle, error) { return bundleFixture(), nil }}
+		h, err := NewEvidence(f, EvidenceConfig{Token: token, Corpus: "corpus:test", Profile: profile, Concurrent: 1, Timeout: time.Second})
+		if err != nil {
+			t.Fatal(err)
+		}
+		body := strings.Replace(questionJSON, "RETRIEVAL_PROFILE_HYBRID_RAG", profile.String(), 1)
+		response := httptest.NewRecorder()
+		h.ServeHTTP(response, requestFixture(body))
+		if response.Code != 200 || f.calls.Load() != 1 {
+			t.Fatal(profile, response.Code)
+		}
+		response = httptest.NewRecorder()
+		h.ServeHTTP(response, requestFixture(questionJSON))
+		if response.Code != 400 || f.calls.Load() != 1 {
+			t.Fatal("client changed authorized profile")
+		}
+	}
+}
+
 type evidenceFake struct {
 	calls  atomic.Int32
 	search func(context.Context) (*pb.EvidenceBundle, error)

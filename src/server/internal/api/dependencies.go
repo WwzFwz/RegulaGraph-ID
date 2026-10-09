@@ -15,10 +15,10 @@
 // Target numerik required: configs/benchmark-targets.yaml; status REQUIRED_UNMEASURED.
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
-// Status: evidence runtime aktif untuk vector/hybrid dengan shared clients dan satu
-// cache generation immutable; lease/evidence tetap baru per request. Answering dan
-// graph profiles belum diaktifkan. Close dipanggil setelah request selesai/drain.
-// Integrasi berikutnya: generator/tokenizer terpin dan graph readiness.
+// Status: empat profil evidence dengan shared clients dan snapshot-bound graph
+// resources. Retired resources survive active borrowers; leases remain per request.
+// Answering belum diaktifkan. Close dipanggil setelah request selesai/drain.
+// Integrasi berikutnya: generator/tokenizer terpin dan acceptance corpus nyata.
 // Bukti verifikasi: Test partial startup cleanup and dependency failure without opening connections during package initialization.
 // Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
 
@@ -33,6 +33,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"strconv"
 	"time"
 
 	"google.golang.org/grpc"
@@ -41,9 +42,11 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	pb "regulagraph.local/server/gen/regulagraph/v1"
 	"regulagraph.local/server/internal/adapters/inference"
+	"regulagraph.local/server/internal/adapters/neo4j"
 	"regulagraph.local/server/internal/adapters/postgres"
 	"regulagraph.local/server/internal/adapters/qdrant"
 	"regulagraph.local/server/internal/adapters/storage"
+	"regulagraph.local/server/internal/config"
 	"regulagraph.local/server/internal/domain"
 	"regulagraph.local/server/internal/retrieval"
 	"regulagraph.local/server/internal/workflows"
@@ -57,6 +60,7 @@ type EvidenceRuntimeConfig struct {
 	Profile                                                      pb.RetrievalProfile
 	Limit                                                        int
 	Timeout                                                      time.Duration
+	GraphPath, GraphHash, GraphUsername, GraphPassword           string
 }
 
 type EvidenceRuntime struct {
@@ -68,18 +72,32 @@ type EvidenceRuntime struct {
 	http        *http.Client
 	fingerprint *pb.ContentHash
 	preparing   chan struct{}
-	cached      *workflows.PreparedQuery
-	binding     domain.IndexCatalogBinding
-	native      *inference.NativeClient
+	resources   queryResourceCache
+	graphConfig *config.QueryGraphConfig
 }
 
 // Set only by this process's HTTP middleware, never from a caller header.
 type evidenceRequestIdentity struct{}
 
 func OpenEvidenceRuntime(ctx context.Context, cfg EvidenceRuntimeConfig) (*EvidenceRuntime, error) {
-	host, _, err := net.SplitHostPort(cfg.NativeEndpoint)
-	if ctx == nil || err != nil || !net.ParseIP(host).IsLoopback() || cfg.DSN == "" || cfg.ArtifactRoot == "" || cfg.QdrantEndpoint == "" || cfg.Build == "" || cfg.Limit < 1 || cfg.Limit > 128 || cfg.Timeout < time.Second || cfg.Timeout > 5*time.Minute || (cfg.Profile != pb.RetrievalProfile_RETRIEVAL_PROFILE_VECTOR_RAG && cfg.Profile != pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_RAG) {
+	graphProfile := cfg.Profile == pb.RetrievalProfile_RETRIEVAL_PROFILE_GRAPH_RAG || cfg.Profile == pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_GRAPH_RAG
+	host, port, err := net.SplitHostPort(cfg.NativeEndpoint)
+	number, portErr := strconv.Atoi(port)
+	nativeRequired := cfg.Profile != pb.RetrievalProfile_RETRIEVAL_PROFILE_GRAPH_RAG
+	if ctx == nil || ((nativeRequired || cfg.NativeEndpoint != "") && (err != nil || portErr != nil || number < 1 || number > 65535 || !net.ParseIP(host).IsLoopback())) || cfg.DSN == "" || cfg.ArtifactRoot == "" || cfg.QdrantEndpoint == "" || cfg.Build == "" || cfg.Limit < 1 || cfg.Limit > 128 || cfg.Timeout < time.Second || cfg.Timeout > 5*time.Minute || (!graphProfile && cfg.Profile != pb.RetrievalProfile_RETRIEVAL_PROFILE_VECTOR_RAG && cfg.Profile != pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_RAG) || cfg.Profile == pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_GRAPH_RAG && cfg.Limit > 85 {
 		return nil, errors.New("invalid local evidence runtime configuration")
+	}
+	var graphConfig *config.QueryGraphConfig
+	if graphProfile {
+		if cfg.GraphUsername == "" || cfg.GraphPassword == "" {
+			return nil, errors.New("graph credentials required")
+		}
+		graphConfig, err = config.LoadQueryGraph(cfg.GraphPath, cfg.GraphHash, cfg.Corpus)
+		if err != nil {
+			return nil, err
+		}
+	} else if cfg.GraphPath != "" || cfg.GraphHash != "" {
+		return nil, errors.New("graph configuration requires explicit graph profile")
 	}
 	for _, id := range []string{cfg.Corpus, cfg.AuthScope, cfg.Build} {
 		if err = domain.ValidateWire(&pb.RecordMeta{SchemaVersion: 1, CorpusId: cfg.Corpus, RecordId: id}, domain.DefaultWireLimits); err != nil {
@@ -93,9 +111,10 @@ func OpenEvidenceRuntime(ctx context.Context, cfg EvidenceRuntimeConfig) (*Evide
 		Profile                              pb.RetrievalProfile
 		Limit                                int
 		Timeout                              time.Duration
-	}{cfg.Corpus, cfg.AuthScope, cfg.Build, cfg.NativeEndpoint, cfg.QdrantEndpoint, cfg.Profile, cfg.Limit, cfg.Timeout})
+		GraphHash                            string
+	}{cfg.Corpus, cfg.AuthScope, cfg.Build, cfg.NativeEndpoint, cfg.QdrantEndpoint, cfg.Profile, cfg.Limit, cfg.Timeout, cfg.GraphHash})
 	hash := sha256.Sum256(raw)
-	r := &EvidenceRuntime{config: cfg, fingerprint: &pb.ContentHash{Sha256: hex.EncodeToString(hash[:])}, preparing: make(chan struct{}, 1)}
+	r := &EvidenceRuntime{config: cfg, fingerprint: &pb.ContentHash{Sha256: hex.EncodeToString(hash[:])}, preparing: make(chan struct{}, 1), graphConfig: graphConfig}
 	r.repo, err = postgres.Open(ctx, postgres.Config{DSN: cfg.DSN, MaxConnections: 8, ConnectTimeout: 5 * time.Second, HealthTimeout: 5 * time.Second})
 	if err != nil {
 		return nil, err
@@ -105,10 +124,12 @@ func OpenEvidenceRuntime(ctx context.Context, cfg EvidenceRuntimeConfig) (*Evide
 		r.Close()
 		return nil, err
 	}
-	r.connection, err = grpc.NewClient(cfg.NativeEndpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		r.Close()
-		return nil, err
+	if nativeRequired {
+		r.connection, err = grpc.NewClient(cfg.NativeEndpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			r.Close()
+			return nil, err
+		}
 	}
 	r.transport = http.DefaultTransport.(*http.Transport).Clone()
 	r.http = &http.Client{Transport: r.transport, Timeout: cfg.Timeout}
@@ -119,6 +140,7 @@ func (r *EvidenceRuntime) Close() {
 	if r == nil {
 		return
 	}
+	r.resources.close()
 	if r.connection != nil {
 		r.connection.Close()
 	}
@@ -153,35 +175,88 @@ func sameEvidenceBinding(a, b domain.IndexCatalogBinding) bool {
 	return a.PublicationID == b.PublicationID && a.Fence == b.Fence && a.Endpoint == b.Endpoint && a.Collection == b.Collection && proto.Equal(a.Generation, b.Generation)
 }
 
-func (r *EvidenceRuntime) prepare(ctx context.Context, index *domain.PinnedIndex, call *pb.RequestContext) (*workflows.PreparedQuery, *inference.NativeClient, error) {
+func (r *EvidenceRuntime) prepare(ctx context.Context, index *domain.PinnedIndex, call *pb.RequestContext) (*queryResource, func(), error) {
 	select {
 	case r.preparing <- struct{}{}:
 		defer func() { <-r.preparing }()
 	case <-ctx.Done():
 		return nil, nil, ctx.Err()
 	}
-	if r.cached != nil && sameEvidenceBinding(r.binding, index.Binding) {
-		return r.cached, r.native, nil
-	}
-	native, err := inference.NewNativeClient(r.connection, index.Binding.Generation.DenseManifest)
-	if err != nil {
-		return nil, nil, err
+	if resource, release := r.resources.acquire(index); resource != nil {
+		return resource, release, nil
 	}
 	admitted := proto.Clone(call).(*pb.RequestContext)
 	admitted.SnapshotRef = proto.Clone(index.Snapshot).(*pb.SnapshotRef)
-	if _, err = native.GetCapabilities(ctx, &pb.CapabilitiesRequest{Context: admitted}); err != nil {
-		return nil, nil, err
+	resource := &queryResource{binding: index.Binding}
+	resource.binding.Generation = proto.Clone(index.Binding.Generation).(*pb.IndexGeneration)
+	success := false
+	defer func() {
+		if !success && resource.close != nil {
+			resource.close()
+		}
+	}()
+	models := []*pb.ModelManifest{}
+	var err error
+	if r.config.Profile != pb.RetrievalProfile_RETRIEVAL_PROFILE_GRAPH_RAG {
+		resource.native, err = inference.NewNativeClient(r.connection, index.Binding.Generation.DenseManifest)
+		if err != nil {
+			return nil, nil, err
+		}
+		if _, err = resource.native.GetCapabilities(ctx, &pb.CapabilitiesRequest{Context: admitted}); err != nil {
+			return nil, nil, err
+		}
+		models = append(models, proto.Clone(index.Binding.Generation.DenseManifest).(*pb.ModelManifest))
 	}
-	producer := &pb.ProducerManifest{Software: "regulagraph-evidence-api", Build: r.config.Build, SchemaVersion: 1, ConfigHash: proto.Clone(r.fingerprint).(*pb.ContentHash), Models: []*pb.ModelManifest{proto.Clone(index.Binding.Generation.DenseManifest).(*pb.ModelManifest)}}
+	producer := &pb.ProducerManifest{Software: "regulagraph-evidence-api", Build: r.config.Build, SchemaVersion: 1, ConfigHash: proto.Clone(r.fingerprint).(*pb.ContentHash), Models: models}
+	var graphConfig *workflows.GraphQueryConfig
+	if r.graphConfig != nil {
+		view, e := r.repo.LoadPinnedGraph(ctx, index.Pin, r.config.AuthScope)
+		if e != nil {
+			return nil, nil, e
+		}
+		if view.Catalog.Endpoint != r.graphConfig.Endpoint || view.Catalog.Database != r.graphConfig.Database {
+			return nil, nil, errors.New("published graph route is not authorized")
+		}
+		resource.graph, e = neo4j.New(neo4j.Config{URI: r.graphConfig.Endpoint, Database: r.graphConfig.Database, Username: r.config.GraphUsername, Password: r.config.GraphPassword, PoolSize: 8, Timeout: r.config.Timeout}, view.Catalog.Binding)
+		if e != nil {
+			return nil, nil, e
+		}
+		resource.close = func() {
+			c, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_ = resource.graph.Close(c)
+		}
+		if _, e = resource.graph.OpenReader(ctx, view); e != nil {
+			return nil, nil, e
+		}
+		seeds, e := workflows.NewQueryGraphSeedResolver(r.repo, r.graphConfig.Linking)
+		if e != nil {
+			return nil, nil, e
+		}
+		graphConfig = &workflows.GraphQueryConfig{Backend: resource.graph, Seeds: seeds, Traversal: r.graphConfig.Traversal}
+		resource.snapshot = proto.Clone(index.Snapshot).(*pb.SnapshotRef)
+		hash, _ := r.graphConfig.Linking.Fingerprint()
+		producer.InputHashes = []*pb.ContentHash{{Sha256: r.config.GraphHash}, {Sha256: hash}}
+	}
 	n := r.config.Limit
-	prepared, err := workflows.PreparePublishedQuery(ctx, index, r.repo, r.files, native, nil, workflows.PublishedQueryConfig{QdrantCredentials: map[string]string{r.config.QdrantEndpoint: r.config.QdrantKey}, HTTPClient: r.http, Profile: r.config.Profile, MaximumLexicalBytes: 64 << 20, Fusion: retrieval.RRFConfig{K: 60, MaximumPerBranch: n, MaximumTotalInputs: 2 * n, Weights: map[pb.RetrieverKind]float64{pb.RetrieverKind_RETRIEVER_KIND_DENSE: 1, pb.RetrieverKind_RETRIEVER_KIND_BM25: 1}}, Hydration: retrieval.HydrationConfig{MaximumCandidates: 2 * n, MaximumArtifactBytes: 64 << 20, MaximumEvidenceBytes: 4 << 20, Producer: producer}})
+	branches := 1
+	if r.config.Profile == pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_RAG {
+		branches = 2
+	}
+	if r.config.Profile == pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_GRAPH_RAG {
+		branches = 3
+	}
+	resource.prepared, err = workflows.PreparePublishedQuery(ctx, index, r.repo, r.files, resource.native, nil, workflows.PublishedQueryConfig{QdrantCredentials: map[string]string{r.config.QdrantEndpoint: r.config.QdrantKey}, HTTPClient: r.http, Profile: r.config.Profile, MaximumLexicalBytes: 64 << 20, Graph: graphConfig, Fusion: retrieval.RRFConfig{K: 60, MaximumPerBranch: n, MaximumTotalInputs: branches * n, Weights: map[pb.RetrieverKind]float64{pb.RetrieverKind_RETRIEVER_KIND_DENSE: 1, pb.RetrieverKind_RETRIEVER_KIND_BM25: 1, pb.RetrieverKind_RETRIEVER_KIND_GRAPH: 1}}, Hydration: retrieval.HydrationConfig{MaximumCandidates: branches * n, MaximumArtifactBytes: 64 << 20, MaximumEvidenceBytes: 4 << 20, Producer: producer}})
 	if err != nil {
 		return nil, nil, err
 	}
-	r.binding = index.Binding
-	r.binding.Generation = proto.Clone(index.Binding.Generation).(*pb.IndexGeneration)
-	r.cached, r.native = prepared, native
-	return prepared, native, nil
+	// install owns cleanup even if Close raced preparation.
+	success = true
+	release, ok := r.resources.install(resource)
+	if !ok {
+		return nil, nil, errors.New("query runtime closed")
+	}
+	return resource, release, nil
 }
 
 func (r *EvidenceRuntime) Search(ctx context.Context, question *pb.QuestionRequest) (*pb.EvidenceBundle, error) {
@@ -194,12 +269,19 @@ func (r *EvidenceRuntime) Search(ctx context.Context, question *pb.QuestionReque
 	if err != nil {
 		return nil, err
 	}
+	var release func()
+	defer func() {
+		if release != nil {
+			release()
+		}
+	}()
 	session := &workflows.RAGSession{Store: r.repo, OwnerID: call.RequestId, MaximumDuration: r.config.Timeout, SearchLimit: r.config.Limit, Factory: func(c context.Context, index *domain.PinnedIndex) (*workflows.RAGWorkflow, error) {
-		prepared, _, e := r.prepare(c, index, call)
+		resource, done, e := r.prepare(c, index, call)
 		if e != nil {
 			return nil, e
 		}
-		return prepared.Bind(c, index)
+		release = done
+		return resource.prepared.Bind(c, index)
 	}}
 	result, err := session.SearchQuestion(ctx, question, call)
 	if err != nil {
@@ -230,13 +312,25 @@ func (r *EvidenceRuntime) Ready(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	_, native, err := r.prepare(ctx, index, call)
+	resource, release, err := r.prepare(ctx, index, call)
 	if err != nil {
 		return err
 	}
+	defer release()
 	call.SnapshotRef = proto.Clone(index.Snapshot).(*pb.SnapshotRef)
-	if _, err = native.GetCapabilities(ctx, &pb.CapabilitiesRequest{Context: call}); err != nil {
-		return err
+	if resource.native != nil {
+		if _, err = resource.native.GetCapabilities(ctx, &pb.CapabilitiesRequest{Context: call}); err != nil {
+			return err
+		}
+	}
+	if resource.graph != nil {
+		view, e := r.repo.LoadPinnedGraph(ctx, pin, r.config.AuthScope)
+		if e != nil {
+			return e
+		}
+		if _, e = resource.graph.OpenReader(ctx, view); e != nil {
+			return e
+		}
 	}
 	store, err := qdrant.New(index.Binding.Endpoint, r.config.QdrantKey, r.http, qdrant.Binding{Collection: index.Binding.Collection, CorpusID: r.config.Corpus, Generation: index.Binding.Generation})
 	if err != nil {
