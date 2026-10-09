@@ -1,5 +1,10 @@
 # src/ingestion/src/worker
 
+Manifest STRUCTURE dan CHUNK sama-sama mengikat `structure-v2`; perubahan parsing
+standalone/Roman/catchword tidak memakai fingerprint perilaku lama. Pipeline PDF
+aktual hingga CHUNK telah diuji dengan tokenizer BGE, terpisah dari acceptance
+model/graph. [Bukti](../../../../doc/verification-report-real-pdf.md).
+
 [assembly.rs](assembly.rs) menjalankan transformasi GraphDelta dari plan terpin;
 [assembly_tests.rs](assembly_tests.rs) memeriksa FileStore nyata, source checksum,
 budget/cancellation serta service Tonic in-process/replay. Model tidak dipanggil

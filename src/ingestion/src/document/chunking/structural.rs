@@ -17,8 +17,9 @@
 //! `INVARIANT.SOURCE_MAPPING` menurut configs/benchmark-targets.yaml. Status target tetap
 //! REQUIRED_UNMEASURED sampai gold set dan workload resmi dijalankan.
 //!
-//! Status: parser hierarki deterministik dan proyeksi wire aktif; executable worker serta acceptance
-//! corpus belum aktif.
+//! Status: parser dan executable worker aktif. Marker ayat/butir boleh berdiri sendiri
+//! pada baris PDF; pasal Romawi menjadi pembungkus pasal angka dalam dokumen perubahan.
+//! Ini containment tekstual, bukan penetapan legal change event. Acceptance gold belum diukur.
 
 use crate::document::normalization::text::{NormalizeError, NormalizedText};
 use sha2::{Digest, Sha256};
@@ -28,6 +29,7 @@ use std::fmt::{Display, Formatter};
 use std::ops::Range;
 
 const STRUCTURE_SCHEMA_VERSION: u32 = 1;
+pub const STRUCTURE_PARSER_VERSION: &str = "structure-v2";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum StructureKind {
@@ -242,6 +244,44 @@ struct Heading {
     level: u8,
 }
 
+// Confirm repetition within a bounded next-page prefix. Only blank lines and
+// numeric page headers may intervene; arbitrary prose or another page ends the
+// check. An ellipsis alone must never remove a real item from the hierarchy.
+fn confirmed_repeated_marker(line: &str, remaining: &str, config: &StructureParserConfig) -> bool {
+    let Some(marker) = detect_heading(
+        line,
+        config.recognize_list_items,
+        config.maximum_heading_line_bytes,
+    ) else {
+        return false;
+    };
+    if !matches!(marker.kind, StructureKind::Item | StructureKind::Paragraph) {
+        return false;
+    }
+    let mut scanned = 0usize;
+    for segment in remaining.split_inclusive(['\n', '\u{000C}']).take(8) {
+        scanned += segment.len();
+        if scanned > 2048 || segment.ends_with('\u{000C}') {
+            return false;
+        }
+        let next = segment.trim();
+        if next.is_empty() {
+            continue;
+        }
+        let page = next.trim_matches('-').trim();
+        if !page.is_empty() && page.len() <= 6 && page.bytes().all(|c| c.is_ascii_digit()) {
+            continue;
+        }
+        return detect_heading(
+            next,
+            config.recognize_list_items,
+            config.maximum_heading_line_bytes,
+        )
+        .is_some_and(|repeated| repeated.kind == marker.kind && repeated.label == marker.label);
+    }
+    false
+}
+
 pub fn parse_structure(
     normalized: &NormalizedText,
     identity: &StructureIdentity,
@@ -274,7 +314,16 @@ pub fn parse_structure(
             .or_else(|| segment.strip_suffix('\u{000C}'))
             .unwrap_or(segment);
         let trimmed = line_without_separator.trim();
-        let heading = if !trimmed.is_empty() {
+        // A page-end catchword (e.g. "f. Nomor . . .") previews the next page,
+        // not a second legal item. Keep its bytes in the surrounding source span.
+        let catchword = segment.ends_with('\u{000C}')
+            && (trimmed.ends_with(". . .") || trimmed.ends_with("...") || trimmed.ends_with('…'))
+            && confirmed_repeated_marker(
+                trimmed,
+                &normalized.text[line_start + segment.len()..],
+                config,
+            );
+        let heading = if !trimmed.is_empty() && !catchword {
             detect_heading(
                 trimmed,
                 config.recognize_list_items,
@@ -458,6 +507,13 @@ fn detect_heading(
             level: 40,
         });
     }
+    if strict_prefixed_identifier(&uppercase, "PASAL", canonical_roman_identifier) {
+        return Some(Heading {
+            kind: StructureKind::Article,
+            label: line.to_owned(),
+            level: 35,
+        });
+    }
     None
 }
 
@@ -495,6 +551,49 @@ fn article_identifier(value: &str) -> bool {
         && value.chars().any(|character| character.is_ascii_digit())
 }
 
+// Strict Roman numerals avoid accepting arbitrary strings made of I/V/X/etc.
+// Roman amendment articles contain reproduced decimal articles; they do not
+// assign those articles to the amended regulation without a legal change event.
+fn canonical_roman_identifier(value: &str) -> bool {
+    if value.is_empty() || value.len() > 15 {
+        return false;
+    }
+    let symbols = [
+        (1000, "M"),
+        (900, "CM"),
+        (500, "D"),
+        (400, "CD"),
+        (100, "C"),
+        (90, "XC"),
+        (50, "L"),
+        (40, "XL"),
+        (10, "X"),
+        (9, "IX"),
+        (5, "V"),
+        (4, "IV"),
+        (1, "I"),
+    ];
+    let mut rest = value;
+    let mut total = 0;
+    for (number, symbol) in symbols {
+        while let Some(next) = rest.strip_prefix(symbol) {
+            total += number;
+            rest = next;
+        }
+    }
+    if !rest.is_empty() || total == 0 || total > 3999 {
+        return false;
+    }
+    let mut canonical = String::new();
+    for (number, symbol) in symbols {
+        while total >= number {
+            total -= number;
+            canonical.push_str(symbol);
+        }
+    }
+    canonical == value
+}
+
 fn clause_marker(line: &str) -> Option<&str> {
     let closing = line.find(')')?;
     let marker = line.get(..=closing)?;
@@ -503,8 +602,7 @@ fn clause_marker(line: &str) -> Option<&str> {
     if !number.is_empty()
         && number.len() <= 4
         && number.chars().all(|character| character.is_ascii_digit())
-        && rest.starts_with(char::is_whitespace)
-        && !rest.trim().is_empty()
+        && (rest.is_empty() || rest.starts_with(char::is_whitespace))
     {
         Some(marker)
     } else {
@@ -517,7 +615,7 @@ fn list_marker(line: &str) -> Option<(&str, u8)> {
     let marker = line.get(..=dot)?;
     let identifier = marker.strip_suffix('.')?;
     let rest = line.get(dot + 1..)?;
-    if !rest.starts_with(char::is_whitespace) || rest.trim().is_empty() {
+    if !rest.is_empty() && !rest.starts_with(char::is_whitespace) {
         return None;
     }
     if identifier.len() == 1
@@ -650,6 +748,94 @@ mod tests {
 
         assert_eq!(tree.nodes.len(), 2);
         assert_eq!(tree.nodes[1].label, "Pasal 7");
+    }
+
+    #[test]
+    fn preserves_standalone_markers_and_roman_article_containment() {
+        // Layout reproduces the observed PP12/2006 PDF markers, with synthetic
+        // body text. Numbered clauses must own their repeated a/b children.
+        let text = normalized("(9)\nPreamble\nPasal I\nKetentuan diubah:\nPasal 2\n(1)\nIsi pertama.\na.\nSyarat pertama.\nb. syarat kedua\n(2)\nIsi kedua.\na. syarat lain\nb. syarat berikut\nPasal II\nMulai berlaku.\nPENJELASAN\nPasal I\nCukup jelas.\n");
+        let tree = parse_structure(&text, &identity(), &StructureParserConfig::default()).unwrap();
+        let labels: Vec<_> = tree.nodes.iter().map(|n| n.label.as_str()).collect();
+        assert_eq!(
+            labels,
+            [
+                "document",
+                "Pasal I",
+                "Pasal 2",
+                "(1)",
+                "a.",
+                "b.",
+                "(2)",
+                "a.",
+                "b.",
+                "Pasal II",
+                "PENJELASAN",
+                "Pasal I"
+            ]
+        );
+        assert_eq!(
+            tree.nodes[2].parent_id.as_deref(),
+            Some(tree.nodes[1].id.as_str())
+        );
+        assert_eq!(
+            tree.nodes[4].parent_id.as_deref(),
+            Some(tree.nodes[3].id.as_str())
+        );
+        assert_eq!(
+            tree.nodes[7].parent_id.as_deref(),
+            Some(tree.nodes[6].id.as_str())
+        );
+        assert_eq!(
+            tree.nodes[9].parent_id.as_deref(),
+            Some(tree.root().id.as_str())
+        );
+        assert_eq!(
+            tree.nodes[11].parent_id.as_deref(),
+            Some(tree.nodes[10].id.as_str())
+        );
+        tree.validate(&text).unwrap();
+        for invalid in ["IIII", "IIV", "VX", "IM", "MMMM", "", "1", "II ayat"] {
+            assert!(!canonical_roman_identifier(invalid), "{invalid}");
+        }
+        for valid in ["I", "II", "IV", "IX", "XL", "XC", "CD", "CM", "MMMCMXCIX"] {
+            assert!(canonical_roman_identifier(valid), "{valid}");
+        }
+        assert!(clause_marker("(1)foo").is_none());
+        assert!(list_marker("a.foo").is_none());
+    }
+
+    #[test]
+    fn page_end_catchword_does_not_duplicate_next_page_item() {
+        let text = normalized("Pasal I\na.\nAturan pertama\nb. Nomor . . .\u{000c}- 2 -\nb.\nAturan kedua\nPasal II\nBerlaku.\n");
+        let tree = parse_structure(&text, &identity(), &StructureParserConfig::default()).unwrap();
+        let labels: Vec<_> = tree.nodes.iter().map(|n| n.label.as_str()).collect();
+        assert_eq!(labels, ["document", "Pasal I", "a.", "b.", "Pasal II"]);
+        assert!(text.text[tree.nodes[2].normalized_span.clone()].contains("b. Nomor . . ."));
+        assert_eq!(
+            tree.nodes[3].normalized_span.start,
+            text.text.find("b.\nAturan").unwrap()
+        );
+        tree.validate(&text).unwrap();
+        // Ellipsis alone on an ordinary line is not evidence of a catchword.
+        let ordinary = normalized("Pasal 1\na. Contoh ...\nb. Berikutnya\n");
+        let tree =
+            parse_structure(&ordinary, &identity(), &StructureParserConfig::default()).unwrap();
+        assert_eq!(tree.nodes.len(), 4);
+        for next in [
+            "isi lanjutan\nb. Berikutnya",
+            "b. Berikutnya",
+            "\u{000c}a. Lagi",
+        ] {
+            let ordinary = normalized(&format!("Pasal 1\na. Contoh ...\u{000c}{next}\n"));
+            let tree =
+                parse_structure(&ordinary, &identity(), &StructureParserConfig::default()).unwrap();
+            assert_eq!(tree.nodes[2].label, "a.");
+            assert_eq!(
+                tree.nodes[2].normalized_span.start,
+                ordinary.text.find("a. Contoh").unwrap()
+            );
+        }
     }
 
     #[test]

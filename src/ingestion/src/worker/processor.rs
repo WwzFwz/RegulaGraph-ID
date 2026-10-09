@@ -18,7 +18,7 @@ use crate::adapters::storage::{ArtifactDescriptor, ArtifactStore};
 use crate::adapters::text_artifacts::{load_normalized_text, persist_text_artifact};
 use crate::document::chunking::builder::{build_bound_chunks_bounded, ChunkerConfig, TokenCounter};
 use crate::document::chunking::structural::{
-    parse_structure, StructureIdentity, StructureParserConfig,
+    parse_structure, StructureIdentity, StructureParserConfig, STRUCTURE_PARSER_VERSION,
 };
 use crate::document::normalization::text::{normalize_text, TextNormalizerConfig};
 use crate::document::parsing::pdf::{PdfParseRequest, PdfParser};
@@ -1703,6 +1703,7 @@ fn chunk_runtime_manifest(
         })?;
     let mut hasher = Sha256::new();
     hasher.update(b"regulagraph-chunk-config-v2\0");
+    hasher.update(STRUCTURE_PARSER_VERSION.as_bytes());
     hasher.update(config.chunker.maximum_chunk_bytes.to_le_bytes());
     hasher.update(config.chunker.maximum_chunk_tokens.to_le_bytes());
     hasher.update(config.chunker.minimum_split_bytes.to_le_bytes());
@@ -1715,7 +1716,7 @@ fn chunk_runtime_manifest(
         software: "regulagraph-ingestion".to_owned(),
         build: env!("CARGO_PKG_VERSION").to_owned(),
         schema_version: 1,
-        parser_version: Some("structure-v1".to_owned()),
+        parser_version: Some(STRUCTURE_PARSER_VERSION.to_owned()),
         chunker_version: Some("chunker-v2".to_owned()),
         config_hash: MessageField::some(common::ContentHash {
             sha256: format!("{:x}", hasher.finalize()),
@@ -1735,6 +1736,7 @@ fn structure_runtime_manifest(
     })?;
     let mut hasher = Sha256::new();
     hasher.update(b"regulagraph-structure-config-v1\0");
+    hasher.update(STRUCTURE_PARSER_VERSION.as_bytes());
     hasher.update(config.structure.maximum_nodes.to_le_bytes());
     hasher.update(config.structure.maximum_heading_line_bytes.to_le_bytes());
     hasher.update([config.structure.recognize_list_items as u8]);
@@ -1743,7 +1745,7 @@ fn structure_runtime_manifest(
         software: "regulagraph-ingestion".to_owned(),
         build: env!("CARGO_PKG_VERSION").to_owned(),
         schema_version: 1,
-        parser_version: Some("structure-v1".to_owned()),
+        parser_version: Some(STRUCTURE_PARSER_VERSION.to_owned()),
         config_hash: MessageField::some(common::ContentHash {
             sha256: format!("{:x}", hasher.finalize()),
             ..Default::default()

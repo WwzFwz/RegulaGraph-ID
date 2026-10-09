@@ -24,6 +24,13 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
+Parser `structure-v2` mengenali marker ayat/butir yang berdiri sendiri serta
+pasal Romawi sebagai pembungkus tekstual pasal angka. Catchword akhir halaman
+dilewati sebagai heading hanya bila marker sama terkonfirmasi pada prefix halaman
+berikut dengan batas scan; bytes sumber tetap tersedia. Ini bukan inferensi target
+amendment atau tanggal berlaku. Versi parser masuk fingerprint STRUCTURE/CHUNK;
+struktur/binding lama yang berbeda harus dibangun ulang bersama. [Verifikasi PDF nyata](../../../../../doc/verification-report-real-pdf.md).
+
 Parser struktur hukum aktif pada worker STRUCTURE dan tidak menerima atau membuat `provision_version_id`. Stage CHUNK menerima hanya `DocumentBatch` BIND lengkap, merekonstruksi struktur, lalu mencocokkan setiap versi melalui text artifact, span eksak, structural path kanonis, hierarchy provision, dan regulation per dokumen sebelum tokenisasi. Indeks binding gabungan mencegah pencarian kandidat kuadratik. Builder mempertahankan preamble, ancestry, mapping raw-normalized, serta batas UTF-8/kata/kalimat; execution budget global tidak mengubah fingerprint atau ID chunk. Batas 512 token ditegakkan memakai tokenizer Hugging Face yang dimuat sekali, dibatasi 128 MiB, dicocokkan dengan pin SHA-256 deployment, dan dijalankan tanpa truncation/padding. Table reconstruction, exception linking lintas dokumen, gold structure set, parity tokenizer dengan model terpilih, dan acceptance benchmark belum selesai. Unit test correctness tidak membuktikan target kualitas atau latency corpus.
 
 ## Rekomendasi implementasi anak
