@@ -1,5 +1,10 @@
 # src/server/internal/adapters/postgres
 
+`document_registry_dependencies.go` mengautentikasi DocumentBatch terdaftar lalu
+memeriksa exact key/type dan lifetime BIND pada retained registry revision dalam
+transaksi read-only RepeatableRead. Penambahan tak terkait tidak memaksa replan;
+identitas berubah/hilang/ditutup ditolak. Read ini bukan authority admission atomik.
+
 `RegistryEntityExport` menjadi alias DTO domain untuk port workflow; response ekspor
 tetap RegistryEntityView C01. `graph_receipt_integration_test.go` menyuntikkan drift
 intent/decision di atas fixture RESOLVE PostgreSQL nyata untuk memverifikasi reader

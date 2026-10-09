@@ -126,6 +126,12 @@ Lihat [hasil verifikasi](verification-report-graph-source-receipt.md).
 
 ## Integrasi yang perlu diselesaikan
 
+Gate BIND historis kini tersambung ke preparation: exact identity penerbit/regulasi/
+pasal direkonstruksi dari dokumen bersumber dan lifetime-nya dibandingkan pada target
+registry. Penambahan tak terkait boleh diterima tanpa menulis ulang revision di artefak.
+[Laporan verifikasi](verification-report-document-registry.md) membatasi klaim ini;
+gate belum mengesahkan alias/resolusi atau menggantikan recheck dalam admission atomik.
+
 1. Baca RESOLVE output/checkpoint dan intent immutable; autentikasi EXTRACT/kandidat,
    receipt dan dokumen sumber. Untuk empty extraction, buktikan empty coverage dari
    source/counts dan checkpoint; jangan mengarang registry operation.

@@ -1,5 +1,10 @@
 # src/server/internal/workflows
 
+Preparation graph kini memanggil `VerifyDocumentRegistryView` sebelum ekspor/write.
+Tes `document_registry_integration_test.go` memakai binder/allocator produksi dan
+PostgreSQL terisolasi untuk reuse BIND; tidak mengklaim scheduler BIND atau model
+berjalan dalam fixture. Alias/candidate freshness tetap gate terpisah.
+
 `graph_resolution_receipt.go` membaca RESOLVE asli dan menuntut rekonstruksi exact
 dari intent/kandidat/ledger committed; jalur mention-free tidak mengarang operasi.
 `graph_assembly_prepare.go` mempersist plan/view deterministik dari graph source

@@ -1,5 +1,10 @@
 # src/server/internal/domain
 
+`document_registry_dependencies.go` merekonstruksi exact key penerbit, regulasi dan
+pasal yang dikonsumsi BIND dari metadata sumber/edisi/path. Closure, fingerprint
+penerbit dan satu observasi registry wajib utuh. Hasil hanya rencana pemeriksaan;
+PostgreSQL membuktikan lifetime identitas pada revision target, tanpa alokasi ulang.
+
 `graph_source_binding.go` mendefinisikan request dan receipt storage lokal untuk
 transform graph source. Request belum memiliki derived refs; receipt mengikat kedua
 output, source checkpoint dan target publication. Schema wire C01 tetap authority;

@@ -1,5 +1,10 @@
 # src/server/internal/indexing
 
+`graph_registry_fixture_test.go` menambah metadata/edisi BIND dan row identity
+sintetis yang eksplisit ke fixture indeks sebelum registrasi. Pengujian preparation
+memastikan perubahan key penerbit ditolak meski hash artefak/receipt tetap sama;
+fixture ini tidak menjalankan ingestion/model atau membuktikan kualitas graph.
+
 `graph_source_membership_test.go` memakai alur publication PostgreSQL/Qdrant nyata
 untuk memverifikasi receipt sumber snapshot sebelum dipakai oleh graph preparation.
 Kode assembly tetap milik domain/workflow; pengujian di sini membuktikan batas keluar

@@ -1,5 +1,9 @@
 # doc
 
+[verification-report-document-registry.md](verification-report-document-registry.md)
+mencatat rekonstruksi exact identity BIND, validasi lifetime historis, integrasi
+preparation dan batas bukti terhadap freshness/admission graph keseluruhan.
+
 [verification-report-graph-preparation.md](verification-report-graph-preparation.md)
 mencatat rekonstruksi keputusan historis, persistence plan/view, batas worker,
 temuan unsupported action dan pemeriksaan ulang independen.

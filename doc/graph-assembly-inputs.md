@@ -74,6 +74,20 @@ canonical assignment. DEFER/REJECT/MERGE/SPLIT ditahan melalui `ErrGraphAssembly
 sebelum ekspor/write, bukan menghilangkan mention atau menganggap graph lengkap.
 Penerimaan action CREATE di builder tidak menambah kemampuan writer RESOLVE otomatis.
 
+DocumentBatch bound juga melewati `VerifyDocumentRegistryView`. Domain merekonstruksi
+key yang sama dengan BIND dari source observations, edition bindings, issuer canonical,
+regulation kind/number/year/jurisdiction dan provision structural path. Satu observasi
+`canonical-registry` dan fingerprint dependency issuer pada revision tersebut wajib
+utuh; scope lain, duplicate record/dependency, foreign corpus dan closure tidak lengkap
+ditolak. Record/referensi dibatasi `MaximumReferences`.
+
+PostgreSQL mengautentikasi registrasi/hash/size byte, membaca revision/history floor,
+lalu membandingkan semua key/type/ID melalui satu query batch dalam RepeatableRead.
+Setiap lifetime harus mencakup observed revision sampai target (valid-to eksklusif).
+Penambahan identitas tak terkait boleh menaikkan revision tanpa menginvalidasi BIND;
+perubahan atau penutupan identitas meminta replan. Ini pemeriksaan read historis,
+bukan lease admission dan bukan pemeriksaan candidate/alias/model context.
+
 Union canonical dipilih deterministik, lalu diekspor melalui registry revision-bound.
 View dan plan memiliki logical ID dari seed protobuf deterministik yang mengikat target,
 source checkpoint/refs, producer dan ontology. Storage key keduanya content-addressed;
@@ -98,7 +112,7 @@ mengekspor view dan menyimpannya immutable melalui FileStore. Logical ID
 `view.meta.record_id` harus sama dengan `plan.registry_view.artifact_id`;
 content address penyimpanan tetap terikat hash/size. Plan harus dipersist dan diikat
 ke inventory/checkpoint/job secara durable sebelum dispatch. Tahap admission tersebut
-masih harus membuktikan dependency freshness BIND/EXTRACT dan keputusan lintas revision,
+masih harus mengulang gate BIND secara atomik serta membuktikan dependency EXTRACT dan keputusan lintas revision,
 bukan hanya exact recorded revision. Worker membaca tepat
 bytes keempat role dan teks sumber terverifikasi, lalu menulis delta immutable.
 Output artifact dan checkpoint belum boleh dianggap published; Go memegang fencing,

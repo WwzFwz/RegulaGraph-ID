@@ -1,5 +1,11 @@
 # Rencana implementasi berbasis dependency
 
+Lanjutan K01: preparation graph memeriksa exact BIND registry dependencies pada target
+revision, menerima penambahan tak terkait dan menolak identitas yang berubah/ditutup.
+Binder PostgreSQL nyata dan jalur publication/preparation PG/Qdrant lulus beserta
+review independen; lihat [laporan BIND registry](verification-report-document-registry.md).
+Candidate freshness/reaffirmation, inventory/dispatch dan Neo4j publication tetap terbuka.
+
 Lanjutan persiapan K01: reader workflow merekonstruksi RESOLVE dari receipt committed,
 dan `PrepareGraphAssembly` menyimpan plan/canonical view deterministik dari source
 receipt. Library menahan unresolved actions, ontology drift dan revision berbeda.
