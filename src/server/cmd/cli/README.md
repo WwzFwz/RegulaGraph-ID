@@ -1,5 +1,10 @@
 # src/server/cmd/cli
 
+`review-alias -target-provisional -canonical ...` menampilkan occurrence sumber
+dan occurrence pembentukan target sebelum acceptance. Mode ini tidak boleh
+digabung dengan create-provisional atau target-document; label mengikuti profil
+existing. [Panduan](../../../../doc/provisional-entity-review.md).
+
 `review-alias -create-provisional` kini mengekspos review occurrence untuk tipe
 semantik selain regulation/organization/provision. Mode ini menolak `-canonical`
 dan `-target-document`, serta mempertahankan approval/replay eksplisit.

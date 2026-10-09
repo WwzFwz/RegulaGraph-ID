@@ -1,5 +1,9 @@
 # doc
 
+[Verifikasi alias target provisional](verification-report-alias-target.md) mencatat
+review bukti dua occurrence, hash approval/policy asal, replay dan penolakan korupsi
+receipt. Mode operasionalnya ada pada [panduan provisional](provisional-entity-review.md).
+
 [Kondisi percobaan EXTRACT](extraction-trial-limitations.md) memisahkan bukti
 engineering dari keterbatasan Qwen2.5 7B/Q4_K_M yang diuji. Setup CPU/GPU, hasil
 aktual, hipotesis model pengganti dan batas klaim dirangkum untuk pembaca laporan.

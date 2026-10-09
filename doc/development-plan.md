@@ -1,5 +1,11 @@
 # Rencana implementasi berbasis dependency
 
+Checkpoint alias semantik existing: `review-alias -target-provisional` memakai
+receipt pembentukan asli serta evidence dua sisi untuk menambah alias tanpa
+mengubah identity/profile. Sembilan skenario PostgreSQL, unit/CLI dan review
+independen lulus; integrasi model CREATE dan durable LINK sampai ASSEMBLE tetap
+terbuka. [Panduan](provisional-entity-review.md), [bukti](verification-report-alias-target.md).
+
 Checkpoint provisional registry: `review-alias -create-provisional` membuat
 identity/profile/alias/review atomik untuk tipe non-BIND dengan anchor sumber stabil.
 Enam skenario PostgreSQL, kandidat/hidrasi, export canonical dan review independen

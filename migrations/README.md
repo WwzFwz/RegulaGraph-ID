@@ -1,5 +1,9 @@
 # migrations
 
+Migration 0027 mengikat review alias tambahan ke operation pembentukan provisional
+asli dengan foreign key dan unique origin per canonical. Mode lama tetap NULL;
+migration tidak melakukan backfill atau rewrite identity/profile.
+
 Migration 0026 menambah discriminator `create_provisional` pada ledger review dan
 constraint revision E+1. Row lama tetap false; tidak ada backfill canonical.
 [Panduan](../doc/provisional-entity-review.md).

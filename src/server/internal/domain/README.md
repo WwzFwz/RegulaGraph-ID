@@ -1,5 +1,9 @@
 # src/server/internal/domain
 
+`alias_target.go` memverifikasi occurrence asal provisional beserta hash approval
+terpin sebelum menjadi target alias baru. Profile immutable dan proof kedua sisi
+masuk preview; storage tetap pemilik authority. [Kontrak](../../../../doc/provisional-entity-review.md).
+
 `provisional_identity.go` menurunkan ID occurrence dari source/text/span dan seluruh
 versi provision yang menaunginya. Mode provisional pada alias preview menolak tipe
 BIND; ID baru belum authoritative sebelum registry commit. [Kontrak](../../../../doc/provisional-entity-review.md).

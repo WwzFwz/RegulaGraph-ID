@@ -26,6 +26,9 @@ existing BIND identities after explicit source-and-target review. It records ali
 profiles and review receipts atomically for downstream resolution candidates.
 An explicit `-create-provisional` mode can also allocate source-occurrence identities
 for non-BIND semantic types, with an UNREVIEWED profile and atomic review receipt.
+`-target-provisional` additionally reviews new aliases against the original
+source occurrence of an existing provisional entity, preserving its identity and
+UNREVIEWED profile. Both source and target evidence are shown to the operator.
 This bootstraps resolution candidates; it does not automatically equate occurrences
 or publish a graph. See the [sourced alias guide](doc/sourced-alias-review.md) and
 [provisional review workflow](doc/provisional-entity-review.md).

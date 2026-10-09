@@ -1,5 +1,9 @@
 # src/server/internal/workflows
 
+`alias_target.go` menghidrasi bukti target provisional existing menggunakan budget
+file bersama inspeksi sumber. Receipt/profil asal diverifikasi ulang saat accept;
+review tidak otomatis menjadi RESOLVE LINK. [Panduan](../../../../doc/provisional-entity-review.md).
+
 Mode `CreateProvisional` pada `sourced_alias.go` memakai inventory BIND sumber dan
 lookup historis lengkap; tidak memilih existing target atau mengisi keputusan LINK.
 Tes terisolasi membuktikan candidate hydration dan canonical export sesudah commit.

@@ -1,5 +1,9 @@
 # src/server/internal/adapters/postgres
 
+`alias_target.go` mengikat target existing ke receipt creation asli, source/policy
+terpin dan historical rows. Migration 0027 memberi unique origin serta foreign key
+review; tidak membuat identity baru saat menambah alias. [Kontrak](../../../../../doc/provisional-entity-review.md).
+
 Mode provisional memakai migration 0026 dan `provisional_alias.go`: registry
 identity, profile, alias dan review tersimpan atomik setelah semua policy scope
 diperiksa kosong di bawah CAS. Replay diperiksa lebih dahulu. [Kontrak](../../../../../doc/provisional-entity-review.md).

@@ -74,14 +74,61 @@ baru tanpa revision akan menolak pembuatan ulang karena alias sudah ada. Bila
 review lain mengubah revision, lakukan inspect baru; jangan mengganti angka E
 pada approval lama. Kegagalan transaksi tidak meninggalkan identity tanpa profil.
 
+## Menambahkan alias ke provisional existing
+
+Sesudah migration **0027**, `-target-provisional` menambahkan alias bersumber ke
+canonical provisional existing. Operator memberikan ID target; workflow mengambil
+receipt CREATE provisional asli dan menghidrasi occurrence pembentuknya. Tidak
+memilih target hanya karena label mirip atau source regulation sama.
+
+```powershell
+$aliasSelection = @(
+  '-target-provisional',
+  '-source', '<EXTRACT artifact ID mention baru>',
+  '-mention', '<mention ID baru>',
+  '-canonical', '<canonical provisional existing>',
+  '-scope', '<scope profil existing>',
+  '-label', '<preferred label profil existing, bukan surface alias baru>'
+)
+go run ./src/server/cmd/cli review-alias @aliasSelection
+
+# Baca occurrence baru DAN occurrence target sebelum menerima:
+go run ./src/server/cmd/cli review-alias @aliasSelection -action accept `
+  -expected-revision <revision inspect> `
+  -operation 'alias-review:variant-unique-operation' `
+  -plan-sha256 '<hash inspect>' `
+  -reason '<alasan kedua occurrence menunjuk referent yang sama>'
+```
+
+Mode ini melarang `-create-provisional` dan `-target-document`. Inspect menampilkan
+`mention`/`contexts` baru dan `target_mention`/`target_contexts` asal beserta
+`target_origin_operation`, `target_document` dan kedua source context. Label,
+scope, tipe dan identity keys profil existing dipertahankan. Seluruh file dibaca
+dengan budget bersama 64 MiB; konteks masing-masing sisi maksimal 4 MiB, sehingga
+total kutipan tampilan dapat mencapai 8 MiB. Deadline CLI tetap berlaku.
+
+Hash review baru memakai versi `sourced-provisional-alias-review:v1` dan mengikat
+hash approval asal. Hash asal direkonstruksi dari revision, artefak, profil dan
+fingerprint policy asli. Storage memeriksa ulang source catalog, ingest pins asli,
+operation payload dan historical rows di bawah CAS. Policy sekarang harus tetap
+mengizinkan tipe/scope target; policy baru tidak mengganti approval historis.
+Receipt baru mereferensikan operation pembentukan asli melalui foreign key,
+bukan alias terakhir dalam rantai. Alias tersimpan atomik dengan lookup/review;
+identity dan profil tidak ditulis ulang. Replay memakai semua argumen acceptance
+lama yang identik. Registry history dan artefak asal harus masih retained.
+
+Penyamaan makna tetap keputusan operator berdasarkan bukti kedua sisi. Penambahan
+alias tidak menaikkan profil dari UNREVIEWED dan tidak otomatis membuat keputusan
+RESOLVE LINK atau publikasi graph. Bangun ulang kandidat pada revision terbaru,
+lalu gunakan alur review/receipt RESOLVE yang berlaku. Lihat
+[verifikasi target provisional](verification-report-alias-target.md).
+
 ## Integrasi yang belum selesai
 
-Mode existing-target saat ini membuktikan target dari BIND DocumentBatch, sehingga
-belum dapat menambahkan variasi alias baru ke canonical provisional existing.
-Rute review terhadap profil semantik existing masih harus disambungkan. Perbedaan
-nama tanpa exact match dapat menghasilkan beberapa identity provisional; merge/split
-dan semantic CREATE penuh tetap pekerjaan registry/resolution berikutnya. Jangan
-memakai kosongnya lookup sebagai approval penyamaan makna atau keunikan global.
+Semantic CREATE melalui model, merge/split, dan evaluasi salah gabung/salah pisah
+masih terbuka. Perbedaan nama tanpa exact match dapat membentuk beberapa identity
+provisional sampai direview. Jangan memakai kosongnya lookup sebagai approval
+penyamaan makna atau keunikan global.
 
 Uji PostgreSQL membuktikan transaksi, restart replay, kandidat/evidence hydration
 dan export canonical untuk ASSEMBLE. Rangkaian durable LINK sampai worker Rust

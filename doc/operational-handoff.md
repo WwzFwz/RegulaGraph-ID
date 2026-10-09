@@ -1,5 +1,9 @@
 # Panduan melanjutkan sampai aplikasi bisa digunakan
 
+Alias ke provisional existing kini tersedia lewat `review-alias -target-provisional`
+setelah migration 0027. Baca bukti occurrence baru dan asal target, lalu accept
+dengan hash/revision eksplisit; replan kandidat untuk RESOLVE. [Panduan](provisional-entity-review.md).
+
 Kelanjutan registry: setelah EXTRACT valid, operator dapat memakai
 [review provisional](provisional-entity-review.md) untuk membentuk inventory entitas
 non-BIND dari occurrence bersumber. Terapkan migration 0026, inspect/accept eksplisit,
