@@ -6,7 +6,7 @@ aktual, urutan pekerjaan, lokasi kode, cara verifikasi, dan titik berhenti yang
 aman. Ini bukan pernyataan bahwa pipeline lengkap sudah berjalan. Pembagian
 pekerjaan mengikuti dependency, tidak dibatasi nomor tahap pada percakapan.
 
-**Checkpoint: 2026-10-09; baseline kode `dc99d46`.** Periksa `git status` dan
+**Checkpoint: 2026-10-09; baseline kode `264b6d7`.** Periksa `git status` dan
 `git log` sebelum melanjutkan karena commit setelah baseline dapat menutup bagian
 yang masih terbuka di sini. Status terbaru berada di [development-plan](development-plan.md)
 dan laporan verifikasi bertanggal; beberapa dokumen desain lama masih mempunyai
@@ -31,6 +31,24 @@ untuk mencoba UI tetapi tidak membuktikan jalur Hybrid GraphRAG produksi selesai
 GUI lengkap untuk pipeline produksi belum menjadi hasil yang dibuktikan di sini;
 CLI/API adalah antarmuka operasional yang sudah mempunyai implementasi.
 
+Prioritas panduan ini adalah **aplikasi dapat digunakan dari awal sampai akhir**.
+Penomoran A–D di bawah adalah pembagian pekerjaan dokumen ini, bukan pemetaan
+nomor 1–4 percakapan. Pengujian gold dan benchmark release dipisahkan dari target
+operasional; akses query dan generation jawaban tetap diperlukan untuk aplikasi
+tanya-jawab. Smoke fungsional tetap dilakukan, termasuk penolakan input/bukti
+invalid, agar kegagalan tidak disajikan sebagai jawaban sukses.
+
+| Urutan praktis | Hasil yang harus tersedia untuk pemakai |
+| --- | --- |
+| Siapkan corpus | PDF dan metadata terdaftar, chunk dapat ditelusuri ke sumber; sudah ada contoh nyata |
+| Siapkan pencarian | Embedding dan BM25 terbit pada snapshot konsisten; query dapat mengambil teks bukti |
+| Lengkapi graph | EXTRACT, RESOLVE dan ASSEMBLE menghasilkan relasi berbukti, lalu graph diterbitkan |
+| Hubungkan jawaban | Query mengambil bukti, generator membuat jawaban, citation divalidasi, CLI/API dapat dipakai |
+| Pastikan dapat diulang | Konfigurasi, perintah start/stop/resume, serta penanganan gagal tercatat |
+
+Hybrid retrieval dapat diuji setelah indeks terbit sambil cabang graph diperbaiki.
+Itu kemajuan operasional, tetapi belum berarti seluruh Hybrid GraphRAG siap.
+
 ## Ringkasan keadaan sekarang
 
 | Bagian | Bukti yang sudah ada | Yang belum selesai |
@@ -43,6 +61,69 @@ CLI/API adalah antarmuka operasional yang sudah mempunyai implementasi.
 | Native embedding/reranking | Implementasi C++/ONNX dan integrasi native mempunyai bukti fixture | Model/artifact/runtime harus diikat ke corpus nyata yang akan diterbitkan |
 | Index + graph publication | Inventory, worker, backend write/readback, receipts dan snapshot activation teruji pada fixture | Belum membuktikan seluruh jalur dari PDF contoh tadi sampai publication graph nyata |
 | Retrieval + draft answer | Empat profil, fusion, hidrasi, opsi rerank dan local answer CLI/API tersedia | Uji akhir memakai snapshot dari ingestion PDF nyata, setup yang dapat diulang operator |
+
+### Checkpoint inventory persisten PP 12/2006
+
+Percobaan lokal berikut berbeda dari fixture tes yang membuat corpus baru tiap
+invocation. Artefak di bawah diabaikan Git; **tidak otomatis tersedia pada clone
+baru**. Jangan membagikan credential DB dalam dokumen atau commit.
+
+| Identitas | Nilai |
+| --- | --- |
+| Root run | `artifacts/operational/pp12-v1/` |
+| Schema PostgreSQL lokal | `regulagraph_ops_pp12_v1` |
+| Corpus / scope | `corpus:pp12-operational-v1` / `operator:pp12-operational-v1` |
+| Source job | `job:pp12-operational-v1` |
+| Publication / generation | `publication:pp12-index-v1` / `generation:pp12-index-v1` |
+| Target collection | `regulagraph_pp12_operational_v1` |
+| INDEX child | `index-job-v1:bac29afdd17c1ff857f290ee79a92daf667c0071e75c65cb283a1e006f3177ac` |
+
+Yang telah berhasil: CLI submit, PARSE → STRUCTURE → BIND → CHUNK menghasilkan
+35 chunk; preparation snapshot, vocabulary, dictionary, statistics dan scheduling
+INDEX berhasil. Angka 35 adalah chunk, bukan jumlah PDF. EXTRACT dimatikan untuk
+run ini. Profil/request sumber belum memuat model semantic; jangan sekadar
+menyalakan EXTRACT untuk menganggap request tersebut sudah siap menjalankan model.
+Siapkan request/producer semantic terpin melalui admission yang berlaku.
+
+**INDEX belum berhasil dan belum published.** Pemeriksaan PostgreSQL menunjukkan
+child `JOB_STATE_FAILED` (9), stage INDEX (7), attempt 8. Worker gagal startup
+karena konfigurasi native memakai `host:port`, padahal Rust membutuhkan URL HTTP.
+Coordinator terlanjur berjalan tanpa worker dan menghabiskan delapan attempt
+dengan connection refused. Ini kegagalan konfigurasi/urutan startup pada percobaan,
+bukan bukti model embedding gagal. Source CHUNK tetap STAGED (4), stage CHUNK (9).
+
+`environment.ps1` lokal telah dikoreksi menjadi:
+
+```powershell
+$env:REGULAGRAPH_WORKER_NATIVE_ENDPOINT = 'http://127.0.0.1:55072'
+$env:REGULAGRAPH_QUERY_NATIVE_ENDPOINT = '127.0.0.1:55072'
+```
+
+Koreksi tersebut **belum diuji ulang menjalankan INDEX**. Coordinator dan native
+server milik percobaan sudah dihentikan setelah verifikasi PID/path; worker telah
+keluar karena error. Container backend dan Ollama lain tidak dihentikan. File
+process/PID lama hanya riwayat dan tidak boleh dianggap status hidup saat resume.
+
+Bukti lokal: `logs/worker-index.stderr.log`, `logs/coordinator-index.stdout.log`,
+`handoff-job-state.txt`, konfigurasi `environment.ps1`, serta artefak `preparation/`
+di root run. Simpan kegagalan ini saat membuat laporan keberhasilan berikutnya.
+
+Langkah pertama saat melanjutkan:
+
+1. Periksa kembali DB/job dan artefak sebelum menyalakan coordinator. Jangan
+   menghapus row gagal atau mereset counter secara manual.
+2. Jalankan native dan worker dengan konfigurasi yang diperbaiki. Pastikan proses
+   tetap hidup, listener siap, dan pin manifest sesuai sebelum coordinator mulai
+   mengambil job. Pada PowerShell gunakan `$ErrorActionPreference = 'Stop'` dan
+   periksa `$LASTEXITCODE` setelah perintah native.
+3. Periksa jalur pemulihan terminal FAILED yang tersedia. Retry biasa/restart
+   tidak membuktikan child terminal akan diantrekan lagi. Jika perlu publication
+   baru, gunakan planner/admission dengan identitas dan preparation baru serta
+   bekukan ulang dependency snapshot/statistics; jangan menyalin receipt lama.
+   Pemulihan ini masih pekerjaan terbuka, belum prosedur yang diuji pada run ini.
+4. Sesudah seluruh child INDEX benar-benar STAGED, jalankan `publish-index`,
+   kemudian `query-evidence -profile hybrid`. Simpan readback, snapshot dan teks
+   bukti sebelum menyatakan pencarian operasional berhasil.
 
 ## Urutan dependency yang benar
 
@@ -217,9 +298,9 @@ cukup. Publication gagal tidak boleh mengganti pointer aktif dengan hasil parsia
 
 ## Pekerjaan D — akses aplikasi dan operasi lokal
 
-Bagian ini mendokumentasikan kebutuhan agar hasil pipeline dapat digunakan.
-Prioritas implementasi dapat disesuaikan setelah klarifikasi pengguna, tetapi
-keberadaannya tidak berarti stage ini sudah lulus.
+Bagian ini mendokumentasikan kebutuhan agar hasil pipeline dapat digunakan untuk
+tanya-jawab. Ini pekerjaan operasional, bukan evaluasi gold atau benchmark;
+keberadaannya dalam panduan tidak berarti stage ini sudah lulus.
 
 1. Uji `query-evidence` pada snapshot nyata: mulai profil hybrid, lalu graph dan
    hybrid-graph. Periksa teks, version/source refs, ranking provenance dan paths.

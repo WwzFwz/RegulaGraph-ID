@@ -10,6 +10,8 @@ Indonesian regulations are distributed across sources, reference one another, ch
 
 **Development handoff:** the [operational continuation guide](doc/operational-handoff.md) records the current blockers, dependency order, code locations, run instructions, and evidence needed to make the full local application usable. It also separates operational readiness from quality and performance acceptance.
 
+The persistent PP 12/2006 trial has reached 35 chunks and index preparation. Its INDEX job failed after a worker endpoint configuration error; the local configuration is corrected but has not been rerun. The index is not published. The handoff records recovery work and stopped run-owned processes so a later session can resume without assuming success.
+
 **Latest extraction work:** EXTRACT/RESOLVE send an explicit, producer-pinned output token cap. The optional v2 extraction schema lets the gateway compute byte offsets from unique exact quotations and adjacent context. Boundary tests pass, but a local model replay still produced four invalid locators and was rejected. Model integration remains unfinished. See [quote-extraction verification](doc/verification-report-quote-extraction.md) and [completion-budget verification](doc/verification-report-semantic-budget.md).
 
 Validation errors now identify invalid locator fields without including source quotations. Two local correction experiments still failed source validation, so automatic model retries remain disabled. See the [feedback experiment report](doc/verification-report-extraction-feedback.md).
