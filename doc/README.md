@@ -1,5 +1,9 @@
 # doc
 
+[graph-fusion.md](graph-fusion.md) menjelaskan empat profil query, source candidate
+fusion, graph authority akhir dan snapshot-bound prepared resources;
+[verifikasi](verification-report-graph-fusion.md) mencatat run native dengan seed fixture.
+
 [graph-context.md](graph-context.md) menjelaskan rendering relasi, seluruh bukti
 wajib dan validasi draft bersitasi; [verifikasi](verification-report-graph-context.md)
 mencatat hasil native dan batas klaim kualitasnya.

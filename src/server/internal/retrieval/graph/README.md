@@ -35,8 +35,10 @@ Discovery traversal snapshot-bound tersedia dan diuji dengan Neo4j serta output
 Rust aktual. `evidence.go` kini memetakan support ke teks terautentikasi, menjaga
 span UTF-8, source/version, seluruh alternatif support dan missing dependencies.
 `PathEvidence` mewajibkan seluruh item tetap ada setelah context selection.
-Source hydration tersedia; assertion applicability/dependency, query seed linking,
-fusion branch graph dan acceptance belum lengkap. Lihat [pemetaan bukti](../../../../../doc/graph-evidence.md),
+Source hydration serta fusion/rendering graph tersedia melalui library workflow;
+assertion applicability/dependency, automatic query seed linking, entrypoint config
+dan acceptance belum lengkap. Lihat [fusion](../../../../../doc/graph-fusion.md),
+[pemetaan bukti](../../../../../doc/graph-evidence.md),
 [kontrak](../../../../../doc/graph-traversal.md) serta
 [verifikasi](../../../../../doc/verification-report-graph-traversal.md).
 
@@ -46,5 +48,5 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
-| [evidence.go](evidence.go) | Integrasikan membership seluruh PathEvidence ke fusion/context; lengkapi dependency applicability tanpa menghilangkan status partial. | Regresi span/source/version, alternate support dan batas ukuran tersedia; ukur coverage serta latency pada corpus/gold nyata. |
-| [traversal.go](traversal.go), [neighborhood.go](neighborhood.go) | Sambungkan seed linking terpin dan hasil discovery ke hidrasi temporal/sumber; jangan mengubah discovery PARTIAL menjadi jawaban lengkap. | Ukur path completeness dan p95/p99 pada corpus/gold nyata; uji deadline/fan-out bersama beban query. |
+| [evidence.go](evidence.go) | Membership sudah diteruskan melalui fusion/context; lengkapi dependency applicability tanpa menghilangkan status partial. | Regresi span/source/version, alternate support dan batas ukuran tersedia; ukur coverage serta latency pada corpus/gold nyata. |
+| [traversal.go](traversal.go), [neighborhood.go](neighborhood.go) | Sambungkan automatic seed linking terpin dan evaluasi ranking graph; hidrasi/source sudah tersedia dan discovery PARTIAL tidak menjadi proof lengkap otomatis. | Ukur path completeness dan p95/p99 pada corpus/gold nyata; uji deadline/fan-out bersama beban query. |

@@ -1,6 +1,6 @@
 # Konteks dan draft bersumber dari graph
 
-Dokumen ini menjelaskan integrasi A01 antara [bukti graph](graph-evidence.md), konteks generator, sitasi dan validasi akhir. Scope ini memungkinkan bukti graph yang sudah ditemukan dipakai untuk draft; query routing/fusion graph dan kualitas jawaban model masih pekerjaan berikutnya.
+Dokumen ini menjelaskan integrasi A01 antara [bukti graph](graph-evidence.md), konteks generator, sitasi dan validasi akhir. Scope ini memungkinkan bukti graph yang sudah ditemukan dipakai untuk draft; [empat profil/fusion](graph-fusion.md) kini tersambung melalui library. Automatic seed linking, konfigurasi endpoint dan kualitas jawaban model masih pekerjaan berikutnya.
 
 `answering.NewGraphContext` menerima hasil traversal dan pemetaan teks internal yang telah diotorisasi. Ia membuat plan immutable berisi projection path, entity, assertion, selected support, seluruh ID teks wajib dan fingerprint bukti. Kontrak Protobuf tetap C01; plan lokal ini tidak menjadi DTO API atau pengganti lease/snapshot admission. Seluruh metadata bundle, termasuk required paths, missing dependencies, completeness dan retrieval manifest, dipin. Plan dibuat **setelah** fusion/hidrasi/reranking selesai; urutan item boleh berubah, isi dan kewajiban tidak.
 

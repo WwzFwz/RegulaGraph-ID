@@ -1,6 +1,6 @@
 # Bukti teks untuk hasil traversal graph
 
-Dokumen ini menjelaskan jembatan antara discovery graph dan bukti sumber Q01: lookup chunk, autentikasi teks, pemetaan support, dan kewajiban integrasi konteks. Ia tidak menyatakan graph branch sudah terhubung ke jawaban atau acceptance kualitas selesai.
+Dokumen ini menjelaskan jembatan antara discovery graph dan bukti sumber Q01: lookup chunk, autentikasi teks, pemetaan support, dan kewajiban integrasi konteks. Integrasi lanjutannya kini ada pada [graph fusion](graph-fusion.md) dan [graph context](graph-context.md); acceptance kualitas belum selesai.
 
 `GraphEvidenceHydrator` menerima request AS_OF, pinned index, scope dan hasil `Traverse` dari reader Neo4j yang telah memperoleh admission. Hasil traversal adalah input internal tepercaya, bukan DTO dari HTTP/model. Pemeriksaan ulang pin mengautorisasi akses generation; ia tidak mengautentikasi arbitrary assertion yang disusun pemanggil. PostgreSQL admission dilakukan sebelum dan sesudah pembacaan sumber, dengan deadline mengikuti lease.
 

@@ -5,8 +5,10 @@ pembacaan record Neo4j, discovery traversal dan hidrasi support dari snapshot te
 Lookup Qdrant diteruskan ke verifikasi PostgreSQL/artefak sumber; pencabutan pin pada
 admission akhir menggagalkan hasil. [Kontrak bukti](../../../../doc/graph-evidence.md).
 `published_graph_answer_test.go` melanjutkan hidrasi ke prompt graph dan draft
-bersitasi memakai generator/tokenizer sintetis. Query branch graph belum terhubung;
-lihat [rendering](../../../../doc/graph-context.md) serta
+bersitasi memakai generator/tokenizer sintetis. Factory GRAPH_RAG dan
+HYBRID_GRAPH_RAG kini diuji dengan 1/3 cabang, reranking, fixed seed fixture,
+ownership metadata dan empty-seed abstention. Lihat [fusion](../../../../doc/graph-fusion.md),
+[rendering](../../../../doc/graph-context.md) serta
 [bukti pembacaan](../../../../doc/verification-report-graph-read.md).
 
 `index_reuse.go` memverifikasi semua halaman catalog terhadap Qdrant dan mencatat

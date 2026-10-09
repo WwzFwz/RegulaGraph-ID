@@ -3,9 +3,12 @@
 `graph_evidence.go` menghubungkan admitted traversal, lookup source Qdrant dan
 SourceHydrator; ia memeriksa ulang scope/pin sebelum mengembalikan mapped Evidence.
 Traversal harus berasal dari reader terautentikasi, bukan input klien/model.
-Graph branch/fusion belum tersambung; `answer.go` menerima graph profile dengan
-immutable rendering plan untuk konteks/citation/draft. Lihat [kontrak bukti](../../../../doc/graph-evidence.md)
-dan [rendering](../../../../doc/graph-context.md).
+`graph_candidates.go`, `graph_fusion.go` dan published query factory kini
+menyambungkan empat profil retrieval, shared hydration, reranking, immutable
+rendering serta authority check setelah generation. Resolver seed adalah port
+read-only eksplisit; linking otomatis dan konfigurasi endpoint graph belum
+tersambung. Lihat [graph fusion](../../../../doc/graph-fusion.md),
+[kontrak bukti](../../../../doc/graph-evidence.md) dan [rendering](../../../../doc/graph-context.md).
 
 `graph_completed.go` menyiapkan seluruh output ASSEMBLE committed untuk penulisan
 graph tanpa worker/model call. `graph_source_reader.go` berbagi hash/budget/source

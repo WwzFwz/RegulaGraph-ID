@@ -1,9 +1,11 @@
 # src/server/internal/retrieval
 
 Discovery [graph/traversal.go](graph/traversal.go) kini menelusuri batch neighborhood
-terpin dengan jalur alternatif dan batas resource eksplisit. Ia belum branch
-kandidat jawaban; hidrasi graph dan wiring fusion tetap diperlukan. Lihat
-[kontrak traversal](../../../../doc/graph-traversal.md).
+terpin dengan jalur alternatif dan batas resource eksplisit. Branch graph kini
+membawa kandidat source beserta discovery ke fusion, shared hydration dan draft.
+Lihat [traversal](../../../../doc/graph-traversal.md) dan
+[integrasi fusion](../../../../doc/graph-fusion.md). Seed linking otomatis dan
+konfigurasi graph pada entrypoint tetap pekerjaan berikutnya.
 
 Pengubahan pertanyaan menjadi kumpulan kandidat bukti melalui pencarian lexical, dense, graph, fusion, filtering, dan reranking. Implementasi runtime berada di Go. Dokumen ini mendefinisikan superset tanggung jawab folder dan kontrak integrasi anaknya.
 
