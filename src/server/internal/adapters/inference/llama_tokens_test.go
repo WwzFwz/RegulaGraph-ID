@@ -19,6 +19,15 @@ import (
 func countRequest() StructuredRequest {
 	return StructuredRequest{ModelID: "pinned", SystemPrompt: "Instructions", ItemID: "item:1", Text: "Pasal café\n\"kutip\" <|im_end|>", SchemaName: "answer", Schema: json.RawMessage(`{"type":"object","properties":{"answer":{"type":"string"}}}`), MaxOutputTokens: 64}
 }
+
+func TestLlamaCounterBoundsTrustedContextBeforeTransport(t *testing.T) {
+	_, counter := counterFixture(t, func(w http.ResponseWriter, r *http.Request) { t.Error("oversized context reached provider") }, 4096)
+	request := countRequest()
+	request.SystemContext = strings.Repeat("x", 4096)
+	if _, err := counter.CountPrompt(context.Background(), request); err == nil {
+		t.Fatal("trusted context omitted from admission budget")
+	}
+}
 func counterFixture(t *testing.T, handler http.HandlerFunc, maxBytes int) (*OpenAICompatibleProvider, *LlamaTokenCounter) {
 	t.Helper()
 	s := httptest.NewServer(handler)

@@ -5,6 +5,7 @@ package domain
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"os"
 	"strings"
 	"testing"
@@ -48,6 +49,37 @@ func TestOntologyAcceptsTypedExtractionRecords(t *testing.T) {
 	mentions, assertions := validOntologyRecords()
 	if err := ontology.ValidateExtractionRecords(ontology.Version(), mentions, assertions); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestOntologyModelVocabularyPreservesValidatedRules(t *testing.T) {
+	ontology := loadRepositoryOntology(t)
+	var source ontologySource
+	if err := json.Unmarshal([]byte(ontology.ModelVocabularyJSON()), &source); err != nil {
+		t.Fatal(err)
+	}
+	compiled, err := compileOntology(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mentions, assertions := validOntologyRecords()
+	if err := compiled.ValidateExtractionRecords(ontology.Version(), mentions, assertions); err != nil {
+		t.Fatal(err)
+	}
+	assertions[0].PredicateId = "defines"
+	if compiled.ValidateExtractionRecords(ontology.Version(), mentions, assertions) == nil {
+		t.Fatal("model vocabulary lost predicate endpoint constraints")
+	}
+	raw, err := os.ReadFile("../../../../configs/ontology-v1.jsonc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed, err := ParseOntologyJSONC([]byte(strings.ReplaceAll(string(raw), `"organization"`, `"agency"`)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed.ModelVocabularyJSON() == ontology.ModelVocabularyJSON() || !strings.Contains(changed.ModelVocabularyJSON(), `"agency"`) {
+		t.Fatal("model vocabulary ignored configured types")
 	}
 }
 

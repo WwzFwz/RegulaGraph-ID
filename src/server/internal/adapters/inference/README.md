@@ -40,6 +40,14 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
+EXTRACT kini mengirim vocabulary ontology tervalidasi sebagai system context
+terpisah dari prompt dasar dan teks sumber. Exact rendered context dipin pada
+producer InputHashes; coordinator menolak missing/drift pin pada request/output.
+Konfigurasi model/schema di-clone saat startup agar caller tidak mengubah request
+aktif tanpa manifest baru. Encoder/counting yang sama menghitung context dalam
+byte budget. Ini tidak memperbaiki otomatis kesalahan span/relasi model;
+[hasil dan batas](../../../../../doc/verification-report-runtime-bootstrap.md).
+
 Semantic.ExtractBatch, gate vocabulary ontology, dan adapter provider sudah aktif secara fungsional serta diuji dengan provider deterministic. Client native embedding/reranking tersedia melalui `native.go`, `embeddings.go`, dan `cross_encoder.go`, dengan manifest exact, bounded payload, deadline, finite/L2 checks, dan korelasi one-to-one. Benchmark kualitas/latency/biaya, SummarizeBatch dan acceptance produksi belum aktif; ResolveBatch tersedia sebagai proposal kontekstual.
 
 ## Rekomendasi implementasi anak

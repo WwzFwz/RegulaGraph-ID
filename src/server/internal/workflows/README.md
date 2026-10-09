@@ -1,5 +1,10 @@
 # src/server/internal/workflows
 
+EXTRACT preflight dan output admission sekarang mewajibkan rendered ontology
+context pin yang sama dengan versi runtime. Request/producer lama tanpa pin
+memerlukan ekspor producer dan submit baru; output historis tidak ditulis ulang.
+Hash hanya dibuktikan sebagai konfigurasi, bukan attestation perilaku provider.
+
 `acquisition_pipeline_integration_test.go` menguji PDF collector aktual melalui
 import, PostgreSQL terisolasi, worker PDFium/struktur, BIND dan tokenizer CHUNK.
 Run opt-in berhenti di CHUNK tanpa model producer; SKIP bukan bukti native.

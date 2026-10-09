@@ -73,7 +73,15 @@ func TestAcquiredPDFThroughNativeDocumentPipeline(t *testing.T) {
 			t.Fatal("real EXTRACT producer required")
 		}
 	}
-	producer.InputHashes = append(producer.InputHashes, ontology.ContentHash(), policyHash)
+	for _, pin := range []*pb.ContentHash{ontology.ContentHash(), policyHash} {
+		found := false
+		for _, existing := range producer.InputHashes {
+			found = found || proto.Equal(existing, pin)
+		}
+		if !found {
+			producer.InputHashes = append(producer.InputHashes, pin)
+		}
+	}
 	request := &pb.IngestionRequest{CorpusId: corpus, Operation: pb.JobOperation_JOB_OPERATION_INGEST, IdempotencyKey: "native-pdf:import", ConfigManifest: producer}
 	prepared, err := PrepareAcquisitionImport(request, record)
 	if err != nil {

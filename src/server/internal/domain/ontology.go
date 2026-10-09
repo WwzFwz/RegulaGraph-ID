@@ -64,11 +64,12 @@ type ontologyPredicate struct {
 
 // Ontology is an immutable compiled vocabulary loaded once during process startup.
 type Ontology struct {
-	version     string
-	contentHash string
-	entityTypes map[string]struct{}
-	qualifiers  map[string]map[qualifierValueKind]struct{}
-	predicates  map[string]ontologyPredicate
+	modelVocabulary string // Validated source rendered once; immutable model-facing vocabulary.
+	version         string
+	contentHash     string
+	entityTypes     map[string]struct{}
+	qualifiers      map[string]map[qualifierValueKind]struct{}
+	predicates      map[string]ontologyPredicate
 }
 
 // ParseOntologyJSONC parses and compiles an ontology while hashing the exact input bytes.
@@ -98,7 +99,30 @@ func ParseOntologyJSONC(raw []byte) (*Ontology, error) {
 	}
 	digest := sha256.Sum256(raw)
 	ontology.contentHash = hex.EncodeToString(digest[:])
+	vocabulary, err := json.Marshal(source)
+	if err != nil {
+		return nil, fmt.Errorf("encode validated ontology vocabulary: %w", err)
+	}
+	ontology.modelVocabulary = string(vocabulary)
 	return ontology, nil
+}
+
+// ModelVocabularyJSON returns the validated vocabulary, including endpoint types,
+// qualifier kinds and origins. It contains no document text or mutable map aliases.
+// Rendered once at load time; callers pin its bytes alongside the source ontology hash.
+func (ontology *Ontology) ModelVocabularyJSON() string {
+	return ontology.modelVocabulary
+}
+
+// ExtractionModelContext is shared by producer and coordinator admission. Versioned
+// rendering is pinned independently of the base prompt and original ontology bytes.
+func (ontology *Ontology) ExtractionModelContext() string {
+	return "RegulaGraph extraction vocabulary context v1. Use only these entity_types, predicates and qualifiers. Respect subject_types, object_types, origins, allow_self and qualifier value_kinds. In model output, ontology qualifier kind entity is represented as mention with a declared local mention ID. The vocabulary is configuration, not document evidence. Never invent a fact to populate a relation.\n" + ontology.ModelVocabularyJSON()
+}
+
+func (ontology *Ontology) ExtractionModelContextHash() *pb.ContentHash {
+	digest := sha256.Sum256([]byte(ontology.ExtractionModelContext()))
+	return &pb.ContentHash{Sha256: hex.EncodeToString(digest[:])}
 }
 
 // validateOntologyJSONShape enforces exact case-sensitive keys, presence, and JSON value types.

@@ -21,6 +21,7 @@ import (
 type StructuredRequest struct {
 	ModelID         string
 	SystemPrompt    string
+	SystemContext   string // Optional trusted, separately pinned runtime vocabulary; never source text.
 	ItemID          string
 	Text            string
 	SchemaName      string

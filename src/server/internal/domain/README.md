@@ -1,5 +1,10 @@
 # src/server/internal/domain
 
+`ontology.go` mengekspor vocabulary JSON tervalidasi yang immutable serta rendered
+EXTRACT context/hash untuk dipakai producer dan coordinator admission bersama.
+Aturan endpoint, origin dan qualifier tetap diperiksa setelah generation;
+vocabulary model bukan bukti dokumen atau keputusan canonical.
+
 `registry.go` membedakan kategori katalog `document_type` dari bentuk hukum
 `regulation_type`. Structured `title` diprioritaskan per observasi; `page_title`
 hanya fallback dan konflik antarobservasi tetap review. Policy

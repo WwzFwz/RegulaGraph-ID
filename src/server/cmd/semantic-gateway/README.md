@@ -1,5 +1,10 @@
 # src/server/cmd/semantic-gateway
 
+EXTRACT menyediakan ontology context terpin ke model sebagai pesan system kedua.
+Ekspor producer kini membawa hash exact rendering, di samping schema/ontology
+hash. Pasangkan gateway/coordinator baru dan ekspor ulang producer; pin lama
+tanpa konteks tidak diterima EXTRACT. Context tidak berisi teks dokumen.
+
 Startup juga memuat `configs/ontology-v1.jsonc` dengan SHA-256 dari environment. Proposal model yang memakai tipe, predicate, endpoint, origin, atau qualifier di luar vocabulary menjadi error per item; producer manifest mencatat hash ontology agar output dapat diaudit.
 
 Entry point ini menjalankan layanan gRPC internal `Semantic.ExtractBatch`. Proses membaca prompt dan JSON Schema yang dipin, memverifikasi seluruh hash model, membuat satu client provider OpenAI-compatible, lalu memakai concurrency serta batas byte yang eksplisit. Model tidak dimuat atau client tidak dibuat ulang per item.

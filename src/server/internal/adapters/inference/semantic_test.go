@@ -26,6 +26,73 @@ type providerDouble struct {
 	err   error
 }
 
+type vocabularyProvider struct{ request StructuredRequest }
+
+func TestSemanticServiceOwnsPinnedConfiguration(t *testing.T) {
+	provider := new(vocabularyProvider)
+	base, request := semanticFixture(provider)
+	config := base.config
+	service, err := NewSemanticService(provider, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := service.ProducerManifest()
+	config.Model.ModelId = "model:mutated"
+	config.Model.WeightsHash.Sha256 = strings.Repeat("0", 64)
+	config.OutputSchema[0] = '!'
+	config.OutputSchemaHash.Sha256 = strings.Repeat("0", 64)
+	config.ConfigHash.Sha256 = strings.Repeat("0", 64)
+	if _, err := service.ExtractBatch(context.Background(), request); err != nil {
+		t.Fatal(err)
+	}
+	if provider.request.ModelID != request.Batch.Model.ModelId || !json.Valid(provider.request.Schema) || !proto.Equal(before, service.ProducerManifest()) {
+		t.Fatal("caller mutated active provider configuration without new pins")
+	}
+}
+
+func (p *vocabularyProvider) Generate(_ context.Context, request StructuredRequest) (StructuredResponse, error) {
+	p.request = request
+	return StructuredResponse{JSON: validRawProposal(), InputTokens: 20, OutputTokens: 7}, nil
+}
+
+func TestSemanticExtractionPassesPinnedOntologyToModel(t *testing.T) {
+	provider := new(vocabularyProvider)
+	service, request := semanticFixture(provider)
+	response, err := service.ExtractBatch(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response == nil || provider.request.SystemContext == "" {
+		t.Fatal("no model vocabulary supplied")
+	}
+	if !strings.Contains(provider.request.SystemContext, service.config.Ontology.ModelVocabularyJSON()) ||
+		!strings.Contains(provider.request.SystemContext, "entity is represented as mention") {
+		t.Fatal("ontology or model qualifier mapping missing")
+	}
+	if provider.request.Text != request.Items[0].Text || provider.request.SystemPrompt != service.config.SystemPrompt {
+		t.Fatal("source text or base prompt changed")
+	}
+	contextHash := sha256String([]byte(provider.request.SystemContext))
+	found := false
+	for _, hash := range service.ProducerManifest().InputHashes {
+		found = found || hash.Sha256 == contextHash
+	}
+	if !found {
+		t.Fatal("rendered ontology context not pinned in producer")
+	}
+	encoded, err := encodeStructuredChat(provider.request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body chatRequest
+	if err := json.Unmarshal(encoded, &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Messages) != 3 || body.Messages[1].Role != "system" || body.Messages[1].Content != provider.request.SystemContext || body.Messages[2].Role != "user" {
+		t.Fatal("trusted ontology and untrusted source roles were mixed")
+	}
+}
+
 func (p *providerDouble) Generate(_ context.Context, _ StructuredRequest) (StructuredResponse, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()

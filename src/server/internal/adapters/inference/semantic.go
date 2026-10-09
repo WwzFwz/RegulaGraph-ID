@@ -2,6 +2,8 @@
 // Source text remains untrusted data; the gateway owns IDs, provenance, manifests, review state, and
 // absolute UTF-8 byte spans. In-memory operation caching prevents duplicate sampling within a process;
 // durable replay across restarts remains a coordinator storage task. Required quality/latency is unmeasured.
+// EXTRACT sends a separate trusted ontology context, pinned by exact bytes in producer inputs.
+// Model/schema configuration is owned at construction; source text never enters system context.
 package inference
 
 import (
@@ -47,13 +49,14 @@ type SemanticConfig struct {
 
 type SemanticService struct {
 	pb.UnimplementedSemanticServer
-	provider        StructuredProvider
-	config          SemanticConfig
-	producer        *pb.ProducerManifest
-	semaphore       chan struct{}
-	operations      chan struct{}
-	cache           *semanticCache
-	resolutionCache *resolutionCache
+	provider          StructuredProvider
+	config            SemanticConfig
+	producer          *pb.ProducerManifest
+	extractionContext string
+	semaphore         chan struct{}
+	operations        chan struct{}
+	cache             *semanticCache
+	resolutionCache   *resolutionCache
 }
 
 func NewSemanticService(provider StructuredProvider, config SemanticConfig) (*SemanticService, error) {
@@ -76,6 +79,12 @@ func NewSemanticService(provider StructuredProvider, config SemanticConfig) (*Se
 	if config.Model.PromptHash.Sha256 != sha256String([]byte(config.SystemPrompt)) {
 		return nil, errors.New("semantic system prompt differs from pinned prompt hash")
 	}
+	// Own configuration before constructing manifests/cache identity. A caller must
+	// not be able to mutate model/schema after startup while retaining old pins.
+	config.Model = proto.Clone(config.Model).(*pb.ModelManifest)
+	config.OutputSchemaHash = proto.Clone(config.OutputSchemaHash).(*pb.ContentHash)
+	config.ConfigHash = proto.Clone(config.ConfigHash).(*pb.ContentHash)
+	config.OutputSchema = append(json.RawMessage(nil), config.OutputSchema...)
 	if !json.Valid(config.OutputSchema) || config.OutputSchemaHash.Sha256 != sha256String(config.OutputSchema) {
 		return nil, errors.New("semantic output schema is invalid or differs from its pinned hash")
 	}
@@ -86,17 +95,23 @@ func NewSemanticService(provider StructuredProvider, config SemanticConfig) (*Se
 		ConfigHash:   proto.Clone(config.ConfigHash).(*pb.ContentHash),
 		InputHashes:  []*pb.ContentHash{proto.Clone(config.OutputSchemaHash).(*pb.ContentHash), config.Ontology.ContentHash()},
 	}
+	var extractionContext string
+	if config.Model.Task == pb.ModelTask_MODEL_TASK_EXTRACT {
+		extractionContext = config.Ontology.ExtractionModelContext()
+		producer.InputHashes = append(producer.InputHashes, config.Ontology.ExtractionModelContextHash())
+	}
 	if err := domain.ValidateWire(producer, domain.DefaultWireLimits); err != nil {
 		return nil, fmt.Errorf("validate semantic producer: %w", err)
 	}
 	return &SemanticService{
-		provider:        provider,
-		config:          config,
-		producer:        producer,
-		semaphore:       make(chan struct{}, config.MaximumConcurrent),
-		operations:      make(chan struct{}, config.MaximumConcurrent),
-		cache:           newSemanticCache(config.MaximumCacheEntries, config.MaximumCacheBytes),
-		resolutionCache: newResolutionCache(config.MaximumCacheEntries, config.MaximumCacheBytes),
+		provider:          provider,
+		config:            config,
+		producer:          producer,
+		extractionContext: extractionContext,
+		semaphore:         make(chan struct{}, config.MaximumConcurrent),
+		operations:        make(chan struct{}, config.MaximumConcurrent),
+		cache:             newSemanticCache(config.MaximumCacheEntries, config.MaximumCacheBytes),
+		resolutionCache:   newResolutionCache(config.MaximumCacheEntries, config.MaximumCacheBytes),
 	}, nil
 }
 
@@ -211,7 +226,8 @@ func (s *SemanticService) executeExtract(ctx context.Context, request *pb.Extrac
 			}
 			generated, generateErr := s.provider.Generate(ctx, StructuredRequest{
 				ModelID: s.config.Model.ModelId, SystemPrompt: s.config.SystemPrompt,
-				ItemID: item.ItemId, Text: item.Text, SchemaName: s.config.SchemaName, Schema: s.config.OutputSchema,
+				SystemContext: s.extractionContext,
+				ItemID:        item.ItemId, Text: item.Text, SchemaName: s.config.SchemaName, Schema: s.config.OutputSchema,
 			})
 			outcomes[index].inputTokens = generated.InputTokens
 			outcomes[index].outputTokens = generated.OutputTokens

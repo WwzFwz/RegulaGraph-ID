@@ -42,7 +42,7 @@ func (c *LlamaTokenCounter) CountPrompt(ctx context.Context, request StructuredR
 	if c == nil || ctx == nil {
 		return 0, errors.New("token counter and context required")
 	}
-	if request.ModelID != c.model || len(request.ModelID)+len(request.SystemPrompt)+len(request.Text)+len(request.ItemID)+len(request.SchemaName)+len(request.Schema) > c.maxInput {
+	if request.ModelID != c.model || len(request.ModelID)+len(request.SystemPrompt)+len(request.SystemContext)+len(request.Text)+len(request.ItemID)+len(request.SchemaName)+len(request.Schema) > c.maxInput {
 		return 0, errors.New("token counter model or input byte limit mismatch")
 	}
 	body, err := encodeStructuredChat(request)

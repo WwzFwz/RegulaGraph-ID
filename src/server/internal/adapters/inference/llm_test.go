@@ -51,6 +51,16 @@ func TestOpenAICompatibleProviderSeparatesInstructionsFromDocument(t *testing.T)
 	}
 }
 
+func TestStructuredChatRejectsInvalidTrustedContext(t *testing.T) {
+	request := StructuredRequest{ModelID: "model", SystemPrompt: "prompt", ItemID: "item", Text: "text", SchemaName: "schema", Schema: json.RawMessage(`{}`)}
+	for _, context := range []string{string([]byte{0xff}), strings.Repeat("x", (2<<20)+1)} {
+		request.SystemContext = context
+		if _, err := encodeStructuredChat(request); err == nil {
+			t.Fatal("invalid/unbounded trusted context accepted")
+		}
+	}
+}
+
 func TestOpenAICompatibleProviderRejectsOversizedResponse(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
 		_, _ = response.Write([]byte(strings.Repeat("x", 65)))

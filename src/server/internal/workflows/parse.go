@@ -468,6 +468,10 @@ func (e *ParseExecutor) verifyExtractionOutput(
 		!containsExpectedHash(manifest.InputHashes, e.config.Ontology.ContentHash()) {
 		return nil, invalidExtractionOutput("ExtractionBatch ontology bytes differ from pinned request or producer")
 	}
+	contextPin := e.config.Ontology.ExtractionModelContextHash()
+	if !containsExpectedHash(expectedConfig.InputHashes, contextPin) || !containsExpectedHash(manifest.InputHashes, contextPin) {
+		return nil, invalidExtractionOutput("ExtractionBatch rendered vocabulary differs from pinned request or producer")
+	}
 	sourceRaw, err := e.store.ReadVerified(ctx, sourceRef, e.config.MaximumBatchBytes)
 	if err != nil {
 		return nil, err
@@ -677,6 +681,9 @@ func (e *ParseExecutor) processRequest(ctx context.Context, job domain.JobRecord
 	}
 	if job.Stage == pb.JobStage_JOB_STAGE_EXTRACT && !containsExpectedHash(request.ConfigManifest.InputHashes, e.config.Ontology.ContentHash()) {
 		return nil, status.Error(codes.FailedPrecondition, "persisted EXTRACT request did not pin ontology bytes")
+	}
+	if job.Stage == pb.JobStage_JOB_STAGE_EXTRACT && !containsExpectedHash(request.ConfigManifest.InputHashes, e.config.Ontology.ExtractionModelContextHash()) {
+		return nil, status.Error(codes.FailedPrecondition, "persisted EXTRACT request did not pin rendered ontology context; re-submit with current producer")
 	}
 	now := time.Now()
 	deadline := now.Add(e.config.CallTimeout)

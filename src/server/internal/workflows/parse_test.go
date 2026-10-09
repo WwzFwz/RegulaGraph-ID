@@ -229,6 +229,25 @@ func TestExtractExecutorRejectsUntrustedExtractionBoundaries(t *testing.T) {
 		name  string
 		setup func(*parseStoreFake, *parseWorkerFake)
 	}{
+		{name: "missing persisted vocabulary pin", setup: func(store *parseStoreFake, _ *parseWorkerFake) {
+			store.request.ConfigManifest.InputHashes = []*pb.ContentHash{parseTestOntology().ContentHash()}
+		}},
+		{name: "missing producer vocabulary pin", setup: func(store *parseStoreFake, worker *parseWorkerFake) {
+			store.mutateExtraction = func(batch *pb.ExtractionBatch) {
+				batch.Dependencies.ProducerManifest.InputHashes = []*pb.ContentHash{parseTestOntology().ContentHash()}
+			}
+			worker.mutateResponse = func(response *pb.ProcessBatchResponse) {
+				response.Checkpoint.Manifest.InputHashes = []*pb.ContentHash{parseTestOntology().ContentHash()}
+			}
+		}},
+		{name: "different producer vocabulary pin", setup: func(store *parseStoreFake, worker *parseWorkerFake) {
+			store.mutateExtraction = func(batch *pb.ExtractionBatch) {
+				batch.Dependencies.ProducerManifest.InputHashes = []*pb.ContentHash{parseTestOntology().ContentHash(), parseHash("d")}
+			}
+			worker.mutateResponse = func(response *pb.ProcessBatchResponse) {
+				response.Checkpoint.Manifest.InputHashes = []*pb.ContentHash{parseTestOntology().ContentHash(), parseHash("d")}
+			}
+		}},
 		{name: "partial source", setup: func(store *parseStoreFake, _ *parseWorkerFake) {
 			store.outputCompleteness = pb.Completeness_COMPLETENESS_PARTIAL
 		}},
@@ -1042,7 +1061,7 @@ func extractionManifest() *pb.ProducerManifest {
 	}
 	return &pb.ProducerManifest{
 		Software: "regulagraph-ingestion", Build: "test", SchemaVersion: 1, ConfigHash: parseHash("c"),
-		Models: []*pb.ModelManifest{model}, PromptHashes: []*pb.ContentHash{prompt}, InputHashes: []*pb.ContentHash{parseTestOntology().ContentHash()},
+		Models: []*pb.ModelManifest{model}, PromptHashes: []*pb.ContentHash{prompt}, InputHashes: []*pb.ContentHash{parseTestOntology().ContentHash(), parseTestOntology().ExtractionModelContextHash()},
 	}
 }
 
@@ -1054,7 +1073,7 @@ func unapprovedExtractionManifest() *pb.ProducerManifest {
 	}
 	return &pb.ProducerManifest{
 		Software: "unapproved-worker", Build: "test", SchemaVersion: 1, ConfigHash: parseHash("3"),
-		Models: []*pb.ModelManifest{model}, PromptHashes: []*pb.ContentHash{prompt}, InputHashes: []*pb.ContentHash{parseTestOntology().ContentHash()},
+		Models: []*pb.ModelManifest{model}, PromptHashes: []*pb.ContentHash{prompt}, InputHashes: []*pb.ContentHash{parseTestOntology().ContentHash(), parseTestOntology().ExtractionModelContextHash()},
 	}
 }
 
@@ -1066,7 +1085,7 @@ func parseManifest() *pb.ProducerManifest {
 	}
 	return &pb.ProducerManifest{
 		Software: "regulagraph-server", Build: "test", SchemaVersion: 1, ConfigHash: parseHash("c"),
-		Models: []*pb.ModelManifest{model}, PromptHashes: []*pb.ContentHash{prompt}, InputHashes: []*pb.ContentHash{parseTestOntology().ContentHash()},
+		Models: []*pb.ModelManifest{model}, PromptHashes: []*pb.ContentHash{prompt}, InputHashes: []*pb.ContentHash{parseTestOntology().ContentHash(), parseTestOntology().ExtractionModelContextHash()},
 	}
 }
 
