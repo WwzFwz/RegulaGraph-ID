@@ -1,9 +1,10 @@
 # Rencana implementasi berbasis dependency
 
-Checkpoint Q01: admission graph dari snapshot terbit dan typed Neo4j reader kini
-teruji dengan output Rust aktual, scope/pin dan corruption rejection. Traversal,
-graph evidence hydration dan branch graph ke jawaban masih perlu disambungkan;
-lihat [kontrak](graph-read.md) dan [verifikasi](verification-report-graph-read.md).
+Checkpoint Q01: admission graph, typed reader dan discovery traversal kini teruji
+dengan output Rust aktual, scope/pin, cycle/alternate path serta corruption rejection.
+Graph evidence hydration, seed linking dan branch graph ke jawaban masih perlu
+disambungkan; lihat [kontrak traversal](graph-traversal.md) dan
+[verifikasi](verification-report-graph-traversal.md).
 
 Checkpoint terbaru K01: [adapter Neo4j](neo4j-graph-store.md) menulis generation
 additive terisolasi, mempertahankan shared support, memverifikasi inventory exact dan

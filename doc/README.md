@@ -1,5 +1,9 @@
 # doc
 
+[graph-traversal.md](graph-traversal.md) menjelaskan discovery jalur dengan support,
+arah asli, cycle control dan laporan resource; [verifikasi](verification-report-graph-traversal.md)
+mencatat regresi adjacency, buffer reuse dan traversal output Rust aktual.
+
 [graph-read.md](graph-read.md) menjelaskan admission snapshot/scope dan pembacaan
 record Neo4j bertipe/berbatas; [verifikasi](verification-report-graph-read.md)
 mencatat native published reader serta penolakan korupsi tipe sebelum transfer.

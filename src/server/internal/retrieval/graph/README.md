@@ -14,7 +14,12 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
-Berkas: [evidence.go](evidence.go), [traversal.go](traversal.go).
+Berkas: [evidence.go](evidence.go), [traversal.go](traversal.go),
+[neighborhood.go](neighborhood.go), dan [traversal_test.go](traversal_test.go).
+Traversal node-simple berjalan breadth-first dalam batch, mempertahankan jalur
+alternatif, arah assertion, qualifiers/exception refs dan seluruh support record.
+Kontrak GraphPath memilih satu support deterministik per edge; alternate support
+tetap tersedia di result. Keluaran adalah discovery, bukan Evidence final.
 
 ## Benchmark dan perhatian performa
 
@@ -26,7 +31,11 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. Pipeline parsing/graph/retrieval, mutasi backend, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan target kualitas atau latency.
+Discovery traversal snapshot-bound tersedia dan diuji dengan Neo4j serta output
+Rust aktual. Resource exhaustion dilaporkan; source-text/temporal hydration,
+query seed linking, fusion branch graph dan acceptance belum lengkap. Lihat
+[kontrak](../../../../../doc/graph-traversal.md) serta
+[verifikasi](../../../../../doc/verification-report-graph-traversal.md).
 
 ## Rekomendasi implementasi anak
 
@@ -35,4 +44,4 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
 | [evidence.go](evidence.go) | Hydrate selected paths in batches into primary source/version spans and explicit missing dependencies. | Test unsupported edges, stale versions and source mismatch; profile database round trips and required-path coverage. |
-| [traversal.go](traversal.go) | Traverse supported typed paths with cycle control, explicit hop/node/time budgets and temporal snapshot filters. | Test dense hubs, cycles, missing supports and cancellation; measure path completeness vs p95/p99, report budget exhaustion. |
+| [traversal.go](traversal.go), [neighborhood.go](neighborhood.go) | Sambungkan seed linking terpin dan hasil discovery ke hidrasi temporal/sumber; jangan mengubah discovery PARTIAL menjadi jawaban lengkap. | Ukur path completeness dan p95/p99 pada corpus/gold nyata; uji deadline/fan-out bersama beban query. |

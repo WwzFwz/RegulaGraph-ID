@@ -1,5 +1,11 @@
 # src/server/internal/adapters/neo4j
 
+`neighborhood.go` menggabungkan physical adjacency dengan projection membership
+agar link hilang tidak menyembunyikan record. Semua support terpilih dan exact
+multiplicity edge diperiksa. `schema_traversal.go` menyiapkan tiga composite RANGE
+index secara eksplisit, memeriksa definisi dan status ONLINE. Reader tidak membuat
+schema. Lihat [traversal](../../../../../doc/graph-traversal.md).
+
 `read.go` membuka generation sealed melalui admission PostgreSQL, lalu membaca
 record bertipe dalam batch dengan guard tipe/ukuran, SHA256 dan exact projection.
 `read_test.go` menguji backend nyata termasuk korupsi string-list sebelum transfer.
@@ -55,8 +61,8 @@ catalog/write-intent PostgreSQL kini tersedia melalui [writer](../../indexing/gr
 Receipt publication PostgreSQL dan final guard tersedia melalui
 [acknowledgement](../../indexing/graph_readiness.go). Publication gabungan dengan
 reuse indeks dan hydration diuji pada [milestone berikutnya](../../../../../doc/index-reuse.md).
-Traversal query, closure incremental dan
-readiness cluster belum tersedia. Tes fixture tidak membuktikan kualitas model,
+Discovery traversal tersedia melalui retrieval/graph; branch graph ke query/jawaban,
+closure incremental dan readiness cluster belum tersedia. Tes fixture tidak membuktikan kualitas model,
 coverage corpus atau target latency/throughput.
 
 ## Rekomendasi implementasi anak

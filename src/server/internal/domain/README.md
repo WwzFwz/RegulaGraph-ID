@@ -1,5 +1,9 @@
 # src/server/internal/domain
 
+`graph_neighborhood.go` mendefinisikan batch discovery lokal: snapshot, assertion,
+support, entity, anggaran read dan sinyal frontier terpotong. Protobuf C01 tetap
+sumber payload; DTO ini bukan bukti temporal atau permission baru.
+
 `graph_read.go` membawa view graph yang diotorisasi PostgreSQL di bawah pin hidup.
 Snapshot/catalog/scope dipertahankan; DTO bukan izin permanen atau pengganti
 recheck lease. Lihat [kontrak](../../../../doc/graph-read.md).
