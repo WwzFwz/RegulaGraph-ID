@@ -1,5 +1,9 @@
 # doc
 
+[Pipeline PDF nyata](verification-report-real-pdf.md) mencatat metadata policy v2,
+parser structure-v2, review independen dan hasil PARSE sampai CHUNK. Panduan utama
+arsitektur PlantUML, struktur folder dan operasi/rebuild berada di [README root](../README.md).
+
 [Impor acquisition](acquisition-import.md) menyambungkan record/PDF collector ke
 shared artifact store, registration dan submit PARSE, dengan batas dan replay.
 [Bukti verifikasi](verification-report-acquisition-import.md) memisahkan impor

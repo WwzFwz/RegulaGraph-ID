@@ -1,5 +1,14 @@
 # Rencana implementasi berbasis dependency
 
+Checkpoint PDF nyata: impor PDF BPK kini teruji sampai PARSE, STRUCTURE, BIND dan
+CHUNK dengan PDFium serta tokenizer BGE aktual; 35 chunk mempertahankan sumber,
+struktur, token accounting dan provision version. Metadata policy v2 memisahkan
+kategori katalog/bentuk regulasi; parser structure-v2 menerima marker standalone,
+pasal Romawi dan catchword terkonfirmasi. EXTRACT/model sampai publication PDF ini
+masih berikutnya. [Bukti dan kompatibilitas](verification-report-real-pdf.md).
+README utama kini memuat PlantUML, kronologi komponen, alasan teknologi, struktur
+folder lengkap, operasi demo/GraphRAG serta rebuild tanpa menghapus sejarah.
+
 Checkpoint impor sumber: `submit` kini menerima complete acquisition record,
 memverifikasi/copy seluruh PDF ke storage bersama, meregistrasi refs corpus-scoped
 dan menyimpan observations pada job PARSE. PDF download nyata sudah diuji sampai

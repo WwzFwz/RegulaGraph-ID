@@ -1,9 +1,12 @@
 # src/ingestion
 
-Worker INDEX kini menghasilkan IndexBatch dari immutable plan, text artifact,
-dictionary/statistik terpin dan native embedding. Go memvalidasi proyeksi output
-terhadap sumber. Ini menutup paket worker, sementara dispatch durable coordinator,
-katalog/writer dan publication masih terbuka. Lihat [kontrak INDEX](../../doc/index-build.md).
+Worker INDEX menghasilkan IndexBatch dari immutable plan, text artifact,
+dictionary/statistik terpin dan native embedding. Go memiliki dispatch durable,
+admission, katalog/writer dan publication; operator memakai
+[handoff INDEX](../../doc/index-source-publication.md). PDF acquisition aktual kini
+teruji hingga PARSE/STRUCTURE/BIND/CHUNK dengan metadata policy v2 dan parser
+structure-v2. [Bukti](../../doc/verification-report-real-pdf.md); kualitas model,
+corpus graph menyeluruh dan required benchmark belum dinyatakan selesai.
 
 Crate Rust untuk pemrosesan dokumen serta transformasi knowledge graph dan indeks secara batch. Dokumen ini mendefinisikan superset tanggung jawab folder dan kontrak integrasi anaknya.
 

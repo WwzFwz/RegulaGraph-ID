@@ -18,6 +18,14 @@ Bila implementasi menggantikan scaffold, perbarui docstring status dan README ag
 
 Perubahan status README induk yang rutin boleh dikumpulkan dan dilakukan sekali saat milestone komponen yang koheren selesai agar tidak mengulang konteks dan menghabiskan token. Dokumentasi kontrak, benchmark, migrasi, atau perhatian integrasi yang diperlukan untuk memakai perubahan dengan benar tetap diperbarui bersama implementasinya. Pada akhir milestone, seluruh deskripsi induk/anak terdampak harus kembali konsisten.
 
+Setelah subtask koheren selesai, periksa README utama dan perbarui bila status,
+arsitektur, teknologi, struktur, atau cara menjalankan berubah. README utama
+memuat deskripsi proyek, diagram PlantUML, tabel komponen dengan alur kronologis,
+alasan/trade-off teknologi, tree folder lengkap dengan deskripsi di kanan setiap
+child yang ditampilkan, serta panduan build/start/stop dan rebuild corpus.
+Bedakan demo, runtime yang tersedia, rancangan, dan acceptance yang belum diuji;
+jangan menulis ulang dokumentasi yang masih konsisten pada setiap perubahan kecil.
+
 ## Integrasi dan arsitektur
 
 Pengguna meminta desain seluruh sistem sejak awal, bukan pembatasan ke kontrak minimum. Sebelum implementasi, ikuti doc/system-design.md, doc/system-contracts.md, doc/storage-consistency.md, doc/corpus-plan.md, dan doc/development-plan.md. Keputusan 0005 membedakan baseline desain menyeluruh dari implementasi scaffold. Seluruh kontrak direalisasikan pada paket C01; urutan coding mengikuti dependency, bukan urutan folder. Sumber corpus yang dipilih adalah Database Peraturan BPK, JDIH Kemkomdigi, dan JDIHN Nasional.
