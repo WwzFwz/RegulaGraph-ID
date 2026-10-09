@@ -1,7 +1,8 @@
 // Exercises PostgreSQL graph admission and Neo4j typed reads after actual combined
 // publication. Scope, historical index-only snapshot and expired/released pin are
-// rejected. Source support bytes remain exact; no traversal or legal inference is
-// claimed by these record-read tests. The caller owns cleanup of fixture databases.
+// rejected. Production discovery traversal retains exact source support bytes;
+// this does not prove legal applicability or graph-to-answer integration. The
+// caller owns cleanup of fixture databases.
 package indexing
 
 import (
@@ -14,6 +15,7 @@ import (
 	"regulagraph.local/server/internal/adapters/neo4j"
 	"regulagraph.local/server/internal/adapters/postgres"
 	"regulagraph.local/server/internal/domain"
+	graphretrieval "regulagraph.local/server/internal/retrieval/graph"
 )
 
 func checkPublishedGraphRead(t *testing.T, ctx context.Context, repo *postgres.Repository, backend *neo4j.Store, basePin domain.SnapshotPin, scope string, delta *pb.GraphDelta) {
@@ -47,6 +49,20 @@ func checkPublishedGraphRead(t *testing.T, ctx context.Context, repo *postgres.R
 			t.Fatal("source-bound typed read", selection.kind, e)
 		}
 	}
+	paths, err := graphretrieval.Traverse(ctx, reader, view.Snapshot, []string{delta.Assertions[0].SubjectId}, graphretrieval.TraversalConfig{MaximumHops: 3, MaximumPaths: 100, Read: domain.GraphReadLimits{Assertions: 128, Supports: 256, Bytes: 1 << 20}})
+	if err != nil || len(paths.Paths) == 0 || !proto.Equal(paths.Snapshot, view.Snapshot) {
+		t.Fatal("published native graph traversal", paths, err)
+	}
+	for _, path := range paths.Paths {
+		if err = domain.ValidateWire(path, domain.DefaultWireLimits); err != nil {
+			t.Fatal(err)
+		}
+		for i, assertionID := range path.OrderedAssertionIds {
+			if paths.Supports[path.SelectedSupportIds[i]].AssertionId != assertionID {
+				t.Fatal("native traversal lost source support")
+			}
+		}
+	}
 	if _, err = repo.LoadPinnedGraph(ctx, pin, scope); err != nil {
 		t.Fatal("final graph lease recheck", err)
 	}
@@ -57,4 +73,5 @@ func checkPublishedGraphRead(t *testing.T, ctx context.Context, repo *postgres.R
 		t.Fatal("released graph lease still authorized")
 	}
 	t.Log("published graph typed reads preserve canonical, assertion and source support bytes under scope/pin")
+	t.Logf("production graph traversal on actual Rust output returned %d source-supported discovery paths", len(paths.Paths))
 }
