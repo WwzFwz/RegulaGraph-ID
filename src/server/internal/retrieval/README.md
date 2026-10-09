@@ -14,6 +14,11 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+Hydration memeriksa plan/dokumen terhadap `PinnedIndex.EvidenceSnapshot()` asal
+dan tetap mengeluarkan evidence pada snapshot query. Ini memungkinkan reuse indeks
+yang di-admit PostgreSQL tanpa mengubah bytes/source provenance; lihat
+[kontrak](../../../../doc/index-reuse.md).
+
 Bundle yang dihasilkan `hydration.go` memiliki ID terikat lease, corpus/snapshot
 dan pertanyaan agar hasil concurrent dapat dilacak berbeda. Item evidence tetap
 memakai identitas record index/sumber yang stabil. Hash identitas ini tidak

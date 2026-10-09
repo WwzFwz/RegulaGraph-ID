@@ -16,8 +16,10 @@ tidak menjadi izin publication. [Preparation output committed](graph-publication
 kini mengumpulkan seluruh checkpoint/output dengan authority dan source validation
 ulang tanpa model/RPC. [Catalog/write-intent](graph-generation-catalog.md) dan writer
 ber-retry kini tersedia. [Receipt/applied intent dan final authority guard](graph-readiness.md)
-sudah tersambung. Lanjutkan publication dengan indeks snapshot dasar, operator preparation/scheduling dan
-graph retrieval. Reaffirmation lintas registry revision,
+sudah tersambung. [Reuse indeks](index-reuse.md) kini menyelesaikan publication
+graph+index dan hydration snapshot baru dengan source lama; native fixture lulus
+sampai draft. Lanjutkan operator preparation/scheduling/publication dan graph retrieval.
+Reaffirmation lintas registry revision,
 canonical mutations dan acceptance kualitas/performa K01 tetap terbuka.
 
 [Registry history](registry-history.md) kini memiliki binding publication immutable

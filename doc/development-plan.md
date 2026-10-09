@@ -12,9 +12,12 @@ writer menguji lost acknowledgement, retry dan exact proof pada backend nyata.
 [Bukti](verification-report-graph-catalog.md) belum mencakup activation.
 [Receipt graph dan final authority guard](graph-readiness.md) kini tersedia:
 acknowledgement recovery serta cancellation/registry/checkpoint drift diperiksa.
-Berikutnya publication dengan indeks
-snapshot dasar yang sah, operator preparation/scheduling, traversal dan jawaban.
-Graph SEALED belum menjadi snapshot query aktif. K01/Hybrid GraphRAG belum selesai.
+[Pemakaian ulang indeks](index-reuse.md) kini menghasilkan receipt Qdrant dari
+readback lengkap dan mengaktifkan snapshot graph+index. Reader/hydration menjaga
+snapshot source asal; native integration menghasilkan draft bersitasi melalui
+dense/BM25. [Bukti](verification-report-index-reuse.md) masih memakai model fixture.
+Berikutnya operator preparation/scheduling/publication, graph traversal dan
+graph-to-answer; K01/Hybrid GraphRAG serta acceptance belum selesai.
 
 Checkpoint sebelumnya: integrasi nonempty sudah menjalankan allocator/alias/candidate,
 dua LINK RESOLVE dengan intent/checkpoint PostgreSQL, preparation/inventory, RPC Rust

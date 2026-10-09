@@ -48,8 +48,9 @@ verification/seal tersedia. Output Rust aktual telah diuji hingga PostgreSQL STA
 dan Neo4j; lihat [bukti](../../../../../doc/verification-report-neo4j.md). Integrasi
 catalog/write-intent PostgreSQL kini tersedia melalui [writer](../../indexing/graph_writer.go).
 Receipt publication PostgreSQL dan final guard tersedia melalui
-[acknowledgement](../../indexing/graph_readiness.go); publication gabungan,
-traversal query, closure incremental dan
+[acknowledgement](../../indexing/graph_readiness.go). Publication gabungan dengan
+reuse indeks dan hydration diuji pada [milestone berikutnya](../../../../../doc/index-reuse.md).
+Traversal query, closure incremental dan
 readiness cluster belum tersedia. Tes fixture tidak membuktikan kualitas model,
 coverage corpus atau target latency/throughput.
 

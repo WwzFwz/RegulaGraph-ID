@@ -14,6 +14,10 @@ Anak tidak boleh mengubah kontrak input/output secara tersembunyi. Perubahan ben
 
 ## Isi saat ini
 
+Migration 0023 menyimpan mapping immutable snapshot graph ke generation/source
+indeks asal. Mapping dan receipt target ditulis atomik; tidak ada backfill atau
+perubahan pemilik generation. Lihat [kontrak reuse](../doc/index-reuse.md).
+
 Migration 0022 menambah authority stamp graph saat receipt. Receipt/catalog tetap
 immutable, stamp dapat di-refresh melalui admission baru; tidak ada backfill
 receipt lama. Terapkan sebelum writer acknowledgement; lihat [kontrak](../doc/graph-readiness.md).

@@ -1,5 +1,10 @@
 # src/server/internal/adapters/postgres
 
+`index_reuse.go` menyimpan mapping/receipt atomik dan memeriksa origin serta jobs
+saat final CAS. `index_read_page.go` menyediakan keyset 64 record/512 KiB dengan
+deadline pin; reader target memisahkan source snapshot dari visibility snapshot.
+Migration 0023 wajib tersedia; lihat [reuse indeks](../../../../../doc/index-reuse.md).
+
 `graph_readiness.go` menyimpan receipt, applied intent dan authority atomik;
 `graph_publication.go` memeriksa stamp registry/source/child di transaksi CAS.
 Migration 0022 diperlukan; catalog bukan pengganti guard ini. Lihat

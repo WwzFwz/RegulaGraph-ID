@@ -1,8 +1,13 @@
 # src/server/internal/indexing
 
+`index_reuse.go` memverifikasi semua halaman catalog terhadap Qdrant dan mencatat
+receipt reuse tanpa embedding/upsert. Native graph test kini benar-benar mengaktifkan
+snapshot gabungan lalu menjalankan dense/BM25 RAG sampai cited fixture draft.
+Traversal graph dan kualitas model belum dibuktikan; [kontrak](../../../../doc/index-reuse.md).
+
 `graph_readiness.go` menambahkan acknowledgement durable setelah exact readback.
 Tes receipt dan activation memeriksa rollback, recovery, output swap dan stale
-authority. Graph activation masih memerlukan carry-forward indeks yang sah;
+authority. Graph activation memakai reuse indeks yang telah diverifikasi;
 lihat [kontrak](../../../../doc/graph-readiness.md).
 
 `graph_writer.go` menghubungkan pure preflight, catalog/intent atomik, Neo4j write/seal

@@ -10,4 +10,8 @@ Dalam satu transaksi, operation berubah dari planned ke applied, receipt backend
 
 Fingerprint membaca maksimal 512 source/child jobs dari 256 assignment, 16 MiB per checkpoint dan 64 MiB gabungan. Tidak ada network/model call di transaksi SQL. Base masih active dan membership immutable telah diperiksa saat receipt; final CAS tidak memerlukan pin receipt lama tetap hidup. Writer/receipt tetap memakai reader pin hidup. Ukur lock contention, receipt/commit p95/p99, recovery dan RSS menurut [target required](../configs/benchmark-targets.yaml); nilai belum diukur pada workload acceptance.
 
-Carry-forward Qdrant, admission pembaca snapshot gabungan, operator graph scheduling/publication, traversal dan graph-to-answer masih harus disambungkan. Tes final CAS memakai receipt Qdrant sintetis dan trigger rollback hanya untuk mengisolasi guard graph; tidak mengklaim publikasi gabungan berhasil. Detail bukti berada di [laporan](verification-report-graph-readiness.md).
+[Reuse Qdrant dan admission pembaca snapshot gabungan](index-reuse.md) kini tersedia.
+Operator graph scheduling/publication, traversal dan graph-to-answer masih harus
+disambungkan. [Laporan receipt awal](verification-report-graph-readiness.md) memakai
+receipt Qdrant sintetis untuk mengisolasi guard; [run berikutnya](verification-report-index-reuse.md)
+menggantinya dengan readback nyata dan berhasil mempublikasikan snapshot gabungan.

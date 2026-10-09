@@ -14,6 +14,11 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+`VerifyInheritedServing` memeriksa existing collection tanpa bootstrap, exact
+count dan dense/BM25 probe pada sequence baru. Caller wajib full point readback
+terlebih dahulu; API ini bukan pengganti provenance/publication PostgreSQL.
+Lihat [reuse indeks](../../../../../doc/index-reuse.md).
+
 Berkas: [client.go](client.go), [collections.go](collections.go),
 [points.go](points.go), [search.go](search.go), [readback.go](readback.go),
 [readiness.go](readiness.go), [store_test.go](store_test.go),

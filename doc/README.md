@@ -1,5 +1,9 @@
 # doc
 
+[index-reuse.md](index-reuse.md) menjelaskan reuse generation dense/BM25 untuk
+snapshot graph; [laporan](verification-report-index-reuse.md) mencatat publication
+backend nyata sampai query/draft dengan source snapshot asli tetap terikat.
+
 [graph-readiness.md](graph-readiness.md) menjelaskan receipt/applied intent atomik
 dan final authority sebelum CAS; [laporan](verification-report-graph-readiness.md)
 membedakan native backend proof dari fixture isolasi activation guard.

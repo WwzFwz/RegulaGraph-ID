@@ -1,5 +1,9 @@
 # src/server/internal/domain
 
+`index_reuse.go` memvalidasi target/parent/source snapshot serta unchanged index
+binding. `PinnedIndex.EvidenceSnapshot()` menunjuk source envelope asal, sedangkan
+Snapshot tetap visibility query. Authority mapping berada di PostgreSQL.
+
 `graph_catalog.go` memiliki binding hash v1, validasi route/count/output budget dan
 expected backend generation. Neo4j memakai tipe yang sama; DTO ini tidak memberi
 authority storage atau izin activation. Lihat [kontrak](../../../../doc/graph-generation-catalog.md).
