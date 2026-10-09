@@ -8,6 +8,27 @@ Tidak menjalankan ingestion, memperbarui embedding, atau mengganti migrasi denga
 
 ## Peran dan integrasi anak
 
+Jalankan dari root setelah menyiapkan database dan environment lokal:
+
+```powershell
+$env:REGULAGRAPH_POSTGRES_DSN = '<DSN database aplikasi lokal>'
+go run ./src/server/cmd/cli migrate -dir migrations -timeout 5m
+```
+
+Runner menyortir `*.up.sql`, menyerialkan operasi dengan advisory lock, menolak
+checksum file yang sudah applied bila berubah, dan menjalankan satu transaksi
+per file. Migrasi sebelumnya tetap committed bila file berikut gagal. Ulangi
+input identik untuk resume; jangan mengubah migration lama atau menghapus ledger.
+Timeout 1 detik sampai 30 menit membatasi connection/lock/SQL; cleanup lock memakai
+budget terpisah 5 detik, dan koneksi ditutup bila unlock gagal. Ini bukan transaksi
+untuk seluruh direktori, provisioning database, deployment atau reset corpus.
+
+Exit 0 mencetak JSON `status: applied` dan `migration_files` (jumlah file input,
+termasuk replay). Exit 2 berarti argumen, DSN kosong, direktori tidak terbaca atau
+inventory kosong; exit 1 kegagalan database/migration/output. Error tidak mencetak
+DSN, password atau SQL mentah. Direktori SQL adalah input operator tepercaya.
+Lihat [verifikasi bootstrap](../doc/verification-report-runtime-bootstrap.md).
+
 Anak menyatakan urutan, kompatibilitas aplikasi, dampak data, dan strategi pemulihan. Migrasi lintas backend tidak diasumsikan atomik dan harus menyebut target backend dengan jelas.
 
 Anak tidak boleh mengubah kontrak input/output secara tersembunyi. Perubahan bentuk data, identitas, versi, atau penanganan error didokumentasikan bersama konsumennya. File implementasi menjelaskan perhatian spesifiknya pada docstring atau komentar pembuka; aturan induk tetap berlaku.

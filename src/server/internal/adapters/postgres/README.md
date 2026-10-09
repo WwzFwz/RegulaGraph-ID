@@ -1,5 +1,10 @@
 # src/server/internal/adapters/postgres
 
+Runner `migrate.go` dipanggil eksplisit oleh CLI `migrate`; checksum replay dan
+transaksi per file tetap sama. Cleanup advisory lock dibatasi lima detik memakai
+context baru; kegagalan unlock menutup koneksi agar session lock tidak kembali
+ke pool. Deadline operasi utama tetap berasal dari caller.
+
 `graph_resolution_reaffirmation.go` berbagi historical ledger/candidate gate antara
 source receipt dan job admission. Policy reaffirmation pada writer source memeriksa
 BIND identities serta membandingkan registry stamp di bawah lock; replay mempertahankan

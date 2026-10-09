@@ -16,6 +16,7 @@ import (
 	"io/fs"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -31,7 +32,14 @@ func (r *Repository) ApplyMigrations(ctx context.Context, migrations fs.FS) erro
 	if _, err = conn.Exec(ctx, "SELECT pg_advisory_lock($1)", migrationAdvisoryLock); err != nil {
 		return fmt.Errorf("lock migrations: %w", err)
 	}
-	defer conn.Exec(context.Background(), "SELECT pg_advisory_unlock($1)", migrationAdvisoryLock)
+	defer func() {
+		cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if _, unlockErr := conn.Exec(cleanup, "SELECT pg_advisory_unlock($1)", migrationAdvisoryLock); unlockErr != nil {
+			// Never return a possibly session-locked connection to the pool.
+			_ = conn.Conn().Close(cleanup)
+		}
+	}()
 	if _, err = conn.Exec(ctx, `CREATE TABLE IF NOT EXISTS app_schema_migrations (
         version text PRIMARY KEY,
         checksum_sha256 text NOT NULL,

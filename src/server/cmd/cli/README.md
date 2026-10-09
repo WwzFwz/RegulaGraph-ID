@@ -1,5 +1,11 @@
 # src/server/cmd/cli
 
+`migrate -dir migrations -timeout 5m` menerapkan migration PostgreSQL secara
+eksplisit memakai DSN environment dan runner checksum/advisory-lock yang sama.
+Command tidak menyediakan reset/down atau menjalankan migrasi saat startup.
+Output `migration_files` menghitung inventory termasuk file yang sudah diterapkan,
+bukan jumlah perubahan baru. [Panduan](../../../../migrations/README.md).
+
 `submit -acquisition-record ... -acquisition-root ...` kini mengimpor PDF collector
 secara terverifikasi sebelum enqueue, dengan root `REGULAGRAPH_ARTIFACTS_DIR`
 bersama worker. `submit_acquisition.go` memuat record berbatas; workflow memiliki
