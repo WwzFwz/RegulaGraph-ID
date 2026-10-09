@@ -4,7 +4,7 @@ RegulaGraph-ID adalah proyek **Hybrid GraphRAG untuk regulasi Indonesia**. Siste
 
 Masalah yang ditangani adalah regulasi yang tersebar, saling merujuk, mempunyai perubahan versi, dan memakai istilah berbeda untuk hal yang sama. Nilai produknya adalah mempercepat penelusuran sambil membuat sumber jawaban dapat diperiksa sampai teks/pasalnya. Keberadaan kutipan sendiri belum membuktikan kebenaran hukum.
 
-**Status:** collector/import, pipeline dokumen, native embedding/reranking, registry/resolution, graph assembly/publication, empat profil retrieval, serta draft jawaban lokal CLI/API mempunyai implementasi. Integrasi backend/native sudah diuji pada fixture; PDF hasil akuisisi nyata sudah melewati PARSE → STRUCTURE → BIND → CHUNK. Acceptance corpus nyata, gold quality, seluruh target performa, dan beberapa fitur lanjutan **belum selesai**. Lihat [rencana terkini](doc/development-plan.md) dan [verifikasi PDF nyata](doc/verification-report-real-pdf.md).
+**Status:** collector/import, pipeline dokumen, native embedding/reranking, registry/resolution, graph assembly/publication, empat profil retrieval, serta draft jawaban lokal CLI/API mempunyai implementasi. Integrasi backend/native sudah diuji pada fixture; PDF hasil akuisisi nyata sudah melewati PARSE → STRUCTURE → BIND → CHUNK. CLI bootstrap migration tersedia; EXTRACT kini menyertakan vocabulary ontology terpin dan menolak perbedaan pin pada job/output. Uji model lokal seluruh PDF belum lulus (timeout dan keluaran model invalid), sehingga tidak dihitung sebagai keberhasilan extraction. Acceptance corpus nyata, gold quality, seluruh target performa, dan beberapa fitur lanjutan **belum selesai**. Lihat [rencana terkini](doc/development-plan.md) dan [verifikasi PDF nyata](doc/verification-report-real-pdf.md).
 
 **Untuk mencoba sekarang:** [demo lokal](#menjalankan-demo-lokal) tersedia tanpa database. [Pipeline GraphRAG lengkap](#menjalankan-pipeline-graphrag-lokal) membutuhkan backend, model terpin, dan corpus yang sudah dipublikasikan.
 
@@ -147,7 +147,7 @@ RegulaGraph-ID/                              # Monorepo runtime, kontrak, toolin
 |   |   |-- go.mod / go.sum                  # Dependency/checksum module Go
 |   |   |-- cmd/                            # Composition root executable
 |   |   |   |-- api/                        # main.go: bootstrap HTTP evidence/draft answer
-|   |   |   |-- cli/                        # Collect, submit, prepare/publish, query, demo
+|   |   |   |-- cli/                        # Migrate, collect, submit, prepare/publish, query, demo
 |   |   |   |-- ingestion-worker/           # Daemon coordinator lease/retry/checkpoint
 |   |   |   `-- semantic-gateway/           # Gateway model EXTRACT/RESOLVE terstruktur
 |   |   |-- internal/                       # Komponen privat server
@@ -325,7 +325,7 @@ cargo build -p regulagraph-ingestion --bins --locked
 
 C++ membutuhkan C++17, CMake 3.20+, protobuf/protoc 34.1, gRPC 1.76 dan ONNX Runtime 1.22.0 dengan ABI sesuai. Script native memakai Cargo offline setelah cache diisi. Build CMake default tanpa model runtime bukan layanan embedding lengkap. Export/bundle BGE, manifest, tokenizer dan argumen runtime: [native inference](doc/native-inference.md). Bobot tidak ikut Git.
 
-Siapkan PostgreSQL, Qdrant dan Neo4j lokal. Terapkan [migrasi](migrations/README.md) berurutan sebelum runtime; library `Repository.ApplyMigrations` tersedia, tetapi belum ada command publik `migrate`. Database test harus terpisah. Konfigurasi ada di [.env.example](.env.example); **.env tidak otomatis dibaca**. Set `$env:...` pada terminal masing-masing proses; jangan commit credential.
+Siapkan PostgreSQL, Qdrant dan Neo4j lokal. Terapkan [migrasi](migrations/README.md) berurutan sebelum runtime; jalankan `go run ./src/server/cmd/cli migrate -dir migrations -timeout 5m` dengan `REGULAGRAPH_POSTGRES_DSN` yang sesuai. Command memakai runner checksum/advisory-lock dan transaksi per file; replay tidak menggandakan perubahan. Tidak ada reset/down otomatis. Database test harus terpisah. Konfigurasi ada di [.env.example](.env.example); **.env tidak otomatis dibaca**. Set `$env:...` pada terminal masing-masing proses; jangan commit credential.
 
 ### 2. Startup ingestion dan model
 
