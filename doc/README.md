@@ -1,5 +1,10 @@
 # doc
 
+[Indeks PDF nyata dan pemulihan](verification-report-real-index.md) mencatat
+abort inventory gagal melalui CLI, publication 35 chunk dengan BGE-M3/BM25,
+serta perbaikan hidrasi dan hybrid query dengan PARTIAL eksplisit. Ini belum
+graph/jawaban LLM nyata atau acceptance kualitas/performa.
+
 [Penundaan claim EXTRACT](verification-report-extraction-suspension.md) mencatat
 flag coordinator untuk menyiapkan dokumen/indeks tanpa mengubah pending job atau
 mengklaim graph selesai. Default extraction tetap aktif.

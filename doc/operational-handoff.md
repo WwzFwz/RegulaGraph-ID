@@ -58,9 +58,9 @@ Itu kemajuan operasional, tetapi belum berarti seluruh Hybrid GraphRAG siap.
 | EXTRACT | Prompt/schema, ontology, exact-source projection, cap dan admission lokal tersedia | Model pada chunk pembuka masih menghasilkan locator salah atau completion gagal; belum satu full-PDF EXTRACT berhasil |
 | Recovery EXTRACT | Completion tersimpan di PostgreSQL dan divalidasi ulang setelah restart; tes database nyata lulus | Full-PDF restart dengan model nyata belum dibuktikan; bukan exactly-once sampling |
 | RESOLVE | Kandidat, konteks bukti, proposal LINK/DEFER, review dan registry commit tersedia | Entitas tanpa kandidat membutuhkan jalur pembuatan canonical yang sah; CREATE/MERGE/SPLIT semantik lengkap belum tersedia |
-| Native embedding/reranking | Implementasi C++/ONNX dan integrasi native mempunyai bukti fixture | Model/artifact/runtime harus diikat ke corpus nyata yang akan diterbitkan |
-| Index + graph publication | Inventory, worker, backend write/readback, receipts dan snapshot activation teruji pada fixture | Belum membuktikan seluruh jalur dari PDF contoh tadi sampai publication graph nyata |
-| Retrieval + draft answer | Empat profil, fusion, hidrasi, opsi rerank dan local answer CLI/API tersedia | Uji akhir memakai snapshot dari ingestion PDF nyata, setup yang dapat diulang operator |
+| Native embedding/reranking | BGE-M3 C++/ONNX sudah mengindeks 35 chunk PDF nyata; reranking mempunyai bukti fixture | Reranking pada corpus ini dan acceptance model belum dibuktikan |
+| Index + graph publication | Indeks dense/BM25 PP 12/2006 published dan dapat dibaca; graph teruji pada fixture | Graph dari ekstraksi/resolusi PDF nyata belum published |
+| Retrieval + draft answer | Hybrid evidence query pada snapshot PDF nyata berhasil, dengan PARTIAL eksplisit | Jawaban LLM dan profil graph pada corpus ini belum diuji |
 
 ### Checkpoint inventory persisten PP 12/2006
 
@@ -74,9 +74,9 @@ baru**. Jangan membagikan credential DB dalam dokumen atau commit.
 | Schema PostgreSQL lokal | `regulagraph_ops_pp12_v1` |
 | Corpus / scope | `corpus:pp12-operational-v1` / `operator:pp12-operational-v1` |
 | Source job | `job:pp12-operational-v1` |
-| Publication / generation | `publication:pp12-index-v1` / `generation:pp12-index-v1` |
-| Target collection | `regulagraph_pp12_operational_v1` |
-| INDEX child | `index-job-v1:bac29afdd17c1ff857f290ee79a92daf667c0071e75c65cb283a1e006f3177ac` |
+| Publication / generation aktif | `publication:pp12-index-v2` / `generation:pp12-index-v2` |
+| Collection aktif | `regulagraph_pp12_operational_v2` |
+| INDEX child berhasil | `index-job-v1:811e0c734caee2f7a74795a294ffb462ea12f1df80695f39ef453673c75a7460` |
 
 Yang telah berhasil: CLI submit, PARSE → STRUCTURE → BIND → CHUNK menghasilkan
 35 chunk; preparation snapshot, vocabulary, dictionary, statistics dan scheduling
@@ -85,7 +85,7 @@ run ini. Profil/request sumber belum memuat model semantic; jangan sekadar
 menyalakan EXTRACT untuk menganggap request tersebut sudah siap menjalankan model.
 Siapkan request/producer semantic terpin melalui admission yang berlaku.
 
-**INDEX belum berhasil dan belum published.** Pemeriksaan PostgreSQL menunjukkan
+**Riwayat kegagalan v1, sudah dipulihkan melalui publication v2:** PostgreSQL menunjukkan
 child `JOB_STATE_FAILED` (9), stage INDEX (7), attempt 8. Worker gagal startup
 karena konfigurasi native memakai `host:port`, padahal Rust membutuhkan URL HTTP.
 Coordinator terlanjur berjalan tanpa worker dan menghabiskan delapan attempt
@@ -99,16 +99,24 @@ $env:REGULAGRAPH_WORKER_NATIVE_ENDPOINT = 'http://127.0.0.1:55072'
 $env:REGULAGRAPH_QUERY_NATIVE_ENDPOINT = '127.0.0.1:55072'
 ```
 
-Koreksi tersebut **belum diuji ulang menjalankan INDEX**. Coordinator dan native
-server milik percobaan sudah dihentikan setelah verifikasi PID/path; worker telah
-keluar karena error. Container backend dan Ollama lain tidak dihentikan. File
-process/PID lama hanya riwayat dan tidak boleh dianggap status hidup saat resume.
+Koreksi sudah diuji: native dan worker berhasil startup, lalu INDEX v2 berhasil
+pada attempt pertama. `abort-index` menutup publication v1 tanpa mengubah job gagal.
+Snapshot/statistics dibuat ulang untuk v2 melalui CLI dan Rust population;
+`publish-index` berhasil setelah pemeriksaan backend. Hybrid query berhasil setelah
+perbaikan hidrasi nested text. Hasil contoh 29 evidence items berstatus PARTIAL,
+dengan 38 dependency konteks/temporal yang belum lengkap; bukan acceptance kualitas.
+
+Coordinator dan worker v2 sudah dihentikan setelah selesai. Native inference
+dipertahankan di `127.0.0.1:55072` untuk query (catatan proses
+`native-resume-process.json`). Periksa proses/listener aktual saat resume. Container
+backend dan Ollama lain tidak dihentikan. File process/PID lama hanya riwayat dan
+tidak boleh dianggap status hidup. Read lease tersisa nol pada pemeriksaan akhir.
 
 Bukti lokal: `logs/worker-index.stderr.log`, `logs/coordinator-index.stdout.log`,
 `handoff-job-state.txt`, konfigurasi `environment.ps1`, serta artefak `preparation/`
 di root run. Simpan kegagalan ini saat membuat laporan keberhasilan berikutnya.
 
-Langkah pertama saat melanjutkan:
+Langkah pemulihan yang sudah dilakukan, untuk acuan kegagalan serupa:
 
 1. Periksa kembali DB/job dan artefak sebelum menyalakan coordinator. Jangan
    menghapus row gagal atau mereset counter secara manual.
@@ -116,14 +124,29 @@ Langkah pertama saat melanjutkan:
    tetap hidup, listener siap, dan pin manifest sesuai sebelum coordinator mulai
    mengambil job. Pada PowerShell gunakan `$ErrorActionPreference = 'Stop'` dan
    periksa `$LASTEXITCODE` setelah perintah native.
-3. Periksa jalur pemulihan terminal FAILED yang tersedia. Retry biasa/restart
-   tidak membuktikan child terminal akan diantrekan lagi. Jika perlu publication
-   baru, gunakan planner/admission dengan identitas dan preparation baru serta
-   bekukan ulang dependency snapshot/statistics; jangan menyalin receipt lama.
-   Pemulihan ini masih pekerjaan terbuka, belum prosedur yang diuji pada run ini.
+3. Jalankan `abort-index` untuk inventory admitted yang gagal sebelum published.
+   Retry/restart tidak mengantrekan ulang child terminal. Buat publication baru
+   melalui planner/admission dengan identitas/preparation baru serta bekukan ulang
+   dependency snapshot/statistics; jangan menyalin receipt lama. Jangan melakukan
+   abort pada v2 yang kini sudah published.
 4. Sesudah seluruh child INDEX benar-benar STAGED, jalankan `publish-index`,
    kemudian `query-evidence -profile hybrid`. Simpan readback, snapshot dan teks
    bukti sebelum menyatakan pencarian operasional berhasil.
+
+**Resume sekarang:** gunakan snapshot v2 yang sudah published, tidak perlu
+membangun ulang corpus untuk mencoba query. Dari root repo, set DSN schema
+operasional secara lokal lalu dot-source `artifacts/operational/pp12-v1/environment.ps1`.
+Pastikan PostgreSQL/Qdrant dan native siap; jalankan:
+
+```powershell
+./artifacts/operational/pp12-v1/bin/cli.exe query-evidence -question 'Kapan PP Nomor 12 Tahun 2006 mulai berlaku?' -as-of 2026-01-01 -profile hybrid -unresolved report -limit 20 -timeout 5m
+```
+
+Raw evidence berada pada `logs/query-hybrid-v2.json`, `logs/query-effective-v2.json`
+dan `logs/publish-index-v2.json`; metadata v2 pada `preparation-v2/`. PowerShell
+redirect pada run ini menghasilkan UTF-16, bukan ProtoJSON UTF-8 wire files.
+Lihat [laporan pemulihan dan query nyata](verification-report-real-index.md).
+Pekerjaan berikutnya: generator lokal untuk `-answer`, serta A/B untuk graph nyata.
 
 ## Urutan dependency yang benar
 
