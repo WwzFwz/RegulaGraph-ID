@@ -80,6 +80,9 @@ func NewSemanticService(provider StructuredProvider, config SemanticConfig) (*Se
 	if (config.Model.Task != pb.ModelTask_MODEL_TASK_EXTRACT && config.Model.Task != pb.ModelTask_MODEL_TASK_RESOLVE) || config.Model.PromptHash == nil {
 		return nil, errors.New("semantic gateway requires an EXTRACT or RESOLVE model with prompt hash")
 	}
+	if local, ok := provider.(*PinnedLlama); ok && (local == nil || !proto.Equal(local.binding.Model, config.Model)) {
+		return nil, errors.New("semantic model differs from admitted local provider")
+	}
 	if config.Model.PromptHash.Sha256 != sha256String([]byte(config.SystemPrompt)) {
 		return nil, errors.New("semantic system prompt differs from pinned prompt hash")
 	}

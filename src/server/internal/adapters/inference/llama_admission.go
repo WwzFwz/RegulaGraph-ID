@@ -5,6 +5,8 @@
 // in a trusted local process; it is not cryptographic attestation of remote RAM.
 // Measure cold hashing separately from warm metadata guards and generation under
 // benchmark-targets.yaml. No model loading or network I/O occurs during import.
+// EXTRACT/RESOLVE additionally count the exact chat envelope before inference and
+// reject context overflow or prompt-usage drift; no source truncation is permitted.
 package inference
 
 import (
@@ -54,8 +56,8 @@ func (b LlamaModelBinding) Validate() error {
 	if err := domain.ValidateWire(b.TemplateHash, domain.DefaultWireLimits); err != nil {
 		return err
 	}
-	if b.Model.Task != pb.ModelTask_MODEL_TASK_GENERATE || b.Model.PromptHash == nil || !proto.Equal(b.Model.WeightsHash, b.Model.TokenizerHash) {
-		return errors.New("GENERATE GGUF manifest must pin the container's embedded tokenizer")
+	if (b.Model.Task != pb.ModelTask_MODEL_TASK_GENERATE && b.Model.Task != pb.ModelTask_MODEL_TASK_EXTRACT && b.Model.Task != pb.ModelTask_MODEL_TASK_RESOLVE) || b.Model.PromptHash == nil || !proto.Equal(b.Model.WeightsHash, b.Model.TokenizerHash) {
+		return errors.New("GENERATE/EXTRACT/RESOLVE GGUF manifest must pin the container's embedded tokenizer")
 	}
 	return nil
 }
@@ -201,12 +203,35 @@ func (p *PinnedLlama) Generate(ctx context.Context, r StructuredRequest) (Struct
 	if err := p.Ready(ctx); err != nil {
 		return StructuredResponse{}, err
 	}
+	semantic := p.binding.Model.Task == pb.ModelTask_MODEL_TASK_EXTRACT || p.binding.Model.Task == pb.ModelTask_MODEL_TASK_RESOLVE
+	var inputTokens uint64
+	if semantic {
+		if sha256String([]byte(r.SystemPrompt)) != p.binding.Model.PromptHash.Sha256 || r.MaxOutputTokens == 0 || r.MaxOutputTokens >= p.binding.Model.MaxTokens {
+			return StructuredResponse{}, errors.New("semantic prompt or output budget differs from admitted model policy")
+		}
+		var err error
+		inputTokens, err = p.counter.CountPrompt(ctx, r)
+		if err != nil {
+			return StructuredResponse{}, err
+		}
+		if inputTokens > uint64(p.binding.Model.MaxTokens-r.MaxOutputTokens) {
+			return StructuredResponse{}, &ProviderError{Code: "context_window", Safe: "complete semantic prompt plus output budget exceeds admitted context window"}
+		}
+		// Counting and inference are separate calls; reject resident-model drift
+		// between them before spending tokens on generation.
+		if err := p.Ready(ctx); err != nil {
+			return StructuredResponse{}, err
+		}
+	}
 	response, err := p.provider.Generate(ctx, r)
 	if err != nil {
 		return StructuredResponse{}, err
 	}
 	if err = p.Ready(ctx); err != nil {
 		return StructuredResponse{}, err
+	}
+	if semantic && response.InputTokens != inputTokens {
+		return StructuredResponse{}, &ProviderError{Code: "prompt_usage_mismatch", Safe: "semantic prompt usage differs from exact preflight token count"}
 	}
 	return response, nil
 }

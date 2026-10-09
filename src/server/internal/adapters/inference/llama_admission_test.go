@@ -23,7 +23,7 @@ func admissionHash(value string) *pb.ContentHash {
 	h := sha256.Sum256([]byte(value))
 	return &pb.ContentHash{Sha256: hex.EncodeToString(h[:])}
 }
-func admissionFixture(t *testing.T, mutate func(map[string]any), generate func()) (*OpenAICompatibleProvider, LlamaModelBinding) {
+func admissionFixture(t *testing.T, mutate func(map[string]any), generate func(), count ...http.HandlerFunc) (*OpenAICompatibleProvider, LlamaModelBinding) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "model.gguf")
 	if err := os.WriteFile(path, []byte("GGUF fixture"), 0600); err != nil {
@@ -46,6 +46,12 @@ func admissionFixture(t *testing.T, mutate func(map[string]any), generate func()
 				generate()
 			}
 			_, _ = w.Write([]byte(`{"model":"pinned","choices":[{"message":{"content":"{}"},"finish_reason":"stop"}],"usage":{"prompt_tokens":99,"completion_tokens":2}}`))
+		case "/v1/chat/completions/input_tokens":
+			if len(count) > 0 {
+				count[0](w, r)
+			} else {
+				_, _ = w.Write([]byte(`{"object":"response.input_tokens","input_tokens":99}`))
+			}
 		default:
 			w.WriteHeader(404)
 		}
