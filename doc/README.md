@@ -1,5 +1,10 @@
 # doc
 
+[Tokenisasi generator lokal](generator-tokenization.md) menjelaskan shared prompt
+encoding, batas input dan invariant count/usage untuk generation nyata;
+[laporan verifikasi](verification-report-generator-tokenizer.md) mencatat fixture
+model nyata dan batas pembuktiannya.
+
 [API evidence](evidence-api.md) menjelaskan empat profil retrieval dan lifecycle
 resource graph yang mengikuti snapshot. [Verifikasi API graph](verification-report-graph-api.md)
 memisahkan bukti integrasi native dari acceptance kualitas/performa yang belum diukur.

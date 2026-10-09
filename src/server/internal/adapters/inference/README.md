@@ -14,6 +14,12 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+`llm_request.go` menjadi satu encoder body untuk generation dan full-prompt
+counting. `llama_tokens.go` menyediakan counter konteks dan prompt llama.cpp
+melalui client generation yang sama, dengan budget byte/jumlah, cancellation dan
+penolakan output ambigu. Tidak ada fallback estimasi; caller tetap wajib
+melakukan admission model/template. [Kontrak tokenisasi](../../../../../doc/generator-tokenization.md).
+
 `SemanticService.ProducerManifest()` mengembalikan salinan manifest konfigurasi tanpa provider call. Gateway memakainya untuk ekspor pin operator; perubahan pada hasil ekspor tidak mengubah konfigurasi layanan yang sedang berjalan. Tes memeriksa isolasi salinan tersebut.
 
 Berkas: [cross_encoder.go](cross_encoder.go), [embeddings.go](embeddings.go), [llm.go](llm.go), [semantic.go](semantic.go). Test boundary berada pada file `_test.go` pendamping.

@@ -1,5 +1,11 @@
 # Rencana implementasi berbasis dependency
 
+Checkpoint generator lokal: counter llama.cpp memakai body chat yang sama dengan
+generation. Uji Qwen GGUF nyata melewati packing konteks, full-prompt count/usage
+parity dan cited draft UNREVIEWED/PARTIAL dari evidence sintetis. [Kontrak](generator-tokenization.md).
+Admission model/server/template serta command/API jawaban operasional masih perlu
+disambungkan; gold dan required performance belum diukur.
+
 Checkpoint API graph: HTTP evidence menerima empat profil retrieval; graph-only
 teruji terhadap Rust/PostgreSQL/Neo4j/Qdrant nyata tanpa proses embedding, dengan
 data sintetis. Cache graph mengikuti snapshot dan menutup resource lama setelah

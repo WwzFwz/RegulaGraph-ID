@@ -18,8 +18,9 @@ Subfolder: [inference/](inference/README.md), [neo4j/](neo4j/README.md), [postgr
 
 PostgreSQL, file storage, Worker gRPC, Qdrant dan inference memiliki implementasi
 runtime bertahap. Neo4j kini menyediakan penulisan generation additive dan exact
-verification/seal melalui driver Bolt reusable. Publication graph PostgreSQL dan
-traversal serving belum tersambung; [kontrak](../../../../doc/neo4j-graph-store.md)
+verification/seal melalui driver Bolt reusable. Publication graph PostgreSQL,
+traversal dan source hydration kini terhubung sampai API evidence;
+[kontrak](../../../../doc/neo4j-graph-store.md)
 menjelaskan boundary ini.
 
 ## Benchmark dan perhatian performa
