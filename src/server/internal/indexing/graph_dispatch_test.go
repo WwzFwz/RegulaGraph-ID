@@ -81,13 +81,15 @@ func checkGraphDispatchAuthority(t *testing.T, ctx context.Context, repo *postgr
 	if _, err = db.Exec(ctx, `UPDATE corpus_state SET publisher_fence=publisher_fence-1 WHERE corpus_id=$1`, job.CorpusID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = db.Exec(ctx, `UPDATE snapshot_read_leases SET expires_at=clock_timestamp()-interval '1 second' WHERE lease_id=$1`, pin.LeaseID); err != nil {
+	// Move creation back as well: a fast fixture may have created this lease less
+	// than one second ago, and the database requires expiry to follow creation.
+	if _, err = db.Exec(ctx, `UPDATE snapshot_read_leases SET created_at=created_at-interval '2 seconds',expires_at=clock_timestamp()-interval '1 second' WHERE lease_id=$1`, pin.LeaseID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = fresh.AuthorizeGraphDispatch(ctx, pin, job); err == nil {
 		t.Fatal("expired stored reader lease authorized dispatch")
 	}
-	if _, err = db.Exec(ctx, `UPDATE snapshot_read_leases SET expires_at=$2 WHERE lease_id=$1`, pin.LeaseID, pin.ExpiresAt); err != nil {
+	if _, err = db.Exec(ctx, `UPDATE snapshot_read_leases SET created_at=created_at+interval '2 seconds',expires_at=$2 WHERE lease_id=$1`, pin.LeaseID, pin.ExpiresAt); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = db.Exec(ctx, `UPDATE jobs SET latest_checkpoint_id=NULL WHERE job_id=$1`, again.SourceJobID); err != nil {
