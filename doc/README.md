@@ -1,5 +1,16 @@
 # doc
 
+[Bootstrap dan konteks model](verification-report-runtime-bootstrap.md) mencatat
+CLI migrasi, pin ontology context EXTRACT dan kegagalan uji model yang belum selesai.
+[Gambaran besar sistem](system-big-picture.svg), dengan [sumber PlantUML](system-big-picture.puml),
+merangkum ingestion dan query serta menandai otomasi yang masih direncanakan.
+[Sumber PlantUML rinci](architecture-overview.puml) menghasilkan
+[SVG arsitektur](architecture-overview.svg) yang ditampilkan README GitHub;
+SVG adalah output renderer, perubahan desain dilakukan pada `.puml` lalu dirender ulang.
+Kedua diagram menggunakan `skinparam linetype ortho` untuk konektor bersiku 90 derajat.
+Perintah render berada pada README root; gambar tersimpan lokal agar GitHub tidak
+memerlukan server PlantUML eksternal untuk menampilkannya.
+
 [Pipeline PDF nyata](verification-report-real-pdf.md) mencatat metadata policy v2,
 parser structure-v2, review independen dan hasil PARSE sampai CHUNK. Panduan utama
 arsitektur PlantUML, struktur folder dan operasi/rebuild berada di [README root](../README.md).

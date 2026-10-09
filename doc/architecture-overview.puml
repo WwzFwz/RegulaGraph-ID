@@ -1,0 +1,79 @@
+' Architecture source for README; render locally to SVG with PlantUML.
+' Shows component ownership and chronological ingestion/query; planned routing is labelled.
+@startuml
+skinparam linetype ortho
+skinparam backgroundColor white
+title RegulaGraph-ID - ingestion dan query bersnapshot
+left to right direction
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam nodesep 65
+skinparam ranksep 80
+actor "Operator" as Operator
+actor "Pengguna" as User
+cloud "BPK / JDIH Kemkomdigi / JDIHN\n(coverage connector berbeda)" as Sources
+database "FileStore\nPDF, teks, batch immutable" as Files
+database "PostgreSQL\njobs, registry, ledger, snapshot" as PG
+database "Qdrant\ndense + sparse BM25" as QD
+database "Neo4j\nentity, relation, source support" as Neo
+component "LLM lokal/provider terpin" as LLM
+package "Go - src/server" {
+  component "Collector + import" as Collect
+  component "Coordinator ingestion\ncheckpoint, BIND, review RESOLVE" as Coord
+  component "Semantic gateway\nEXTRACT / proposal RESOLVE" as Semantic
+  component "Publication\nadmission, readback, receipts, CAS" as Publish
+  component "API / CLI" as API
+  component "Workflow query\nnormalize, link, pin snapshot" as Query
+  component "Retrieval\nBM25 / dense / graph, filter, RRF" as Retrieve
+  component "Answering\nhydrate, context, draft, citations" as Answer
+}
+package "Rust - src/ingestion" {
+  component "Document worker\nPARSE / STRUCTURE / CHUNK" as Document
+  component "Semantic validation\nEXTRACT / RESOLVE batches" as Validate
+  component "Batch builders\nINDEX / ASSEMBLE" as Builders
+}
+component "C++ - src/inference\nONNX embedding + reranking\nreusable models, bounded queues" as Native
+component "Python offline\ntooling + evaluation" as Offline
+Operator --> Collect
+Sources --> Collect
+Collect --> Files
+Collect --> Coord
+Coord <--> PG
+Coord --> Document
+Document <--> Files
+Coord --> Validate
+Validate --> Semantic
+Semantic --> LLM
+Coord --> Builders
+Builders --> Native
+Builders --> Files
+Coord --> Publish
+Publish --> QD
+Publish --> Neo
+Publish --> PG
+User --> API
+API --> Query
+Query --> PG
+Query --> Retrieve
+Retrieve --> Native
+Retrieve --> QD
+Retrieve --> Neo
+Retrieve --> Answer
+Answer --> Files
+Answer --> Native
+Answer --> LLM
+Answer --> API
+API --> User
+Offline ..> Files
+Offline ..> API
+note bottom of Query
+Profile dipilih eksplisit saat ini.
+Classifier adaptif dan retrieve-again otomatis
+adalah rencana, belum jalur aktif.
+end note
+legend bottom
+  Dependency komponen; arah data dan urutan kerja dijelaskan pada tabel README.
+  Go mengatur workflow dan publication; Rust menghasilkan batch; C++ menjalankan inference.
+  Panah tidak berarti satu RPC per langkah. Model dan snapshot dipin lintas komponen.
+endlegend
+@enduml

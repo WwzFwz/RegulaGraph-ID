@@ -8,81 +8,23 @@ Masalah yang ditangani adalah regulasi yang tersebar, saling merujuk, mempunyai 
 
 **Untuk mencoba sekarang:** [demo lokal](#menjalankan-demo-lokal) tersedia tanpa database. [Pipeline GraphRAG lengkap](#menjalankan-pipeline-graphrag-lokal) membutuhkan backend, model terpin, dan corpus yang sudah dipublikasikan.
 
-## Arsitektur dan urutan kerja
+## Gambaran Besar Sistem
+
+Alur utama tetap mengikuti rencana awal: regulasi diproses menjadi chunk, indeks, dan knowledge graph; pertanyaan melewati retrieval, fusion, konteks, lalu generation dengan evidence. Extraction membaca chunk bersumber, sedangkan registry dan publication menjaga identitas, versi, serta snapshot konsisten. Diagram berikut merangkum alurnya.
+
+[![Gambaran Besar Sistem RegulaGraph-ID](doc/system-big-picture.svg)](doc/system-big-picture.svg)
+
+[Sumber PlantUML gambaran besar](doc/system-big-picture.puml). Klik gambar untuk ukuran penuh. Profil retrieval saat ini dipilih eksplisit; klasifikasi query adaptif dan retrieve-again otomatis masih rencana. Reranking bersifat opsional, dan keluaran jawaban tetap dapat berupa PARTIAL atau ABSTAIN.
+
+## Arsitektur Lengkap
 
 Go memiliki workflow, otoritas registry, serta commit/publication; Rust mengerjakan transformasi batch; C++ menjalankan embedding/reranking; Python dipakai offline. Diagram menunjukkan dependency logis, bukan satu RPC untuk setiap panah. Kontrak Protobuf C01 membawa identitas, versi, snapshot, producer, status, dan byte offset UTF-8 lintas runtime.
 
-```plantuml
-@startuml
-title RegulaGraph-ID - ingestion dan query bersnapshot
-left to right direction
-skinparam componentStyle rectangle
-actor "Operator" as Operator
-actor "Pengguna" as User
-cloud "BPK / JDIH Kemkomdigi / JDIHN\n(coverage connector berbeda)" as Sources
-database "FileStore\nPDF, teks, batch immutable" as Files
-database "PostgreSQL\njobs, registry, ledger, snapshot" as PG
-database "Qdrant\ndense + sparse BM25" as QD
-database "Neo4j\nentity, relation, source support" as Neo
-component "LLM lokal/provider terpin" as LLM
-package "Go - src/server" {
-  component "Collector + import" as Collect
-  component "Coordinator ingestion\ncheckpoint, BIND, review RESOLVE" as Coord
-  component "Semantic gateway\nEXTRACT / proposal RESOLVE" as Semantic
-  component "Publication\nadmission, readback, receipts, CAS" as Publish
-  component "API / CLI" as API
-  component "Workflow query\nnormalize, link, pin snapshot" as Query
-  component "Retrieval\nBM25 / dense / graph, filter, RRF" as Retrieve
-  component "Answering\nhydrate, context, draft, citations" as Answer
-}
-package "Rust - src/ingestion" {
-  component "Document worker\nPARSE / STRUCTURE / CHUNK" as Document
-  component "Semantic validation\nEXTRACT / RESOLVE batches" as Validate
-  component "Batch builders\nINDEX / ASSEMBLE" as Builders
-}
-component "C++ - src/inference\nONNX embedding + reranking\nreusable models, bounded queues" as Native
-component "Python offline\ntooling + evaluation" as Offline
-Operator --> Collect : 1. pilih sumber
-Sources --> Collect : PDF + metadata
-Collect --> Files : 2. verifikasi dan impor
-Collect --> Coord : submit job
-Coord <--> PG : 3. jobs, binding, review
-Coord --> Document : batch RPC
-Document <--> Files : teks, struktur, chunk
-Coord --> Validate : 4. input bersumber
-Validate --> Semantic : inferensi batch
-Semantic --> LLM : prompt + schema terpin
-Coord --> Builders : 5. plan + keputusan committed
-Builders --> Native : embedding INDEX
-Builders --> Files : IndexBatch / GraphDelta
-Coord --> Publish : 6. output lengkap
-Publish --> QD : write + verify
-Publish --> Neo : write + verify
-Publish --> PG : aktifkan snapshot setelah receipts
-User --> API : 7. pertanyaan + tanggal
-API --> Query
-Query --> PG : pin snapshot / registry
-Query --> Retrieve : profile + query + scope
-Retrieve --> Native : 8. query embedding
-Retrieve --> QD : lexical / dense
-Retrieve --> Neo : graph traversal
-Retrieve --> Answer : 9. fused evidence
-Answer --> Files : hydrate teks sumber
-Answer --> Native : reranking opsional
-Answer --> LLM : 10. konteks + draft
-Answer --> API : 11. answer / partial / abstain + citations
-API --> User
-Offline ..> Files : persiapan / artefak evaluasi
-Offline ..> API : ukur keluaran produksi
-note bottom of Query
-Profile dipilih eksplisit saat ini.
-Classifier adaptif dan retrieve-again otomatis
-adalah rencana, belum jalur aktif.
-end note
-@enduml
-```
+[![Arsitektur RegulaGraph-ID](doc/architecture-overview.svg)](doc/architecture-overview.svg)
 
-GitHub tidak merender blok PlantUML secara native; salin blok ke renderer PlantUML untuk melihat diagram. Desain lengkap: [system design](doc/system-design.md), [kontrak](doc/system-contracts.md), [storage consistency](doc/storage-consistency.md).
+[Sumber PlantUML](doc/architecture-overview.puml). Klik diagram untuk melihat ukuran penuh.
+
+SVG dirender dari sumber PlantUML dan disimpan di repo sehingga terlihat langsung di GitHub tanpa plugin. Setelah mengubah `.puml`, render ulang dengan `java -jar .cache/plantuml/plantuml.jar -tsvg -failfast2 doc/system-big-picture.puml doc/architecture-overview.puml`; renderer tersedia melalui [distribusi resmi PlantUML](https://plantuml.com/download). Desain lengkap: [system design](doc/system-design.md), [kontrak](doc/system-contracts.md), [storage consistency](doc/storage-consistency.md).
 
 ### Kronologi ingestion
 
@@ -236,6 +178,8 @@ RegulaGraph-ID/                              # Monorepo runtime, kontrak, toolin
 |   |-- generate_contracts.py              # Generate binding dari Protobuf
 |   `-- check_contracts.py                 # Periksa kompatibilitas baseline
 |-- doc/                                   # Desain, panduan operasi, bukti verifikasi
+|   |-- system-big-picture.puml / .svg       # Sumber dan gambar alur sistem tingkat tinggi
+|   |-- architecture-overview.puml / .svg    # Sumber dan gambar dependency komponen lengkap
 |   |-- decisions/                         # Keputusan arsitektur dan trade-off historis
 |   |-- interview/                         # Penjelasan flow, math, architecture, code map
 |   |-- architecture.md                    # Arsitektur terperinci
