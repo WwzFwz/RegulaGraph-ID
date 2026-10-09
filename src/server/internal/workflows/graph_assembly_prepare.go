@@ -25,6 +25,7 @@ type GraphAssemblyPreparationStore interface {
 	LoadGraphSourceBinding(context.Context, string, string, string) (domain.GraphSourceBinding, error)
 	VerifyPublishedGraphSourceBinding(context.Context, domain.SnapshotPin, domain.IndexSourceBinding) error
 	VerifyGraphAssemblyPublication(context.Context, *pb.GraphAssemblyPlan) error
+	VerifyDocumentRegistryView(context.Context, string, *pb.ArtifactRef, []byte, uint64, int) error
 	ExportRegistryEntityView(context.Context, domain.RegistryEntityExport) (*pb.RegistryEntityView, error)
 	RegisterArtifact(context.Context, string, *pb.ArtifactRef) error
 	EnsureArtifactDependencyManifest(context.Context, string, string, *pb.DependencyManifest) error
@@ -87,6 +88,7 @@ func PrepareGraphAssembly(ctx context.Context, store GraphAssemblyPreparationSto
 
 	remaining := uint64(domain.DefaultWireLimits.MaxBytes)
 	document, extraction, resolution := new(pb.DocumentBatch), new(pb.ExtractionBatch), new(pb.ResolutionBatch)
+	var documentBytes []byte
 	refs := []*pb.ArtifactRef{binding.Source.Bound, binding.BoundExtraction, binding.BoundResolution}
 	for i, message := range []proto.Message{document, extraction, resolution} {
 		raw, e := readGraphPreparationArtifact(bounded, store, reader, config.CorpusID, refs[i], &remaining)
@@ -96,6 +98,12 @@ func PrepareGraphAssembly(ctx context.Context, store GraphAssemblyPreparationSto
 		if e = domain.DecodeWire(raw, message, domain.DefaultWireLimits); e != nil {
 			return nil, e
 		}
+		if i == 0 {
+			documentBytes = raw
+		}
+	}
+	if err = store.VerifyDocumentRegistryView(bounded, config.CorpusID, binding.Source.Bound, documentBytes, binding.RegistryRevision, config.MaximumReferences); err != nil {
+		return nil, err
 	}
 	if !proto.Equal(extraction.SourceDocumentBatch, binding.Source.Bound) || !proto.Equal(document.Context.SnapshotRef, binding.Source.Snapshot) ||
 		resolution.RegistryRevision != binding.RegistryRevision {

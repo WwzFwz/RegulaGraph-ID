@@ -259,6 +259,9 @@ func runInitialIndexPublication(t *testing.T, requireGraph, contentAddressed boo
 	for i, blob := range source.Sources {
 		source.Observations = append(source.Observations, &pb.SourceObservation{Meta: &pb.RecordMeta{SchemaVersion: 1, CorpusId: corpus, RecordId: fmt.Sprintf("observation:%d%s", i, suffix)}, PortalId: "fixture", DetailUrl: "https://example.org/fixture.pdf", ResolvedUrl: "https://example.org/fixture.pdf", FetchedAt: timestamppb.Now(), Status: pb.ObservationStatus_OBSERVATION_STATUS_COMPLETE, SourceBlobId: proto.String(blob.Meta.RecordId)})
 	}
+	if storageMode == "graph-membership" {
+		seedGraphDocumentRegistry(t, ctx, conn, source)
+	}
 	plan.DocumentBatch = put(source.Meta.RecordId, "application/x-protobuf; message=regulagraph.v1.DocumentBatch", source)
 	job := "job:" + corpus
 	checkpoint := &pb.Checkpoint{Meta: &pb.RecordMeta{SchemaVersion: 1, CorpusId: corpus, RecordId: "checkpoint:" + corpus}, JobId: job, Stage: pb.JobStage_JOB_STAGE_CHUNK,

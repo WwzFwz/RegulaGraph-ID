@@ -295,6 +295,17 @@ func checkGraphSourceBindingReceipt(t *testing.T, ctx context.Context, repo *pos
 	if err != nil {
 		t.Fatal("prepare graph plan", err)
 	}
+	// Corrupt a seeded identity while preserving all source bytes and receipts.
+	// Preparation must execute the registry gate, not merely trust artifact hashes.
+	if _, err = conn.Exec(ctx, `UPDATE canonical_identities SET identity_scope=identity_scope || ':fault' WHERE corpus_id=$1 AND entity_type=$2`, corpus, domain.CanonicalEntityTypeOrganization); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = workflows.PrepareGraphAssembly(ctx, repo, artifacts, files, pin, assemblyConfig); !errors.Is(err, domain.ErrResolutionReplan) {
+		t.Fatalf("changed document registry identity admitted by graph preparation: %v", err)
+	}
+	if _, err = conn.Exec(ctx, `UPDATE canonical_identities SET identity_scope=$2 WHERE corpus_id=$1 AND entity_type=$3`, corpus, domain.IssuerIdentityKeyNamespace, domain.CanonicalEntityTypeOrganization); err != nil {
+		t.Fatal(err)
+	}
 	wrongOntology := assemblyConfig
 	wrongOntology.OntologyHash = &pb.ContentHash{Sha256: strings.Repeat("b", 64)}
 	if _, err = workflows.PrepareGraphAssembly(ctx, repo, artifacts, files, pin, wrongOntology); err == nil {
