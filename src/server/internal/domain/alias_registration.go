@@ -1,5 +1,6 @@
 // Builds an operator-reviewable alias from an authenticated EXTRACT occurrence and
-// an independently selected BIND identity. It never infers the referent from the
+// an independently selected BIND identity or reviewed provisional origin.
+// It never infers the referent from the
 // containing document or approves a legal equivalence. Explicit provisional mode
 // proposes a source-occurrence identity; storage alone can allocate it atomically.
 // Storage must authenticate registered artifacts/checkpoints and CAS the registry.
@@ -37,6 +38,7 @@ type AliasSourceArtifact struct {
 }
 
 type SourcedAliasInput struct {
+	TargetOrigin                                                     *ProvisionalAliasOrigin
 	CreateProvisional                                                bool
 	Corpus, AuthScope, MentionID, CanonicalID, Scope, PreferredLabel string
 	ExpectedRevision                                                 uint64
@@ -46,17 +48,19 @@ type SourcedAliasInput struct {
 }
 
 type SourcedAliasPreview struct {
-	CreateProvisional  bool
-	LookupScopes       []RegistryLookupScope
-	TargetDocument     *pb.DocumentBatch
-	TargetDocumentRef  *pb.ArtifactRef
-	ExpectedRevision   uint64
-	Registration       AliasRegistration
-	Mention            *pb.Mention
-	Contexts           []*pb.TextItem
-	SourceContext      *pb.RequestContext
-	TargetDependencies DocumentRegistryDependencies
-	PlanHash           string
+	TargetOrigin          *SourcedAliasPreview
+	TargetOriginOperation string
+	CreateProvisional     bool
+	LookupScopes          []RegistryLookupScope
+	TargetDocument        *pb.DocumentBatch
+	TargetDocumentRef     *pb.ArtifactRef
+	ExpectedRevision      uint64
+	Registration          AliasRegistration
+	Mention               *pb.Mention
+	Contexts              []*pb.TextItem
+	SourceContext         *pb.RequestContext
+	TargetDependencies    DocumentRegistryDependencies
+	PlanHash              string
 }
 
 // BuildSourcedAliasPreview is shared by workflow inspection and storage admission.
@@ -71,7 +75,11 @@ func BuildSourcedAliasPreview(in SourcedAliasInput) (*SourcedAliasPreview, error
 	}
 	total := 0
 	seen := map[string]*pb.ArtifactRef{}
-	for _, a := range []AliasSourceArtifact{in.Source, in.Document, in.TargetDocument, in.Text} {
+	artifacts := []AliasSourceArtifact{in.Source, in.Document, in.TargetDocument, in.Text}
+	if in.TargetOrigin != nil {
+		artifacts = append(artifacts, in.TargetOrigin.Source, in.TargetOrigin.Text)
+	}
+	for _, a := range artifacts {
 		if err := ValidateWire(a.Ref, DefaultWireLimits); err != nil {
 			return nil, err
 		}
@@ -149,11 +157,27 @@ func BuildSourcedAliasPreview(in SourcedAliasInput) (*SourcedAliasPreview, error
 	if !allowed {
 		return nil, errors.New("alias scope is outside pinned candidate policy")
 	}
+	var originPreview *SourcedAliasPreview
+	originOperation := ""
+	if in.TargetOrigin != nil {
+		if err := ValidateWire(in.ExistingProfile, DefaultWireLimits); err != nil {
+			return nil, err
+		}
+		originPreview, err = buildAliasTargetPreview(in)
+		if err != nil {
+			return nil, err
+		}
+		originOperation = in.TargetOrigin.Ref.Operation
+	}
 	var identity *DocumentRegistryIdentity
 	for i := range dependencies.Identities {
 		if dependencies.Identities[i].CanonicalID == in.CanonicalID {
 			identity = &dependencies.Identities[i]
 		}
+	}
+	if originPreview != nil {
+		e := originPreview.Registration.Entity
+		identity = &DocumentRegistryIdentity{CanonicalID: e.Meta.RecordId, EntityType: CanonicalEntityTypeCode(e.EntityType), IdentityScope: e.IdentityKeys[0].Namespace, IdentityKey: e.IdentityKeys[0].Value}
 	}
 	canonicalID, profileRevision := in.CanonicalID, in.ExpectedRevision
 	if in.CreateProvisional {
@@ -250,27 +274,42 @@ func BuildSourcedAliasPreview(in SourcedAliasInput) (*SourcedAliasPreview, error
 		return nil, err
 	}
 	policyHash, _ := in.Policy.Fingerprint()
+	planHash, err := sourcedAliasPlanHash(in, entity, alias, policyHash.Sha256, originPreview, originOperation)
+	if err != nil {
+		return nil, err
+	}
+	return &SourcedAliasPreview{TargetOrigin: originPreview, TargetOriginOperation: originOperation, CreateProvisional: in.CreateProvisional, LookupScopes: lookupScopes, TargetDocument: target, TargetDocumentRef: proto.Clone(in.TargetDocument.Ref).(*pb.ArtifactRef), ExpectedRevision: in.ExpectedRevision, Registration: AliasRegistration{Entity: entity, Alias: alias}, Mention: proto.Clone(mention).(*pb.Mention),
+		Contexts: contexts, SourceContext: proto.Clone(source.Context).(*pb.RequestContext), TargetDependencies: dependencies, PlanHash: planHash}, nil
+}
+
+func sourcedAliasPlanHash(in SourcedAliasInput, entity *pb.CanonicalEntity, alias *pb.Alias, policyHash string, originPreview *SourcedAliasPreview, originOperation string) (string, error) {
 	h := sha256.New()
 	version := "sourced-alias-review:v1"
 	if in.CreateProvisional {
 		version = "sourced-provisional-review:v1"
 	}
+	if originPreview != nil {
+		version = "sourced-provisional-alias-review:v1"
+	}
 	aliasHashPart(h, []byte(version))
+	if originPreview != nil {
+		aliasHashPart(h, []byte(originOperation))
+		aliasHashPart(h, []byte(originPreview.PlanHash))
+	}
 	var revision [8]byte
 	binary.BigEndian.PutUint64(revision[:], in.ExpectedRevision)
 	aliasHashPart(h, revision[:])
-	for _, s := range []string{in.Corpus, in.AuthScope, policyHash.Sha256} {
+	for _, s := range []string{in.Corpus, in.AuthScope, policyHash} {
 		aliasHashPart(h, []byte(s))
 	}
 	for _, msg := range []proto.Message{in.Source.Ref, in.Document.Ref, in.TargetDocument.Ref, in.Text.Ref, entity, alias} {
 		raw, err := (proto.MarshalOptions{Deterministic: true}).Marshal(msg)
 		if err != nil {
-			return nil, err
+			return "", err
 		}
 		aliasHashPart(h, raw)
 	}
-	return &SourcedAliasPreview{CreateProvisional: in.CreateProvisional, LookupScopes: lookupScopes, TargetDocument: target, TargetDocumentRef: proto.Clone(in.TargetDocument.Ref).(*pb.ArtifactRef), ExpectedRevision: in.ExpectedRevision, Registration: AliasRegistration{Entity: entity, Alias: alias}, Mention: proto.Clone(mention).(*pb.Mention),
-		Contexts: contexts, SourceContext: proto.Clone(source.Context).(*pb.RequestContext), TargetDependencies: dependencies, PlanHash: hex.EncodeToString(h.Sum(nil))}, nil
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 func aliasBytesHash(raw []byte) string { h := sha256.Sum256(raw); return hex.EncodeToString(h[:]) }

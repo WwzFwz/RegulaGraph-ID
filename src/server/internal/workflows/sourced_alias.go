@@ -16,6 +16,7 @@ import (
 )
 
 type SourcedAliasStore interface {
+	LoadProvisionalAliasOrigin(context.Context, string, string, string, uint64) (domain.ProvisionalAliasOriginRef, error)
 	LoadAliasRegistryRevision(context.Context, string, uint64) (uint64, error)
 	LookupCanonicalAliasesAtRevision(context.Context, string, uint64, []domain.RegistryLookupScope, int, int) ([]domain.RegistryLookupResult, uint64, error)
 	LoadArtifact(context.Context, string, string) (*pb.ArtifactRef, error)
@@ -26,6 +27,7 @@ type SourcedAliasStore interface {
 }
 
 type SourcedAliasOptions struct {
+	TargetProvisional                                                                                    bool
 	CreateProvisional                                                                                    bool
 	Corpus, AuthScope, SourceArtifactID, TargetDocumentID, MentionID, CanonicalID, Scope, PreferredLabel string
 	Revision                                                                                             uint64
@@ -47,8 +49,11 @@ func (v *SourcedAliasInspection) Preview() (*domain.SourcedAliasPreview, error) 
 }
 
 func InspectSourcedAlias(ctx context.Context, store SourcedAliasStore, files SemanticResolutionArtifactReader, o SourcedAliasOptions) (*SourcedAliasInspection, error) {
-	if ctx == nil || store == nil || files == nil || o.Corpus == "" || o.AuthScope == "" || (!o.CreateProvisional && o.TargetDocumentID == "") {
+	if ctx == nil || store == nil || files == nil || o.Corpus == "" || o.AuthScope == "" || (!o.CreateProvisional && !o.TargetProvisional && o.TargetDocumentID == "") {
 		return nil, errors.New("configured source and target stores required")
+	}
+	if o.TargetProvisional && (o.CreateProvisional || o.TargetDocumentID != "" || o.CanonicalID == "") {
+		return nil, errors.New("existing provisional target requires canonical ID and no creation/document selection")
 	}
 	remaining := uint64(64 << 20)
 	loaded := map[string]domain.AliasSourceArtifact{}
@@ -131,6 +136,7 @@ func InspectSourcedAlias(ctx context.Context, store SourcedAliasStore, files Sem
 		return nil, err
 	}
 	target := document
+	var origin *domain.ProvisionalAliasOrigin
 	var profile *pb.CanonicalEntity
 	var revision uint64
 	if o.CreateProvisional {
@@ -138,6 +144,14 @@ func InspectSourcedAlias(ctx context.Context, store SourcedAliasStore, files Sem
 			return nil, errors.New("provisional mode has no existing target")
 		}
 		revision, err = store.LoadAliasRegistryRevision(ctx, o.Corpus, o.Revision)
+	} else if o.TargetProvisional {
+		profile, revision, err = store.LoadAliasProfile(ctx, o.Corpus, o.CanonicalID, o.Revision)
+		if err == nil {
+			origin, err = hydrateAliasTarget(ctx, store, read, o, revision)
+		}
+		if err == nil {
+			target = origin.Document
+		}
 	} else {
 		var targetRef *pb.ArtifactRef
 		targetRef, err = store.LoadArtifact(ctx, o.Corpus, o.TargetDocumentID)
@@ -167,7 +181,7 @@ func InspectSourcedAlias(ctx context.Context, store SourcedAliasStore, files Sem
 			policy.IncludeSourceRegulationType[k] = v
 		}
 	}
-	in := domain.SourcedAliasInput{CreateProvisional: o.CreateProvisional, Corpus: o.Corpus, AuthScope: o.AuthScope, MentionID: o.MentionID, CanonicalID: o.CanonicalID, Scope: o.Scope, PreferredLabel: o.PreferredLabel,
+	in := domain.SourcedAliasInput{TargetOrigin: origin, CreateProvisional: o.CreateProvisional, Corpus: o.Corpus, AuthScope: o.AuthScope, MentionID: o.MentionID, CanonicalID: o.CanonicalID, Scope: o.Scope, PreferredLabel: o.PreferredLabel,
 		ExpectedRevision: revision, Source: source, Document: document, TargetDocument: target, Text: text, Policy: policy, ExistingProfile: profile}
 	preview, err := domain.BuildSourcedAliasPreview(in)
 	if err != nil {

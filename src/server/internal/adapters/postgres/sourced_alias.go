@@ -118,7 +118,11 @@ func (r *Repository) RegisterSourcedAlias(ctx context.Context, in domain.Sourced
 		return 0, err
 	}
 	admit := func(ctx context.Context, tx pgx.Tx, replay bool, revision int64) error {
-		for _, a := range []domain.AliasSourceArtifact{in.Source, in.Document, in.TargetDocument} {
+		artifacts := []domain.AliasSourceArtifact{in.Source, in.Document, in.TargetDocument}
+		if in.TargetOrigin != nil {
+			artifacts = append(artifacts, in.TargetOrigin.Source)
+		}
+		for _, a := range artifacts {
 			var registered bool
 			e := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM artifacts WHERE corpus_id=$1 AND artifact_id=$2
  AND digest=$3 AND storage_key=$4 AND media_type=$5 AND byte_size=$6 AND schema_version=$7)`, in.Corpus, a.Ref.ArtifactId,
@@ -130,37 +134,14 @@ func (r *Repository) RegisterSourcedAlias(ctx context.Context, in domain.Sourced
 				return domain.ErrPersistentIntegrity
 			}
 		}
-		var requestRaw []byte
-		var requestHash string
-		e := tx.QueryRow(ctx, `SELECT CASE WHEN octet_length(j.request_payload)<=16777216 THEN j.request_payload ELSE NULL END,j.request_hash FROM extraction_evidence_sources s
- JOIN job_checkpoints c ON c.checkpoint_id=s.checkpoint_id
- JOIN jobs j ON j.job_id=c.job_id AND j.corpus_id=s.corpus_id
- WHERE s.corpus_id=$1 AND s.artifact_id=$2 AND s.mention_id=$3 AND s.auth_scope_ref=$4 AND s.snapshot_key=$5
- AND c.stage=$6 AND c.terminal_status=$7`, in.Corpus, in.Source.Ref.ArtifactId, in.MentionID, in.AuthScope,
-			extractionSnapshotKey(preview.SourceContext.SnapshotRef), int16(pb.JobStage_JOB_STAGE_EXTRACT), int16(pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED)).Scan(&requestRaw, &requestHash)
-		if errors.Is(e, pgx.ErrNoRows) {
-			return domain.ErrPersistentIntegrity
-		}
+		e := verifyAliasSourcePolicy(ctx, tx, in.Corpus, in.AuthScope, in.Source.Ref.ArtifactId, in.MentionID, preview.SourceContext, policyHash)
 		if e != nil {
 			return e
 		}
-		if len(requestRaw) == 0 || fmt.Sprintf("%x", sha256.Sum256(requestRaw)) != requestHash {
-			return domain.ErrPersistentIntegrity
-		}
-		request := new(pb.IngestionRequest)
-		if e = domain.DecodeWire(requestRaw, request, domain.DefaultWireLimits); e != nil {
+		if e = verifyDocumentRegistryDependencies(ctx, tx, in.Corpus, preview.TargetDependencies, in.ExpectedRevision); e != nil {
 			return e
 		}
-		pinned := false
-		for _, h := range request.GetConfigManifest().GetInputHashes() {
-			if proto.Equal(h, policyHash) {
-				pinned = true
-			}
-		}
-		if !pinned || request.CorpusId != in.Corpus || !proto.Equal(request.GetConfigManifest().GetConfigHash(), preview.SourceContext.ConfigFingerprint) {
-			return domain.ErrPersistentIntegrity
-		}
-		if e = verifyDocumentRegistryDependencies(ctx, tx, in.Corpus, preview.TargetDependencies, in.ExpectedRevision); e != nil {
+		if e = verifyProvisionalAliasOrigin(ctx, tx, in, preview); e != nil {
 			return e
 		}
 		if !replay && in.CreateProvisional {
@@ -172,8 +153,8 @@ func (r *Repository) RegisterSourcedAlias(ctx context.Context, in domain.Sourced
 			var matches bool
 			e = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM sourced_alias_reviews WHERE corpus_id=$1 AND operation_key=$2
  AND plan_hash=$3 AND expected_revision=$4 AND registry_revision=$5 AND actor=$6 AND reason=$7
- AND source_artifact_id=$8 AND mention_id=$9 AND canonical_id=$10 AND alias_id=$11 AND target_artifact_id=$12 AND policy_hash=$13 AND create_provisional=$14)`, in.Corpus, operation, planHash,
-				int64(in.ExpectedRevision), revision, actor, reason, in.Source.Ref.ArtifactId, in.MentionID, canonicalID, preview.Registration.Alias.Meta.RecordId, in.TargetDocument.Ref.ArtifactId, policyHash.Sha256, in.CreateProvisional).Scan(&matches)
+ AND source_artifact_id=$8 AND mention_id=$9 AND canonical_id=$10 AND alias_id=$11 AND target_artifact_id=$12 AND policy_hash=$13 AND create_provisional=$14 AND COALESCE(target_origin_operation,'')=$15)`, in.Corpus, operation, planHash,
+				int64(in.ExpectedRevision), revision, actor, reason, in.Source.Ref.ArtifactId, in.MentionID, canonicalID, preview.Registration.Alias.Meta.RecordId, in.TargetDocument.Ref.ArtifactId, policyHash.Sha256, in.CreateProvisional, preview.TargetOriginOperation).Scan(&matches)
 			if e != nil {
 				return e
 			}
@@ -185,9 +166,46 @@ func (r *Repository) RegisterSourcedAlias(ctx context.Context, in domain.Sourced
 	}
 	record := func(ctx context.Context, tx pgx.Tx, revision int64) error {
 		_, e := tx.Exec(ctx, `INSERT INTO sourced_alias_reviews(corpus_id,operation_key,plan_hash,expected_revision,registry_revision,
- actor,reason,source_artifact_id,mention_id,canonical_id,alias_id,target_artifact_id,policy_hash,create_provisional) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
-			in.Corpus, operation, planHash, int64(in.ExpectedRevision), revision, actor, reason, in.Source.Ref.ArtifactId, in.MentionID, canonicalID, preview.Registration.Alias.Meta.RecordId, in.TargetDocument.Ref.ArtifactId, policyHash.Sha256, in.CreateProvisional)
+ actor,reason,source_artifact_id,mention_id,canonical_id,alias_id,target_artifact_id,policy_hash,create_provisional,target_origin_operation) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NULLIF($15,''))`,
+			in.Corpus, operation, planHash, int64(in.ExpectedRevision), revision, actor, reason, in.Source.Ref.ArtifactId, in.MentionID, canonicalID, preview.Registration.Alias.Meta.RecordId, in.TargetDocument.Ref.ArtifactId, policyHash.Sha256, in.CreateProvisional, preview.TargetOriginOperation)
 		return e
 	}
 	return r.registerCanonicalAliases(ctx, in.Corpus, operation, in.ExpectedRevision, []AliasRegistration{preview.Registration}, creation, admit, record)
+}
+
+// verifyAliasSourcePolicy authenticates the exact catalogued occurrence and the
+// immutable ingestion request's policy/config pins, also for historical targets.
+func verifyAliasSourcePolicy(ctx context.Context, tx pgx.Tx, corpus, auth, artifact, mention string, sourceContext *pb.RequestContext, policyHash *pb.ContentHash) error {
+	var requestRaw []byte
+	var requestHash string
+	e := tx.QueryRow(ctx, `SELECT CASE WHEN octet_length(j.request_payload)<=16777216 THEN j.request_payload ELSE NULL END,j.request_hash FROM extraction_evidence_sources s
+ JOIN job_checkpoints c ON c.checkpoint_id=s.checkpoint_id
+ JOIN jobs j ON j.job_id=c.job_id AND j.corpus_id=s.corpus_id
+ WHERE s.corpus_id=$1 AND s.artifact_id=$2 AND s.mention_id=$3 AND s.auth_scope_ref=$4 AND s.snapshot_key=$5
+ AND c.stage=$6 AND c.terminal_status=$7`, corpus, artifact, mention, auth,
+		extractionSnapshotKey(sourceContext.SnapshotRef), int16(pb.JobStage_JOB_STAGE_EXTRACT), int16(pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED)).Scan(&requestRaw, &requestHash)
+	if errors.Is(e, pgx.ErrNoRows) {
+		return domain.ErrPersistentIntegrity
+	}
+	if e != nil {
+		return e
+	}
+	if len(requestRaw) == 0 || fmt.Sprintf("%x", sha256.Sum256(requestRaw)) != requestHash {
+		return domain.ErrPersistentIntegrity
+	}
+	request := new(pb.IngestionRequest)
+	if e = domain.DecodeWire(requestRaw, request, domain.DefaultWireLimits); e != nil {
+		return e
+	}
+	pinned := false
+	for _, h := range request.GetConfigManifest().GetInputHashes() {
+		if proto.Equal(h, policyHash) {
+			pinned = true
+		}
+	}
+	if !pinned || request.CorpusId != corpus || !proto.Equal(request.GetConfigManifest().GetConfigHash(), sourceContext.ConfigFingerprint) {
+		return domain.ErrPersistentIntegrity
+	}
+
+	return nil
 }
