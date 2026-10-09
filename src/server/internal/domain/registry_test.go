@@ -87,6 +87,42 @@ func TestPlanRegulationIdentitiesRequiresExplicitPolicyAndBounds(t *testing.T) {
 	}
 }
 
+func TestRegulationIdentitySeparatesCatalogueCategoryAndPageHeading(t *testing.T) {
+	fields := map[string][]string{"regulation_type": {"Peraturan Pemerintah (PP)"}, "document_type": {"Peraturan Perundang-undangan"},
+		"number": {"12"}, "year": {"2006"}, "issuer": {"Indonesia, Pemerintah Pusat"},
+		"page_title": {"PP No. 12 Tahun 2006"}, "title": {"Peraturan Pemerintah Nomor 12 Tahun 2006 tentang Perubahan"}}
+	batch := identityBatch(identityObservation("observation:a", "source-blob:a", fields))
+	policy := RegulationIdentityPolicy{Jurisdiction: "ID", MaximumItems: 10}
+	plan, err := PlanRegulationIdentities(batch, policy)
+	if err != nil || len(plan.Candidates) != 1 || len(plan.Reviews) != 0 {
+		t.Fatalf("catalogue metadata falsely conflicts: %+v %v", plan, err)
+	}
+	if plan.Candidates[0].Kind != fields["regulation_type"][0] || plan.Candidates[0].Title != fields["title"][0] {
+		t.Fatal("wrong semantic field selected")
+	}
+	// Presentation precedence is per observation; a different sourced title must
+	// not be suppressed merely because another observation has structured metadata.
+	batch.Observations = append(batch.Observations, identityObservation("observation:b", "source-blob:a", map[string][]string{
+		"regulation_type": {"Peraturan Pemerintah (PP)"}, "number": {"12"}, "year": {"2006"}, "issuer": {"Indonesia, Pemerintah Pusat"}, "page_title": {"Different regulation"}}))
+	plan, err = PlanRegulationIdentities(batch, policy)
+	if err != nil || len(plan.Candidates) != 0 || len(plan.Reviews) != 1 {
+		t.Fatalf("cross-observation disagreement hidden: %+v %v", plan, err)
+	}
+	delete(fields, "regulation_type")
+	batch = identityBatch(identityObservation("observation:a", "source-blob:a", fields))
+	plan, err = PlanRegulationIdentities(batch, policy)
+	if err != nil || len(plan.Candidates) != 0 || len(plan.Reviews) != 1 {
+		t.Fatal("generic document category used as legal form")
+	}
+	fields["regulation_type"] = []string{"PP", "UU"}
+	fields["title"] = []string{"First title", "Second title"}
+	batch = identityBatch(identityObservation("observation:a", "source-blob:a", fields))
+	plan, err = PlanRegulationIdentities(batch, policy)
+	if err != nil || len(plan.Candidates) != 0 || len(plan.Reviews) != 1 {
+		t.Fatal("conflicting structured values hidden")
+	}
+}
+
 func TestPlanRegulationIdentitiesRejectsUnknownBlobAndReviewsUntrustedObservation(t *testing.T) {
 	fields := map[string][]string{
 		"regulation_type": {"Peraturan"}, "number": {"1"}, "year": {"2026"},

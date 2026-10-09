@@ -1,5 +1,12 @@
 # src/server/internal/domain
 
+`registry.go` membedakan kategori katalog `document_type` dari bentuk hukum
+`regulation_type`. Structured `title` diprioritaskan per observasi; `page_title`
+hanya fallback dan konflik antarobservasi tetap review. Policy
+`regulation-metadata-fields:v2` masuk fingerprint producer BIND pada documents.go.
+Output lama berbasis document_type saja memerlukan rebind/review jika tidak dapat
+direkonstruksi; tidak menulis ulang registry/artefak historis. [Bukti](../../../../doc/verification-report-real-pdf.md).
+
 `graph_source_reaffirmation.go` menghasilkan envelope registry view turunan dengan
 keputusan/proposal/model tetap historis dan identity policy+target deterministik.
 Transform tidak memberi authority; storage menyimpan receipt setelah dependency

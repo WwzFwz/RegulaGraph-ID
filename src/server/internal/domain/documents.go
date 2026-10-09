@@ -767,7 +767,8 @@ func bindingProducerManifest(config DocumentBindingConfig, inputHash [sha256.Siz
 		Jurisdiction      string `json:"jurisdiction"`
 		Kind              int32  `json:"document_kind"`
 		RegistryBatchSize int    `json:"registry_batch_size"`
-	}{config.Language, config.Jurisdiction, int32(config.DocumentKind), config.RegistryBatchSize})
+		MetadataPolicy    string `json:"metadata_policy"`
+	}{config.Language, config.Jurisdiction, int32(config.DocumentKind), config.RegistryBatchSize, RegulationIdentityMetadataPolicy})
 	configHash := sha256.Sum256(configRaw)
 	return &pb.ProducerManifest{
 		Software: config.Software, Build: config.Build, SchemaVersion: 1,

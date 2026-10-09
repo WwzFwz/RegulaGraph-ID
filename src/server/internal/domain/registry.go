@@ -3,6 +3,9 @@
 // The planner consumes a validated DocumentBatch and emits exact natural-key candidates plus
 // explicit review items. It never allocates canonical IDs, writes a registry, infers legal dates,
 // or merges records from text similarity. Corpus policy supplies jurisdiction explicitly.
+// Legal form comes only from regulation_type; document_type is a catalogue category.
+// Per observation, structured title takes precedence over the HTML page heading;
+// disagreement between selected titles across observations still requires review.
 // Runtime includes bounded wire traversal, O(S log S + O log O + sum(V log V)) ordering, and
 // linear string normalization; benchmark batch latency and false-merge/false-split quality against
 // configs/benchmark-targets.yaml. Required targets remain REQUIRED_UNMEASURED.
@@ -25,6 +28,7 @@ import (
 const RegulationIdentityKeyNamespace = "regulation-natural-key:v1"
 const RegulationCanonicalIdentityKeyNamespace = "regulation-canonical-issuer-key:v2"
 const IssuerIdentityKeyNamespace = "issuer-exact-label-jurisdiction:v1"
+const RegulationIdentityMetadataPolicy = "regulation-metadata-fields:v2"
 const CanonicalEntityTypeRegulation int16 = 1
 const CanonicalEntityTypeOrganization int16 = 2
 
@@ -383,9 +387,21 @@ func regulationCandidate(sourceID string, observations []*pb.SourceObservation, 
 		if observation.GetMetadataHash() == nil {
 			problems = append(problems, "metadata_hash:missing")
 		}
+		hasStructuredTitle := false
+		for _, value := range observation.PortalMetadata {
+			if strings.TrimSpace(value.GetName()) == "title" && strings.TrimSpace(value.GetText()) != "" {
+				hasStructuredTitle = true
+			}
+		}
 		for _, value := range observation.PortalMetadata {
 			name := strings.TrimSpace(value.GetName())
 			text := strings.TrimSpace(value.GetText())
+			if name == "page_title" {
+				if hasStructuredTitle {
+					continue
+				}
+				name = "title"
+			}
 			if name == "" || text == "" {
 				continue
 			}
@@ -401,10 +417,10 @@ func regulationCandidate(sourceID string, observations []*pb.SourceObservation, 
 	sort.Strings(candidate.ObservationIDs)
 	candidate.ObservationIDs = uniqueStrings(candidate.ObservationIDs)
 
-	candidate.Kind, problems = exactField(values, []string{"regulation_type", "document_type"}, "kind", problems)
+	candidate.Kind, problems = exactField(values, []string{"regulation_type"}, "kind", problems)
 	candidate.IssuerLabel, problems = exactField(values, []string{"issuer"}, "issuer", problems)
 	candidate.OfficialNumber, problems = exactField(values, []string{"number"}, "official_number", problems)
-	candidate.Title, problems = exactField(values, []string{"page_title", "title"}, "title", problems)
+	candidate.Title, problems = exactField(values, []string{"title"}, "title", problems)
 	if sourcedJurisdiction, exists, conflict := optionalExactField(values, []string{"jurisdiction"}); conflict {
 		problems = append(problems, "jurisdiction:conflict")
 	} else if exists && normalizeIdentityText(sourcedJurisdiction) != normalizeIdentityText(candidate.Jurisdiction) {
