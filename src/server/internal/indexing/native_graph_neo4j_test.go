@@ -98,6 +98,6 @@ func checkNativeGraphNeo4j(t *testing.T, ctx context.Context, repo *postgres.Rep
 		t.Fatal("actual Rust delta Neo4j readback", proof, err)
 	}
 	checkReusedGraphPublication(t, ctx, repo, db, pin, binding.PublicationID, artifacts, plan.ProducerManifest)
-	checkPublishedGraphRead(t, ctx, repo, store, pin, plan.Context.AuthScopeRef, delta)
+	checkPublishedGraphRead(t, ctx, repo, store, pin, plan.Context.AuthScopeRef, delta, artifacts)
 	t.Log(fmt.Sprintf("actual Rust -> PostgreSQL STAGED -> Neo4j/Qdrant receipt -> published snapshot -> cited draft: records=%d, edges=%d", proof.Records, proof.Edges))
 }
