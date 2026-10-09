@@ -46,6 +46,8 @@ import (
 )
 
 type queryOptions struct {
+	Current                                                      bool
+	TimeZone                                                     string
 	Normalization                                                query.NormalizationMode
 	Corpus, Question, AsOf, Profile, Unresolved, Snapshot, Build string
 	Limit                                                        int
@@ -68,7 +70,8 @@ func runQueryEvidenceWith(ctx context.Context, args []string, out, errOut io.Wri
 	fs.SetOutput(errOut)
 	opts := queryOptions{}
 	fs.StringVar(&opts.Question, "question", "", "Regulatory question (UTF-8)")
-	fs.StringVar(&opts.AsOf, "as-of", "", "Required legal date YYYY-MM-DD")
+	fs.StringVar(&opts.AsOf, "as-of", "", "Legal date YYYY-MM-DD; mutually exclusive with -current")
+	fs.BoolVar(&opts.Current, "current", false, "Use today in explicitly configured REGULAGRAPH_QUERY_TIME_ZONE")
 	fs.StringVar(&opts.Profile, "profile", "", "Required: vector, hybrid, graph or hybrid-graph; no implicit fallback")
 	fs.StringVar(&opts.Unresolved, "unresolved", "report", "report, exclude or review")
 	fs.StringVar(&opts.Snapshot, "snapshot", "", "Optional exact active snapshot ID; mismatch fails")
@@ -87,6 +90,7 @@ func runQueryEvidenceWith(ctx context.Context, args []string, out, errOut io.Wri
 		return 2
 	}
 	opts.Normalization = normalizationMode
+	opts.TimeZone = env("REGULAGRAPH_QUERY_TIME_ZONE")
 	opts.Corpus = env("REGULAGRAPH_QUERY_CORPUS_ID")
 	opts.Build = env("REGULAGRAPH_BUILD_ID")
 	opts.dsn = env("REGULAGRAPH_POSTGRES_DSN")
@@ -111,7 +115,7 @@ func runQueryEvidenceWith(ctx context.Context, args []string, out, errOut io.Wri
 	}
 	request, err := prepareEvidenceQuestion(opts)
 	if err != nil || fs.NArg() != 0 {
-		fmt.Fprintln(errOut, "Invalid query configuration: require question, AS_OF date, supported profile, bounded limits, corpus/build/storage and profile-specific dependencies")
+		fmt.Fprintln(errOut, "Invalid query configuration: require question, AS_OF date or configured CURRENT, supported profile, bounded limits, corpus/build/storage and profile-specific dependencies")
 		return 2
 	}
 	if opts.graphPath != "" {
@@ -168,11 +172,34 @@ func runQueryEvidenceWith(ctx context.Context, args []string, out, errOut io.Wri
 		fmt.Fprintln(errOut, "Reranking output validation failed")
 		return 1
 	}
+	if result.Temporal != nil {
+		if opts.Current && result.Temporal.TimeZone != opts.TimeZone {
+			fmt.Fprintln(errOut, "Query time zone differs from configured policy")
+			return 1
+		}
+		if e := query.ValidateTemporalResolution(request.TemporalScope, result.Temporal); e != nil {
+			fmt.Fprintln(errOut, "Invalid temporal resolution audit")
+			return 1
+		}
+	} else if opts.Current {
+		fmt.Fprintln(errOut, "Missing CURRENT temporal resolution audit")
+		return 1
+	}
 	// The JSON envelope is a CLI result, not a competing evidence wire contract.
 	answer, err := queryAnswerOutput(result, opts.Answer)
 	if err != nil {
 		fmt.Fprintln(errOut, "Answer output validation failed")
 		return 1
+	}
+	if opts.Answer {
+		effectiveDate := request.TemporalScope.EffectiveAt
+		if result.Temporal != nil {
+			effectiveDate = result.Temporal.EffectiveDate
+		}
+		if len(result.Answer.Draft.Answer.EffectiveDates) != 1 || !proto.Equal(result.Answer.Draft.Answer.EffectiveDates[0], effectiveDate) {
+			fmt.Fprintln(errOut, "Answer date differs from resolved date")
+			return 1
+		}
 	}
 	mode := "evidence"
 	if opts.Answer {
@@ -183,13 +210,14 @@ func runQueryEvidenceWith(ctx context.Context, args []string, out, errOut io.Wri
 		normalization = result.Search.Normalization
 	}
 	output := struct {
+		Temporal      *query.TemporalResolution `json:"temporal_resolution,omitempty"`
 		Mode          string                    `json:"mode"`
 		Normalization *query.NormalizedQuestion `json:"query_normalization,omitempty"`
 		Evidence      json.RawMessage           `json:"evidence"`
 		Rejected      map[string]string         `json:"rejected"`
 		Reranking     *queryRerankJSON          `json:"reranking,omitempty"`
 		Draft         *queryAnswerJSON          `json:"draft,omitempty"`
-	}{mode, normalization, raw, result.Rejected, reranking, answer}
+	}{result.Temporal, mode, normalization, raw, result.Rejected, reranking, answer}
 	if err = json.NewEncoder(out).Encode(output); err != nil {
 		fmt.Fprintln(errOut, "Writing evidence output failed")
 		return 1
@@ -236,9 +264,19 @@ func prepareEvidenceQuestion(o queryOptions) (*pb.QuestionRequest, error) {
 	if u.Scheme == "http" && (net.ParseIP(u.Hostname()) == nil || !net.ParseIP(u.Hostname()).IsLoopback()) {
 		return nil, errors.New("plaintext qdrant is restricted to literal loopback")
 	}
-	d, err := time.Parse("2006-01-02", o.AsOf)
+	zone, err := query.LoadQueryTimeZone(o.TimeZone)
 	if err != nil {
 		return nil, err
+	}
+	if o.Current && (o.AsOf != "" || zone == nil) {
+		return nil, errors.New("-current requires an explicit query time zone and no -as-of")
+	}
+	var d time.Time
+	if !o.Current {
+		d, err = time.Parse("2006-01-02", o.AsOf)
+		if err != nil {
+			return nil, err
+		}
 	}
 	profiles := map[string]pb.RetrievalProfile{"vector": pb.RetrievalProfile_RETRIEVAL_PROFILE_VECTOR_RAG, "hybrid": pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_RAG, "graph": pb.RetrievalProfile_RETRIEVAL_PROFILE_GRAPH_RAG, "hybrid-graph": pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_GRAPH_RAG}
 	policies := map[string]pb.UnresolvedPolicy{"report": pb.UnresolvedPolicy_UNRESOLVED_POLICY_REPORT, "exclude": pb.UnresolvedPolicy_UNRESOLVED_POLICY_EXCLUDE, "review": pb.UnresolvedPolicy_UNRESOLVED_POLICY_REQUIRE_REVIEW}
@@ -246,6 +284,10 @@ func prepareEvidenceQuestion(o queryOptions) (*pb.QuestionRequest, error) {
 		return nil, errors.New("explicit supported profile, policy and question required")
 	}
 	r := &pb.QuestionRequest{CorpusId: o.Corpus, Question: o.Question, ResponseMode: pb.ResponseMode_RESPONSE_MODE_COMPLETE, RequestedProfile: profiles[o.Profile], TemporalScope: &pb.TemporalScope{Mode: pb.TemporalMode_TEMPORAL_MODE_AS_OF, EffectiveAt: &pb.CalendarDate{Year: int32(d.Year()), Month: uint32(d.Month()), Day: uint32(d.Day())}, UnresolvedPolicy: policies[o.Unresolved]}}
+	if o.Current {
+		r.TemporalScope.Mode = pb.TemporalMode_TEMPORAL_MODE_CURRENT
+		r.TemporalScope.EffectiveAt = nil
+	}
 	if o.Snapshot != "" {
 		r.SnapshotId = proto.String(o.Snapshot)
 	}
@@ -253,6 +295,10 @@ func prepareEvidenceQuestion(o queryOptions) (*pb.QuestionRequest, error) {
 }
 
 func executeEvidenceQuery(ctx context.Context, o queryOptions, request *pb.QuestionRequest) (*workflows.RAGResult, error) {
+	zone, zoneErr := query.LoadQueryTimeZone(o.TimeZone)
+	if zoneErr != nil {
+		return nil, zoneErr
+	}
 	var answer *workflows.EvidenceAnswerWorkflow
 	if o.Answer {
 		runtime, err := workflows.OpenLocalAnswer(ctx, o.answerConfig, o.answerKey, o.Build, o.Timeout)
@@ -301,7 +347,7 @@ func executeEvidenceQuery(ctx context.Context, o queryOptions, request *pb.Quest
 	httpClient := &http.Client{Transport: transport, Timeout: o.Timeout}
 	// Config pin excludes secrets and question, includes route/limits/policy/build.
 	configBytes, _ := json.Marshal(map[string]any{"corpus": o.Corpus, "build": o.Build, "profile": o.Profile, "unresolved": o.Unresolved, "limit": o.Limit, "timeout_ns": int64(o.Timeout), "native": o.native, "qdrant": o.qdrant, "rrf_k": 60, "artifact_bytes": 64 << 20, "evidence_bytes": 4 << 20,
-		"rerank_manifest_sha256": o.rerankHash, "rerank_pairs_per_batch": 32, "rerank_maximum_request_bytes": 4 << 20, "rerank_truncation_policy": "reject", "graph_config_sha256": o.graphHash, "auth_scope": o.authScope, "answer_config_sha256": o.answerHash, "query_normalization": o.Normalization})
+		"rerank_manifest_sha256": o.rerankHash, "rerank_pairs_per_batch": 32, "rerank_maximum_request_bytes": 4 << 20, "rerank_truncation_policy": "reject", "graph_config_sha256": o.graphHash, "auth_scope": o.authScope, "answer_config_sha256": o.answerHash, "query_normalization": o.Normalization, "query_time_zone": o.TimeZone, "temporal_policy": query.TemporalPolicyVersion})
 	hash := sha256.Sum256(configBytes)
 	fingerprint := &pb.ContentHash{Sha256: hex.EncodeToString(hash[:])}
 	var nonce [16]byte
@@ -311,7 +357,7 @@ func executeEvidenceQuery(ctx context.Context, o queryOptions, request *pb.Quest
 	id := hex.EncodeToString(nonce[:])
 	deadline, _ := ctx.Deadline()
 	call := &pb.RequestContext{SchemaVersion: 1, RequestId: "query:" + id, TraceId: "trace:" + id, CorpusId: o.Corpus, AuthScopeRef: o.authScope, ConfigFingerprint: fingerprint, Deadline: timestamppb.New(deadline)}
-	session := &workflows.RAGSession{Store: repo, OwnerID: "query:" + id, MaximumDuration: o.Timeout, SearchLimit: o.Limit, Factory: func(c context.Context, index *domain.PinnedIndex) (*workflows.RAGWorkflow, error) {
+	session := &workflows.RAGSession{TimeZone: zone, Store: repo, OwnerID: "query:" + id, MaximumDuration: o.Timeout, SearchLimit: o.Limit, Factory: func(c context.Context, index *domain.PinnedIndex) (*workflows.RAGWorkflow, error) {
 		models := []*pb.ModelManifest{}
 		branches := 1
 		if o.Profile != "graph" {

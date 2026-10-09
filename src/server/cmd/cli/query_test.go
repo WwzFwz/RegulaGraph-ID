@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	pb "regulagraph.local/server/gen/regulagraph/v1"
 	"regulagraph.local/server/internal/retrieval/query"
@@ -20,6 +21,72 @@ import (
 
 func queryEnvironment() map[string]string {
 	return map[string]string{"REGULAGRAPH_QUERY_CORPUS_ID": "corpus:test", "REGULAGRAPH_BUILD_ID": "fixture", "REGULAGRAPH_POSTGRES_DSN": "secret-dsn", "REGULAGRAPH_ARTIFACTS_DIR": "fixture", "REGULAGRAPH_QUERY_NATIVE_ENDPOINT": "127.0.0.1:50053", "REGULAGRAPH_QDRANT_URL": "http://127.0.0.1:6333", "REGULAGRAPH_QDRANT_API_KEY": "secret-key"}
+}
+
+func TestQueryCurrentDateAdmissionAndOutput(t *testing.T) {
+	for _, mode := range []string{"success", "no zone", "invalid zone", "both dates", "missing audit", "bad audit", "wrong zone"} {
+		t.Run(mode, func(t *testing.T) {
+			env := queryEnvironment()
+			env["REGULAGRAPH_QUERY_TIME_ZONE"] = "Asia/Jakarta"
+			if mode == "no zone" {
+				delete(env, "REGULAGRAPH_QUERY_TIME_ZONE")
+			}
+			if mode == "invalid zone" {
+				env["REGULAGRAPH_QUERY_TIME_ZONE"] = "Local"
+			}
+			args := []string{"-question", "izin sekarang?", "-current", "-profile", "vector"}
+			if mode == "both dates" {
+				args = append(args, "-as-of", "2026-01-01")
+			}
+			var out, stderr bytes.Buffer
+			calls := 0
+			code := runQueryEvidenceWith(context.Background(), args, &out, &stderr, func(k string) string { return env[k] }, func(_ context.Context, o queryOptions, r *pb.QuestionRequest) (*workflows.RAGResult, error) {
+				calls++
+				if !o.Current || o.TimeZone != "Asia/Jakarta" || r.TemporalScope.Mode != pb.TemporalMode_TEMPORAL_MODE_CURRENT || r.TemporalScope.EffectiveAt != nil {
+					t.Fatal("lost explicit current intent")
+				}
+				zone, _ := query.LoadQueryTimeZone(o.TimeZone)
+				_, audit, err := query.ResolveTemporalScope(r.TemporalScope, zone, func() time.Time { return time.Date(2025, 12, 31, 17, 0, 0, 0, time.UTC) })
+				if err != nil {
+					t.Fatal(err)
+				}
+				if mode == "missing audit" {
+					audit = nil
+				}
+				if mode == "bad audit" {
+					audit.EffectiveDate.Year++
+				}
+				if mode == "wrong zone" {
+					audit.TimeZone = "Asia/Bangkok"
+				}
+				hash := &pb.ContentHash{Sha256: strings.Repeat("a", 64)}
+				return &workflows.RAGResult{Temporal: audit, Evidence: &pb.EvidenceBundle{Meta: &pb.RecordMeta{SchemaVersion: 1, CorpusId: o.Corpus, RecordId: "evidence:test"}, Snapshot: &pb.SnapshotRef{CorpusId: o.Corpus, SnapshotId: "snapshot:test", Sequence: 1, ManifestHash: hash, RepresentationGeneration: "generation:test"}, RetrievalManifest: &pb.ProducerManifest{Software: "fixture", Build: "test", SchemaVersion: 1, ConfigHash: hash}, Completeness: pb.Completeness_COMPLETENESS_NONE, CompletionStatus: pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED}}, nil
+			})
+			want := 1
+			if mode == "success" {
+				want = 0
+			}
+			if mode == "no zone" || mode == "invalid zone" || mode == "both dates" {
+				want = 2
+				if calls != 0 {
+					t.Fatal("invalid mode reached IO")
+				}
+			}
+			if code != want {
+				t.Fatal(code, stderr.String())
+			}
+			if mode == "success" {
+				var result struct {
+					Temporal *query.TemporalResolution `json:"temporal_resolution"`
+				}
+				if json.Unmarshal(out.Bytes(), &result) != nil || result.Temporal == nil || result.Temporal.EffectiveDate.Year != 2026 || result.Temporal.TimeZone != "Asia/Jakarta" {
+					t.Fatal("lost date audit", out.String())
+				}
+			} else if out.Len() != 0 {
+				t.Fatal("invalid output leaked")
+			}
+		})
+	}
 }
 
 func TestQueryEvidenceNormalizationConfigurationAndTrace(t *testing.T) {

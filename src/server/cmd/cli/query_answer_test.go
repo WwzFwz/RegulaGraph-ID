@@ -14,11 +14,13 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	pb "regulagraph.local/server/gen/regulagraph/v1"
 	"regulagraph.local/server/internal/answering"
+	"regulagraph.local/server/internal/retrieval/query"
 	"regulagraph.local/server/internal/workflows"
 )
 
@@ -41,10 +43,14 @@ func queryAnswerEnvironment(t *testing.T) map[string]string {
 	return env
 }
 func TestQueryAnswerAdmissionAndNoFallback(t *testing.T) {
-	for _, mode := range []string{"success", "missing config", "wrong hash", "too many candidates", "generation error", "missing draft", "foreign snapshot", "promoted status"} {
+	for _, mode := range []string{"success", "missing config", "wrong hash", "too many candidates", "generation error", "missing draft", "foreign snapshot", "promoted status", "wrong date", "wrong date with audit", "current success", "current wrong date", "current missing draft"} {
 		t.Run(mode, func(t *testing.T) {
 			env := queryAnswerEnvironment(t)
 			args := []string{"-answer", "-question", "izin?", "-as-of", "2026-01-01", "-profile", "vector"}
+			if strings.HasPrefix(mode, "current ") {
+				args = []string{"-answer", "-question", "izin?", "-current", "-profile", "vector"}
+				env["REGULAGRAPH_QUERY_TIME_ZONE"] = "Asia/Jakarta"
+			}
 			switch mode {
 			case "missing config":
 				delete(env, "REGULAGRAPH_ANSWER_CONFIG")
@@ -67,9 +73,20 @@ func TestQueryAnswerAdmissionAndNoFallback(t *testing.T) {
 				snapshot := &pb.SnapshotRef{CorpusId: o.Corpus, SnapshotId: "snapshot:test", Sequence: 1, ManifestHash: h, RepresentationGeneration: "generation:test"}
 				producer := &pb.ProducerManifest{Software: "test", Build: "test", SchemaVersion: 1, ConfigHash: h}
 				e := &pb.EvidenceBundle{Meta: &pb.RecordMeta{SchemaVersion: 1, CorpusId: o.Corpus, RecordId: "evidence:test"}, Snapshot: snapshot, RetrievalManifest: producer, Completeness: pb.Completeness_COMPLETENESS_NONE, CompletionStatus: pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED}
-				a := &pb.Answer{Meta: &pb.RecordMeta{SchemaVersion: 1, CorpusId: o.Corpus, RecordId: "answer:test"}, RequestId: "request:test", Text: answering.AbstainText, Snapshot: proto.Clone(snapshot).(*pb.SnapshotRef), EffectiveDates: []*pb.CalendarDate{q.TemporalScope.EffectiveAt}, RunManifest: producer, SemanticStatus: pb.SemanticStatus_SEMANTIC_STATUS_ABSTAIN, CompletionStatus: pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED}
+				zone, _ := query.LoadQueryTimeZone(o.TimeZone)
+				resolved, audit, err := query.ResolveTemporalScope(q.TemporalScope, zone, func() time.Time { return time.Date(2025, 12, 31, 17, 0, 0, 0, time.UTC) })
+				if err != nil {
+					t.Fatal(err)
+				}
+				a := &pb.Answer{Meta: &pb.RecordMeta{SchemaVersion: 1, CorpusId: o.Corpus, RecordId: "answer:test"}, RequestId: "request:test", Text: answering.AbstainText, Snapshot: proto.Clone(snapshot).(*pb.SnapshotRef), EffectiveDates: []*pb.CalendarDate{resolved.EffectiveAt}, RunManifest: producer, SemanticStatus: pb.SemanticStatus_SEMANTIC_STATUS_ABSTAIN, CompletionStatus: pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED}
 				r := &workflows.RAGResult{Evidence: e, Answer: &workflows.EvidenceAnswerResult{Draft: &answering.DraftResult{Answer: a}}}
-				if mode == "missing draft" {
+				if o.Current || mode == "wrong date with audit" {
+					r.Temporal = audit
+				}
+				if strings.Contains(mode, "wrong date") {
+					a.EffectiveDates = []*pb.CalendarDate{{Year: 2027, Month: 1, Day: 1}}
+				}
+				if mode == "missing draft" || mode == "current missing draft" {
 					r.Answer = nil
 				}
 				if mode == "foreign snapshot" {
@@ -85,7 +102,7 @@ func TestQueryAnswerAdmissionAndNoFallback(t *testing.T) {
 				if called || code != 2 || out.Len() != 0 {
 					t.Fatal("invalid profile reached IO", code, out.String())
 				}
-			} else if mode == "success" {
+			} else if mode == "success" || mode == "current success" {
 				if code != 0 || !strings.Contains(out.String(), `"mode":"answer_draft"`) || !strings.Contains(out.String(), "SEMANTIC_STATUS_ABSTAIN") {
 					t.Fatal(code, out.String(), stderr.String())
 				}
