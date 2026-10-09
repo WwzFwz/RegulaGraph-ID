@@ -22,6 +22,12 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+Hidrasi normalized text mengikuti referensi dalam DocumentBatch terautentikasi,
+sesuai keluaran worker yang tidak mendaftarkan blob teks sebagai root terpisah.
+Hash, ukuran, budget dan descriptor cache tetap diverifikasi; plan/DocumentBatch
+tetap wajib sesuai registry meskipun bytes pernah masuk cache sebagai nested text.
+Regresi boundary berada di `hydration_artifacts_test.go`.
+
 Hydration memeriksa plan/dokumen terhadap `PinnedIndex.EvidenceSnapshot()` asal
 dan tetap mengeluarkan evidence pada snapshot query. Ini memungkinkan reuse indeks
 yang di-admit PostgreSQL tanpa mengubah bytes/source provenance; lihat

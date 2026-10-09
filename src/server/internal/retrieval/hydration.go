@@ -8,6 +8,9 @@
 // DocumentBatch storage addresses may differ from logical record IDs. The
 // immutable plan, registered hash/ref, corpus and pinned snapshot authenticate
 // source identity; coordinator-owned plan/lexical IDs remain exact.
+// Normalized text bytes inherit authority from that authenticated DocumentBatch;
+// they need not have standalone registry rows. Root reads always check registry,
+// even when the same artifact bytes were already cached as nested text.
 package retrieval
 
 import (
@@ -147,7 +150,7 @@ func (h *SourceHydrator) Hydrate(ctx context.Context, request *pb.QuestionReques
 		if text == nil {
 			return nil, domain.ErrPersistentIntegrity
 		}
-		raw, err := l.bytes(bounded, text.NormalizedTextRef)
+		raw, err := l.normalizedText(bounded, doc, chunk.TextSpan.TextArtifactId)
 		if err != nil {
 			return nil, err
 		}
@@ -276,6 +279,38 @@ type evidenceLoader struct {
 }
 
 func (l *evidenceLoader) bytes(ctx context.Context, ref *pb.ArtifactRef) ([]byte, error) {
+	if err := domain.ValidateWire(ref, domain.DefaultWireLimits); err != nil {
+		return nil, err
+	}
+	registered, err := l.catalog.LoadArtifact(ctx, l.corpus, ref.ArtifactId)
+	if err != nil {
+		return nil, err
+	}
+	if !proto.Equal(registered, ref) {
+		return nil, domain.ErrPersistentIntegrity
+	}
+	return l.verifiedBytes(ctx, ref)
+}
+
+// Only documents admitted by source() can authorize nested text. The caller
+// supplies its logical TextArtifact ID, never a backend-provided storage ref.
+func (l *evidenceLoader) normalizedText(ctx context.Context, doc *evidenceDocument, textID string) ([]byte, error) {
+	admitted := false
+	for _, cached := range l.documents {
+		if cached == doc && doc != nil {
+			admitted = true
+			break
+		}
+	}
+	if !admitted || doc.texts[textID] == nil {
+		return nil, domain.ErrPersistentIntegrity
+	}
+	return l.verifiedBytes(ctx, doc.texts[textID].NormalizedTextRef)
+}
+
+// Checks exact descriptor equality on reuse and hashes all first-read bytes.
+// Authority is established by bytes() or normalizedText() before this helper.
+func (l *evidenceLoader) verifiedBytes(ctx context.Context, ref *pb.ArtifactRef) ([]byte, error) {
 	if ref == nil {
 		return nil, errors.New("missing evidence artifact")
 	}
@@ -290,13 +325,6 @@ func (l *evidenceLoader) bytes(ctx context.Context, ref *pb.ArtifactRef) ([]byte
 	}
 	if ref.ByteSize == 0 || ref.ByteSize > 16<<20 || ref.ByteSize > l.remaining {
 		return nil, errors.New("evidence artifact budget exceeded")
-	}
-	registered, err := l.catalog.LoadArtifact(ctx, l.corpus, ref.ArtifactId)
-	if err != nil {
-		return nil, err
-	}
-	if !proto.Equal(registered, ref) {
-		return nil, domain.ErrPersistentIntegrity
 	}
 	raw, err := l.reader.ReadVerified(ctx, ref, ref.ByteSize)
 	if err != nil {

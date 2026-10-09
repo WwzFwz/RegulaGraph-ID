@@ -36,8 +36,13 @@ corpus/generation/visibility dan filter berpasangan. Duplikat, record hilang,
 korupsi atau batas terlampaui menggagalkan seluruh pilihan; urutan caller dipulihkan.
 
 `SourceHydrator` mengikat hit Qdrant ke record katalog lalu mengikuti dependency
-plan INDEX, DocumentBatch dan normalized text. Setiap artefak harus sesuai registry,
-hash SHA-256 dan ukuran. Plan harus memuat record/chunk tersebut; source view
+plan INDEX, DocumentBatch dan normalized text. Root plan dan DocumentBatch harus
+sesuai registry. Referensi normalized text memperoleh otoritas dari DocumentBatch
+yang telah diverifikasi corpus/snapshot/closure-nya, tanpa mewajibkan row registry
+terpisah untuk blob teks tersebut. Semua bytes tetap diverifikasi hash SHA-256
+dan ukurannya. Cache nested text tidak dapat melewati pemeriksaan registry ketika
+artefak dibaca sebagai root; descriptor berbeda untuk ID yang sama ditolak.
+Plan harus memuat record/chunk tersebut; source view
 memeriksa pasangan versi/sumber/filter. Span teks memakai byte UTF-8 dengan akhir
 eksklusif, berasal dari artefak terverifikasi. Source URL diambil dari observation
 COMPLETE yang terikat blob dan visible, dengan scheme HTTP(S) tanpa userinfo.
