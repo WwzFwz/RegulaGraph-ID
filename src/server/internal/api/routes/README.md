@@ -18,7 +18,11 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 corpus/profile, input C01, batas body, deadline dan fail-fast overload. Ia hanya
 memanggil interface workflow dan tidak mengambil model/backend dari JSON caller.
 `evidence_test.go` menguji unauthorized/malformed/overload/cancel dan error redaction.
-Route documents serta question generation lainnya tetap scaffold.
+`questions.go` menyediakan `/v1/questions` melalui handler yang sama, dengan
+interface workflow dan capability eksplisit. Output C01 Answer/Evidence dibungkus
+dengan mode draft/token usage; scope/snapshot/date/status dicek sebelum serialisasi.
+`questions_test.go` menguji output salah, no fallback, shared overload dan cancel.
+Route documents dan streaming tetap scaffold.
 
 Berkas: [documents.go](documents.go), [health.go](health.go), [questions.go](questions.go).
 
@@ -30,7 +34,11 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Status komponen: evidence HTTP lokal menerima empat profil retrieval, dengan autentikasi, bounded admission, fresh snapshot lease, shared clients, readiness dan graceful drain. Satu profile diotorisasi per instance; request tidak dapat menggantinya. Route generation jawaban, documents, administrasi graph dan streaming belum aktif. Unit/native integration PASS tidak membuktikan kualitas hukum atau required benchmark.
+Status komponen: evidence HTTP empat profil dan complete draft answer opsional
+aktif dengan autentikasi dan shared admission. Satu profile diotorisasi per
+instance; request tidak dapat menggantinya. Documents, administrasi graph dan
+streaming belum aktif. Unit/native integration PASS tidak membuktikan kualitas
+hukum atau required benchmark.
 
 ## Rekomendasi implementasi anak
 

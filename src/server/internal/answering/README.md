@@ -17,8 +17,8 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 `generator_native_test.go` menguji tokenizer dan generator Qwen lokal sebenarnya
 dengan evidence fixture: full prompt count harus cocok dengan usage dan citation
 tetap berasal dari metadata sumber. Fixture ini tidak menjadi bukti kualitas
-hukum. Native test kini melewati admission server yang dipakai CLI; API jawaban
-HTTP masih berikutnya;
+hukum. Native test kini melewati admission server yang dipakai CLI dan optional
+HTTP draft endpoint;
 [tokenisasi generator](../../../../doc/generator-tokenization.md).
 
 `graph_context.go` membentuk rendering immutable dari admitted traversal/source

@@ -13,7 +13,8 @@ dari pertanyaan. Konfigurasi graph API kini tersambung. Lihat
 
 `local_answer.go` melakukan startup admission generator/tokenizer resident dan
 menghasilkan `EvidenceAnswerWorkflow` reusable. Caller memiliki timeout, scope,
-lease snapshot dan drain sebelum Close. CLI `-answer` memakainya tanpa menyalin
+lease snapshot dan drain sebelum Close. CLI `-answer` dan HTTP `/v1/questions`
+memakainya tanpa menyalin
 algoritma retrieval/hydration; [panduan](../../../../doc/local-answer.md).
 
 `graph_completed.go` menyiapkan seluruh output ASSEMBLE committed untuk penulisan
@@ -161,8 +162,9 @@ memakai binding katalog dan client/model reusable, dengan akses corpus yang
 sudah diautentikasi. [rag_session_test.go](rag_session_test.go) menguji lifecycle,
 cancellation dan error. Reranker opsional terpin kini berjalan setelah hidrasi dan sebelum konteks pada
 jalur evidence-only maupun answering. Kegagalannya menghentikan generation.
-Tokenizer generator nyata dan API/CLI jawaban masih belum tersambung; CLI
-evidence-only sudah tersedia. Lihat [kontrak](../../../../doc/pinned-evidence.md).
+Tokenizer generator nyata serta CLI/API draft jawaban kini tersambung melalui
+`local_answer.go`; API reranking configuration dan streaming belum aktif.
+Lihat [kontrak](../../../../doc/pinned-evidence.md).
 
 [published_query.go](published_query.go) mempersiapkan dependency dari binding
 katalog: origin credential harus cocok persis, admission Qdrant hanya membaca,

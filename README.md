@@ -11,9 +11,21 @@ query vector/hybrid/graph/hybrid-graph pada snapshot yang sudah published, denga
 koneksi reusable. Graph-only tidak membutuhkan embedding service.
 [Verifikasi](doc/verification-report-graph-api.md) mencakup request concurrent,
 provenance dan cleanup lease. [CLI jawaban lokal](doc/local-answer.md) kini
-tersambung dengan model/tokenizer terpin; HTTP generation masih berikutnya.
+tersambung dengan model/tokenizer terpin; `/v1/questions` menyediakan mode draft
+HTTP opsional dengan model reusable, status UNREVIEWED/PARTIAL atau ABSTAIN.
 
-**Status: collector/audit D01, kontrak C01, evaluator E01, storage/publication S01, pipeline durable sampai EXTRACT, Semantic EXTRACT Gateway, ontology EXTRACT bersama, serta native embedding/reranker tersedia; Hybrid GraphRAG end-to-end belum aktif.** Go/Rust/C++ memegang runtime produk; Python untuk evaluasi/tooling offline. Audit D01 telah memverifikasi provenance dan blob lokal sekitar 3 GB, tetapi coverage queue/reference, connector JDIHN, stratifikasi format, dan gold data masih belum lengkap. Rust menghasilkan artefak dokumen, chunk, dan proposal ekstraksi berbukti; Go memegang exact identity, orchestration, gateway model, validasi commit EXTRACT, serta control-plane. Canonical resolution, graph/index, retrieval/answering menyeluruh, pemilihan seluruh model produksi, dan acceptance benchmark masih harus diselesaikan. Mulai kelanjutan dari [panduan implementasi](doc/implementation-guide.md), [runner evaluasi](doc/evaluation-runner.md), dan [protokol verifikasi](doc/verification.md).
+**Status: graph/index publication, empat profil retrieval, native embedding/reranker,
+serta jawaban draft lokal melalui CLI/API tersedia; acceptance release Hybrid
+GraphRAG belum selesai.** Go/Rust/C++ memegang runtime produk; Python untuk
+evaluasi/tooling offline. Tes integrasi menghubungkan Rust, PostgreSQL, Neo4j,
+Qdrant dan model lokal pada fixture sumber sintetis. Ini belum membuktikan
+kualitas extraction/resolution, ketepatan hukum, atau target latency pada corpus
+regulasi nyata. Akuisisi/audit, kontrak, evaluator dan storage control-plane aktif;
+coverage sumber, gold, pemilihan seluruh model, streaming, incremental lengkap
+serta required benchmark masih perlu diselesaikan. Mulai kelanjutan dari
+[rencana terkini](doc/development-plan.md), [runner evaluasi](doc/evaluation-runner.md),
+dan [protokol verifikasi](doc/verification.md). Status lama di bagian bawah
+mencatat tahap implementasi sebelumnya; checkpoint terkini berada pada rencana.
 
 ## Struktur dan cakupan
 

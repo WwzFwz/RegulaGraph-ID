@@ -1,5 +1,10 @@
 # doc
 
+[API jawaban](evidence-api.md) menambahkan endpoint draft opsional dengan shared
+generator terpin dan snapshot lease yang sama sampai generation.
+[Laporan verifikasi](verification-report-answer-api.md) mencatat HTTP end-to-end,
+shared admission serta perbaikan capability readiness.
+
 [Jawaban lokal](local-answer.md) menjelaskan admission generator dan mode CLI
 `-answer` dari snapshot terpublikasi, beserta batas kepercayaan/kualitasnya.
 [Laporan verifikasi](verification-report-generator-admission.md) mencatat uji

@@ -1,5 +1,11 @@
 # src/server/internal/indexing
 
+Native graph smoke dapat mengaktifkan `REGULAGRAPH_TEST_LLAMA_API_ANSWER=1`
+bersama `REGULAGRAPH_TEST_GRAPH_API=1` untuk menguji actual HTTP answer setelah
+publication. `nativeAnswerProfile` berbagi explicit model pins dengan CLI smoke;
+fixture source tetap sintetis. Tes memeriksa snapshot, usage, draft status,
+redacted logs dan lease cleanup, bukan gold/latency acceptance.
+
 Native published graph test memperoleh seed melalui exact-alias lookup PostgreSQL
 dari teks pertanyaan. Alias/model tetap sintetis; kedua profil graph diuji sampai
 draft tanpa klaim candidate recall pada corpus nyata.

@@ -16,7 +16,7 @@
 // Status: workflow draft dari EvidenceBundle terpin aktif; graph profile menuntut
 // immutable GraphContext untuk rendering/citation/final validation. Empat profil
 // retrieval terhubung di library; query alias linking dan API evidence tersedia.
-// CLI memakai generator/tokenizer lokal terpin; HTTP generation dan streaming
+// CLI dan HTTP memakai generator/tokenizer lokal terpin; streaming
 // masih perlu disambungkan. Fixture native bukan acceptance corpus/gold/performa.
 // Integrasi berikutnya:
 // Pin one snapshot, resolve temporal intent, coordinate retrieval/context/generation and validate terminal evidence; propagate cancellation.

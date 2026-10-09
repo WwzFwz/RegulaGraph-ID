@@ -1,5 +1,14 @@
 # Rencana implementasi berbasis dependency
 
+Checkpoint HTTP jawaban: `/v1/questions` aktif secara opt-in; runtime generator
+diadmit sekali saat startup dan dipakai lintas request/snapshot. Evidence dan
+answer memakai satu lease sampai final admission, auth/capacity yang sama dan
+output draft tanpa promosi status. Rust/PostgreSQL/Neo4j/Qdrant/Qwen nyata telah
+melalui HTTP pada fixture sintetis. [Panduan](evidence-api.md).
+Streaming, routing temporal/semantic query lengkap, operator corpus end-to-end,
+gold/model quality dan required performance acceptance tetap terbuka.
+Riwayat checkpoint berikut tidak semuanya merupakan backlog aktif.
+
 Checkpoint jawaban lokal: admission GGUF/build/template/window dan profile config
 terpin tersedia. CLI `query-evidence -answer` memakai session snapshot yang sama
 sampai generation/final citation validation, tanpa fallback ketika model gagal.

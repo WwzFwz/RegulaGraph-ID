@@ -1,7 +1,8 @@
 # Jawaban lokal dari snapshot terpublikasi
 
 Dokumen ini menjelaskan mode CLI yang menghubungkan retrieval empat profil dengan
-generator lokal terpin dan validasi citation. API jawaban HTTP belum diaktifkan.
+generator lokal terpin dan validasi citation. [API HTTP](evidence-api.md) juga
+menyediakan mode draft secara eksplisit dengan runtime model reusable.
 Draft tetap UNREVIEWED/PARTIAL atau ABSTAIN, bukan pendapat hukum terverifikasi.
 
 ## Model dan konfigurasi

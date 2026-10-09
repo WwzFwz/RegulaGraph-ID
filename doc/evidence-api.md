@@ -4,8 +4,8 @@ Dokumen ini menjelaskan layanan HTTP Go untuk query pada indeks yang sudah
 dipublikasikan. API memanggil workflow produksi yang sama dengan `query-evidence`,
 memakai satu corpus/profile yang diotorisasi operator. Respons adalah C01
 EvidenceBundle dengan teks, versi, span, ranking provenance dan status completeness.
-Empat profil tersedia: vector, hybrid, graph, dan hybrid-graph. API ini belum
-menghasilkan jawaban LLM atau stream token.
+Empat profil tersedia: vector, hybrid, graph, dan hybrid-graph. Endpoint opsional
+`/v1/questions` menghasilkan draft LLM bersnapshot sama. Streaming belum aktif.
 
 ## Prasyarat dan menjalankan
 
@@ -44,7 +44,7 @@ lokal atau jalankan executable terkompilasi di terminal proses yang terpisah.
 
 Pilihan profile `vector`, `hybrid`, `graph` atau `hybrid-graph` wajib eksplisit.
 Reranking opsional yang tersedia pada CLI belum dikonfigurasi di entry point API
-ini. CURRENT/COMPARE dan generation jawaban ditolak, tanpa fallback diam-diam.
+ini. CURRENT/COMPARE dan streaming ditolak, tanpa fallback diam-diam.
 
 Untuk profil graph, siapkan snapshot graph terbit dan file JSON route/policy
 sesuai [konfigurasi graph CLI](query-evidence.md). Gunakan environment yang sama:
@@ -94,10 +94,52 @@ jawaban terverifikasi. Kesalahan tidak dikonversi menjadi daftar bukti sukses:
 besar, 415 media salah, 429 overload, 502 keluaran internal invalid, 503 dependency
 tidak siap, dan 504 deadline. Response dan log tidak menyalin error mentah backend.
 
-## Batas dan lifecycle
+## Mengaktifkan jawaban lokal
+
+Siapkan model/server dan file konfigurasi pada [panduan jawaban lokal](local-answer.md).
+Sebelum menjalankan API, set:
+
+```powershell
+$env:REGULAGRAPH_API_ANSWERS = 'true'
+$env:REGULAGRAPH_ANSWER_CONFIG = '<absolute path answer.json>'
+$env:REGULAGRAPH_ANSWER_CONFIG_SHA256 = (Get-FileHash -LiteralPath $env:REGULAGRAPH_ANSWER_CONFIG -Algorithm SHA256).Hash.ToLowerInvariant()
+# REGULAGRAPH_ANSWER_API_KEY diisi lokal bila server model memakai autentikasi.
+$env:REGULAGRAPH_API_TIMEOUT = '3m'
+go run ./src/server/cmd/api
+```
+
+Hash harus berasal dari konfigurasi yang telah diperiksa operator. Budget
+`maximum_evidence` wajib mencakup kandidat: 20 untuk vector/graph, 40 untuk hybrid,
+60 untuk hybrid-graph pada entrypoint ini. Startup memverifikasi GGUF sekali dan
+mengikat alias/build/template/window; readiness serta generation memeriksa drift.
+Deadline startup dengan generation adalah dua menit; evidence-only 15 detik.
+Model tidak dimuat atau dihash ulang per request. Runtime dipakai bersama lintas
+snapshot; scope/lease tetap baru untuk setiap query.
+
+Kirim JSON QuestionRequest yang sama ke `/v1/questions`:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8097/v1/questions -Method Post -Headers $headers -ContentType application/json -Body $question -TimeoutSec 185
+```
+
+HTTP 200 berisi `{mode:"answer_draft", answer:<C01 Answer>, evidence:<C01 EvidenceBundle>,
+input_tokens, output_tokens}`. Field `answer` dan `evidence` memakai ProtoJSON,
+termasuk representasi string untuk field uint64 di dalam pesan C01. Token envelope
+adalah angka JSON terbatas anggaran model. `X-Answer-ID` menghubungkan response
+dengan log request. Klaim tetap UNREVIEWED dan status PARTIAL atau ABSTAIN;
+citation struktural yang valid tidak membuktikan dukungan semantik/hukum.
+
+Generation gagal mengembalikan error, tanpa fallback evidence-only. Jika flag
+tidak diaktifkan, route jawaban menghasilkan 404 dan environment model tidak
+mengaktifkannya otomatis. Readiness dengan mode jawaban menguji model juga serta
+melaporkan `evidence_and_answer_draft`; liveness tetap terpisah. Ketiga route
+evidence/question/readiness berbagi kapasitas admission. Timeout boleh diatur
+1 detik sampai 5 menit, default 30 detik; ini batas layanan, bukan revisi benchmark.
+
+## Batas dan lifecycle layanan
 
 Entry point saat ini menggunakan 20 kandidat per branch, maksimal 8 handler
-evidence/readiness bersamaan, timeout 30 detik, body 64 KiB, header server 16 KiB,
+evidence/question/readiness bersamaan, default timeout 30 detik, body 64 KiB, header server 16 KiB,
 dan output JSON maksimal 16 MiB. Kelebihan concurrency ditolak dengan 429; tidak
 ada antrean tak terbatas. Angka ini konfigurasi layanan, bukan revisi target suite.
 Endpoint hanya bind IP loopback; semua Origin browser ditolak dan tidak ada CORS.
