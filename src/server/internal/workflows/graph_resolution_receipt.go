@@ -131,10 +131,10 @@ func readGraphPreparationArtifact(ctx context.Context, store graphPreparationArt
 		return nil, err
 	}
 	if err := domain.ValidateWire(ref, domain.DefaultWireLimits); err != nil {
-		return nil, err
+		return nil, errors.Join(domain.ErrPersistentIntegrity, err)
 	}
 	if ref.SchemaVersion != 1 || ref.ByteSize == 0 || ref.ByteSize > *remaining {
-		return nil, errors.New("graph preparation input byte budget exceeded")
+		return nil, errors.Join(domain.ErrPersistentIntegrity, errors.New("graph preparation input byte budget exceeded"))
 	}
 	*remaining -= ref.ByteSize
 	registered, err := store.LoadArtifact(ctx, corpus, ref.ArtifactId)

@@ -141,7 +141,10 @@ CREATE TRIGGER graph_child_fixture BEFORE INSERT ON jobs FOR EACH ROW EXECUTE FU
 	if err = <-scheduled; !errors.Is(err, postgres.ErrConflict) {
 		t.Fatalf("registry movement while waiting for lock admitted: %v", err)
 	}
-	claimed, err := repo.ClaimGraphJob(ctx, "owner:graph-worker", time.Minute)
+	if _, err = repo.ClaimGraphJobInScope(ctx, "owner:foreign-graph", time.Minute, "scope:foreign"); !errors.Is(err, domain.ErrLeaseUnavailable) {
+		t.Fatal("foreign graph scope claimed", err)
+	}
+	claimed, err := repo.ClaimGraphJobInScope(ctx, "owner:graph-worker", time.Minute, stored.Assignments[0].Plan.Context.AuthScopeRef)
 	if err != nil || claimed.JobID != "job:graph-child" || claimed.Stage != pb.JobStage_JOB_STAGE_ASSEMBLE || claimed.LeaseFence != 1 {
 		t.Fatalf("graph child claim failed: %+v %v", claimed, err)
 	}
@@ -165,7 +168,9 @@ CREATE TRIGGER graph_child_fixture BEFORE INSERT ON jobs FOR EACH ROW EXECUTE FU
 		t.Fatalf("graph crash recovery did not advance fence/attempt: %+v %v", reclaimed, err)
 	}
 	checkGraphDispatchAuthority(t, ctx, single, db, pin, stored, inputs, reclaimed, claimed, fresh)
+	processor := checkGraphProcessorRestore(t, ctx, single, db, stored, inputs, reclaimed)
 	checkGraphOutputCommit(t, ctx, single, db, pin, stored, inputs, reclaimed)
+	checkGraphRecoveryFailure(t, ctx, single, db, processor, stored)
 	if _, err = db.Exec(ctx, `UPDATE graph_job_inventories SET fence=fence WHERE publication_id=$1`, binding.PublicationID); err == nil {
 		t.Fatal("graph inventory mutable")
 	}

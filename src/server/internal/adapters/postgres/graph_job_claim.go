@@ -16,6 +16,19 @@ import (
 )
 
 func (r *Repository) ClaimGraphJob(ctx context.Context, ownerID string, leaseDuration time.Duration) (JobRecord, error) {
+	return r.claimGraphJob(ctx, ownerID, leaseDuration, "")
+}
+
+// ClaimGraphJobInScope is the daemon entry point: foreign-scope inventories must
+// remain unclaimed rather than being failed later by a differently scoped worker.
+func (r *Repository) ClaimGraphJobInScope(ctx context.Context, ownerID string, leaseDuration time.Duration, scope string) (JobRecord, error) {
+	if scope == "" {
+		return JobRecord{}, errors.New("graph claim scope required")
+	}
+	return r.claimGraphJob(ctx, ownerID, leaseDuration, scope)
+}
+
+func (r *Repository) claimGraphJob(ctx context.Context, ownerID string, leaseDuration time.Duration, scope string) (JobRecord, error) {
 	if !storageIDPattern.MatchString(ownerID) || leaseDuration <= 0 {
 		return JobRecord{}, errors.New("valid owner and positive lease duration required")
 	}
@@ -55,8 +68,10 @@ func (r *Repository) ClaimGraphJob(ctx context.Context, ownerID string, leaseDur
               AND s.state IN ($7,$8) AND NOT source.cancellation_requested
               AND c.active_snapshot_id=s.parent_snapshot_id
               AND EXISTS (SELECT 1 FROM graph_source_bindings b
+                JOIN index_source_snapshots base ON base.publication_id=b.base_publication_id
                 WHERE b.publication_id=i.publication_id AND b.source_job_id=source.job_id
-                AND b.source_checkpoint_id=source.latest_checkpoint_id)
+                AND b.source_checkpoint_id=source.latest_checkpoint_id AND base.corpus_id=i.corpus_id
+                AND ($9='' OR base.auth_scope=$9))
               AND EXISTS (SELECT 1 FROM snapshot_registry_bindings v
                 WHERE v.publication_id=s.publication_id AND v.fence=s.fence
                 AND v.registry_revision BETWEEN c.registry_history_floor AND c.registry_revision))
@@ -80,7 +95,7 @@ func (r *Repository) ClaimGraphJob(ctx context.Context, ownerID string, leaseDur
 		int16(pb.JobState_JOB_STATE_QUEUED), int16(pb.JobState_JOB_STATE_RETRY_WAIT),
 		int16(pb.JobState_JOB_STATE_RUNNING), ownerID, leaseDuration.String(),
 		int16(pb.JobStage_JOB_STAGE_ASSEMBLE), int16(pb.SnapshotState_SNAPSHOT_STATE_STAGING),
-		int16(pb.SnapshotState_SNAPSHOT_STATE_VALIDATING))
+		int16(pb.SnapshotState_SNAPSHOT_STATE_VALIDATING), scope)
 	record, err := scanJob(row)
 	if err == pgx.ErrNoRows {
 		return JobRecord{}, ErrLeaseUnavailable

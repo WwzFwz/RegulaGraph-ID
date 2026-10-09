@@ -118,6 +118,7 @@ func TestExecuteGraphAssemblyWithRustArtifacts(t *testing.T) {
 	call := proto.Clone(req.Context).(*pb.RequestContext)
 	call.Deadline = timestamppb.New(time.Now().Add(2 * time.Minute))
 	a := domain.GraphJobAssignment{JobID: job.JobID, SourceJobID: "job:source", Plan: plan, Reference: req.GraphAssemblyPlan}
+	checkGraphProcessorWithRustArtifacts(t, artifacts, a, job, res, ontology)
 	for _, test := range []struct {
 		name          string
 		mutate        func(*pb.ProcessBatchResponse)

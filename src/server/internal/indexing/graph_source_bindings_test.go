@@ -11,6 +11,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -55,9 +57,18 @@ func checkGraphSourceBindingReceipt(t *testing.T, ctx context.Context, repo *pos
 		return domain.GraphSourceArtifact{Reference: ref, Bytes: raw}
 	}
 	hash := &pb.ContentHash{Sha256: strings.Repeat("a", 64)}
+	ontologyBytes, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "configs", "ontology-v1.jsonc"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ontology, err := domain.ParseOntologyJSONC(ontologyBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ontologyHash := ontology.ContentHash()
 	model := &pb.ModelManifest{ModelId: "model:extract-fixture", Version: "1", Task: pb.ModelTask_MODEL_TASK_EXTRACT,
 		WeightsHash: hash, TokenizerHash: hash, PromptHash: hash, MaxTokens: 128, Precision: "fp32", Backend: "fixture"}
-	producer := &pb.ProducerManifest{Software: "fixture", Build: "1", SchemaVersion: 1, Models: []*pb.ModelManifest{model}, PromptHashes: []*pb.ContentHash{hash}, InputHashes: []*pb.ContentHash{hash}, ConfigHash: hash}
+	producer := &pb.ProducerManifest{Software: "fixture", Build: "1", SchemaVersion: 1, Models: []*pb.ModelManifest{model}, PromptHashes: []*pb.ContentHash{hash}, InputHashes: []*pb.ContentHash{ontologyHash}, ConfigHash: hash}
 	extraction := &pb.ExtractionBatch{Meta: &pb.RecordMeta{SchemaVersion: 1, CorpusId: corpus, RecordId: "extract:empty-for-binding"},
 		Context: proto.Clone(original.Context).(*pb.RequestContext), SourceDocumentBatch: sourceBinding.Original,
 		Dependencies: &pb.DependencyManifest{ArtifactId: "dependencies:empty-extract", ProducerManifest: producer,
@@ -290,7 +301,7 @@ func checkGraphSourceBindingReceipt(t *testing.T, ctx context.Context, repo *pos
 	artifacts[boundE.Reference.ArtifactId], artifacts[boundR.Reference.ArtifactId] = boundE.Bytes, boundR.Bytes
 	assemblyConfig := workflows.GraphAssemblyPreparationConfig{CorpusID: corpus, PublicationID: target.PublicationID,
 		SourceJobID: job, Producer: &pb.ProducerManifest{Software: "graph-assembly", Build: "fixture", SchemaVersion: 1, ConfigHash: hash},
-		OntologyHash: hash, MaximumReferences: 4096, MaximumCandidates: 32}
+		OntologyHash: ontologyHash, MaximumReferences: 4096, MaximumCandidates: 32}
 	prepared, err := workflows.PrepareGraphAssembly(ctx, repo, artifacts, files, pin, assemblyConfig)
 	if err != nil {
 		t.Fatal("prepare graph plan", err)

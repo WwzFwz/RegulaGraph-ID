@@ -91,14 +91,17 @@ func ExecuteGraphAssembly(ctx context.Context, authority GraphDispatchAuthority,
 		if err != nil {
 			return err
 		}
-		return domain.DecodeWire(raw, m, domain.DefaultWireLimits)
+		if err := domain.DecodeWire(raw, m, domain.DefaultWireLimits); err != nil {
+			return errors.Join(domain.ErrPersistentIntegrity, err)
+		}
+		return nil
 	}
 	plan := new(pb.GraphAssemblyPlan)
 	if err = read(a.Reference, plan); err != nil {
 		return nil, err
 	}
 	if !proto.Equal(plan, a.Plan) || !proto.Equal(plan.OntologyHash, ontology.ContentHash()) {
-		return nil, errors.New("stored graph plan or ontology drift")
+		return nil, errors.Join(domain.ErrPersistentIntegrity, errors.New("stored graph plan or ontology drift"))
 	}
 	in := domain.GraphOutputSources{Document: new(pb.DocumentBatch), Extraction: new(pb.ExtractionBatch), Resolution: new(pb.ResolutionBatch), Registry: new(pb.RegistryEntityView), NormalizedTexts: map[string][]byte{}}
 	for _, role := range []struct {
@@ -112,12 +115,12 @@ func ExecuteGraphAssembly(ctx context.Context, authority GraphDispatchAuthority,
 		}
 	}
 	if err = domain.ValidateExtractionBatchClosure(in.Extraction, in.Document, domain.DefaultWireLimits.MaxItems); err != nil {
-		return nil, err
+		return nil, errors.Join(domain.ErrPersistentIntegrity, err)
 	}
 	// Precharge required text descriptors before any text I/O, then read each once.
 	textBudget := remaining
 	if err = domain.BudgetGraphAssemblyTexts(in.Document, in.Extraction, &textBudget); err != nil {
-		return nil, err
+		return nil, errors.Join(domain.ErrPersistentIntegrity, err)
 	}
 	needed := map[string]bool{}
 	for _, m := range in.Extraction.Mentions {
@@ -149,7 +152,7 @@ func ExecuteGraphAssembly(ctx context.Context, authority GraphDispatchAuthority,
 		return nil, err
 	}
 	if err = domain.ValidateGraphWorkerEnvelope(request, response, plan); err != nil {
-		return nil, err
+		return nil, errors.Join(domain.ErrPersistentIntegrity, err)
 	}
 	// Output is independently capped: the worker may output more bytes than the
 	// remaining input allowance, but never more than one bounded wire artifact.
@@ -160,17 +163,17 @@ func ExecuteGraphAssembly(ctx context.Context, authority GraphDispatchAuthority,
 	}
 	delta := new(pb.GraphDelta)
 	if err = domain.DecodeWire(raw, delta, domain.DefaultWireLimits); err != nil {
-		return nil, err
+		return nil, errors.Join(domain.ErrPersistentIntegrity, err)
 	}
 	if err = domain.ValidatePlannedGraphDelta(delta, plan, in, ontology); err != nil {
-		return nil, err
+		return nil, errors.Join(domain.ErrPersistentIntegrity, err)
 	}
 	again, err := authority.AuthorizeGraphDispatch(bounded, pin, job)
 	if err != nil {
 		return nil, err
 	}
 	if again.JobID != a.JobID || again.SourceJobID != a.SourceJobID || !proto.Equal(again.Plan, a.Plan) || !proto.Equal(again.Reference, a.Reference) {
-		return nil, errors.New("graph assignment changed during execution")
+		return nil, errors.Join(domain.ErrPersistentIntegrity, errors.New("graph assignment changed during execution"))
 	}
 	if err = bounded.Err(); err != nil {
 		return nil, err
@@ -183,18 +186,18 @@ func ExecuteGraphAssembly(ctx context.Context, authority GraphDispatchAuthority,
 
 func readGraphBytes(ctx context.Context, reader DocumentArtifactReader, ref *pb.ArtifactRef, remaining *uint64) ([]byte, error) {
 	if err := domain.ValidateWire(ref, domain.DefaultWireLimits); err != nil {
-		return nil, err
+		return nil, errors.Join(domain.ErrPersistentIntegrity, err)
 	}
 	if ref.SchemaVersion != 1 || ref.ByteSize == 0 || ref.ByteSize > *remaining {
-		return nil, errors.New("graph artifact byte budget exceeded")
+		return nil, errors.Join(domain.ErrPersistentIntegrity, errors.New("graph artifact byte budget exceeded"))
 	}
 	*remaining -= ref.ByteSize
 	raw, err := reader.ReadVerified(ctx, ref, ref.ByteSize)
 	if err != nil {
-		return nil, err
+		return nil, graphArtifactReadError(err)
 	}
 	if uint64(len(raw)) != ref.ByteSize || fmt.Sprintf("%x", sha256.Sum256(raw)) != ref.ContentHash.Sha256 {
-		return nil, errors.New("graph artifact hash/size mismatch")
+		return nil, errors.Join(domain.ErrPersistentIntegrity, errors.New("graph artifact hash/size mismatch"))
 	}
 	return raw, nil
 }
