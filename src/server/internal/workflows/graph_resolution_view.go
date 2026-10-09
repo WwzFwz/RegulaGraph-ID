@@ -54,16 +54,10 @@ func ReadGraphResolutionForAssembly(ctx context.Context, store GraphResolutionVi
 			// multiplying a reference limit by itself. The original production
 			// lookup has this same product cap; overflow remains an error, never
 			// truncation or a successful comparison of a partial candidate set.
-			scopes := make(map[string]bool)
-			for _, lookup := range candidates.Lookups {
-				for _, scope := range lookup.Scopes {
-					scopes[scope.Revision.ScopeId] = true
-				}
+			aliasesPerScope, err := domain.GraphCandidateAliasBudget(candidates, maximumEdges)
+			if err != nil {
+				return err
 			}
-			if len(scopes) == 0 || len(scopes) > domain.MaximumRegistryLookupAliases {
-				return errors.New("graph candidate lookup exceeds aggregate scope budget")
-			}
-			aliasesPerScope := min(maximumEdges, domain.MaximumRegistryLookupAliases/len(scopes))
 			return store.VerifyRegistryCandidateView(ctx, corpus, input, targetRevision,
 				maximumEdges, aliasesPerScope, maximumEdges, maximumCandidates)
 		})
@@ -75,14 +69,5 @@ func ReadGraphResolutionForAssembly(ctx context.Context, store GraphResolutionVi
 // before the explicit snapshot-envelope policy adds its own provenance dependencies.
 // Future extractors using registry/other artifacts need corresponding readers.
 func validateGraphExtractionDependencies(extraction *pb.ExtractionBatch) error {
-	if extraction == nil || extraction.Dependencies == nil || extraction.SourceDocumentBatch == nil {
-		return errors.New("graph extraction source dependencies required")
-	}
-	deps := extraction.Dependencies
-	if len(deps.LookupScopeRevisions) != 0 || len(deps.Dependencies) != 1 ||
-		deps.Dependencies[0].GetDependencyId() != extraction.SourceDocumentBatch.ArtifactId ||
-		!proto.Equal(deps.Dependencies[0].GetFingerprint(), extraction.SourceDocumentBatch.ContentHash) {
-		return errors.New("graph EXTRACT dependency contract is unsupported or incomplete")
-	}
-	return nil
+	return domain.ValidateGraphExtractionDependencies(extraction)
 }

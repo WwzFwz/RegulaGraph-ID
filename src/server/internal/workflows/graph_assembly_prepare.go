@@ -13,7 +13,6 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
-	"sort"
 
 	"google.golang.org/protobuf/proto"
 	pb "regulagraph.local/server/gen/regulagraph/v1"
@@ -46,7 +45,7 @@ type PreparedGraphAssembly struct {
 
 // ErrGraphAssemblyUnresolved keeps unresolved sources out of worker dispatch;
 // the current Rust builder requires one LINK/CREATE assignment per mention.
-var ErrGraphAssemblyUnresolved = errors.New("ASSEMBLE requires resolved LINK/CREATE assignments; source needs resolution")
+var ErrGraphAssemblyUnresolved = domain.ErrGraphAssemblyUnresolved
 
 func PrepareGraphAssembly(ctx context.Context, store GraphAssemblyPreparationStore, reader DocumentArtifactReader,
 	writer GraphSourceArtifactWriter, pin domain.SnapshotPin, config GraphAssemblyPreparationConfig) (*PreparedGraphAssembly, error) {
@@ -224,52 +223,11 @@ func graphPreparationArtifact(message proto.Message, id, media string) (domain.G
 }
 
 func budgetGraphAssemblyTexts(document *pb.DocumentBatch, extraction *pb.ExtractionBatch, remaining *uint64) error {
-	needed := map[string]bool{}
-	for _, mention := range extraction.Mentions {
-		needed[mention.TextSpan.TextArtifactId] = true
-	}
-	for _, support := range extraction.Supports {
-		for _, span := range support.EvidenceSpans {
-			needed[span.TextArtifactId] = true
-		}
-	}
-	seen := map[string]bool{}
-	for _, text := range document.TextArtifacts {
-		id := text.Meta.RecordId
-		if seen[id] {
-			return errors.New("duplicate ASSEMBLE text descriptor")
-		}
-		seen[id] = true
-		if !needed[id] {
-			continue
-		}
-		ref := text.NormalizedTextRef
-		if ref == nil || ref.MediaType != "text/plain;charset=utf-8" || ref.ByteSize > *remaining {
-			return errors.New("ASSEMBLE text type or byte budget mismatch")
-		}
-		*remaining -= ref.ByteSize
-		delete(needed, id)
-	}
-	if len(needed) != 0 {
-		return errors.New("ASSEMBLE normalized text descriptor missing")
-	}
-	return nil
+	return domain.BudgetGraphAssemblyTexts(document, extraction, remaining)
 }
 
 // Caller has validated wire bounds and full proposal/decision/mention closure.
 // Match Rust materialize_resolved_relations; never silently omit DEFER records.
 func graphAssemblyCanonicalSelection(resolution *pb.ResolutionBatch) ([]string, error) {
-	ids := map[string]bool{}
-	for _, decision := range resolution.Decisions {
-		if (decision.Action != pb.ResolutionAction_RESOLUTION_ACTION_LINK && decision.Action != pb.ResolutionAction_RESOLUTION_ACTION_CREATE) || len(decision.AssignedCanonicalIds) != 1 {
-			return nil, ErrGraphAssemblyUnresolved
-		}
-		ids[decision.AssignedCanonicalIds[0]] = true
-	}
-	selection := make([]string, 0, len(ids))
-	for id := range ids {
-		selection = append(selection, id)
-	}
-	sort.Strings(selection)
-	return selection, nil
+	return domain.GraphAssemblyCanonicalSelection(resolution)
 }

@@ -331,6 +331,7 @@ func checkGraphSourceBindingReceipt(t *testing.T, ctx context.Context, repo *pos
 	if err = domain.DecodeWire(viewBytes, readView, domain.DefaultWireLimits); err != nil || len(readView.Entities) != 0 || domain.ValidateAssemblyRegistryBinding(readPlan, readView) != nil {
 		t.Fatalf("persisted ASSEMBLE canonical view drift: %v", err)
 	}
+	checkGraphJobInventory(t, ctx, repo, conn, dsn, pin, prepared, binding, input, viewBytes)
 	cancelling := graphPreparationCancelledStore{Repository: repo, cancel: func() error {
 		_, e := conn.Exec(ctx, `UPDATE jobs SET cancellation_requested=true WHERE job_id=$1`, job)
 		return e

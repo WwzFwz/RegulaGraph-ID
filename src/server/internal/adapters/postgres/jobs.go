@@ -108,7 +108,8 @@ func (r *Repository) ClaimJob(ctx context.Context, ownerID string, leaseDuration
 	row := r.pool.QueryRow(ctx, `WITH candidate AS (
         SELECT job_id FROM jobs
 		WHERE cancellation_requested=false AND stage NOT IN ($9,$10,$11,$12,$13,$14)
-		AND NOT EXISTS (SELECT 1 FROM index_job_assignments a WHERE a.job_id=jobs.job_id) AND (
+		AND NOT EXISTS (SELECT 1 FROM index_job_assignments a WHERE a.job_id=jobs.job_id)
+		AND NOT EXISTS (SELECT 1 FROM graph_job_assignments a WHERE a.job_id=jobs.job_id) AND (
 		  state=$1 OR (state=$2 AND next_attempt_at <= clock_timestamp() AND stage_attempt < max_attempts)
 		  OR (state IN ($3,$6,$7,$8) AND lease_expires_at < clock_timestamp()))
         ORDER BY created_at, job_id
