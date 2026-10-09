@@ -4,8 +4,9 @@
 pembacaan record Neo4j, discovery traversal dan hidrasi support dari snapshot terbit.
 Lookup Qdrant diteruskan ke verifikasi PostgreSQL/artefak sumber; pencabutan pin pada
 admission akhir menggagalkan hasil. [Kontrak bukti](../../../../doc/graph-evidence.md).
-Branch graph
-ke jawaban belum terhubung; lihat
+`published_graph_answer_test.go` melanjutkan hidrasi ke prompt graph dan draft
+bersitasi memakai generator/tokenizer sintetis. Query branch graph belum terhubung;
+lihat [rendering](../../../../doc/graph-context.md) serta
 [bukti pembacaan](../../../../doc/verification-report-graph-read.md).
 
 `index_reuse.go` memverifikasi semua halaman catalog terhadap Qdrant dan mencatat

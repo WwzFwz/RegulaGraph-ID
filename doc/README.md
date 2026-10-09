@@ -1,5 +1,9 @@
 # doc
 
+[graph-context.md](graph-context.md) menjelaskan rendering relasi, seluruh bukti
+wajib dan validasi draft bersitasi; [verifikasi](verification-report-graph-context.md)
+mencatat hasil native dan batas klaim kualitasnya.
+
 [graph-evidence.md](graph-evidence.md) menjelaskan pemetaan path/support ke teks
 sumber terverifikasi dan kewajiban context membership. [Laporan](verification-report-graph-evidence.md)
 memisahkan fixture integrasi dari quality/benchmark acceptance.

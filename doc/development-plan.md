@@ -5,8 +5,10 @@ dengan output Rust aktual, scope/pin, cycle/alternate path serta corruption reje
 Graph evidence hydration kini terhubung ke source lookup Qdrant dan autentikasi
 PostgreSQL/artefak, dengan pin recheck, span coverage dan dependency partial eksplisit.
 Lihat [kontrak bukti](graph-evidence.md) dan [verifikasi](verification-report-graph-evidence.md).
-Berikutnya seed linking, graph branch/fusion, context renderer yang mempertahankan
-seluruh membership path, applicability/dependency resolution dan acceptance.
+Renderer graph yang mempertahankan seluruh membership path kini terhubung ke
+generator/citation/final validation; [kontrak](graph-context.md) dan
+[verifikasi](verification-report-graph-context.md). Berikutnya seed linking,
+graph branch/fusion, applicability/dependency resolution dan acceptance.
 
 Checkpoint terbaru K01: [adapter Neo4j](neo4j-graph-store.md) menulis generation
 additive terisolasi, mempertahankan shared support, memverifikasi inventory exact dan
