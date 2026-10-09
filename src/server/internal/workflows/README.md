@@ -1,5 +1,11 @@
 # src/server/internal/workflows
 
+`graph_completed.go` menyiapkan seluruh output ASSEMBLE committed untuk penulisan
+graph tanpa worker/model call. `graph_source_reader.go` berbagi hash/budget/source
+reader dengan dispatch; kedua jalur memanggil validator projection domain yang sama.
+Authority dibaca ulang setelah I/O, dan checkpoint berbeda membatalkan hasil lama.
+Hasil owned belum mengaktifkan snapshot; lihat [kontrak](../../../../doc/graph-publication-preparation.md).
+
 `graph_job_processor.go` dan `graph_job_restore.go` memulihkan admission inventory,
 mem-pin base, memakai cache dengan live reauthorization, dan memverifikasi ulang
 checkpoint/output tanpa RPC saat recovery. `graph_executor.go` berbagi lifecycle

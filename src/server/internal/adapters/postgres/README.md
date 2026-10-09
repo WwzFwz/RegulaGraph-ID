@@ -1,5 +1,11 @@
 # src/server/internal/adapters/postgres
 
+`graph_job_results.go` mengumpulkan seluruh output STAGED dari admission ASSEMBLE
+di bawah lock publication/registry/source/child/pin. Registry drift, cancellation,
+checkpoint mismatch dan coverage parsial ditolak; pool satu koneksi didukung.
+Hasil masih memerlukan validasi bytes/projection dan bukan receipt publication.
+Lihat [persiapan graph](../../../../../doc/graph-publication-preparation.md).
+
 `graph_job_locator.go` memetakan claim ASSEMBLE hidup ke publication untuk restore.
 `ClaimGraphJobInScope` memilih scope dari immutable base source snapshot sebelum
 claim, sehingga daemon tidak mengambil inventory scope lain. Admission dispatch dan

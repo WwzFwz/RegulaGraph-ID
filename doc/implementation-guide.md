@@ -12,7 +12,9 @@ PostgreSQL hingga commit dari source nonempty sudah dibuktikan oleh
 [tes native graph](verification-report-native-graph.md), termasuk recovery sukses
 tanpa RPC ulang. [Adapter Neo4j](neo4j-graph-store.md) kini menyimpan delta tersebut
 ke generation additive, memeriksa isi exact dan melakukan seal; [bukti native](verification-report-neo4j.md)
-tidak menjadi izin publication. Lanjutkan catalog/write-intent/receipt graph,
+tidak menjadi izin publication. [Preparation output committed](graph-publication-preparation.md)
+kini mengumpulkan seluruh checkpoint/output dengan authority dan source validation
+ulang tanpa model/RPC. Lanjutkan catalog/write-intent/receipt graph,
 publication dengan indeks snapshot dasar, operator preparation/scheduling dan
 graph retrieval. Reaffirmation lintas registry revision,
 canonical mutations dan acceptance kualitas/performa K01 tetap terbuka.

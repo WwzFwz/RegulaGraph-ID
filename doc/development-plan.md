@@ -4,6 +4,9 @@ Checkpoint terbaru K01: [adapter Neo4j](neo4j-graph-store.md) menulis generation
 additive terisolasi, mempertahankan shared support, memverifikasi inventory exact dan
 melakukan seal. Output Rust aktual kini lulus Rust → PostgreSQL STAGED → Neo4j,
 termasuk replay dan cold recovery; lihat [laporan](verification-report-neo4j.md).
+[Collection/preparation graph committed](graph-publication-preparation.md) kini
+menyatukan output STAGED lengkap dengan revalidasi source/projection dan authority;
+checkpoint baru sesudah recovery membatalkan hasil prepared lama.
 Berikutnya catalog/write-intent/receipt graph PostgreSQL, publication dengan indeks
 snapshot dasar yang sah, operator preparation/scheduling, traversal dan jawaban.
 Graph SEALED belum menjadi snapshot query aktif. K01/Hybrid GraphRAG belum selesai.

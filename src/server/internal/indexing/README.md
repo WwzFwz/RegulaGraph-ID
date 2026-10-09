@@ -1,5 +1,11 @@
 # src/server/internal/indexing
 
+`graph_results_test.go` menguji collection output ASSEMBLE terhadap PostgreSQL
+nyata: cancellation, fence, pin, stamp, pool satu koneksi dan cancellation saat
+lock wait. Pipeline native kini melewati preparation seluruh output sebelum Neo4j
+dan menolak hasil prepared lama setelah recovery mengganti checkpoint. Ini belum
+publication gabungan; [laporan](../../../../doc/verification-report-graph-completed.md).
+
 `graph_processor_restore_test.go` menguji cold restore/cache/registry refresh dan
 pin cleanup pada PostgreSQL/Qdrant nyata dengan worker sentinel. Recovery terhadap
 checkpoint ber-output hilang harus menjadi FAILED dan tidak diklaim ulang. Fixture

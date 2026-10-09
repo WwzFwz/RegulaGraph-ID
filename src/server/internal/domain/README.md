@@ -1,5 +1,9 @@
 # src/server/internal/domain
 
+`graph_completed.go` memvalidasi coverage lengkap checkpoint/output terhadap inventory
+ASSEMBLE, exact producer, role ownership dan aggregate byte budget. DTO ini memakai
+C01 yang ada; storage authority dan source-byte validation tetap milik adapter/workflow.
+
 `graph_output.go`, `graph_output_relations.go` dan `graph_output_sources.go` memeriksa
 GraphDelta terhadap source projection: canonical hash-v1, support/provenance, visibility,
 dependency dan bytes teks. `graph_output_test.go` membaca output worker Rust aktual;

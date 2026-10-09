@@ -1,5 +1,10 @@
 # doc
 
+[graph-publication-preparation.md](graph-publication-preparation.md) menjelaskan
+collection graph committed dan validasi ulang seluruh sumber/output sebelum writer.
+[Laporan](verification-report-graph-completed.md) mencatat pending/cancellation,
+checkpoint replacement, lock wait dan persiapan output Rust sebelum Neo4j.
+
 [neo4j-graph-store.md](neo4j-graph-store.md) menjelaskan generation immutable,
 transaksi/replay, shared support, exact verification dan batas publication.
 [Laporan Neo4j](verification-report-neo4j.md) mencatat backend nyata serta output
