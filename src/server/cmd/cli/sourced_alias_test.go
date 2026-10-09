@@ -64,3 +64,39 @@ func TestSourcedAliasCommand(t *testing.T) {
 		})
 	}
 }
+
+func TestProvisionalAliasCommandSelection(t *testing.T) {
+	base := []string{"-create-provisional", "-source", "artifact:extract", "-mention", "mention:one", "-scope", "ID:national", "-label", "term"}
+	for _, mode := range []string{"inspect", "accept", "missing-approval", "canonical", "target"} {
+		t.Run(mode, func(t *testing.T) {
+			args := append([]string(nil), base...)
+			switch mode {
+			case "accept":
+				args = append(args, "-action", "accept", "-expected-revision", "5", "-operation", "provisional:test", "-plan-sha256", strings.Repeat("a", 64), "-reason", "reviewed provisional occurrence")
+			case "missing-approval":
+				args = append(args, "-action", "accept")
+			case "canonical":
+				args = append(args, "-canonical", "canonical:provided")
+			case "target":
+				args = append(args, "-target-document", "artifact:target")
+			}
+			var out, errOut bytes.Buffer
+			calls := 0
+			code := runSourcedAliasWith(context.Background(), args, &out, &errOut, func(ctx context.Context, o sourcedAliasOptions) (any, error) {
+				calls++
+				if !o.CreateProvisional || o.Canonical != "" || o.TargetDocument != "" {
+					t.Fatal("lost creation mode")
+				}
+				return map[string]any{"create_provisional": true}, nil
+			})
+			valid := mode == "inspect" || mode == "accept"
+			if valid {
+				if code != 0 || calls != 1 {
+					t.Fatal(code, calls, errOut.String())
+				}
+			} else if code != 2 || calls != 0 {
+				t.Fatal("invalid selection reached workflow", code, calls)
+			}
+		})
+	}
+}

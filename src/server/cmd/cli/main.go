@@ -14,7 +14,7 @@
 // job status/update mengikuti workflow pemiliknya.
 // migrate applies trusted PostgreSQL migration files explicitly, with checksum replay and bounded execution.
 // abort-index closes an admitted unpublished inventory through the guarded publication coordinator.
-// review-alias inspects source/target evidence and registers explicitly approved aliases to existing BIND identities.
+// review-alias inspects source evidence and explicitly registers existing-target aliases or provisional occurrence identities.
 // Bukti verifikasi: test exit code, output JSON, cancellation, dan budget deferral; ikuti doc/verification.md.
 // Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
 

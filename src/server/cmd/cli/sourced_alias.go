@@ -1,7 +1,7 @@
-// Exposes inspect/accept for a sourced alias to an existing BIND canonical ID.
+// Exposes inspect/accept for existing identities or explicit provisional creation.
 // CLI owns local OS principal/configuration only; workflows hydrate evidence and
 // registry storage atomically records reviewed aliases. No implicit acceptance,
-// identity allocation or model call. Deadlines bound IO; output includes source
+// automatic identity equivalence or model call. Deadlines bound IO; output includes source
 // text for human review. Benchmark targets remain required and unmeasured.
 package main
 
@@ -24,6 +24,7 @@ import (
 )
 
 type sourcedAliasOptions struct {
+	CreateProvisional                                                                         bool
 	Action, Source, TargetDocument, Mention, Canonical, Scope, Label, Operation, Hash, Reason string
 	Revision                                                                                  uint64
 	Timeout                                                                                   time.Duration
@@ -37,7 +38,8 @@ func runSourcedAliasWith(ctx context.Context, args []string, out, errOut io.Writ
 	fs := flag.NewFlagSet("review-alias", flag.ContinueOnError)
 	fs.SetOutput(errOut)
 	var o sourcedAliasOptions
-	fs.StringVar(&o.Action, "action", "inspect", "inspect or accept; never allocates a canonical identity")
+	fs.StringVar(&o.Action, "action", "inspect", "inspect or accept an explicitly reviewed alias plan")
+	fs.BoolVar(&o.CreateProvisional, "create-provisional", false, "Create an UNREVIEWED source-occurrence identity; forbids canonical and target-document")
 	fs.StringVar(&o.Source, "source", "", "Registered successful EXTRACT artifact ID")
 	fs.StringVar(&o.TargetDocument, "target-document", "", "Registered BIND/CHUNK DocumentBatch proving the selected target identity")
 	fs.StringVar(&o.Mention, "mention", "", "Exact EXTRACT support mention ID")
@@ -55,7 +57,7 @@ func runSourcedAliasWith(ctx context.Context, args []string, out, errOut io.Writ
 		}
 		return 2
 	}
-	if fs.NArg() != 0 || o.Source == "" || o.TargetDocument == "" || o.Mention == "" || o.Canonical == "" || o.Scope == "" || o.Label == "" || o.Timeout <= 0 || o.Timeout > 5*time.Minute ||
+	if fs.NArg() != 0 || o.Source == "" || (o.CreateProvisional && (o.Canonical != "" || o.TargetDocument != "")) || (!o.CreateProvisional && (o.TargetDocument == "" || o.Canonical == "")) || o.Mention == "" || o.Scope == "" || o.Label == "" || o.Timeout <= 0 || o.Timeout > 5*time.Minute ||
 		(o.Action != "inspect" && o.Action != "accept") || (o.Action == "accept" && (o.Revision == 0 || o.Operation == "" || len(o.Hash) != 64 || o.Reason == "")) ||
 		(o.Action == "inspect" && (o.Revision != 0 || o.Operation != "" || o.Hash != "" || o.Reason != "")) {
 		fmt.Fprintln(errOut, "Invalid alias review selection, limits or acceptance pins")
@@ -102,7 +104,7 @@ func executeSourcedAlias(ctx context.Context, o sourcedAliasOptions) (any, error
 		return nil, err
 	}
 	defer files.Close()
-	view, err := workflows.InspectSourcedAlias(ctx, repo, files, workflows.SourcedAliasOptions{Corpus: corpus, AuthScope: scope, SourceArtifactID: o.Source, TargetDocumentID: o.TargetDocument,
+	view, err := workflows.InspectSourcedAlias(ctx, repo, files, workflows.SourcedAliasOptions{CreateProvisional: o.CreateProvisional, Corpus: corpus, AuthScope: scope, SourceArtifactID: o.Source, TargetDocumentID: o.TargetDocument,
 		MentionID: o.Mention, CanonicalID: o.Canonical, Scope: o.Scope, PreferredLabel: o.Label, Revision: o.Revision, Policy: policy})
 	if err != nil {
 		return nil, err
@@ -112,7 +114,7 @@ func executeSourcedAlias(ctx context.Context, o sourcedAliasOptions) (any, error
 		if err != nil {
 			return nil, err
 		}
-		return map[string]any{"status": "alias_registered", "registry_revision": revision, "operation": o.Operation, "plan_sha256": o.Hash, "actor": actor, "graph_published": false}, nil
+		return map[string]any{"status": "alias_registered", "registry_revision": revision, "operation": o.Operation, "plan_sha256": o.Hash, "actor": actor, "graph_published": false, "create_provisional": o.CreateProvisional}, nil
 	}
 	p, err := view.Preview()
 	if err != nil {
@@ -120,6 +122,11 @@ func executeSourcedAlias(ctx context.Context, o sourcedAliasOptions) (any, error
 	}
 	result := map[string]any{"status": "inspection_only", "plan_sha256": p.PlanHash, "expected_revision": p.ExpectedRevision, "actor": actor}
 	result["preferred_label_is_operator_supplied"] = true
+	result["create_provisional"] = p.CreateProvisional
+	if p.CreateProvisional {
+		result["identity_basis"] = "source_occurrence_only"
+		result["target_document_role"] = "source_bind_inventory"
+	}
 	for name, msg := range map[string]proto.Message{"entity": p.Registration.Entity, "alias": p.Registration.Alias, "mention": p.Mention, "source_context": p.SourceContext, "target_document": p.TargetDocument, "target_document_ref": p.TargetDocumentRef} {
 		raw, e := (protojson.MarshalOptions{UseProtoNames: true}).Marshal(msg)
 		if e != nil {
