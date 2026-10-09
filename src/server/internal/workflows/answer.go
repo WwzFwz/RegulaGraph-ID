@@ -13,9 +13,9 @@
 // Target numerik required: configs/benchmark-targets.yaml; status REQUIRED_UNMEASURED.
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
-// Status: workflow draft dari EvidenceBundle terpin aktif; rag_session.go dan
-// rag_hydration.go menyambungkan admission/hidrasi sebagai library. API/CLI,
-// tokenizer generator nyata dan streaming masih perlu disambungkan.
+// Status: workflow draft dari EvidenceBundle terpin aktif; graph profile menuntut
+// immutable GraphContext untuk rendering/citation/final validation. Query routing
+// graph, tokenizer generator nyata dan streaming masih perlu disambungkan.
 // Integrasi berikutnya:
 // Pin one snapshot, resolve temporal intent, coordinate retrieval/context/generation and validate terminal evidence; propagate cancellation.
 // Bukti verifikasi: Test unavailable dependencies, evidence conflicts and snapshot rollover mid-request; trace queue and stage durations.
@@ -53,11 +53,11 @@ type EvidenceAnswerResult struct {
 }
 
 // AnswerEvidence connects production context packing, provider generation and
-// citation checks. Only explicit AS_OF non-streaming Vector/Hybrid RAG requests
-// are accepted here. CURRENT/COMPARE need temporal planning upstream; silently
+// citation checks. Graph profiles require an admitted GraphContext; all profiles
+// require explicit AS_OF non-streaming requests. CURRENT/COMPARE need planning; silently
 // substituting today's date would misrepresent a legal-time question.
 func (w *EvidenceAnswerWorkflow) AnswerEvidence(ctx context.Context, request *pb.QuestionRequest,
-	call *pb.RequestContext, bundle *pb.EvidenceBundle, urls domain.SourceURLLookup) (*EvidenceAnswerResult, error) {
+	call *pb.RequestContext, bundle *pb.EvidenceBundle, urls domain.SourceURLLookup, graphPlans ...*answering.GraphContext) (*EvidenceAnswerResult, error) {
 	started := time.Now()
 	if ctx == nil || w == nil || w.Generator == nil || w.CountContext == nil || request == nil || call == nil || bundle == nil || urls == nil {
 		return nil, errors.New("answer workflow dependencies and trusted pinned inputs required")
@@ -75,20 +75,36 @@ func (w *EvidenceAnswerWorkflow) AnswerEvidence(ctx context.Context, request *pb
 		(request.TemporalScope.KnowledgeSnapshot != nil && !proto.Equal(request.TemporalScope.KnowledgeSnapshot, bundle.Snapshot)) {
 		return nil, errors.New("answer requires explicit date, consistent authorized snapshot and complete response mode")
 	}
-	if request.RequestedProfile != pb.RetrievalProfile_RETRIEVAL_PROFILE_VECTOR_RAG && request.RequestedProfile != pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_RAG {
-		return nil, errors.New("answer evidence stage supports only explicit vector/hybrid profiles")
+	var graphPlan *answering.GraphContext
+	if len(graphPlans) > 1 {
+		return nil, errors.New("one graph context plan allowed")
+	}
+	if len(graphPlans) == 1 {
+		graphPlan = graphPlans[0]
+	}
+	switch request.RequestedProfile {
+	case pb.RetrievalProfile_RETRIEVAL_PROFILE_VECTOR_RAG, pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_RAG:
+		if graphPlan != nil {
+			return nil, errors.New("graph context requires explicit graph profile")
+		}
+	case pb.RetrievalProfile_RETRIEVAL_PROFILE_GRAPH_RAG, pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_GRAPH_RAG:
+		if graphPlan == nil {
+			return nil, errors.New("graph answering requires admitted rendering plan")
+		}
+	default:
+		return nil, errors.New("unsupported answer retrieval profile")
 	}
 	bounded, cancel := context.WithDeadline(ctx, call.Deadline.AsTime())
 	defer cancel()
 	if err := bounded.Err(); err != nil {
 		return nil, err
 	}
-	rendered, err := answering.BuildContext(bounded, bundle, "context:"+call.RequestId, w.ContextTokenizer, w.MaximumContextTokens, w.MaximumEvidence, w.CountContext)
+	rendered, err := answering.BuildContext(bounded, bundle, "context:"+call.RequestId, w.ContextTokenizer, w.MaximumContextTokens, w.MaximumEvidence, w.CountContext, graphPlan)
 	if err != nil {
 		return nil, err
 	}
 	draft, err := w.Generator.Generate(bounded, answering.DraftInput{RequestID: call.RequestId, RecordID: "answer:" + call.RequestId, Question: request.Question,
-		EffectiveDates: []*pb.CalendarDate{request.TemporalScope.EffectiveAt}, Context: rendered, Evidence: bundle, SourceURLs: urls})
+		EffectiveDates: []*pb.CalendarDate{request.TemporalScope.EffectiveAt}, Context: rendered, Evidence: bundle, SourceURLs: urls, GraphContext: graphPlan})
 	if err != nil {
 		return nil, err
 	}

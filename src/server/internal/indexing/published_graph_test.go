@@ -1,7 +1,8 @@
 // Exercises PostgreSQL graph admission and Neo4j typed reads after actual combined
 // publication. Scope, historical index-only snapshot and expired/released pin are
 // rejected. Production discovery traversal retains exact source support bytes;
-// this does not prove legal applicability or graph-to-answer integration. The
+// graph-to-draft rendering/citations are exercised by the companion helper;
+// this does not prove legal applicability or model quality. The
 // caller owns cleanup of fixture databases.
 package indexing
 
@@ -117,6 +118,7 @@ func checkPublishedGraphEvidence(t *testing.T, ctx context.Context, repo *postgr
 	if _, err = h.Hydrate(ctx, request, index, "scope:other", paths); err == nil {
 		t.Fatal("graph source hydration bypassed scope")
 	}
+	checkPublishedGraphAnswer(t, ctx, pin, scope, request, paths, got)
 	// Revoke a separate real pin during the workflow's final admission read:
 	// successful earlier hydration must not authorize returning stale output.
 	revoked, err := repo.PinActiveSnapshot(ctx, pin.CorpusID, "read:graph:revoke:"+pin.CorpusID, "reader:revoke", 20*time.Second)
