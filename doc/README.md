@@ -1,5 +1,9 @@
 # doc
 
+[Retry semantic setelah cancellation](verification-report-semantic-retry.md)
+membuktikan perbaikan error permanen palsu pada item yang terputus. Cache lokal
+memakai ulang item sukses; recovery lintas restart belum disediakan paket ini.
+
 [Admission prompt semantic lokal](verification-report-semantic-admission.md)
 mencatat mode llama.cpp terpin, pemeriksaan full prompt + completion cap dan
 usage parity, termasuk smoke model nyata. Ini bukan acceptance extraction corpus.

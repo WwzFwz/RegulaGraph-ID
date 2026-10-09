@@ -1,5 +1,11 @@
 # Rencana implementasi berbasis dependency
 
+Checkpoint retry semantic: cancellation/deadline langsung atau wrapped kini
+transient; EXTRACT tidak menyimpan opaque adapter error sebagai terminal setelah
+context RPC berakhir. Red/green membuktikan bug lama dan recovery cache lokal,
+termasuk RESOLVE. Recovery lintas restart tetap terbuka; jangan menyamakan cache
+dalam proses dengan checkpoint durable. [Bukti](verification-report-semantic-retry.md).
+
 Checkpoint admission semantic: mode lokal llama.cpp menghitung envelope lengkap
 EXTRACT/RESOLVE sebelum generation, menolak overflow, dan menolak usage mismatch.
 Unit/regresi, review independen, serta smoke GGUF nyata lulus; provider generik

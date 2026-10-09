@@ -14,6 +14,8 @@ Validation errors now identify invalid locator fields without including source q
 
 An optional local llama.cpp mode now checks the complete EXTRACT/RESOLVE prompt against the pinned context window before inference and verifies token-usage parity afterwards. A real local-model smoke test passed these checks; full-PDF extraction and quality acceptance remain unfinished. See [semantic admission verification](doc/verification-report-semantic-admission.md).
 
+Interrupted semantic items now remain retryable instead of becoming permanently cached failures. Successful items are reused within the same gateway process; recovery across restarts still needs durable item checkpoints. See [retry verification](doc/verification-report-semantic-retry.md).
+
 ## System Overview
 
 The main flow follows the original plan: regulations become chunks, indexes, and a knowledge graph; questions pass through retrieval, fusion, context assembly, and evidence-backed generation. Extraction reads chunks tied to source text, while the registry and publication layer maintain consistent identities, versions, and snapshots.
