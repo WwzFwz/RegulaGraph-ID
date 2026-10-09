@@ -21,7 +21,7 @@ import (
 )
 
 type GraphAssemblyPreparationStore interface {
-	GraphResolutionReceiptStore
+	GraphResolutionViewStore
 	LoadGraphSourceBinding(context.Context, string, string, string) (domain.GraphSourceBinding, error)
 	VerifyPublishedGraphSourceBinding(context.Context, domain.SnapshotPin, domain.IndexSourceBinding) error
 	VerifyGraphAssemblyPublication(context.Context, *pb.GraphAssemblyPlan) error
@@ -77,8 +77,8 @@ func PrepareGraphAssembly(ctx context.Context, store GraphAssemblyPreparationSto
 	if err = store.VerifyPublishedGraphSourceBinding(bounded, pin, binding.Source); err != nil {
 		return nil, err
 	}
-	original, err := ReadGraphResolutionReceipt(bounded, store, reader, config.CorpusID, config.SourceJobID,
-		binding.SourceCheckpointID, binding.OriginalExtraction, binding.OriginalResolution, config.MaximumReferences, config.MaximumCandidates)
+	original, err := ReadGraphResolutionForAssembly(bounded, store, reader, config.CorpusID, config.SourceJobID,
+		binding.SourceCheckpointID, binding.OriginalExtraction, binding.OriginalResolution, binding.RegistryRevision, config.MaximumReferences, config.MaximumCandidates)
 	if err != nil {
 		return nil, err
 	}

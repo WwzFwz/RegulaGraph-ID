@@ -27,6 +27,16 @@ type GraphResolutionReceiptStore interface {
 
 func ReadGraphResolutionReceipt(ctx context.Context, store GraphResolutionReceiptStore, reader DocumentArtifactReader,
 	corpus, job, checkpoint string, extractionRef, resolutionRef *pb.ArtifactRef, maximumEdges, maximumCandidates int) (*pb.ResolutionBatch, error) {
+	return readGraphResolutionReceipt(ctx, store, reader, corpus, job, checkpoint, extractionRef, resolutionRef, maximumEdges, maximumCandidates, nil)
+}
+
+// graphResolutionViewCheck consumes the same authenticated inputs as receipt
+// reconstruction; it does not force a second artifact read for candidate checks.
+type graphResolutionViewCheck func(*pb.ExtractionBatch, *pb.ResolutionBatch, *pb.RegistryCandidateBatch, domain.SemanticRegistryInputs) error
+
+func readGraphResolutionReceipt(ctx context.Context, store GraphResolutionReceiptStore, reader DocumentArtifactReader,
+	corpus, job, checkpoint string, extractionRef, resolutionRef *pb.ArtifactRef, maximumEdges, maximumCandidates int,
+	checkView graphResolutionViewCheck) (*pb.ResolutionBatch, error) {
 	if ctx == nil || store == nil || reader == nil || corpus == "" || job == "" || checkpoint == "" || maximumEdges <= 0 || maximumEdges > domain.DefaultWireLimits.MaxItems || maximumCandidates <= 0 || maximumCandidates > domain.DefaultWireLimits.MaxItems {
 		return nil, errors.New("bounded graph resolution reader required")
 	}
@@ -67,6 +77,11 @@ func ReadGraphResolutionReceipt(ctx context.Context, store GraphResolutionReceip
 	}
 	if len(extraction.Mentions) == 0 {
 		// Closure validation accounts for zero proposals/decisions; no ledger is invented.
+		if checkView != nil {
+			if err = checkView(extraction, resolution, nil, domain.SemanticRegistryInputs{}); err != nil {
+				return nil, err
+			}
+		}
 		return resolution, nil
 	}
 	intent, err := store.LoadSemanticResolutionIntent(ctx, corpus, job)
@@ -97,6 +112,11 @@ func ReadGraphResolutionReceipt(ctx context.Context, store GraphResolutionReceip
 	}
 	if !proto.Equal(reconstructed, resolution) {
 		return nil, fmt.Errorf("graph source differs from committed decisions: %w", domain.ErrPersistentIntegrity)
+	}
+	if checkView != nil {
+		if err = checkView(extraction, resolution, candidates, input); err != nil {
+			return nil, err
+		}
 	}
 	return resolution, nil
 }

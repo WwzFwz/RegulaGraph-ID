@@ -18,6 +18,14 @@ type graphReceiptDriftStore struct {
 	fault string
 }
 
+func (s graphReceiptDriftStore) VerifyRegistryCandidateView(ctx context.Context, corpus string, input domain.SemanticRegistryInputs,
+	revision uint64, scopes, aliases, refs, candidates int) error {
+	if s.fault == "candidate view" {
+		return domain.ErrResolutionReplan
+	}
+	return s.Repository.VerifyRegistryCandidateView(ctx, corpus, input, revision, scopes, aliases, refs, candidates)
+}
+
 func (s graphReceiptDriftStore) LoadSemanticResolutionIntent(ctx context.Context, corpus, job string) (domain.SemanticResolutionIntent, error) {
 	intent, err := s.Repository.LoadSemanticResolutionIntent(ctx, corpus, job)
 	if err == nil && s.fault == "intent" {

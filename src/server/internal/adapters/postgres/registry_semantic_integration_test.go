@@ -192,6 +192,11 @@ func TestEmptySemanticResolutionAgainstPostgres(t *testing.T) {
 	if err != nil || !proto.Equal(verifiedEmpty, output.Batch) {
 		t.Fatalf("empty graph receipt reconstruction: %v", err)
 	}
+	verifiedEmpty, err = workflows.ReadGraphResolutionForAssembly(ctx, repo, fileStore, corpusID, jobID,
+		output.Checkpoint.Meta.RecordId, sourceRef, output.Artifact, output.Batch.RegistryRevision, 64, 8)
+	if err != nil || !proto.Equal(verifiedEmpty, output.Batch) {
+		t.Fatalf("empty graph source view rejected: %v", err)
+	}
 	var after int64
 	if err = repo.pool.QueryRow(ctx, `SELECT registry_revision FROM corpus_state WHERE corpus_id=$1`,
 		corpusID).Scan(&after); err != nil || after != before {
@@ -277,7 +282,8 @@ func TestSemanticRegistryAgainstPostgres(t *testing.T) {
 		SourceDocumentBatch: &pb.ArtifactRef{ArtifactId: "artifact:document-semantic",
 			ContentHash: &pb.ContentHash{Sha256: strings.Repeat("8", 64)}, StorageKey: "objects/document-semantic",
 			MediaType: "application/x-protobuf", SchemaVersion: 1},
-		Dependencies:  &pb.DependencyManifest{ArtifactId: "dependencies:extract-semantic", ProducerManifest: extractProducer},
+		Dependencies: &pb.DependencyManifest{ArtifactId: "dependencies:extract-semantic", ProducerManifest: extractProducer,
+			Dependencies: []*pb.Dependency{{DependencyId: "artifact:document-semantic", Fingerprint: &pb.ContentHash{Sha256: strings.Repeat("8", 64)}}}},
 		ModelManifest: extractModel, PromptHash: &pb.ContentHash{Sha256: strings.Repeat("9", 64)},
 		ItemCounts: &pb.Counts{Expected: 2, Accepted: 2}, TokenUsage: &pb.TokenUsage{TokenizerId: "extract-tokenizer"},
 		Mentions: []*pb.Mention{
@@ -783,6 +789,24 @@ func TestSemanticRegistryAgainstPostgres(t *testing.T) {
 		t.Fatalf("graph receipt reconstruction differs from committed RESOLVE: %v", err)
 	}
 	checkGraphReceiptRejections(t, ctx, repo, fileStore, corpusID, jobID, output.Checkpoint.Meta.RecordId, sourceRef, output.Artifact)
+	checkedView, err := workflows.ReadGraphResolutionForAssembly(ctx, repo, fileStore, corpusID, jobID,
+		output.Checkpoint.Meta.RecordId, sourceRef, output.Artifact, output.Batch.RegistryRevision, 64, 8)
+	if err != nil || !proto.Equal(checkedView, output.Batch) {
+		t.Fatalf("committed RESOLVE candidate view rejected or mutated: %v", err)
+	}
+	checkedView, err = workflows.ReadGraphResolutionForAssembly(ctx, repo, fileStore, corpusID, jobID,
+		output.Checkpoint.Meta.RecordId, sourceRef, output.Artifact, output.Batch.RegistryRevision, 100000, 8)
+	if err != nil || !proto.Equal(checkedView, output.Batch) {
+		t.Fatalf("large reference budget rejected bounded multi-scope lookup: %v", err)
+	}
+	if _, err = workflows.ReadGraphResolutionForAssembly(ctx, graphReceiptDriftStore{repo, "candidate view"}, fileStore, corpusID, jobID,
+		output.Checkpoint.Meta.RecordId, sourceRef, output.Artifact, output.Batch.RegistryRevision, 64, 8); !errors.Is(err, domain.ErrResolutionReplan) {
+		t.Fatalf("candidate reader rejection not propagated: %v", err)
+	}
+	if _, err = workflows.ReadGraphResolutionForAssembly(ctx, repo, fileStore, corpusID, jobID,
+		output.Checkpoint.Meta.RecordId, sourceRef, output.Artifact, output.Batch.RegistryRevision+1, 64, 8); !errors.Is(err, domain.ErrResolutionReplan) {
+		t.Fatalf("cross-revision RESOLVE accepted without durable reaffirmation: %v", err)
+	}
 	historical, err := repo.ReadCommittedSemanticResolution(ctx, input, request, approval, 64, 8)
 	if err != nil || !proto.Equal(historical, response) {
 		t.Fatalf("read committed receipt after staging: receipt=%v err=%v", historical, err)
