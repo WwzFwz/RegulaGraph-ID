@@ -45,6 +45,7 @@ type RAGWorkflow struct {
 }
 
 type RAGResult struct {
+	Comparison   *RAGComparisonResult // Exclusive with single-date Evidence/Answer in transport.
 	Temporal     *query.TemporalResolution
 	Search       *CandidateSearchResult
 	Evidence     *pb.EvidenceBundle
