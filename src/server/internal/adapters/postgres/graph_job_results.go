@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/proto"
 	pb "regulagraph.local/server/gen/regulagraph/v1"
 	"regulagraph.local/server/internal/domain"
@@ -21,6 +22,12 @@ import (
 var ErrGraphOutputsPending = errors.New("ASSEMBLE inventory has unfinished or cancelled children")
 
 func (admission *GraphJobAdmission) ReadCompletedGraph(ctx context.Context, pin domain.SnapshotPin) (domain.CompletedGraphInventory, error) {
+	return admission.withCompletedGraph(ctx, pin, nil)
+}
+
+// Internal callback runs after full authority collection and before commit. It
+// must use this transaction, never acquire another pool connection or do RPC.
+func (admission *GraphJobAdmission) withCompletedGraph(ctx context.Context, pin domain.SnapshotPin, apply func(context.Context, pgx.Tx, domain.CompletedGraphInventory) error) (domain.CompletedGraphInventory, error) {
 	var out domain.CompletedGraphInventory
 	if ctx == nil || admission == nil || admission.repository == nil || len(admission.inventory.Assignments) == 0 {
 		return out, errors.New("source-admitted graph inventory required")
@@ -39,10 +46,14 @@ func (admission *GraphJobAdmission) ReadCompletedGraph(ctx context.Context, pin 
 		return out, err
 	}
 	defer tx.Rollback(bounded)
+	lockMode := " FOR SHARE"
+	if apply != nil {
+		lockMode = " FOR UPDATE"
+	}
 	var id, digest string
 	var revision, floor, fence int64
 	var count int
-	if err = tx.QueryRow(bounded, `SELECT publication_id FROM snapshots WHERE publication_id=$1 AND corpus_id=$2 FOR SHARE`, first.PublicationId, pin.CorpusID).Scan(&id); err != nil {
+	if err = tx.QueryRow(bounded, `SELECT publication_id FROM snapshots WHERE publication_id=$1 AND corpus_id=$2`+lockMode, first.PublicationId, pin.CorpusID).Scan(&id); err != nil {
 		return out, err
 	}
 	if err = tx.QueryRow(bounded, `SELECT registry_revision,registry_history_floor FROM corpus_state WHERE corpus_id=$1 FOR SHARE`, pin.CorpusID).Scan(&revision, &floor); err != nil {
@@ -169,6 +180,14 @@ func (admission *GraphJobAdmission) ReadCompletedGraph(ctx context.Context, pin 
 	}
 	if err = checkIndexLease(bounded, tx, pin); err != nil {
 		return out, err
+	}
+	if apply != nil {
+		if err = apply(bounded, tx, result); err != nil {
+			return out, err
+		}
+		if err = checkIndexLease(bounded, tx, pin); err != nil {
+			return out, err
+		}
 	}
 	if err = tx.Commit(bounded); err != nil {
 		return out, err

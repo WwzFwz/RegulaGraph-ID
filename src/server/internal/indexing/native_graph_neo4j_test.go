@@ -7,18 +7,24 @@ package indexing
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	bolt "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 	pb "regulagraph.local/server/gen/regulagraph/v1"
 	"regulagraph.local/server/internal/adapters/neo4j"
+	"regulagraph.local/server/internal/adapters/postgres"
+	"regulagraph.local/server/internal/domain"
+	"regulagraph.local/server/internal/workflows"
 )
 
-func checkNativeGraphNeo4j(t *testing.T, ctx context.Context, plan *pb.GraphAssemblyPlan, delta *pb.GraphDelta) {
+func checkNativeGraphNeo4j(t *testing.T, ctx context.Context, repo *postgres.Repository, db *pgx.Conn, authority *postgres.GraphJobAdmission, pin domain.SnapshotPin, prepared *workflows.PreparedGraphOutputs) {
 	t.Helper()
+	plan, delta := prepared.Completed().Inventory.Assignments[0].Plan, prepared.Deltas()[0]
 	uri := os.Getenv("REGULAGRAPH_TEST_NEO4J_URI")
 	if uri == "" {
 		t.Skip("disposable Neo4j required for graph backend proof")
@@ -51,17 +57,33 @@ func checkNativeGraphNeo4j(t *testing.T, ctx context.Context, plan *pb.GraphAsse
 		}
 		if e != nil {
 			t.Error("Neo4j fixture cleanup", e)
+			return
+		}
+		// Fixture-only compensation after deletion/readback. Never mark a real
+		// backend compensated merely to make AbortPublication accept its ledger.
+		result, e = session.Run(cleanup, `MATCH (n) WHERE n.corpus=$corpus AND n.generation=$generation RETURN count(n)`, map[string]any{"corpus": binding.CorpusID, "generation": binding.Generation})
+		if e != nil {
+			t.Error(e)
+			return
+		}
+		row, e := result.Single(cleanup)
+		if e != nil || row.Values[0] != int64(0) {
+			t.Error("fixture graph cleanup incomplete", e)
+			return
+		}
+		catalog, e := repo.LoadGraphGeneration(cleanup, binding.CorpusID, binding.PublicationID)
+		if errors.Is(e, domain.ErrNotFound) {
+			return
+		}
+		if e != nil {
+			t.Error(e)
+			return
+		}
+		if e = repo.RecordPublicationOperation(cleanup, binding.PublicationID, pb.BackendKind_BACKEND_KIND_NEO4J, postgres.GraphWriteOperation(binding.PublicationID), catalog.OperationsHash, "compensated", binding.Fence); e != nil {
+			t.Error("fixture compensation ledger", e)
 		}
 	}()
-	if err = store.EnsureSchema(ctx); err != nil {
-		t.Fatal(err)
-	}
-	for range 2 {
-		if err = store.ApplyGraphDelta(ctx, delta); err != nil {
-			t.Fatal("actual Rust delta Neo4j write/replay", err)
-		}
-	}
-	proof, err := store.VerifyAndSeal(ctx, []*pb.GraphDelta{delta})
+	proof := checkGraphCatalogWrite(t, ctx, repo, db, authority, pin, prepared, store)
 	expected := uint64(len(delta.Entities) + len(delta.Mentions) + len(delta.Assertions) + len(delta.Supports) + len(delta.Decisions))
 	if err != nil || proof.Records != expected || proof.Edges != 5 || proof.Operations != 1 {
 		t.Fatal("actual Rust delta Neo4j readback", proof, err)

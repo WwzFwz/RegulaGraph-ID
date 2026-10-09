@@ -131,7 +131,7 @@ func checkNativeGraphExecution(t *testing.T, ctx context.Context, repo *postgres
 	if err != nil || publicationInputs == nil || len(publicationInputs.Deltas()) != 1 || !proto.Equal(publicationInputs.Deltas()[0], delta) {
 		t.Fatal("prepare complete native graph for publication", err)
 	}
-	t.Run("Neo4j actual Rust output", func(t *testing.T) { checkNativeGraphNeo4j(t, ctx, prepared.Plan, publicationInputs.Deltas()[0]) })
+	t.Run("Neo4j actual Rust output", func(t *testing.T) { checkNativeGraphNeo4j(t, ctx, repo, db, admitted, pin, publicationInputs) })
 	if committed, e := admitted.GraphCheckpointCommitted(ctx, response.Checkpoint); e != nil || !committed {
 		t.Fatal("native graph checkpoint not committed", e)
 	}
