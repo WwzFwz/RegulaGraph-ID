@@ -6,9 +6,6 @@ package answering
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"io"
 	"net"
 	"net/url"
 	"os"
@@ -33,43 +30,30 @@ func TestNativeLlamaCitedDraft(t *testing.T) {
 	if modelID == "" || version == "" {
 		t.Fatal("explicit model and build required")
 	}
-	f, err := os.Open(os.Getenv("REGULAGRAPH_TEST_LLAMA_GGUF"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	h := sha256.New()
-	_, err = io.Copy(h, f)
-	_ = f.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
-	digest := hex.EncodeToString(h.Sum(nil))
-	if digest != os.Getenv("REGULAGRAPH_TEST_LLAMA_SHA256") {
-		t.Fatal("GGUF digest mismatch")
-	}
+	digest := os.Getenv("REGULAGRAPH_TEST_LLAMA_SHA256")
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	provider, err := inference.NewOpenAICompatibleProvider(inference.OpenAICompatibleConfig{Endpoint: endpoint, APIKey: os.Getenv("REGULAGRAPH_TEST_LLAMA_KEY"), Timeout: 2 * time.Minute, MaximumResponseBytes: 1 << 20})
 	if err != nil {
 		t.Fatal(err)
 	}
-	counter, err := inference.NewLlamaTokenCounter(provider, modelID, 1<<20, 16384)
+	tokenizerHash := &pb.ContentHash{Sha256: digest}
+	model := &pb.ModelManifest{ModelId: modelID, Version: version, WeightsHash: tokenizerHash, TokenizerHash: tokenizerHash, Task: pb.ModelTask_MODEL_TASK_GENERATE, MaxTokens: 4096, Precision: "q4_k_m", Backend: "llama.cpp-cpu", PromptHash: DraftPromptHash()}
+	admitted, err := inference.AdmitLlama(ctx, provider, inference.LlamaModelBinding{Model: model, GGUFPath: os.Getenv("REGULAGRAPH_TEST_LLAMA_GGUF"), ServerBuild: version, TemplateHash: &pb.ContentHash{Sha256: os.Getenv("REGULAGRAPH_TEST_LLAMA_TEMPLATE_SHA256")}}, 1<<20)
 	if err != nil {
 		t.Fatal(err)
 	}
 	_, in := generatorFixture(t, provider)
-	tokenizerHash := &pb.ContentHash{Sha256: digest}
-	in.Context, err = BuildContext(ctx, in.Evidence, "context:native", tokenizerHash, 2000, 2, counter.CountText)
+	in.Context, err = BuildContext(ctx, in.Evidence, "context:native", tokenizerHash, 2000, 2, admitted.CountText)
 	if err != nil {
 		t.Fatal(err)
 	}
-	model := &pb.ModelManifest{ModelId: modelID, Version: version, WeightsHash: tokenizerHash, TokenizerHash: tokenizerHash, Task: pb.ModelTask_MODEL_TASK_GENERATE, MaxTokens: 4096, Precision: "q4_k_m", Backend: "llama.cpp-cpu", PromptHash: DraftPromptHash()}
 	producer := proto.Clone(in.Evidence.RetrievalManifest).(*pb.ProducerManifest)
 	producer.Software = "regulagraph-native-generator-test"
 	producer.Build = version
 	producer.Models = []*pb.ModelManifest{model}
 	producer.PromptHashes = []*pb.ContentHash{DraftPromptHash()}
-	g, err := NewDraftGenerator(provider, counter.CountPrompt, DraftGeneratorConfig{Model: model, Producer: producer, MaximumInputBytes: 1 << 20, MaximumOutputBytes: 64 << 10, MaximumClaims: 8, MaximumCitations: 32, MaximumConcurrent: 1, OutputTokens: 256, AllowUnreviewedDrafts: true})
+	g, err := NewDraftGenerator(admitted, admitted.CountPrompt, DraftGeneratorConfig{Model: model, Producer: producer, MaximumInputBytes: 1 << 20, MaximumOutputBytes: 64 << 10, MaximumClaims: 8, MaximumCitations: 32, MaximumConcurrent: 1, OutputTokens: 256, AllowUnreviewedDrafts: true})
 	if err != nil {
 		t.Fatal(err)
 	}

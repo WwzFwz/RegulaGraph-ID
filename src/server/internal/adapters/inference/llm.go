@@ -78,13 +78,21 @@ func NewOpenAICompatibleProvider(config OpenAICompatibleConfig) (*OpenAICompatib
 		endpoint: endpoint.String(),
 		apiKey:   config.APIKey,
 		client: &http.Client{
-			Timeout: config.Timeout,
+			Transport: http.DefaultTransport.(*http.Transport).Clone(),
+			Timeout:   config.Timeout,
 			CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 				return http.ErrUseLastResponse
 			},
 		},
 		maxBytes: config.MaximumResponseBytes,
 	}, nil
+}
+
+// Close releases this adapter's idle connections after callers have drained.
+func (p *OpenAICompatibleProvider) Close() {
+	if p != nil && p.client != nil {
+		p.client.CloseIdleConnections()
+	}
 }
 
 type chatRequest struct {
