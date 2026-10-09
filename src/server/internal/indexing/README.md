@@ -8,6 +8,8 @@ komponen indexing tanpa menambahkan algoritma graph ke writer indeks.
 graph dan workflow persistence: race cancellation/released pin saat lock tertahan,
 crash sebelum commit, lost acknowledgement, immutable replay dan audit sesudah abort.
 EXTRACT/RESOLVE kosong dan checkpoint disintesis eksplisit; ini bukan uji kualitas LLM.
+Fixture yang sama kini menguji plan/view ASSEMBLE tersimpan, replay, ontology drift,
+dan cancellation setelah persistence. Worker Rust tidak dijalankan dalam fixture ini.
 
 `initial_snapshot.go` mengubah pilihan CHUNK terautentikasi menjadi snapshot awal
 dan corpus-facts manifest, lalu mengikat sumber melalui receipt. Identitas

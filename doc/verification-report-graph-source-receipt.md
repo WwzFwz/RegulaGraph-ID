@@ -60,6 +60,11 @@ tests, kemudian gagal karena batas pemakaian sebelum review diff final selesai.
 **Review independen final: NOT_MEASURED/belum terverifikasi.** Tidak ada klaim approval
 independen untuk workflow/migration paket ini. Review manual bukan pengganti independensi.
 
+Pembaruan pada kelanjutan berikutnya: reviewer kembali tersedia dan menuntaskan review
+receipt serta rerun PostgreSQL/Qdrant, PASS exit 0 di `independent.log` pada direktori
+run receipt di atas. Status review independen receipt kini PASS untuk cakupan itu.
+Pekerjaan persiapan plan/view setelahnya memiliki [laporan terpisah](verification-report-graph-preparation.md).
+
 ## Batas dan pekerjaan berikutnya
 
 Receipt merupakan bukti transform dan authority pada admission, bukan izin publikasi

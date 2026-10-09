@@ -1,5 +1,9 @@
 # doc
 
+[verification-report-graph-preparation.md](verification-report-graph-preparation.md)
+mencatat rekonstruksi keputusan historis, persistence plan/view, batas worker,
+temuan unsupported action dan pemeriksaan ulang independen.
+
 [verification-report-graph-source-receipt.md](verification-report-graph-source-receipt.md)
 mencatat persistence envelope/receipt, recovery dan race PostgreSQL nyata, beserta batas
 review independen dan integrasi ASSEMBLE yang masih terbuka.

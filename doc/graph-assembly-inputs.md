@@ -3,8 +3,8 @@
 Dokumen ini menjelaskan handoff bertipe dari registry PostgreSQL ke builder GraphDelta
 Rust. Ia melengkapi [registry history](registry-history.md) dan [GraphDelta](graph-delta.md).
 Exporter dan validator tersedia sebagai library; [worker ASSEMBLE](assembly-worker.md)
-kini mengeksekusi plan dan mempersist delta. Persiapan artefak/receipt oleh coordinator
-dan publication Neo4j masih perlu disambungkan.
+kini mengeksekusi plan dan mempersist delta. Library coordinator mempersist plan/view
+dari receipt sumber; inventory/dispatch durable dan publication Neo4j masih perlu disambungkan.
 
 ## Seleksi canonical pada revisi terikat
 
@@ -55,13 +55,51 @@ atau typed ResolutionBatch. Decode wajib memilih message sesuai role dan memveri
 schema, hash, byte size serta isi, bukan mempercayai MIME generik sebagai autentikasi.
 Tidak ada schema JSON paralel.
 
+## Persiapan coordinator yang tersedia
+
+`workflows.PrepareGraphAssembly` menerima corpus/publication/source-job, pin base,
+producer, hash ontology dan batas reference/candidate. Ia membaca receipt graph source
+yang immutable, membuktikan membership, lalu memakai `ReadGraphResolutionReceipt`
+untuk membaca keputusan asli. Untuk mention nonempty, reader mengambil intent dan
+kandidat terdaftar serta receipt transaksi historis, merekonstruksi ResolutionBatch
+dengan builder produksi, lalu menuntut kesamaan seluruh payload. Empty extraction
+tidak membuat atau membutuhkan operasi registry fiktif. Tahap ini mengautentikasi
+keputusan masa lalu, bukan freshness pada revision lain.
+
+Artefak bound CHUNK/EXTRACT/RESOLVE dibaca ulang dengan hash/size/registration exact.
+Closure sumber dan ontology hash pada EXTRACT producer diperiksa. Recorded registry
+revision wajib sama dengan revision target; mismatch menghasilkan `ErrResolutionReplan`.
+Sesuai kemampuan worker saat ini, seluruh keputusan harus LINK/CREATE dengan satu
+canonical assignment. DEFER/REJECT/MERGE/SPLIT ditahan melalui `ErrGraphAssemblyUnresolved`
+sebelum ekspor/write, bukan menghilangkan mention atau menganggap graph lengkap.
+Penerimaan action CREATE di builder tidak menambah kemampuan writer RESOLVE otomatis.
+
+Union canonical dipilih deterministik, lalu diekspor melalui registry revision-bound.
+View dan plan memiliki logical ID dari seed protobuf deterministik yang mengikat target,
+source checkpoint/refs, producer dan ontology. Storage key keduanya content-addressed;
+dependency index mengikat input dan hash ontology, dengan view menjadi dependency plan.
+Retry identik memakai bytes dan ID yang sama. Tidak ada model call selama preparation.
+
+Reader keputusan membatasi EXTRACT/RESOLVE/kandidat gabungan 16 MiB. Budget worker
+terpisah membatasi CHUNK/EXTRACT/RESOLVE bound, view, plan dan normalized text yang
+dibutuhkan hingga 16 MiB; teks dengan logical ID yang sama dihitung sekali. MIME
+normalized text mengikuti worker persis `text/plain;charset=utf-8`. Ini batas byte
+wire, bukan janji peak RSS; normalized text diperiksa bytes/provenance oleh worker.
+
+Authority publication diperiksa sebelum write dan setelah persistence, bersama source
+checkpoint serta live membership/pin pada pemeriksaan akhir. Crash/cancellation dapat
+menyisakan immutable orphan, tetapi tidak membuat job. `PreparedGraphAssembly` hanya
+locator artefak; hasil ini **bukan** capability admission atau bukti freshness dependency.
+
 ## Kewajiban integrasi berikutnya
 
-Coordinator memverifikasi receipt keputusan RESOLVE pada revision yang tepat,
-menentukan union canonical, mengekspor view dan menyimpannya immutable melalui
-FileStore. Logical ID `view.meta.record_id` harus sama dengan `plan.registry_view.artifact_id`;
+Coordinator kini memverifikasi receipt keputusan RESOLVE, menentukan union canonical,
+mengekspor view dan menyimpannya immutable melalui FileStore. Logical ID
+`view.meta.record_id` harus sama dengan `plan.registry_view.artifact_id`;
 content address penyimpanan tetap terikat hash/size. Plan harus dipersist dan diikat
-ke inventory/checkpoint/job secara durable sebelum dispatch. Worker membaca tepat
+ke inventory/checkpoint/job secara durable sebelum dispatch. Tahap admission tersebut
+masih harus membuktikan dependency freshness BIND/EXTRACT dan keputusan lintas revision,
+bukan hanya exact recorded revision. Worker membaca tepat
 bytes keempat role dan teks sumber terverifikasi, lalu menulis delta immutable.
 Output artifact dan checkpoint belum boleh dianggap published; Go memegang fencing,
 recovery serta receipts backend dan visibility record bersama.

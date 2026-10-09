@@ -7,6 +7,11 @@ menjadi workflow lengkap. Semua akses dilakukan caller yang telah mengautentikas
 
 ## Authority yang tersedia
 
+Library `PrepareGraphAssembly` kini menyimpan plan dan canonical view dari receipt
+sumber, dengan rekonstruksi keputusan historis, ontology pin dan budget worker.
+[Kontrak persiapan](graph-assembly-inputs.md) menjelaskan batasnya: locator artefak
+tidak menggantikan dependency freshness atau authority transaksi admission job.
+
 `ReadCommittedSemanticResolution` menerima bytes EXTRACT/kandidat, request asli dan
 approval review. Adapter memeriksa artefak terdaftar serta hash/schema/corpus, proposal
 dan candidate cardinality, lalu membaca operation/decision ledger dalam transaksi
@@ -144,6 +149,8 @@ Lihat [hasil verifikasi](verification-report-graph-source-receipt.md).
    lalu simpan seluruh inventory child jobs atomik. Replay harus memakai bytes/plan
    yang sama. Kegagalan antar-object boleh menyisakan orphan, tidak mengaktifkan job
    dengan sebagian input yang belum lengkap.
+   Ekspor/persistence deterministik tersedia melalui `PrepareGraphAssembly`; inventory
+   atomik dan penghubung admission dependency freshness tetap pekerjaan berikutnya.
 5. Claim child ASSEMBLE, jalankan worker dengan deadline/cancellation, verifikasi delta
    terhadap plan dan source, kemudian commit checkpoint/output STAGED secara atomik
    dengan pemeriksaan ulang authority. Rekonsiliasi acknowledgement yang hilang.

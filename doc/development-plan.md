@@ -1,9 +1,15 @@
 # Rencana implementasi berbasis dependency
 
+Lanjutan persiapan K01: reader workflow merekonstruksi RESOLVE dari receipt committed,
+dan `PrepareGraphAssembly` menyimpan plan/canonical view deterministik dari source
+receipt. Library menahan unresolved actions, ontology drift dan revision berbeda.
+Verifikasi independen tersedia di [laporan preparation](verification-report-graph-preparation.md).
+Inventory/dispatch, dependency freshness/reaffirmation dan Neo4j publication belum selesai.
+
 Lanjutan K01: persistence envelope/dependency dan receipt graph source kini tersedia,
 dengan replay setelah crash/lost acknowledgement serta pemeriksaan ulang source/target
-di bawah lock PostgreSQL. Tes backend nyata lulus; review independen perubahan terakhir
-belum terverifikasi karena batas pemakaian agent. Inventory/dispatch ASSEMBLE, dependency
+di bawah lock PostgreSQL. Tes backend nyata lulus; review independen telah dilanjutkan
+sesudah fasilitas tersedia kembali (lihat laporan). Inventory/dispatch ASSEMBLE, dependency
 freshness lintas revision dan publication Neo4j masih terbuka. Lihat
 [kontrak coordinator](graph-assembly-coordinator.md) dan
 [bukti pemeriksaan](verification-report-graph-source-receipt.md).

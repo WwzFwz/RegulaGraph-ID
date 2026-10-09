@@ -5,6 +5,10 @@ transform graph source. Request belum memiliki derived refs; receipt mengikat ke
 output, source checkpoint dan target publication. Schema wire C01 tetap authority;
 validasi bentuk ini tidak menggantikan verifikasi byte, storage atau registry freshness.
 
+`graph_assembly.go` juga memiliki DTO lokal ekspor canonical sehingga workflow tidak
+bergantung pada adapter PostgreSQL, serta validator rantai RESOLVE asli yang menolak
+unknown/partial sebelum rekonstruksi receipt. C01 tetap satu-satunya schema wire.
+
 [graph_source_envelope.go](graph_source_envelope.go) membentuk envelope EXTRACT/RESOLVE
 baru dari rantai artefak asli dan CHUNK snapshot-bound yang exact. Model output dan
 keputusan dipertahankan; hanya metadata envelope, dependency dan diagnostic root refs

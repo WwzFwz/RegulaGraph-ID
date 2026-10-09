@@ -1,5 +1,10 @@
 # src/server/internal/adapters/postgres
 
+`RegistryEntityExport` menjadi alias DTO domain untuk port workflow; response ekspor
+tetap RegistryEntityView C01. `graph_receipt_integration_test.go` menyuntikkan drift
+intent/decision di atas fixture RESOLVE PostgreSQL nyata untuk memverifikasi reader
+graph menolak keputusan yang tidak cocok dengan ledger.
+
 `graph_source_bindings.go` menyimpan receipt transform EXTRACT/RESOLVE immutable
 melalui migration 0019. Writer menghitung ulang transform dan memeriksa source
 checkpoint, membership, pin serta target fence di bawah lock snapshot/corpus/source.

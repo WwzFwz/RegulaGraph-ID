@@ -1,5 +1,13 @@
 # src/server/internal/workflows
 
+`graph_resolution_receipt.go` membaca RESOLVE asli dan menuntut rekonstruksi exact
+dari intent/kandidat/ledger committed; jalur mention-free tidak mengarang operasi.
+`graph_assembly_prepare.go` mempersist plan/view deterministik dari graph source
+receipt, dengan ontology pin, canonical selection, worker byte budget dan final
+authority checks. DEFER ditahan sebelum export/write; freshness lintas revision
+dan scheduling tidak tersirat oleh hasil preparation. Lihat
+[kontrak input ASSEMBLE](../../../../doc/graph-assembly-inputs.md).
+
 `graph_source_envelope_test.go` menguji handoff CHUNK/EXTRACT/RESOLVE melalui helper
 domain, termasuk preservation model/assignment, dependency, remap diagnostic root dan
 replay. `graph_source_binding.go` menyimpan envelope dan dependency immutable lalu
