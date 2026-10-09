@@ -45,6 +45,25 @@ bukan perubahan workload benchmark atau janji seluruh corpus muat satu run.
 
 ## Operator publication
 
+Jika inventory INDEX gagal terminal sebelum publication, operator dapat menutup
+publication tersebut tanpa menghapus riwayat job/artefak:
+
+```powershell
+go run ./src/server/cmd/cli abort-index -corpus corpus:example -publication publication:example
+```
+
+Command memerlukan inventory admitted dalam corpus yang disebutkan dan DSN.
+Coordinator meneruskan abort ke transaksi PostgreSQL yang menolak state published
+serta ledger backend planned/applied yang belum dikompensasi. Command tidak
+mengompensasi backend, mereset retry, atau mengubah active snapshot. Setelah sukses,
+buat preparation dengan publication/generation baru dan bekukan ulang seluruh
+dependency snapshot. Reusing konfigurasi tidak berarti statistics snapshot lama
+dapat dipakai. Replay abort pada ABORTED mengembalikan error; jika stdout hilang,
+periksa state database, jangan menyimpulkan commit gagal. Reservation tanpa
+inventory belum ditangani perintah ini. Abort saat worker masih hidup dapat
+membuat output kerja menjadi tidak dapat di-commit; hentikan coordinator milik
+run terlebih dahulu agar tidak membuang compute.
+
 Setelah inventory dijadwalkan, semua child STAGED dan shared artifact store siap:
 
 ```powershell

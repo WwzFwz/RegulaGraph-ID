@@ -1,5 +1,16 @@
 # src/server/cmd/cli
 
+`abort-index -corpus ... -publication ...` menutup publication INDEX yang belum
+published melalui coordinator publication setelah memeriksa ownership inventory.
+Memerlukan `REGULAGRAPH_POSTGRES_DSN` dan inventory yang sudah admitted; bukan
+perintah abort reservation sebelum inventory tersedia. Deadline default satu
+menit, maksimum lima menit. Ledger backend planned/applied menghalangi abort;
+command ini tidak melakukan compensation, menghapus artefak atau mereset job.
+Snapshot published dan replay pada snapshot yang sudah ABORTED ditolak. Bila
+stdout gagal setelah commit, periksa state durable sebelum tindakan berikutnya.
+Replan setelah abort memakai identitas publication/generation baru dan dependency
+snapshot yang dibekukan ulang. [Panduan](../../../../doc/index-source-publication.md).
+
 `migrate -dir migrations -timeout 5m` menerapkan migration PostgreSQL secara
 eksplisit memakai DSN environment dan runner checksum/advisory-lock yang sama.
 Command tidak menyediakan reset/down atau menjalankan migrasi saat startup.
