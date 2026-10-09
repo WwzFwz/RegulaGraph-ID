@@ -1,5 +1,6 @@
 // Tests full-selection preflight before publication side effects. A later source
-// that is unready or on another registry revision blocks the whole inventory;
+// that is unready or newer than the target blocks the whole inventory;
+// two older compatible revisions proceed to target reservation together;
 // oversized candidate metadata is rejected before candidate bytes or reservation.
 // Fixtures exercise coordinator invariants, not registry/model correctness.
 package workflows
@@ -25,6 +26,18 @@ type preparationPreflightFixture struct {
 	intent                           domain.SemanticResolutionIntent
 	second                           *pb.Checkpoint
 	reads, checkpoints, reservations int
+	targetRevision                   uint64
+}
+
+func (f *preparationPreflightFixture) GraphPreparationRegistryRevision(context.Context, string, string) (uint64, error) {
+	if f.targetRevision != 0 {
+		return f.targetRevision, nil
+	}
+	return 7, nil
+}
+
+func (f *preparationPreflightFixture) VerifyRetainedRegistryRevision(context.Context, string, uint64) error {
+	return nil
 }
 
 func (f *preparationPreflightFixture) LoadPublishedGraphSources(context.Context, domain.SnapshotPin, string) ([]domain.IndexSourceBinding, error) {
@@ -67,7 +80,7 @@ func (f *preparationPreflightFixture) ReservePublication(context.Context, string
 }
 
 func TestGraphPreparationPreflightsEntireSelection(t *testing.T) {
-	for _, mode := range []string{"later incomplete", "later revision", "candidate budget"} {
+	for _, mode := range []string{"later incomplete", "later revision", "candidate budget", "mixed historical revisions"} {
 		t.Run(mode, func(t *testing.T) {
 			items := graphEnvelopeFixture(t, mode == "candidate budget")
 			resolution := new(pb.ResolutionBatch)
@@ -83,6 +96,9 @@ func TestGraphPreparationPreflightsEntireSelection(t *testing.T) {
 				t.Fatal(err)
 			}
 			f := &preparationPreflightFixture{artifacts: map[string]domain.GraphSourceArtifact{}}
+			if mode == "mixed historical revisions" {
+				f.targetRevision = 9
+			}
 			for _, a := range items {
 				f.artifacts[a.Reference.ArtifactId] = a
 			}
@@ -116,6 +132,12 @@ func TestGraphPreparationPreflightsEntireSelection(t *testing.T) {
 			cfg := GraphPreparationConfig{CorpusID: pin.CorpusID, PublicationID: "publication:next", SnapshotID: "snapshot:next", BaseSnapshotID: pin.SnapshotID, AuthScope: doc.Context.AuthScopeRef,
 				Producer: resolution.Dependencies.ProducerManifest, OntologyHash: parseTestOntology().ContentHash(), MaximumReferences: 4096, MaximumCandidates: 32}
 			_, err := PrepareGraphInventory(context.Background(), f, f, f, pin, cfg)
+			if mode == "mixed historical revisions" {
+				if f.checkpoints != 2 || f.reservations != 1 || err == nil || err.Error() != "unexpected reserve" {
+					t.Fatal("valid historical sources failed before reservation", f.checkpoints, f.reservations, err)
+				}
+				return // Stop at reservation fixture; native test covers durable writes.
+			}
 			if err == nil || f.reservations != 0 {
 				t.Fatal("preflight reserved incomplete inventory", err, f.reservations)
 			}

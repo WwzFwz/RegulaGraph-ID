@@ -2,8 +2,9 @@
 // and persists deterministic derived artifacts plus a fenced storage receipt.
 // A retry repeats immutable writes and receipt admission without sampling models.
 // Interrupted object writes may leave orphans, never a partially committed receipt
-// or scheduled ASSEMBLE job. Registry freshness/semantic receipt checks remain
-// separate prerequisites for assembly. Aggregate input bytes are capped at 16MiB;
+// or scheduled ASSEMBLE job. Cross-revision policy includes historical candidate
+// bytes for storage-side reaffirmation; assembly repeats freshness/receipt checks.
+// Four envelope inputs are capped at 16MiB, candidate input separately at 16MiB;
 // measure read/hash/put/commit p95 and orphan/retry rate under benchmark-targets.yaml.
 package workflows
 
@@ -25,6 +26,7 @@ type GraphSourceBindingStore interface {
 	VerifyPublishedGraphSourceBinding(context.Context, domain.SnapshotPin, domain.IndexSourceBinding) error
 	VerifyGraphAssemblySourceCheckpoint(context.Context, string, string, string, *pb.ArtifactRef) error
 	RegisterGraphSourceBinding(context.Context, domain.SnapshotPin, domain.GraphSourceBinding, domain.GraphSourceBindingInputs, int) error
+	LoadSemanticResolutionIntent(context.Context, string, string) (domain.SemanticResolutionIntent, error)
 }
 
 type GraphSourceArtifactWriter interface {
@@ -75,7 +77,27 @@ func BindGraphSource(ctx context.Context, store GraphSourceBindingStore, reader 
 		}
 		inputs = append(inputs, domain.GraphSourceArtifact{Reference: ref, Bytes: raw})
 	}
-	extract, resolve, err := domain.BindGraphSourceEnvelopes(request.Source.SourceJobID, inputs[0], inputs[1], inputs[2], inputs[3], maximumEdges)
+	input := domain.GraphSourceBindingInputs{OriginalDocument: inputs[0].Bytes, SnapshotDocument: inputs[1].Bytes, Extraction: inputs[2].Bytes, Resolution: inputs[3].Bytes}
+	if request.Policy == domain.GraphSourceReaffirmationPolicy {
+		e := new(pb.ExtractionBatch)
+		if err := domain.DecodeWire(input.Extraction, e, domain.DefaultWireLimits); err != nil {
+			return empty, err
+		}
+		if len(e.Mentions) > 0 {
+			intent, err := store.LoadSemanticResolutionIntent(bounded, corpus, request.Source.SourceJobID)
+			if err != nil {
+				return empty, err
+			}
+			// Candidates are a separately bounded historical input; the whole
+			// inventory admission still enforces the aggregate 64MiB limit.
+			candidateBudget := uint64(domain.DefaultWireLimits.MaxBytes)
+			input.Candidates, err = readGraphPreparationArtifact(bounded, store, reader, corpus, intent.CandidateRef, &candidateBudget)
+			if err != nil {
+				return empty, err
+			}
+		}
+	}
+	extract, resolve, err := domain.BindGraphSourceReceiptEnvelopes(request, input, maximumEdges)
 	if err != nil {
 		return empty, err
 	}
@@ -115,7 +137,6 @@ func BindGraphSource(ctx context.Context, store GraphSourceBindingStore, reader 
 			return empty, err
 		}
 	}
-	input := domain.GraphSourceBindingInputs{OriginalDocument: inputs[0].Bytes, SnapshotDocument: inputs[1].Bytes, Extraction: inputs[2].Bytes, Resolution: inputs[3].Bytes}
 	if err = store.RegisterGraphSourceBinding(bounded, pin, request, input, maximumEdges); err != nil {
 		return empty, err
 	}

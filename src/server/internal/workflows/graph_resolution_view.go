@@ -19,21 +19,26 @@ import (
 
 type GraphResolutionViewStore interface {
 	GraphResolutionReceiptStore
+	VerifyRetainedRegistryRevision(context.Context, string, uint64) error
 	VerifyRegistryCandidateView(context.Context, string, domain.SemanticRegistryInputs, uint64, int, int, int, int) error
 }
 
 // ReadGraphResolutionForAssembly adds dependency checks to the historical receipt
-// read. Revision equality remains mandatory until a durable cross-revision binding
-// exists. A successful return proves a read, not a right to publish/schedule later.
+// read at the same or a later retained view. Cross-revision use still needs the
+// durable reaffirmation-policy source receipt. A return proves only this read,
+// not a right to publish/schedule or a mutation of the historical resolution.
 func ReadGraphResolutionForAssembly(ctx context.Context, store GraphResolutionViewStore, reader DocumentArtifactReader,
 	corpus, job, checkpoint string, extractionRef, resolutionRef *pb.ArtifactRef, targetRevision uint64,
 	maximumEdges, maximumCandidates int) (*pb.ResolutionBatch, error) {
 	if store == nil || targetRevision == 0 || targetRevision > math.MaxInt64 {
 		return nil, errors.New("graph registry store and retained target revision required")
 	}
+	if err := store.VerifyRetainedRegistryRevision(ctx, corpus, targetRevision); err != nil {
+		return nil, err
+	}
 	return readGraphResolutionReceipt(ctx, store, reader, corpus, job, checkpoint, extractionRef, resolutionRef,
 		maximumEdges, maximumCandidates, func(extraction *pb.ExtractionBatch, resolution *pb.ResolutionBatch, candidates *pb.RegistryCandidateBatch, input domain.SemanticRegistryInputs) error {
-			if resolution.RegistryRevision != targetRevision {
+			if !domain.ResolutionViewCanReaffirm(resolution, targetRevision) {
 				return domain.ErrResolutionReplan
 			}
 			if err := validateGraphExtractionDependencies(extraction); err != nil {

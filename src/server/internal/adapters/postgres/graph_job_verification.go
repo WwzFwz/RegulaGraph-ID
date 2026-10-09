@@ -105,9 +105,7 @@ func (r *Repository) verifyGraphJobSource(ctx context.Context, a domain.GraphJob
 			return empty, err
 		}
 	}
-	eBound, rBound, err := domain.BindGraphSourceEnvelopes(a.SourceJobID,
-		domain.GraphSourceArtifact{Reference: b.Source.Original, Bytes: input.Source.OriginalDocument}, domain.GraphSourceArtifact{Reference: b.Source.Bound, Bytes: input.Source.SnapshotDocument},
-		domain.GraphSourceArtifact{Reference: b.OriginalExtraction, Bytes: input.Source.Extraction}, domain.GraphSourceArtifact{Reference: b.OriginalResolution, Bytes: input.Source.Resolution}, refs)
+	eBound, rBound, err := domain.BindGraphSourceReceiptEnvelopes(b, input.Source, refs)
 	if err != nil {
 		return empty, err
 	}
@@ -128,7 +126,7 @@ func (r *Repository) verifyGraphJobSource(ctx context.Context, a domain.GraphJob
 			return empty, err
 		}
 	}
-	if resolve.RegistryRevision != p.RegistryRevision {
+	if !domain.ResolutionViewCanReaffirm(resolve, p.RegistryRevision) || (b.Policy == domain.GraphSourceEnvelopePolicy && resolve.RegistryRevision != p.RegistryRevision) {
 		return empty, domain.ErrResolutionReplan
 	}
 	if err = domain.ValidateGraphResolutionSource(extract, b.OriginalExtraction, resolve, refs); err != nil {
@@ -150,42 +148,10 @@ func (r *Repository) verifyGraphJobSource(ctx context.Context, a domain.GraphJob
 	if err = r.VerifyDocumentRegistryView(ctx, p.Meta.CorpusId, b.Source.Bound, input.Source.SnapshotDocument, p.RegistryRevision, refs); err != nil {
 		return empty, err
 	}
-	if len(extract.Mentions) == 0 {
-		deps := resolve.Dependencies
-		if len(input.Candidates) != 0 || len(deps.LookupScopeRevisions) != 0 || len(deps.Dependencies) != 1 || deps.Dependencies[0].DependencyId != b.OriginalExtraction.ArtifactId || !proto.Equal(deps.Dependencies[0].Fingerprint, b.OriginalExtraction.ContentHash) {
-			return empty, errors.New("empty RESOLVE has unsupported dependencies")
-		}
-	} else {
-		intent, e := r.LoadSemanticResolutionIntent(ctx, p.Meta.CorpusId, a.SourceJobID)
-		if e != nil {
-			return empty, e
-		}
-		if intent.Request == nil || !proto.Equal(intent.Preview, resolve) {
-			return empty, domain.ErrPersistentIntegrity
-		}
-		semantic := domain.SemanticRegistryInputs{SourceRef: b.OriginalExtraction, SourceBytes: input.Source.Extraction, CandidateRef: intent.CandidateRef, CandidateBytes: input.Candidates}
-		_, candidateBatch, e := r.decodeSemanticInputs(ctx, p.Meta.CorpusId, semantic)
-		if e != nil {
-			return empty, e
-		}
-		receipt, e := r.ReadCommittedSemanticResolution(ctx, semantic, intent.Request, intent.Approvals, refs, candidatesLimit)
-		if e != nil {
-			return empty, e
-		}
-		reconstructed, e := domain.AssembleResolutionBatchFromReceipt(extract, b.OriginalExtraction, candidateBatch, intent.CandidateRef, intent.Request, receipt, resolve.ModelManifest, resolve.Dependencies.ProducerManifest, resolve.TokenUsage, resolve.Meta.RecordId, refs, candidatesLimit)
-		if e != nil {
-			return empty, e
-		}
-		if !proto.Equal(reconstructed, resolve) {
-			return empty, domain.ErrPersistentIntegrity
-		}
-		aliasLimit, e := domain.GraphCandidateAliasBudget(candidateBatch, refs)
-		if e != nil {
-			return empty, e
-		}
-		if e = r.VerifyRegistryCandidateView(ctx, p.Meta.CorpusId, semantic, p.RegistryRevision, refs, aliasLimit, refs, candidatesLimit); e != nil {
-			return empty, e
-		}
+	sourceInput := input.Source
+	sourceInput.Candidates = input.Candidates
+	if err = r.verifyGraphResolutionAtRevision(ctx, p.Meta.CorpusId, a.SourceJobID, b.OriginalExtraction, extract, resolve, sourceInput, p.RegistryRevision, refs, candidatesLimit); err != nil {
+		return empty, err
 	}
 	selected, err := domain.GraphAssemblyCanonicalSelection(resolve)
 	if err != nil {

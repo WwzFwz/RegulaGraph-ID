@@ -197,6 +197,9 @@ func TestEmptySemanticResolutionAgainstPostgres(t *testing.T) {
 	if err != nil || !proto.Equal(verifiedEmpty, output.Batch) {
 		t.Fatalf("empty graph source view rejected: %v", err)
 	}
+	if _, err = workflows.ReadGraphResolutionForAssembly(ctx, repo, fileStore, corpusID, jobID, output.Checkpoint.Meta.RecordId, sourceRef, output.Artifact, output.Batch.RegistryRevision+1, 64, 8); !errors.Is(err, domain.ErrResolutionReplan) {
+		t.Fatalf("mention-free source accepted a future target registry view: %v", err)
+	}
 	var after int64
 	if err = repo.pool.QueryRow(ctx, `SELECT registry_revision FROM corpus_state WHERE corpus_id=$1`,
 		corpusID).Scan(&after); err != nil || after != before {
@@ -805,7 +808,7 @@ func TestSemanticRegistryAgainstPostgres(t *testing.T) {
 	}
 	if _, err = workflows.ReadGraphResolutionForAssembly(ctx, repo, fileStore, corpusID, jobID,
 		output.Checkpoint.Meta.RecordId, sourceRef, output.Artifact, output.Batch.RegistryRevision+1, 64, 8); !errors.Is(err, domain.ErrResolutionReplan) {
-		t.Fatalf("cross-revision RESOLVE accepted without durable reaffirmation: %v", err)
+		t.Fatalf("future registry view accepted before it exists: %v", err)
 	}
 	historical, err := repo.ReadCommittedSemanticResolution(ctx, input, request, approval, 64, 8)
 	if err != nil || !proto.Equal(historical, response) {

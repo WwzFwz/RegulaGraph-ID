@@ -3,7 +3,7 @@
 // exact, IDs deterministic and required source text fits the worker's 16MiB budget.
 // This step creates no jobs: admission must still prove dependency freshness and
 // repeat live authority in the scheduling transaction. Cross-revision decisions
-// remain rejected until explicit reaffirmation exists. Record SQL/read/hash/write
+// require the explicit durable reaffirmation policy. Record SQL/read/hash/write
 // p95, bytes and replay cost under benchmark-targets.yaml (REQUIRED_UNMEASURED).
 package workflows
 
@@ -81,7 +81,7 @@ func PrepareGraphAssembly(ctx context.Context, store GraphAssemblyPreparationSto
 	if err != nil {
 		return nil, err
 	}
-	if original.RegistryRevision != binding.RegistryRevision {
+	if !domain.ResolutionViewCanReaffirm(original, binding.RegistryRevision) || (binding.Policy == domain.GraphSourceEnvelopePolicy && original.RegistryRevision != binding.RegistryRevision) {
 		return nil, domain.ErrResolutionReplan
 	}
 

@@ -26,6 +26,7 @@ type GraphPreparationStore interface {
 	LoadLatestCheckpoint(context.Context, string) (*pb.Checkpoint, error)
 	ReservePublication(context.Context, string, string, string, string, string) (domain.PublicationReservation, error)
 	BindPublicationRegistry(context.Context, string, string, uint64, uint64) error
+	GraphPreparationRegistryRevision(context.Context, string, string) (uint64, error)
 }
 
 type GraphPreparationConfig struct {
@@ -68,7 +69,10 @@ func PrepareGraphInventory(ctx context.Context, store GraphPreparationStore, rea
 	}
 	requests := make([]domain.GraphSourceBinding, 0, len(sources))
 	remaining := uint64(64 << 20)
-	var revision uint64
+	revision, err := store.GraphPreparationRegistryRevision(ctx, cfg.CorpusID, cfg.PublicationID)
+	if err != nil {
+		return empty, err
+	}
 	for i, source := range sources {
 		if err = domain.ValidateIndexSourceBinding(source); err != nil {
 			return empty, err
@@ -103,11 +107,8 @@ func PrepareGraphInventory(ctx context.Context, store GraphPreparationStore, rea
 		if e = domain.DecodeWire(raw, resolution, domain.DefaultWireLimits); e != nil {
 			return empty, e
 		}
-		if i == 0 {
-			revision = resolution.RegistryRevision
-		}
-		if revision == 0 || resolution.RegistryRevision != revision {
-			return empty, fmt.Errorf("source %s needs cross-revision reaffirmation: %w", source.SourceJobID, domain.ErrResolutionReplan)
+		if !domain.ResolutionViewCanReaffirm(resolution, revision) {
+			return empty, fmt.Errorf("source %s resolution is newer than target view: %w", source.SourceJobID, domain.ErrResolutionReplan)
 		}
 		if len(resolution.Decisions) > 0 {
 			intent, e := store.LoadSemanticResolutionIntent(ctx, cfg.CorpusID, source.SourceJobID)
@@ -134,7 +135,11 @@ func PrepareGraphInventory(ctx context.Context, store GraphPreparationStore, rea
 		if _, e = domain.GraphAssemblyCanonicalSelection(checked); e != nil {
 			return empty, fmt.Errorf("source %s: %w", source.SourceJobID, e)
 		}
-		requests = append(requests, domain.GraphSourceBinding{Policy: domain.GraphSourceEnvelopePolicy, PublicationID: cfg.PublicationID,
+		policy := domain.GraphSourceEnvelopePolicy
+		if resolution.RegistryRevision < revision {
+			policy = domain.GraphSourceReaffirmationPolicy
+		}
+		requests = append(requests, domain.GraphSourceBinding{Policy: policy, PublicationID: cfg.PublicationID,
 			RegistryRevision: revision, SourceCheckpointID: cp.Meta.RecordId, Source: source, OriginalExtraction: resolution.SourceExtractionBatch, OriginalResolution: ref})
 	}
 	target, err := store.ReservePublication(ctx, cfg.PublicationID, "", cfg.CorpusID, cfg.SnapshotID, cfg.BaseSnapshotID)

@@ -1,8 +1,9 @@
 // Defines the local durable receipt for a graph source metadata transform.
 // Existing C01 artifact/snapshot references remain the wire authority. This Go
 // storage record binds original and derived EXTRACT/RESOLVE refs to one source
-// checkpoint, published CHUNK membership and reserved target. It proves neither
-// model correctness nor registry freshness; those gates precede ASSEMBLE admission.
+// checkpoint, published CHUNK membership and reserved target. The reaffirmation
+// policy records checked reuse at a later registry view; it does not prove model
+// correctness or grant permanent authority. ASSEMBLE repeats live admission.
 // Receipt size is capped at 64KiB by storage; measure admission/hash/lock p95 and
 // replay consistency under benchmark-targets.yaml (REQUIRED_UNMEASURED).
 package domain
@@ -42,7 +43,7 @@ func validateGraphSourceBinding(binding GraphSourceBinding, request bool) error 
 	if err := ValidateIndexSourceBinding(binding.Source); err != nil {
 		return err
 	}
-	if binding.Policy != GraphSourceEnvelopePolicy || binding.PublicationID == binding.Source.PublicationID ||
+	if (binding.Policy != GraphSourceEnvelopePolicy && binding.Policy != GraphSourceReaffirmationPolicy) || binding.PublicationID == binding.Source.PublicationID ||
 		binding.Fence == 0 || binding.Fence > math.MaxInt64 || binding.TargetSequence <= binding.Source.Snapshot.Sequence ||
 		binding.TargetSequence > math.MaxInt64 || binding.RegistryRevision == 0 || binding.RegistryRevision > math.MaxInt64 {
 		return errors.New("invalid graph source publication binding")
@@ -82,4 +83,7 @@ func validateGraphSourceBinding(binding GraphSourceBinding, request bool) error 
 // and original RESOLVE bytes, in named roles. Derived bytes are recomputed exactly.
 type GraphSourceBindingInputs struct {
 	OriginalDocument, SnapshotDocument, Extraction, Resolution []byte
+	// Candidates is used only for authenticated cross-revision receipt creation;
+	// it is not serialized into the source-binding receipt or sent to Rust.
+	Candidates []byte
 }

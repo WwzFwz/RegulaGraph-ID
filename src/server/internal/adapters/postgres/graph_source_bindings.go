@@ -2,7 +2,9 @@
 // pure envelope transform. Snapshot/corpus and source-job locks prevent publication
 // takeover or cancellation from crossing admission; live base pin, published index
 // membership, source checkpoint and registered refs are checked in the transaction.
-// No missing artifact, model decision, registry freshness proof or graph job is created.
+// The explicit reaffirmation policy also authenticates historical decisions and
+// unchanged dependencies, then compares the preflight registry stamp under lock.
+// No missing artifact, new model decision or graph job is created.
 // Hash/decode work precedes locks; receipt payload is capped at 64KiB. Measure lock,
 // pool, hash p95/p99 and replay behavior under benchmark-targets.yaml (unmeasured).
 package postgres
@@ -37,11 +39,7 @@ func (r *Repository) RegisterGraphSourceBinding(ctx context.Context, pin domain.
 	if err := bounded.Err(); err != nil {
 		return err
 	}
-	extract, resolve, err := domain.BindGraphSourceEnvelopes(binding.Source.SourceJobID,
-		domain.GraphSourceArtifact{Reference: binding.Source.Original, Bytes: input.OriginalDocument},
-		domain.GraphSourceArtifact{Reference: binding.Source.Bound, Bytes: input.SnapshotDocument},
-		domain.GraphSourceArtifact{Reference: binding.OriginalExtraction, Bytes: input.Extraction},
-		domain.GraphSourceArtifact{Reference: binding.OriginalResolution, Bytes: input.Resolution}, maximumEdges)
+	extract, resolve, err := domain.BindGraphSourceReceiptEnvelopes(binding, input, maximumEdges)
 	if err != nil {
 		return err
 	}
@@ -54,6 +52,34 @@ func (r *Repository) RegisterGraphSourceBinding(ctx context.Context, pin domain.
 	}
 	if resolved.RegistryRevision > binding.RegistryRevision {
 		return ErrConflict
+	}
+	var observedRevision, observedFloor int64
+	if binding.Policy == domain.GraphSourceReaffirmationPolicy {
+		if len(input.Candidates) > domain.DefaultWireLimits.MaxBytes {
+			return ErrResultLimit
+		}
+		if err = r.pool.QueryRow(bounded, `SELECT registry_revision,registry_history_floor FROM corpus_state WHERE corpus_id=$1`, pin.CorpusID).Scan(&observedRevision, &observedFloor); err != nil {
+			return err
+		}
+		if observedFloor <= 0 || observedRevision < int64(binding.RegistryRevision) || observedFloor > int64(binding.RegistryRevision) {
+			return ErrConflict
+		}
+		originalE, originalR := new(pb.ExtractionBatch), new(pb.ResolutionBatch)
+		if err = domain.DecodeWire(input.Extraction, originalE, domain.DefaultWireLimits); err != nil {
+			return err
+		}
+		if err = domain.DecodeWire(input.Resolution, originalR, domain.DefaultWireLimits); err != nil {
+			return err
+		}
+		if err = r.verifyGraphResolutionAtRevision(bounded, pin.CorpusID, binding.Source.SourceJobID, binding.OriginalExtraction, originalE, originalR, input, binding.RegistryRevision, maximumEdges, domain.DefaultWireLimits.MaxItems); err != nil {
+			return err
+		}
+		if _, err = domain.GraphAssemblyCanonicalSelection(originalR); err != nil {
+			return err
+		}
+		if err = r.VerifyDocumentRegistryView(bounded, pin.CorpusID, binding.Source.Bound, input.SnapshotDocument, binding.RegistryRevision, maximumEdges); err != nil {
+			return err
+		}
 	}
 	raw, err := json.Marshal(binding)
 	if err != nil {
@@ -78,9 +104,13 @@ func (r *Repository) RegisterGraphSourceBinding(ctx context.Context, pin domain.
 	if err != nil {
 		return err
 	}
-	err = tx.QueryRow(bounded, `SELECT corpus_id FROM corpus_state WHERE corpus_id=$1 FOR UPDATE`, corpus).Scan(&id)
+	var currentRevision, currentFloor int64
+	err = tx.QueryRow(bounded, `SELECT corpus_id,registry_revision,registry_history_floor FROM corpus_state WHERE corpus_id=$1 FOR UPDATE`, corpus).Scan(&id, &currentRevision, &currentFloor)
 	if err != nil {
 		return err
+	}
+	if binding.Policy == domain.GraphSourceReaffirmationPolicy && (currentRevision != observedRevision || currentFloor != observedFloor) {
+		return ErrConflict
 	}
 	if err = verifyGraphPublicationBinding(bounded, tx, binding.PublicationID, corpus, binding.Fence, binding.TargetSequence, binding.RegistryRevision, binding.Source.Snapshot); err != nil {
 		return err
