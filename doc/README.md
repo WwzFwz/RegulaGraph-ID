@@ -1,5 +1,9 @@
 # doc
 
+[Diagnostik dan feedback extraction](verification-report-extraction-feedback.md)
+mencatat locator errors yang dibatasi dan tidak memuat kutipan sumber, serta dua
+eksperimen koreksi lokal yang masih gagal. Retry otomatis belum diaktifkan.
+
 [Extraction berbasis kutipan](verification-report-quote-extraction.md) menjelaskan
 schema/prompt v2, unique exact-source alignment, review boundary, serta kegagalan
 model lokal yang masih mengubah nama atau konteks kutipan.

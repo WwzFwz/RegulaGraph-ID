@@ -1,5 +1,12 @@
 # Rencana implementasi berbasis dependency
 
+Checkpoint diagnostic EXTRACT: kegagalan quote v2 kini membawa field paths dan
+alasan statis, dibatasi 32 dengan marker truncation; item tetap ditolak seluruhnya.
+Review/regresi lulus. Dua feedback experiment lokal masih gagal empat locator;
+jangan menambahkan retry mahal tanpa bukti manfaat. Berikutnya perbandingan
+model/profil, full-prompt admission dan per-item checkpoint.
+[Bukti](verification-report-extraction-feedback.md).
+
 Checkpoint quote EXTRACT v2: schema/prompt baru memungkinkan kutipan plus konteks
 langsung; gateway menghitung unique exact UTF-8 offsets dan tetap memakai gate
 provenance/ontology/C01 lama. Unit, suite Go dan review boundary lulus. Model nyata

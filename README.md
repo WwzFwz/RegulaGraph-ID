@@ -10,6 +10,8 @@ Indonesian regulations are distributed across sources, reference one another, ch
 
 **Latest extraction work:** EXTRACT/RESOLVE send an explicit, producer-pinned output token cap. The optional v2 extraction schema lets the gateway compute byte offsets from unique exact quotations and adjacent context. Boundary tests pass, but a local model replay still produced four invalid locators and was rejected. Model integration remains unfinished. See [quote-extraction verification](doc/verification-report-quote-extraction.md) and [completion-budget verification](doc/verification-report-semantic-budget.md).
 
+Validation errors now identify invalid locator fields without including source quotations. Two local correction experiments still failed source validation, so automatic model retries remain disabled. See the [feedback experiment report](doc/verification-report-extraction-feedback.md).
+
 ## System Overview
 
 The main flow follows the original plan: regulations become chunks, indexes, and a knowledge graph; questions pass through retrieval, fusion, context assembly, and evidence-backed generation. Extraction reads chunks tied to source text, while the registry and publication layer maintain consistent identities, versions, and snapshots.
