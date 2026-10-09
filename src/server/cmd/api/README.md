@@ -1,5 +1,7 @@
 # src/server/cmd/api
 
+`REGULAGRAPH_QUERY_NORMALIZATION` memilih original-v1 (default) atau mechanical-v1; nilai lain menggagalkan startup sebelum backend dibuka. [Policy](../../../../doc/query-normalization.md).
+
 Entry point layanan HTTP Go untuk request, response, dan integrasi streaming.
 Saat ini melayani evidence vector/hybrid/graph/hybrid-graph lokal serta complete
 draft answers opt-in; streaming belum aktif.

@@ -1,5 +1,7 @@
 # src/server/internal/workflows
 
+`CandidateSearch` menerapkan policy normalisasi sekali sebelum branch retrieval; graph, hidrasi, reranker dan generator mempertahankan pertanyaan asli. Trace disalin pada boundary hidrasi. `PublishedQueryConfig.Normalization` mengikat policy operator. [Kontrak](../../../../doc/query-normalization.md).
+
 `alias_target.go` menghidrasi bukti target provisional existing menggunakan budget
 file bersama inspeksi sumber. Receipt/profil asal diverifikasi ulang saat accept;
 review tidak otomatis menjadi RESOLVE LINK. [Panduan](../../../../doc/provisional-entity-review.md).

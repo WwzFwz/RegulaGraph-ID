@@ -1,5 +1,7 @@
 # Rencana implementasi berbasis dependency
 
+Checkpoint Q01: normalisasi mekanis opt-in dan trace UTF-8 sudah terhubung ke CLI/API serta workflow. Default tetap original; graph/reranker/generator mempertahankan input asli. Classifier, semantic expansion dan temporal CURRENT/COMPARE tetap terbuka. [Kontrak](query-normalization.md), [verifikasi](verification-report-query-normalization.md).
+
 Checkpoint provisional graph: source-reviewed identity kini teruji dalam satu
 run sampai candidate planning, durable LINK, actual Rust ASSEMBLE/recovery,
 Neo4j/Qdrant publication serta draft GraphRAG/Hybrid GraphRAG. Identity dan status

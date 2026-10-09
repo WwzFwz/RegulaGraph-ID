@@ -1,5 +1,7 @@
 # doc
 
+[Normalisasi query](query-normalization.md) mendokumentasikan mode operator, trace byte, perlindungan pertanyaan asli, dan batas kualitas; [bukti](verification-report-query-normalization.md) memisahkan tes deterministik dari acceptance.
+
 [Verifikasi provisional sampai graph](verification-report-provisional-graph.md)
 menghubungkan review sumber, LINK durable, Rust ASSEMBLE, recovery, publication
 Neo4j/Qdrant dan draft GraphRAG pada fixture yang batas sintetiknya dinyatakan.

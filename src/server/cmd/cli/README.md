@@ -1,5 +1,7 @@
 # src/server/cmd/cli
 
+`query-evidence` membaca REGULAGRAPH_QUERY_NORMALIZATION dan menampilkan report `query_normalization` dari workflow pada JSON hasil. Pertanyaan asli tetap diteruskan untuk answering. [Policy dan contoh](../../../../doc/query-normalization.md).
+
 `review-alias -target-provisional -canonical ...` menampilkan occurrence sumber
 dan occurrence pembentukan target sebelum acceptance. Mode ini tidak boleh
 digabung dengan create-provisional atau target-document; label mengikuti profil

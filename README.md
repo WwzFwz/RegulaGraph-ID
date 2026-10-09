@@ -1,5 +1,7 @@
 # RegulaGraph-ID
 
+**Query preparation:** CLI/API support optional `REGULAGRAPH_QUERY_NORMALIZATION=mechanical-v1` for NFC and whitespace normalization outside quotes. The default `original-v1` preserves exact input. Dense/BM25 use the search form; graph linking, reranking and generation keep the original. [Policy and audit output](doc/query-normalization.md). Retrieval quality impact remains unmeasured.
+
 RegulaGraph-ID is a **Hybrid GraphRAG project for Indonesian regulations**. It transforms PDFs and source metadata into structure-based chunks, consistent regulation and provision identities, lexical and dense indexes, and a knowledge graph backed by source evidence. Questions are answered against a consistent corpus snapshot, with retrieved evidence assembled into context for cited answers. This README covers the architecture, component boundaries, technology choices, project structure, and local operation.
 
 Indonesian regulations are distributed across sources, reference one another, change over time, and use different terms for the same concepts. The project aims to speed up research while making each answer traceable to its source text or article. A citation alone does not establish legal correctness.

@@ -1,5 +1,7 @@
 # src/server/internal/api
 
+`EvidenceRuntimeConfig.Normalization` divalidasi sebelum backend dibuka dan masuk fingerprint konfigurasi. Trace tersedia di workflow; schema HTTP tetap. [Policy](../../../../doc/query-normalization.md).
+
 Antarmuka HTTP Go HTTP untuk menerima request, mengikat dependency, dan memetakan hasil workflow menjadi response. Implementasi runtime berada di Go. Dokumen ini mendefinisikan superset tanggung jawab folder dan kontrak integrasi anaknya.
 
 ## Batas tanggung jawab

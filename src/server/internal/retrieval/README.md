@@ -1,5 +1,7 @@
 # src/server/internal/retrieval
 
+Normalisasi query mekanis opsional berada di `query/normalizer.go`. Dense/BM25 menerima search form dari workflow; graph tetap menerima original untuk offset linking. [Policy](../../../../doc/query-normalization.md).
+
 Discovery [graph/traversal.go](graph/traversal.go) kini menelusuri batch neighborhood
 terpin dengan jalur alternatif dan batas resource eksplisit. Branch graph kini
 membawa kandidat source beserta discovery ke fusion, shared hydration dan draft.

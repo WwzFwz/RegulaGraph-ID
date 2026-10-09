@@ -1,5 +1,7 @@
 # Panduan melanjutkan sampai aplikasi bisa digunakan
 
+Query preparation kini memiliki policy original-v1 (default) dan mechanical-v1 (opt-in) melalui REGULAGRAPH_QUERY_NORMALIZATION. Ini tidak membutuhkan rebuild corpus. Lihat [cara pakai](query-normalization.md); classifier/temporal penuh dan pengukuran kualitas tetap pekerjaan berikutnya.
+
 Bukti integrasi terbaru: review provisional ? kandidat ? durable LINK ? worker
 Rust ASSEMBLE/recovery ? Neo4j/Qdrant publication ? draft GraphRAG telah lulus pada
 fixture. Ini menutup gap sambungan creation, bukan kegagalan model EXTRACT pada
