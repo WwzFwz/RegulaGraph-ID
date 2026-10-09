@@ -21,9 +21,10 @@ import (
 	"regulagraph.local/server/internal/domain"
 	"regulagraph.local/server/internal/retrieval"
 	"regulagraph.local/server/internal/retrieval/graph"
+	"regulagraph.local/server/internal/retrieval/query"
 )
 
-type GraphSeedResolver func(context.Context, string, *domain.PinnedGraph) ([]string, error)
+type GraphSeedResolver func(context.Context, string, *domain.PinnedGraph) (*query.EntityLinks, error)
 type GraphCandidateSearch struct {
 	Catalog   GraphEvidenceCatalog
 	Backend   *neo4j.Store
@@ -103,15 +104,37 @@ func (g *GraphCandidateSearch) Search(ctx context.Context, input retrieval.Searc
 	if err != nil {
 		return nil, err
 	}
+	if err = seeds.CheckBudget(); err != nil {
+		return nil, err
+	}
 	paths := &graph.TraversalResult{Snapshot: proto.Clone(view.Snapshot).(*pb.SnapshotRef), FrontierExhausted: false, StopReasons: []string{"query_seed_unresolved"}}
-	if len(seeds) > 0 {
+	if seeds == nil || seeds.CorpusID != view.Pin.CorpusID || seeds.SnapshotID != view.Pin.SnapshotID || seeds.RegistryRevision != view.Catalog.Binding.RegistryRevision || len(seeds.CanonicalIDs) > 64 || len(seeds.StopReasons) > 16 {
+		return nil, errors.New("query seed report differs from admitted graph")
+	}
+	if len(seeds.CanonicalIDs) > 0 {
 		reader, err := g.Backend.OpenReader(call, view)
 		if err != nil {
 			return nil, err
 		}
-		paths, err = graph.Traverse(call, reader, view.Snapshot, seeds, g.Traversal)
+		paths, err = graph.Traverse(call, reader, view.Snapshot, seeds.CanonicalIDs, g.Traversal)
 		if err != nil {
 			return nil, err
+		}
+	}
+	for _, reason := range seeds.StopReasons {
+		if len(reason) == 0 || len(reason) > 256 {
+			return nil, errors.New("invalid query seed stop reason")
+		}
+		found := false
+		for _, old := range paths.StopReasons {
+			found = found || old == reason
+		}
+		if !found {
+			paths.StopReasons = append(paths.StopReasons, reason)
+		}
+		paths.FrontierExhausted = false
+		for _, p := range paths.Paths {
+			p.FrontierExhausted = false
 		}
 	}
 	refs, err := graph.SourcesForPaths(paths, 128)
@@ -129,7 +152,7 @@ func (g *GraphCandidateSearch) Search(ctx context.Context, input retrieval.Searc
 		return nil, domain.ErrGraphReadBudget
 	}
 	sort.Slice(hits, func(i, j int) bool { return hits[i].RecordID < hits[j].RecordID })
-	out := &retrieval.BranchOutput{Ranking: retrieval.RankedBranch{Kind: pb.RetrieverKind_RETRIEVER_KIND_GRAPH}, Hits: hits, Graph: paths}
+	out := &retrieval.BranchOutput{Ranking: retrieval.RankedBranch{Kind: pb.RetrieverKind_RETRIEVER_KIND_GRAPH}, Hits: hits, Graph: paths, Linking: seeds.Clone()}
 	for i, hit := range hits {
 		candidate := &pb.Candidate{EvidenceKey: hit.RecordID, Retriever: pb.RetrieverKind_RETRIEVER_KIND_GRAPH, Rank: uint32(i + 1), Representation: "graph-source-id-order-v1", FilterDecisions: []*pb.FilterDecision{{Rule: "admitted-graph-source-lookup", Accepted: true, Reason: "Pinned graph support source lookup; text and legal-time verification follow hydration"}}}
 		if err := domain.ValidateWire(candidate, domain.DefaultWireLimits); err != nil {

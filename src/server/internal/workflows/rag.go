@@ -183,6 +183,7 @@ func cloneCandidateSearch(found *CandidateSearchResult) *CandidateSearchResult {
 	for i, branch := range found.Branches {
 		owned := *branch
 		owned.Graph = cloneTraversal(branch.Graph)
+		owned.Linking = branch.Linking.Clone()
 		owned.Ranking = retrieval.RankedBranch{Kind: branch.Ranking.Kind, Candidates: cloneRanking(branch.Ranking.Candidates)}
 		owned.Hits = make([]qdrant.Hit, len(branch.Hits))
 		for j, hit := range branch.Hits {

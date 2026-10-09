@@ -23,6 +23,7 @@ import (
 	"regulagraph.local/server/internal/domain"
 	"regulagraph.local/server/internal/retrieval"
 	"regulagraph.local/server/internal/retrieval/graph"
+	"regulagraph.local/server/internal/retrieval/query"
 	"regulagraph.local/server/internal/workflows"
 )
 
@@ -69,7 +70,10 @@ func checkPublishedGraphAnswer(t *testing.T, ctx context.Context, repo *postgres
 	}
 	t.Log("actual graph traversal/source text rendered into production generator prompt; cited fixture draft retains unresolved graph dependencies")
 	for _, profile := range []pb.RetrievalProfile{pb.RetrievalProfile_RETRIEVAL_PROFILE_GRAPH_RAG, pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_GRAPH_RAG} {
-		emptySeeds := false
+		seedResolver, err := workflows.NewQueryGraphSeedResolver(repo, query.EntityLinkingPolicy{Namespaces: []query.EntityNamespace{{EntityType: "organization", Scope: "ID:national"}}, MaximumQueryBytes: 4096, MaximumPhraseTokens: 4, MaximumPhrases: 128, MaximumLookups: 128, MaximumAliasesPerLookup: 32, MaximumSeeds: 64})
+		if err != nil {
+			t.Fatal(err)
+		}
 		vector := make([]float32, index.Binding.Generation.DenseManifest.GetDimensions())
 		vector[0] = 1
 		var embed retrieval.EmbeddingClient = publishedEmbedding{vector}
@@ -85,15 +89,7 @@ func checkPublishedGraphAnswer(t *testing.T, ctx context.Context, repo *postgres
 			Profile: profile, HTTPClient: &http.Client{Timeout: 5 * time.Second}, QdrantCredentials: map[string]string{index.Binding.Endpoint: ""}, MaximumLexicalBytes: 16 << 20, Reranker: ranker,
 			Fusion:    retrieval.RRFConfig{K: 60, MaximumPerBranch: 8, MaximumTotalInputs: 24, Weights: map[pb.RetrieverKind]float64{pb.RetrieverKind_RETRIEVER_KIND_DENSE: 1, pb.RetrieverKind_RETRIEVER_KIND_BM25: 1, pb.RetrieverKind_RETRIEVER_KIND_GRAPH: 1}},
 			Hydration: retrieval.HydrationConfig{MaximumCandidates: 32, MaximumArtifactBytes: 16 << 20, MaximumEvidenceBytes: 1 << 20, Producer: hydrated.Mapping.Bundle.RetrievalManifest},
-			Graph: &workflows.GraphQueryConfig{Backend: backend, Seeds: func(_ context.Context, _ string, view *domain.PinnedGraph) ([]string, error) {
-				if !proto.Equal(view.Snapshot, index.Snapshot) {
-					t.Fatal("seed resolver received wrong snapshot")
-				}
-				if emptySeeds {
-					return nil, nil
-				}
-				return []string{paths.Paths[0].OrderedNodeIds[0]}, nil // Explicit fixture seed; no claim of query entity-linking quality.
-			}, Traversal: graph.TraversalConfig{MaximumHops: 3, MaximumPaths: 100, Read: domain.GraphReadLimits{Assertions: 128, Supports: 256, Bytes: 1 << 20}}},
+			Graph:     &workflows.GraphQueryConfig{Backend: backend, Seeds: seedResolver, Traversal: graph.TraversalConfig{MaximumHops: 3, MaximumPaths: 100, Read: domain.GraphReadLimits{Assertions: 128, Supports: 256, Bytes: 1 << 20}}},
 		})
 		if err != nil {
 			t.Fatal("prepare graph profile", profile, err)
@@ -116,6 +112,9 @@ func checkPublishedGraphAnswer(t *testing.T, ctx context.Context, repo *postgres
 		ownedInput.Binding.Generation.Meta.RecordId = "generation:caller-mutated"
 		q := proto.Clone(request).(*pb.QuestionRequest)
 		q.RequestedProfile = profile
+		// Fixture aliases are the first two ASCII bytes of the source chunk.
+		// The real linker must discover this alias from question text, not a supplied ID.
+		q.Question = "Apa hubungan " + hydrated.Mapping.Bundle.Items[0].Text[:1] + "?"
 		result, err := bound.AnswerPinnedQuestion(ctx, q, retrieval.SearchInput{Context: call, Question: q.Question, Generation: index.Binding.Generation, Scope: qdrant.SearchScope{SnapshotSeq: index.Snapshot.Sequence, Limit: 8}})
 		if err != nil {
 			t.Fatal("published graph RAG", profile, err)
@@ -128,6 +127,23 @@ func checkPublishedGraphAnswer(t *testing.T, ctx context.Context, repo *postgres
 			t.Fatal("graph fusion/reranking/citation incomplete", profile, result)
 		}
 		graphOrigin := false
+		linked := false
+		for _, b := range result.Search.Branches {
+			if b.Linking != nil {
+				linked = b.Linking.Method == query.AliasLinkingMethod && len(b.Linking.CanonicalIDs) > 0 && len(b.Linking.Matches) > 0
+			}
+		}
+		if !linked {
+			t.Fatal("query did not use pinned alias linking")
+		}
+		if result.Search.Graph.FrontierExhausted {
+			t.Fatal("unreviewed query aliases lost incomplete status")
+		}
+		for _, p := range result.Search.Graph.Paths {
+			if p.FrontierExhausted {
+				t.Fatal("path contradicts unresolved query linking")
+			}
+		}
 		for _, item := range result.Evidence.Items {
 			for _, origin := range item.CandidateProvenance {
 				graphOrigin = graphOrigin || origin.Retriever == pb.RetrieverKind_RETRIEVER_KIND_GRAPH
@@ -138,7 +154,7 @@ func checkPublishedGraphAnswer(t *testing.T, ctx context.Context, repo *postgres
 		}
 		t.Logf("published %s: %d branches fused, %d source evidence items reranked, graph prompt and source citations retained", profile, branches, len(result.Evidence.Items))
 		if profile == pb.RetrievalProfile_RETRIEVAL_PROFILE_GRAPH_RAG {
-			emptySeeds = true
+			q.Question = "aliasbelumtersedia"
 			calls := provider.calls
 			empty, err := bound.AnswerPinnedQuestion(ctx, q, retrieval.SearchInput{Context: call, Question: q.Question, Generation: index.Binding.Generation, Scope: qdrant.SearchScope{SnapshotSeq: index.Snapshot.Sequence, Limit: 8}})
 			if err != nil || len(empty.Evidence.Items) != 0 || len(empty.Evidence.MissingDependencies) == 0 || empty.Answer.Draft.Answer.SemanticStatus != pb.SemanticStatus_SEMANTIC_STATUS_ABSTAIN || provider.calls != calls {

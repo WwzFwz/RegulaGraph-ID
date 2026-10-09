@@ -133,6 +133,17 @@ func (s *CandidateSearch) SearchCandidates(ctx context.Context, input retrieval.
 		}
 		ranked[i] = branch.Ranking
 		if kinds[i] == pb.RetrieverKind_RETRIEVER_KIND_GRAPH {
+			if branch.Linking != nil {
+				if err := branch.Linking.CheckBudget(); err != nil {
+					return nil, err
+				}
+				if branch.Linking.CorpusID != input.Context.CorpusId || branch.Linking.SnapshotID != input.Context.SnapshotRef.SnapshotId || branch.Linking.RegistryRevision == 0 {
+					return nil, errors.New("graph linking report differs from snapshot")
+				}
+				owned := *branch
+				owned.Linking = branch.Linking.Clone()
+				ordered[i] = &owned
+			}
 			if branch.Graph == nil || !proto.Equal(branch.Graph.Snapshot, input.Context.SnapshotRef) {
 				return nil, errors.New("graph branch lost pinned discovery")
 			}
@@ -140,7 +151,7 @@ func (s *CandidateSearch) SearchCandidates(ctx context.Context, input retrieval.
 				return nil, err
 			}
 			paths = cloneTraversal(branch.Graph)
-		} else if branch.Graph != nil {
+		} else if branch.Graph != nil || branch.Linking != nil {
 			return nil, errors.New("non-graph branch supplied graph proof")
 		}
 		for j, hit := range branch.Hits {
