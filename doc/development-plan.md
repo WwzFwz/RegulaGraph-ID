@@ -1,5 +1,12 @@
 # Rencana implementasi berbasis dependency
 
+Checkpoint quote EXTRACT v2: schema/prompt baru memungkinkan kutipan plus konteks
+langsung; gateway menghitung unique exact UTF-8 offsets dan tetap memakai gate
+provenance/ontology/C01 lama. Unit, suite Go dan review boundary lulus. Model nyata
+masih gagal 4 dari 10 locator pada satu chunk; seluruh item ditolak. Berikutnya
+perbaiki evidence copying/model feedback, token admission dan per-item recovery.
+[Bukti dan batas](verification-report-quote-extraction.md).
+
 Checkpoint completion budget: EXTRACT/RESOLVE memakai cap output eksplisit dan
 producer pin; actual config/input hashes diperiksa sebelum acceptance EXTRACT.
 Suite Go dan review independen lulus. Satu chunk model lokal selesai dengan 1064

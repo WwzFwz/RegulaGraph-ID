@@ -1,5 +1,9 @@
 # doc
 
+[Extraction berbasis kutipan](verification-report-quote-extraction.md) menjelaskan
+schema/prompt v2, unique exact-source alignment, review boundary, serta kegagalan
+model lokal yang masih mengubah nama atau konteks kutipan.
+
 [Completion budget semantic](verification-report-semantic-budget.md) mencatat cap
 model eksplisit, admission producer aktual, dan diagnostic model lokal yang tidak
 lagi terpotong tetapi masih gagal span sumber.

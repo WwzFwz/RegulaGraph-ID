@@ -8,7 +8,7 @@ Indonesian regulations are distributed across sources, reference one another, ch
 
 **Try it now:** the [local demo](#running-the-local-demo) runs without a database. The [full GraphRAG pipeline](#running-the-local-graphrag-pipeline) requires backend services, pinned models, and a published corpus.
 
-**Latest extraction work:** EXTRACT/RESOLVE now send an explicit, producer-pinned output token cap. A local replay completed beyond the demo's previous 768-token limit, but its source spans still failed validation. This remains unfinished model integration, not a successful extraction pipeline. See the [completion-budget verification](doc/verification-report-semantic-budget.md).
+**Latest extraction work:** EXTRACT/RESOLVE send an explicit, producer-pinned output token cap. The optional v2 extraction schema lets the gateway compute byte offsets from unique exact quotations and adjacent context. Boundary tests pass, but a local model replay still produced four invalid locators and was rejected. Model integration remains unfinished. See [quote-extraction verification](doc/verification-report-quote-extraction.md) and [completion-budget verification](doc/verification-report-semantic-budget.md).
 
 ## System Overview
 
