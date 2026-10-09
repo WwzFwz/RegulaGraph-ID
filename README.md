@@ -8,6 +8,8 @@ Indonesian regulations are distributed across sources, reference one another, ch
 
 **Try it now:** the [local demo](#running-the-local-demo) runs without a database. The [full GraphRAG pipeline](#running-the-local-graphrag-pipeline) requires backend services, pinned models, and a published corpus.
 
+**Latest extraction work:** EXTRACT/RESOLVE now send an explicit, producer-pinned output token cap. A local replay completed beyond the demo's previous 768-token limit, but its source spans still failed validation. This remains unfinished model integration, not a successful extraction pipeline. See the [completion-budget verification](doc/verification-report-semantic-budget.md).
+
 ## System Overview
 
 The main flow follows the original plan: regulations become chunks, indexes, and a knowledge graph; questions pass through retrieval, fusion, context assembly, and evidence-backed generation. Extraction reads chunks tied to source text, while the registry and publication layer maintain consistent identities, versions, and snapshots.

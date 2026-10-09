@@ -1,5 +1,9 @@
 # doc
 
+[Completion budget semantic](verification-report-semantic-budget.md) mencatat cap
+model eksplisit, admission producer aktual, dan diagnostic model lokal yang tidak
+lagi terpotong tetapi masih gagal span sumber.
+
 [Bootstrap dan konteks model](verification-report-runtime-bootstrap.md) mencatat
 CLI migrasi, pin ontology context EXTRACT dan kegagalan uji model yang belum selesai.
 [Gambaran besar sistem](system-big-picture.svg), dengan [sumber PlantUML](system-big-picture.puml),

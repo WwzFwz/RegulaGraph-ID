@@ -1,5 +1,12 @@
 # Rencana implementasi berbasis dependency
 
+Checkpoint completion budget: EXTRACT/RESOLVE memakai cap output eksplisit dan
+producer pin; actual config/input hashes diperiksa sebelum acceptance EXTRACT.
+Suite Go dan review independen lulus. Satu chunk model lokal selesai dengan 1064
+token output, tetapi seluruh 9 span masih invalid. Berikutnya bangun quote-to-source
+alignment deterministik serta admission full prompt; belum PASS extraction.
+[Bukti dan batas](verification-report-semantic-budget.md).
+
 Checkpoint bootstrap/EXTRACT: CLI `migrate` kini menerapkan schema aplikasi dengan
 checksum replay, transaksi per file dan cleanup lock berbatas. Model menerima
 ontology context terpin; missing/drift pin ditolak coordinator, konfigurasi dimiliki
