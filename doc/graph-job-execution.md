@@ -72,8 +72,9 @@ Rust deterministik, tetapi tidak mengulang EXTRACT/RESOLVE model.
 
 [Laporan executor](verification-report-graph-executor.md) memisahkan cold restore
 PostgreSQL/Qdrant dari workflow recovery menggunakan output Rust dengan fake ports.
-Belum ada run gabungan actual RPC Rust dan PostgreSQL sampai commit dari sumber
-nonempty. Daemon telah diwiring dan startup/control flow diuji, bukan bukti seluruh
+[Tes native graph](verification-report-native-graph.md) kini menjalankan RPC Rust
+dan PostgreSQL sampai commit dari sumber nonempty serta cold recovery sukses.
+EXTRACT dan review dalam tes tersebut sintetis. Daemon telah diwiring dan startup/control flow diuji, bukan bukti seluruh
 corpus atau Hybrid GraphRAG sudah aktif. Neo4j publication, graph retrieval, canonical
 CREATE/MERGE/SPLIT dan reaffirmation lintas revision masih pekerjaan berikutnya.
 

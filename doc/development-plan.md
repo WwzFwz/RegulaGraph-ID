@@ -1,11 +1,19 @@
 # Rencana implementasi berbasis dependency
 
+Checkpoint terbaru K01: integrasi nonempty sudah menjalankan allocator/alias/candidate,
+dua LINK RESOLVE dengan intent/checkpoint PostgreSQL, preparation/inventory, RPC Rust
+ASSEMBLE, validasi Go dan commit STAGED. Processor baru memulihkan output tanpa RPC
+tambahan. EXTRACT, review manusia, BIND dan vektor awal masih fixture sintetis;
+ini bukan quality acceptance. Lihat [bukti integrasi](verification-report-native-graph.md).
+Berikutnya operator preparation/scheduling graph, Neo4j publication/readiness,
+retrieval graph dan integrasi jawaban; K01/Hybrid GraphRAG keseluruhan belum selesai.
+
 Checkpoint terbaru K01: [processor/executor ASSEMBLE](graph-job-execution.md) tersedia
 bersama wiring daemon opt-in, scope-filtered claim, cold inventory restore/cache,
 recovery checkpoint dan klasifikasi kegagalan permanen. PostgreSQL/Qdrant menguji
 restore/cache/refresh/pin cleanup dan recovery output hilang menjadi FAILED. Actual
-RPC Rust bersama PostgreSQL dengan sumber nonempty, publication Neo4j, retrieval
-graph dan acceptance tetap belum selesai; ini bukan completion K01.
+RPC Rust bersama PostgreSQL dengan sumber nonempty kini diuji pada checkpoint
+di atas; publication Neo4j, retrieval graph dan acceptance tetap belum selesai.
 
 Checkpoint terbaru K01: output ASSEMBLE yang telah diverifikasi dapat di-commit
 melalui `VerifiedGraphOutput.Commit`: metadata artefak, dependency, checkpoint dan

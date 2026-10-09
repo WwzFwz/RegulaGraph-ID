@@ -34,7 +34,13 @@ graph dan workflow persistence: race cancellation/released pin saat lock tertaha
 crash sebelum commit, lost acknowledgement, immutable replay dan audit sesudah abort.
 EXTRACT/RESOLVE kosong dan checkpoint disintesis eksplisit; ini bukan uji kualitas LLM.
 Fixture yang sama kini menguji plan/view ASSEMBLE tersimpan, replay, ontology drift,
-dan cancellation setelah persistence. Worker Rust tidak dijalankan dalam fixture ini.
+dan cancellation setelah persistence. Varian default tidak menjalankan Rust.
+`native_graph_test.go` menyediakan opt-in RPC Rust dengan FileStore bersama, dua
+entitas/mention, satu assertion/support, commit PostgreSQL dan cold recovery tanpa
+RPC ulang. `native_graph_source_test.go` menyiapkan EXTRACT/review sintetis tetapi
+memakai allocator, alias lookup, intent, registry CAS dan checkpoint RESOLVE produksi.
+Lihat [laporan native graph](../../../../doc/verification-report-native-graph.md)
+untuk prasyarat dan batas hasil terhadap Neo4j, model/gold serta benchmark.
 
 `initial_snapshot.go` mengubah pilihan CHUNK terautentikasi menjadi snapshot awal
 dan corpus-facts manifest, lalu mengikat sumber melalui receipt. Identitas

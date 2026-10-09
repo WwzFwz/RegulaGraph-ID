@@ -7,9 +7,11 @@ Dokumen ini memandu agent implementasi berikutnya, termasuk Sol 5.6, untuk merea
 Checkpoint ASSEMBLE: inventory/admission, output commit atomik serta
 [processor/executor/daemon opt-in](graph-job-execution.md) tersedia. Cold restore,
 cache reauthorization, snapshot pin cleanup dan checkpoint recovery diuji terpisah
-pada backend nyata serta fixture output Rust. Lanjutkan actual Rust RPC bersama
-PostgreSQL hingga commit dari source nonempty, operator graph preparation/scheduling,
-lalu Neo4j publication dan graph retrieval. Reaffirmation lintas registry revision,
+pada backend nyata serta fixture output Rust. Run actual Rust RPC bersama
+PostgreSQL hingga commit dari source nonempty sudah dibuktikan oleh
+[tes native graph](verification-report-native-graph.md), termasuk recovery sukses
+tanpa RPC ulang. Lanjutkan operator graph preparation/scheduling, Neo4j publication
+dan graph retrieval. Reaffirmation lintas registry revision,
 canonical mutations dan acceptance kualitas/performa K01 tetap terbuka.
 
 [Registry history](registry-history.md) kini memiliki binding publication immutable
