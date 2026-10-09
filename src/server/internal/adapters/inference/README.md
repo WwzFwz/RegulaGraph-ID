@@ -57,8 +57,11 @@ scan, token dan precision/recall pada corpus beku sebelum acceptance.
 SemanticConfig mewajibkan `MaximumOutputTokens` positif di bawah context limit.
 EXTRACT/RESOLVE meneruskan cap ke provider dan mencatat identitasnya pada producer;
 adapter HTTP menolak completion usage yang melampaui cap eksplisit. Ini menghindari
-pewarisan limit output profil demo. Exact full-prompt admission untuk semantic
-tetap pekerjaan terpisah; cap tidak membuktikan seluruh input/output muat.
+pewarisan limit output profil demo. `PinnedLlama` kini menerima EXTRACT/RESOLVE
+dan menghitung full prompt sebelum inference, menolak count + cap melebihi window,
+serta memeriksa kesamaan count dengan prompt usage sesudahnya. Service menolak
+manifest yang berbeda dari model admitted. Adapter provider generik belum punya
+jaminan ini; lihat [mode lokal](../../../cmd/semantic-gateway/README.md).
 
 EXTRACT kini mengirim vocabulary ontology tervalidasi sebagai system context
 terpisah dari prompt dasar dan teks sumber. Exact rendered context dipin pada

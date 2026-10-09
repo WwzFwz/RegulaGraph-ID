@@ -1,5 +1,28 @@
 # src/server/cmd/semantic-gateway
 
+Gateway menyediakan mode lokal `REGULAGRAPH_SEMANTIC_ADMISSION=llama.cpp` untuk
+EXTRACT/RESOLVE. Set `REGULAGRAPH_SEMANTIC_GGUF_PATH` ke path absolut,
+`REGULAGRAPH_SEMANTIC_LLAMA_BUILD` ke build server, dan
+`REGULAGRAPH_SEMANTIC_TEMPLATE_SHA256` ke hash exact UTF-8 chat template.
+Weights/tokenizer hash task wajib sama dengan hash container GGUF. Server harus
+resident pada literal loopback, properties read-only, context window sesuai
+manifest dan context shift dinonaktifkan. Endpoint `/v1/chat/completions/input_tokens`
+wajib tersedia; server llama.cpp b11515 adalah kandidat yang telah dipakai jalur
+answering. Kompatibilitas provider OpenAI saja tidak cukup untuk mode ini.
+
+Startup memverifikasi byte GGUF dan metadata server. Sebelum setiap inference,
+adapter menghitung envelope lengkap yang sama (system prompt, ontology context,
+schema, item ID, source text), lalu menolak bila count + output cap melebihi
+context window. Setelah inference, prompt usage harus sama dengan count awal;
+mismatch menolak output. Tidak ada truncation atau fallback estimasi. Ukur biaya
+counting/readiness bersama latency keseluruhan; ini bukan bukti akurasi model.
+
+Default `provider` mempertahankan adapter generik, tanpa jaminan exact prompt
+admission. Local pins yang diisi tanpa mode `llama.cpp` ditolak agar tidak diam-diam
+diabaikan. Binding model/template/build/path masuk config fingerprint: ekspor
+producer baru dan submit dengan pin baru setelah mengubahnya. Mode print hanya
+mengekspor konfigurasi, tidak menghubungi/mengakui kesiapan server model.
+
 Format quote v2 dapat dipilih dengan `REGULAGRAPH_SEMANTIC_PROMPT_PATH` menunjuk
 `configs/prompts/extraction-v2.md` dan `REGULAGRAPH_WORKER_EXTRACTION_OUTPUT_SCHEMA`
 menunjuk `src/contracts/jsonschema/extraction-output-v2.json`. Hitung ulang prompt
@@ -13,8 +36,8 @@ positif dan lebih kecil dari konteks model terpin. Cap dikirim sebagai `max_toke
 masuk fingerprint konfigurasi dan producer InputHashes, sehingga profil demo
 provider tidak lagi menentukan batas secara diam-diam. Setelah mengganti cap,
 ekspor producer baru dan submit job dengan pin baru; jangan ubah artefak historis.
-Cap bukan pengukuran full prompt: prompt, schema, ontology, input dan completion
-harus tetap muat dalam konteks provider. Ukur truncation, usage, latency serta
+Cap sendiri bukan pengukuran full prompt: mode lokal di atas menegakkan admission,
+sedangkan mode provider masih memerlukan counter yang sesuai backend. Ukur truncation, usage, latency serta
 validitas output bersama; menaikkan cap tidak membuktikan akurasi atau throughput.
 
 EXTRACT menyediakan ontology context terpin ke model sebagai pesan system kedua.

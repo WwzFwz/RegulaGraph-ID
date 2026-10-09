@@ -2,6 +2,8 @@
 // Startup pins model, prompt, ontology, schema, and public runtime configuration by hash, then
 // reuses one provider client. The listener remains loopback-only until transport authentication is
 // deployed. Quality, provider latency, and cost targets remain REQUIRED_UNMEASURED.
+// Optional llama.cpp admission verifies GGUF/template/build pins once at startup,
+// then enforces exact full-prompt token budgets and usage parity on model calls.
 package main
 
 import (
@@ -53,6 +55,7 @@ type runtimeConfig struct {
 	maximumCacheEntries      int
 	maximumCacheBytes        int
 	maximumMessageBytes      int
+	localBinding             *inference.LlamaModelBinding
 }
 
 func main() {
@@ -78,11 +81,25 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("configure structured provider: %w", err)
 	}
+	defer provider.Close()
+	printProducer := os.Getenv("REGULAGRAPH_SEMANTIC_PRINT_PRODUCER")
+	if printProducer != "" && printProducer != "true" && printProducer != "false" {
+		return errors.New("REGULAGRAPH_SEMANTIC_PRINT_PRODUCER must be true or false")
+	}
+	var structured inference.StructuredProvider = provider
+	if config.localBinding != nil && printProducer != "true" {
+		startup, cancel := context.WithTimeout(ctx, config.providerTimeout)
+		structured, err = inference.AdmitLlama(startup, provider, *config.localBinding, config.maximumInputBytes)
+		cancel()
+		if err != nil {
+			return fmt.Errorf("admit local semantic model: %w", err)
+		}
+	}
 	schemaName, err := inference.SemanticSchemaName(config.model.Task, schema)
 	if err != nil {
 		return err
 	}
-	service, err := inference.NewSemanticService(provider, inference.SemanticConfig{
+	service, err := inference.NewSemanticService(structured, inference.SemanticConfig{
 		Model: config.model, Ontology: config.ontology,
 		OutputSchemaHash: contentHash(schema), SystemPrompt: string(prompt), OutputSchema: schema,
 		SchemaName: schemaName, Software: "regulagraph-semantic-gateway",
@@ -94,10 +111,6 @@ func run(ctx context.Context) error {
 	})
 	if err != nil {
 		return fmt.Errorf("configure semantic service: %w", err)
-	}
-	printProducer := os.Getenv("REGULAGRAPH_SEMANTIC_PRINT_PRODUCER")
-	if printProducer != "" && printProducer != "true" && printProducer != "false" {
-		return errors.New("REGULAGRAPH_SEMANTIC_PRINT_PRODUCER must be true or false")
 	}
 	if printProducer == "true" {
 		raw, encodeErr := (protojson.MarshalOptions{Indent: "  ", UseProtoNames: true}).Marshal(service.ProducerManifest())
@@ -224,6 +237,10 @@ func loadConfig() (runtimeConfig, []byte, json.RawMessage, *pb.ContentHash, erro
 		Task: modelTask, MaxTokens: uint32(maxTokens), Precision: precision,
 		Backend: backend, PromptHash: promptHash,
 	}
+	config.localBinding, err = loadLocalBinding(config.model)
+	if err != nil {
+		return runtimeConfig{}, nil, nil, nil, err
+	}
 	if config.providerTimeout, err = durationEnv("REGULAGRAPH_SEMANTIC_PROVIDER_TIMEOUT", 90*time.Second); err != nil {
 		return runtimeConfig{}, nil, nil, nil, err
 	}
@@ -257,22 +274,23 @@ func loadConfig() (runtimeConfig, []byte, json.RawMessage, *pb.ContentHash, erro
 		return runtimeConfig{}, nil, nil, nil, errors.New("semantic maximum concurrency exceeds the gRPC stream limit")
 	}
 	publicConfig := struct {
-		ProviderEndpoint  string `json:"provider_endpoint"`
-		ProviderTimeout   string `json:"provider_timeout"`
-		MaxResponseBytes  int    `json:"max_response_bytes"`
-		OntologyVersion   string `json:"ontology_version"`
-		OntologyHash      string `json:"ontology_hash"`
-		Build             string `json:"build"`
-		MaximumItems      int    `json:"maximum_items"`
-		MaximumInput      int    `json:"maximum_input_bytes"`
-		MaximumOutput     int    `json:"maximum_output_tokens"`
-		MaximumConcurrent int    `json:"maximum_concurrent"`
-		MaximumCacheItems int    `json:"maximum_cache_entries"`
-		MaximumCacheBytes int    `json:"maximum_cache_bytes"`
-		PromptHash        string `json:"prompt_hash"`
-		SchemaHash        string `json:"schema_hash"`
-		ModelID           string `json:"model_id"`
-		ModelVersion      string `json:"model_version"`
+		ProviderEndpoint  string                       `json:"provider_endpoint"`
+		ProviderTimeout   string                       `json:"provider_timeout"`
+		MaxResponseBytes  int                          `json:"max_response_bytes"`
+		OntologyVersion   string                       `json:"ontology_version"`
+		OntologyHash      string                       `json:"ontology_hash"`
+		Build             string                       `json:"build"`
+		MaximumItems      int                          `json:"maximum_items"`
+		MaximumInput      int                          `json:"maximum_input_bytes"`
+		MaximumOutput     int                          `json:"maximum_output_tokens"`
+		MaximumConcurrent int                          `json:"maximum_concurrent"`
+		MaximumCacheItems int                          `json:"maximum_cache_entries"`
+		MaximumCacheBytes int                          `json:"maximum_cache_bytes"`
+		PromptHash        string                       `json:"prompt_hash"`
+		SchemaHash        string                       `json:"schema_hash"`
+		ModelID           string                       `json:"model_id"`
+		ModelVersion      string                       `json:"model_version"`
+		LocalBinding      *inference.LlamaModelBinding `json:"local_binding,omitempty"`
 	}{
 		ProviderEndpoint: config.providerEndpoint, ProviderTimeout: config.providerTimeout.String(),
 		MaxResponseBytes: config.providerMaxResponseBytes, OntologyVersion: config.ontologyVersion, OntologyHash: config.ontology.ContentHash().Sha256,
@@ -281,6 +299,7 @@ func loadConfig() (runtimeConfig, []byte, json.RawMessage, *pb.ContentHash, erro
 		MaximumConcurrent: config.maximumConcurrent, MaximumCacheItems: config.maximumCacheEntries,
 		MaximumCacheBytes: config.maximumCacheBytes, PromptHash: promptHash.Sha256,
 		SchemaHash: hashBytes(schemaBytes), ModelID: modelID, ModelVersion: modelVersion,
+		LocalBinding: config.localBinding,
 	}
 	encodedConfig, err := json.Marshal(publicConfig)
 	if err != nil {
