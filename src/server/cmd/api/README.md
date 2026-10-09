@@ -1,7 +1,7 @@
 # src/server/cmd/api
 
 Entry point layanan HTTP Go untuk request, response, dan integrasi streaming.
-Saat ini melayani evidence vector/hybrid lokal; jawaban dan streaming belum aktif.
+Saat ini melayani evidence vector/hybrid/graph/hybrid-graph lokal; jawaban dan streaming belum aktif.
 Dokumen ini mendefinisikan superset tanggung jawab folder dan integrasi anaknya.
 
 ## Batas tanggung jawab
@@ -29,7 +29,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-Status komponen: evidence HTTP lokal vector/hybrid aktif, dengan autentikasi, bounded admission, fresh snapshot lease, shared clients, readiness dan graceful drain. Route generation jawaban, documents, graph dan streaming belum aktif. Unit/native integration PASS tidak membuktikan kualitas hukum atau required benchmark.
+Status komponen: evidence HTTP lokal empat profil aktif, dengan autentikasi, bounded admission, fresh snapshot lease, shared clients, readiness dan graceful drain. Graph-only tidak membutuhkan native embedding; graph route/policy terpin melalui file konfigurasi. Route generation jawaban, documents, administrasi graph dan streaming belum aktif. Unit/native integration PASS tidak membuktikan kualitas hukum atau required benchmark.
 
 ## Rekomendasi implementasi anak
 

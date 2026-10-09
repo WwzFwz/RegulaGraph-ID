@@ -16,7 +16,10 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 `dependencies.go` membuka PostgreSQL/FileStore/native/HTTP clients eksplisit dan
 memakai satu cache generation immutable; setiap request mempunyai snapshot lease
-baru. `server.go` merakit route evidence, auth/concurrency/deadline, request ID
+baru. `query_resources.go` mengikat graph ke snapshot penuh dan mempertahankan
+resource yang retired sampai borrower terakhir selesai. Konfigurasi graph
+terverifikasi dipakai ulang; readiness memeriksa backend yang dibutuhkan profil.
+`server.go` merakit route evidence, auth/concurrency/deadline, request ID
 server dan log redacted. `server_test.go` memeriksa graceful drain; native HTTP
 diuji melalui indexing/native_api_test.go. Lihat [panduan](../../../../doc/evidence-api.md).
 
@@ -32,7 +35,7 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-Status komponen: evidence HTTP lokal vector/hybrid aktif, dengan autentikasi, bounded admission, fresh snapshot lease, shared clients, readiness dan graceful drain. Route generation jawaban, documents, graph dan streaming belum aktif. Unit/native integration PASS tidak membuktikan kualitas hukum atau required benchmark.
+Status komponen: evidence HTTP lokal vector/hybrid/graph/hybrid-graph aktif, dengan autentikasi, bounded admission, fresh snapshot lease, shared clients, readiness dan graceful drain. Graph-only diuji tanpa native embedding. Route generation jawaban, documents, administrasi graph dan streaming belum aktif. Unit/native integration PASS tidak membuktikan kualitas hukum atau required benchmark.
 
 ## Rekomendasi implementasi anak
 

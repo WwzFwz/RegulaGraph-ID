@@ -1,5 +1,13 @@
 # Rencana implementasi berbasis dependency
 
+Checkpoint API graph: HTTP evidence menerima empat profil retrieval; graph-only
+teruji terhadap Rust/PostgreSQL/Neo4j/Qdrant nyata tanpa proses embedding, dengan
+data sintetis. Cache graph mengikuti snapshot dan menutup resource lama setelah
+request pemakainya selesai. [Panduan API](evidence-api.md).
+Generation jawaban operasional, semantic query disambiguation, corpus/model/gold
+run dan required acceptance masih terbuka. Checkpoint berikut merupakan riwayat
+kemajuan; daftar belum selesai pada checkpoint lama dapat telah ditangani di atas.
+
 Checkpoint entrypoint graph: CLI `query-evidence` menerima graph/hybrid-graph
 dengan route/policy byte-pinned; graph-only executable teruji tanpa native
 endpoint terhadap snapshot nyata dengan data sintetis. Lihat

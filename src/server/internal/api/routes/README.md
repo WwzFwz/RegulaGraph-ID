@@ -30,7 +30,7 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Status komponen: evidence HTTP lokal vector/hybrid aktif, dengan autentikasi, bounded admission, fresh snapshot lease, shared clients, readiness dan graceful drain. Route generation jawaban, documents, graph dan streaming belum aktif. Unit/native integration PASS tidak membuktikan kualitas hukum atau required benchmark.
+Status komponen: evidence HTTP lokal menerima empat profil retrieval, dengan autentikasi, bounded admission, fresh snapshot lease, shared clients, readiness dan graceful drain. Satu profile diotorisasi per instance; request tidak dapat menggantinya. Route generation jawaban, documents, administrasi graph dan streaming belum aktif. Unit/native integration PASS tidak membuktikan kualitas hukum atau required benchmark.
 
 ## Rekomendasi implementasi anak
 

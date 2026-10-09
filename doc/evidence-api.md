@@ -4,13 +4,15 @@ Dokumen ini menjelaskan layanan HTTP Go untuk query pada indeks yang sudah
 dipublikasikan. API memanggil workflow produksi yang sama dengan `query-evidence`,
 memakai satu corpus/profile yang diotorisasi operator. Respons adalah C01
 EvidenceBundle dengan teks, versi, span, ranking provenance dan status completeness.
-API ini belum menghasilkan jawaban LLM, traversal graph atau stream token.
+Empat profil tersedia: vector, hybrid, graph, dan hybrid-graph. API ini belum
+menghasilkan jawaban LLM atau stream token.
 
 ## Prasyarat dan menjalankan
 
 Selesaikan [persiapan dan publication](index-source-publication.md), terapkan
-migrasi sampai 0016, dan jalankan native embedding dengan model yang sama persis
-dengan generation katalog. Qdrant dan PostgreSQL harus tetap tersedia. Pool Go,
+migrasi yang diperlukan snapshot, dan jalankan native embedding dengan model yang sama
+persis dengan generation katalog untuk profil yang memakai dense retrieval.
+Graph-only tidak membutuhkan proses embedding. Qdrant dan PostgreSQL harus tetap tersedia. Pool Go,
 FileStore, gRPC channel dan HTTP transport dibuka sekali; model tetap di proses C++.
 
 Set konfigurasi pada terminal PowerShell yang akan menjalankan API. Ganti nilai
@@ -40,15 +42,29 @@ ada API key provider LLM untuk endpoint evidence ini. Aplikasi tidak membaca
 `.env` otomatis. Untuk pemanggilan dari terminal lain, set token yang sama secara
 lokal atau jalankan executable terkompilasi di terminal proses yang terpisah.
 
-Pilihan profile `vector` atau `hybrid` wajib eksplisit. Reranking opsional yang
-tersedia pada CLI belum dikonfigurasi di entry point API ini. Graph profiles,
-CURRENT/COMPARE dan generation jawaban ditolak, tanpa fallback diam-diam.
+Pilihan profile `vector`, `hybrid`, `graph` atau `hybrid-graph` wajib eksplisit.
+Reranking opsional yang tersedia pada CLI belum dikonfigurasi di entry point API
+ini. CURRENT/COMPARE dan generation jawaban ditolak, tanpa fallback diam-diam.
+
+Untuk profil graph, siapkan snapshot graph terbit dan file JSON route/policy
+sesuai [konfigurasi graph CLI](query-evidence.md). Gunakan environment yang sama:
+`REGULAGRAPH_QUERY_GRAPH_CONFIG`, `REGULAGRAPH_QUERY_GRAPH_CONFIG_SHA256`,
+`REGULAGRAPH_NEO4J_USERNAME`, dan `REGULAGRAPH_NEO4J_PASSWORD`.
+`REGULAGRAPH_API_AUTH_SCOPE` harus cocok dengan scope publication. Endpoint/database
+Neo4j dalam file harus sama dengan katalog sebelum credential dipakai. File
+dibaca dan diverifikasi sekali saat startup; perubahan memerlukan restart.
+Untuk `graph`, endpoint native boleh kosong. `hybrid-graph` tetap membutuhkan
+embedding yang cocok dengan generation. Request menggunakan enum
+`RETRIEVAL_PROFILE_GRAPH_RAG` atau `RETRIEVAL_PROFILE_HYBRID_GRAPH_RAG` yang cocok
+dengan konfigurasi server; caller tidak dapat mengganti profile layanan.
 
 ## Request dan response
 
 `GET /livez` hanya memeriksa bahwa proses HTTP merespons. `GET /readyz` memerlukan
-bearer token dan memeriksa active snapshot/catalog, native capabilities dan
-collection Qdrant. Readiness bukan bukti kualitas hukum atau required benchmark.
+bearer token dan memeriksa active snapshot/catalog serta collection Qdrant.
+Profil dense memeriksa native capabilities; profil graph juga memeriksa admission
+dan sealed generation Neo4j, termasuk ketika cache sudah warm. Readiness bukan
+bukti kualitas hukum atau required benchmark.
 
 ```powershell
 $headers = @{ Authorization = "Bearer $env:REGULAGRAPH_API_TOKEN" }
@@ -88,7 +104,10 @@ Endpoint hanya bind IP loopback; semua Origin browser ditolak dan tidak ada CORS
 
 Cache menyimpan satu set artefak/generation immutable. Request baru tetap mendapat
 lease snapshot baru; perubahan publication/generation membutuhkan preparation
-ulang, dan request lama mempertahankan resource yang telah dipinnya. Hasil query
+ulang. Cache graph mengikat snapshot penuh, bukan hanya generation vector yang
+dapat dipakai ulang. Koneksi generation lama ditutup setelah borrower terakhir
+selesai; cleanup tidak menahan lock cache. Request lama mempertahankan resource
+yang telah dipinnya. Hasil query
 dan lease tidak dicache. Bundle ID mengikat lease, snapshot dan pertanyaan;
 identitas item bukti tetap mengikuti record sumber/index. `X-Request-ID` dibuat
 server, `X-Evidence-ID` mengidentifikasi bundle hasil. Log JSON menghubungkan keduanya

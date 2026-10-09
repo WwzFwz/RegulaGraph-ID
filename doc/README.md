@@ -1,5 +1,9 @@
 # doc
 
+[API evidence](evidence-api.md) menjelaskan empat profil retrieval dan lifecycle
+resource graph yang mengikuti snapshot. [Verifikasi API graph](verification-report-graph-api.md)
+memisahkan bukti integrasi native dari acceptance kualitas/performa yang belum diukur.
+
 [query-evidence.md](query-evidence.md) kini mencakup empat profil CLI, config graph
 terpin dan native optionality; [verifikasi](verification-report-graph-query-cli.md)
 mencatat executable graph-only pada database nyata.

@@ -8,6 +8,9 @@ draft tanpa klaim candidate recall pada corpus nyata.
 schema database terisolasi dan FileStore fixture, tanpa endpoint native. Set
 `REGULAGRAPH_TEST_QUERY_CLI` ke binary hasil build untuk mengaktifkannya bersama
 native graph opt-in; tanpa variabel tersebut pemeriksaan executable tidak dijalankan.
+`REGULAGRAPH_TEST_GRAPH_API=1` mengaktifkan pemeriksaan HTTP graph-only dari
+fixture yang sama tanpa native endpoint: cold requests concurrent, warm queries,
+readiness, graph paths dan pelepasan lease. CLI dan API dapat diaktifkan terpisah.
 
 `published_graph_test.go` melanjutkan fixture native ke admission scope/pin dan
 pembacaan record Neo4j, discovery traversal dan hidrasi support dari snapshot terbit.
