@@ -20,6 +20,14 @@ import (
 )
 
 func (admission *GraphJobAdmission) AuthorizeGraphDispatch(ctx context.Context, pin domain.SnapshotPin, job domain.JobRecord) (domain.GraphJobAssignment, error) {
+	if admission == nil || admission.repository == nil {
+		return domain.GraphJobAssignment{}, errors.New("verified graph admission required")
+	}
+	return admission.authorizeGraphDispatch(ctx, admission.repository.pool, pin, job)
+}
+
+// query may be a transaction holding publication/corpus/source/child locks.
+func (admission *GraphJobAdmission) authorizeGraphDispatch(ctx context.Context, query indexQuerier, pin domain.SnapshotPin, job domain.JobRecord) (domain.GraphJobAssignment, error) {
 	var empty domain.GraphJobAssignment
 	if ctx == nil || admission == nil || admission.repository == nil {
 		return empty, errors.New("verified graph admission required")
@@ -50,7 +58,7 @@ func (admission *GraphJobAdmission) AuthorizeGraphDispatch(ctx context.Context, 
 	bounded, cancel := context.WithDeadline(ctx, pin.ExpiresAt)
 	defer cancel()
 	var valid bool
-	err := admission.repository.pool.QueryRow(bounded, `SELECT EXISTS (
+	err := query.QueryRow(bounded, `SELECT EXISTS (
  SELECT 1 FROM graph_job_assignments a
  JOIN graph_job_inventories i ON i.publication_id=a.publication_id
  JOIN jobs j ON j.job_id=a.job_id
