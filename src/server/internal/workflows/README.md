@@ -1,5 +1,10 @@
 # src/server/internal/workflows
 
+`sourced_alias.go` menghidrasi inspeksi alias bersumber dan meneruskan persetujuan
+exact ke registry. Ia tidak menafsirkan source regulation sebagai referent mention;
+operator memilih target BIND terpisah. [Kontrak](../../../../doc/sourced-alias-review.md)
+menjelaskan batas, replay dan keharusan replan kandidat sesudah revision berubah.
+
 `ParseExecutorConfig.DisableExtraction` menghilangkan hanya claim EXTRACT dari
 rotasi. Zero value mempertahankan perilaku empat tahap. Suspension tidak menyentuh
 state durable; executor enabled berikutnya memakai pending job dan validation

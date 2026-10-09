@@ -1,5 +1,10 @@
 # src/server/internal/adapters/postgres
 
+`sourced_alias.go` mengautentikasi source EXTRACT, target BIND dan review hash,
+kemudian memakai transaksi alias yang sama untuk profile/alias/lookup/review.
+Profil dibaca pada revision historis saat replay. Migration 0025 diperlukan;
+lihat [kontrak](../../../../../doc/sourced-alias-review.md).
+
 `model_completion.go` menyimpan completion EXTRACT dengan first-committed-wins,
 payload/usage checksum terikat replay key dan read berbatas byte. Migration 0024
 membuat tabel append-only. Tidak ada lock/transaksi selama model berjalan;

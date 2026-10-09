@@ -1,5 +1,9 @@
 # src/server/internal/domain
 
+`alias_registration.go` membentuk preview alias dari bytes EXTRACT/document/text
+berhash, target identity BIND dan policy scope. Hash review mencakup source/target
+serta revision; storage tetap wajib membuktikan membership dan commit atomik.
+
 `model_completion.go` mendefinisikan DTO Go untuk provider JSON dan token usage,
 batas byte/token serta checksum terikat replay key. Ini bukan fakta graph atau
 schema wire baru. Adapter PostgreSQL menyimpan completion immutable; gateway

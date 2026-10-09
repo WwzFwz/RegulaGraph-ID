@@ -1,5 +1,11 @@
 # doc
 
+[Review alias bersumber](sourced-alias-review.md) menjelaskan command inspect/accept
+untuk menghubungkan mention EXTRACT sukses ke canonical BIND existing. Profile,
+alias, lookup revision dan review tersimpan atomik; CREATE entitas baru terpisah.
+[Verifikasi](verification-report-sourced-alias.md) membedakan bukti transaksi dan
+consumer fixture dari EXTRACT/graph corpus nyata yang belum selesai.
+
 [Pilihan format dan pergantian model](semantic-model-profiles.md) membedakan
 EXTRACT, RESOLVE, GENERATE dan embedding, dengan pin/replay serta dampak rebuild.
 EXTRACT v3 opsional memakai rentang sumber bernomor; default v1/v2 dan seluruh

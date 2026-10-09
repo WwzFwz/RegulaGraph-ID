@@ -1,5 +1,10 @@
 # migrations
 
+Migration 0025 menambah ledger `sourced_alias_reviews` append-only, terikat alias
+operation dan berisi actor/reason/source/target/policy serta revision. Writer alias
+dan review memakai satu transaksi. Tidak ada backfill atau pengalokasian canonical;
+lihat [panduan](../doc/sourced-alias-review.md).
+
 Migration 0024 menambah `semantic_completions` append-only untuk replay provider
 JSON EXTRACT lintas restart. Payload maksimal 4 MiB; checksum meliputi key dan
 usage. Tidak ada backfill atau perubahan source/job/registry. Terapkan sebelum

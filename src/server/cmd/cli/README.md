@@ -1,5 +1,11 @@
 # src/server/cmd/cli
 
+`review-alias` menyediakan inspect/accept source mention EXTRACT dan target BIND
+existing. Actor berasal dari akun OS; acceptance memerlukan operation, hash rencana,
+revision dan reason eksplisit. Input/output serta recovery ada di
+[panduan](../../../../doc/sourced-alias-review.md); command tidak memanggil model
+atau membuat canonical baru.
+
 `abort-index -corpus ... -publication ...` menutup publication INDEX yang belum
 published melalui coordinator publication setelah memeriksa ownership inventory.
 Memerlukan `REGULAGRAPH_POSTGRES_DSN` dan inventory yang sudah admitted; bukan

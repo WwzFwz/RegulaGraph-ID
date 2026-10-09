@@ -409,6 +409,13 @@ alias terdaftar dapat menjadi kandidat, konteks sumbernya terbaca, dan kasus
 lintas corpus/scope serta revision stale ditolak. Temuan ini adalah backlog
 integrasi, bukan klaim implementasi atau acceptance yang sudah selesai.
 
+**Perkembangan setelah audit:** jalur operator [review-alias](sourced-alias-review.md)
+kini menghubungkan mention EXTRACT sukses dengan target canonical existing dari
+BIND. Inspect menampilkan bukti source dan target; accept terikat hash/revision
+menyimpan profil, alias dan review atomik. Ini menutup akses produksi untuk
+registrasi alias existing, bukan CREATE entitas baru. Seluruh EXTRACT corpus nyata
+dan graph publication masih harus dijalankan; hasil fixture tidak menggantikannya.
+
 1. Bekukan `scopes_by_type` untuk tipe yang benar-benar dikeluarkan extractor.
    Jangan menyamakan nomor regulasi tanpa issuer/type/year, atau alias sama dengan
    entitas sama. Konfigurasi domain yang ambigu perlu dikonfirmasi kepada pengguna.

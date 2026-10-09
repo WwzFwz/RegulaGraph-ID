@@ -1,5 +1,13 @@
 # Rencana implementasi berbasis dependency
 
+Checkpoint registry alias: CLI `review-alias` kini memberi jalur inspect/accept
+untuk mention EXTRACT sukses ke canonical BIND existing. Source/target/policy/hash
+dan revision diikat pada review; profile/alias/lookup/receipt ditulis atomik.
+Delapan skenario PostgreSQL terisolasi, consumer hydration dan review independen
+lulus dalam cakupan fixture. CREATE entitas baru serta EXTRACT/graph corpus nyata
+tetap terbuka. [Panduan](sourced-alias-review.md),
+[bukti dan batas](verification-report-sourced-alias.md).
+
 Checkpoint EXTRACT v3 opsional: model dapat memilih rentang unit sumber, gateway
 menghasilkan exact surface/byte spans. Boundary/replay/legacy tests lulus; default
 tidak berubah. Satu eksperimen full chunk Qwen CPU timeout 600 detik tanpa output
