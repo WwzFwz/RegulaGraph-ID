@@ -40,6 +40,12 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
+Cancellation/deadline dari adapter lokal maupun cause yang dibungkus tetap
+transient. EXTRACT memprioritaskan context RPC yang berakhir sebelum menyimpan
+error item; retry tidak lagi memakai ulang kegagalan permanen palsu. Item sukses
+tetap digunakan dari cache. Ini recovery dalam proses yang sama; checkpoint
+per-item lintas restart masih perlu storage/coordinator durable.
+
 Kegagalan quote v2 kini membawa field-path diagnostik, misalnya
 `mentions[1].span` atau `supports[0].spans[0]`, dan alasan validator statis tanpa
 kutipan sumber. Maksimum 32 detail; bila melebihi batas, detail terakhir menyatakan

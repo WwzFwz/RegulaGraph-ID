@@ -6,6 +6,8 @@
 // Model/schema configuration is owned at construction; source text never enters system context.
 // A positive, producer-pinned completion cap is sent on every model call; it does not replace
 // full-prompt token admission. Measure truncation, token usage and latency together.
+// Cancellation/deadline failures remain transient, including direct local-adapter
+// errors, so operation replay cannot retain an interrupted item as terminal.
 package inference
 
 import (
@@ -251,6 +253,10 @@ func (s *SemanticService) executeExtract(ctx context.Context, request *pb.Extrac
 			outcomes[index].inputTokens = generated.InputTokens
 			outcomes[index].outputTokens = generated.OutputTokens
 			if generateErr != nil {
+				if ctx.Err() != nil {
+					outcomes[index].result = itemError(item.ItemId, contextError(ctx.Err()))
+					return
+				}
 				outcomes[index].result = itemError(item.ItemId, operationError(generateErr, item.ItemId))
 				s.cache.storeItem(request.Batch.OperationKey, item.ItemId, fingerprint, outcomes[index])
 				return
@@ -331,6 +337,11 @@ func contextError(err error) *pb.OperationError {
 }
 
 func operationError(err error, itemID string) *pb.OperationError {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		failure := contextError(err)
+		failure.ItemId = proto.String(itemID)
+		return failure
+	}
 	var provider *ProviderError
 	if errors.As(err, &provider) {
 		code := pb.ErrorCode_ERROR_CODE_INVALID_ARGUMENT
