@@ -59,12 +59,24 @@ Tidak ada schema JSON paralel.
 
 `workflows.PrepareGraphAssembly` menerima corpus/publication/source-job, pin base,
 producer, hash ontology dan batas reference/candidate. Ia membaca receipt graph source
-yang immutable, membuktikan membership, lalu memakai `ReadGraphResolutionReceipt`
+yang immutable, membuktikan membership, lalu memakai `ReadGraphResolutionForAssembly`
 untuk membaca keputusan asli. Untuk mention nonempty, reader mengambil intent dan
 kandidat terdaftar serta receipt transaksi historis, merekonstruksi ResolutionBatch
 dengan builder produksi, lalu menuntut kesamaan seluruh payload. Empty extraction
 tidak membuat atau membutuhkan operasi registry fiktif. Tahap ini mengautentikasi
-keputusan masa lalu, bukan freshness pada revision lain.
+keputusan masa lalu. Reader kemudian membandingkan scope positif/negatif, seluruh
+alias, profil dan membership kandidat pada revision target yang sama dengan receipt;
+reader historis `ReadGraphResolutionReceipt` tetap tersedia untuk audit tanpa gate ini.
+Reference/candidate bytes yang sudah diautentikasi dipakai ulang, tidak dibaca dua kali.
+Budget alias per scope dibatasi oleh `MaximumRegistryLookupAliases / unique scopes`
+dan reference budget; overflow merupakan error, tidak memotong hasil lookup.
+
+EXTRACT worker saat ini hanya memiliki dependency terhadap DocumentBatch immutable;
+registry BIND diperiksa melalui dokumen tersebut. Gate menolak EXTRACT dengan lookup
+registry atau dependency tambahan yang tidak memiliki mekanisme pembuktian. Pada
+RESOLVE tanpa mention, dependency harus hanya EXTRACT sumber dan tanpa lookup scopes.
+Pemeriksaan dilakukan terhadap artefak **asli** sebelum envelope snapshot menambah
+dependency provenance transform. Ontology/model/prompt tetap terpin oleh manifest.
 
 Artefak bound CHUNK/EXTRACT/RESOLVE dibaca ulang dengan hash/size/registration exact.
 Closure sumber dan ontology hash pada EXTRACT producer diperiksa. Recorded registry
@@ -112,7 +124,7 @@ mengekspor view dan menyimpannya immutable melalui FileStore. Logical ID
 `view.meta.record_id` harus sama dengan `plan.registry_view.artifact_id`;
 content address penyimpanan tetap terikat hash/size. Plan harus dipersist dan diikat
 ke inventory/checkpoint/job secara durable sebelum dispatch. Tahap admission tersebut
-masih harus mengulang gate BIND secara atomik serta membuktikan dependency EXTRACT dan keputusan lintas revision,
+masih harus mengulang gate BIND/EXTRACT/kandidat secara atomik serta mengikat keputusan lintas revision,
 bukan hanya exact recorded revision. Worker membaca tepat
 bytes keempat role dan teks sumber terverifikasi, lalu menulis delta immutable.
 Output artifact dan checkpoint belum boleh dianggap published; Go memegang fencing,

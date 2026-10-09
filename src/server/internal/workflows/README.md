@@ -3,7 +3,14 @@
 Preparation graph kini memanggil `VerifyDocumentRegistryView` sebelum ekspor/write.
 Tes `document_registry_integration_test.go` memakai binder/allocator produksi dan
 PostgreSQL terisolasi untuk reuse BIND; tidak mengklaim scheduler BIND atau model
-berjalan dalam fixture. Alias/candidate freshness tetap gate terpisah.
+berjalan dalam fixture.
+
+`graph_resolution_view.go` menggabungkan receipt historis dengan pemeriksaan seluruh
+candidate lookup pada revision target yang sama. EXTRACT asli wajib source-only
+sesuai worker saat ini; dependency eksternal/registry yang belum punya reader ditolak.
+Jalur empty RESOLVE tidak mengarang lookup/ledger. Byte kandidat dipakai ulang dari
+reader receipt; budget alias dibagi menurut unique scopes. Reaffirmation lintas
+revision dan admission atomik tetap pekerjaan terpisah.
 
 `graph_resolution_receipt.go` membaca RESOLVE asli dan menuntut rekonstruksi exact
 dari intent/kandidat/ledger committed; jalur mention-free tidak mengarang operasi.

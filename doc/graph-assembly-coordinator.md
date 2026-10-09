@@ -49,6 +49,14 @@ Perubahan global yang tidak menyentuh konteks tersebut tidak membatalkan reuse;
 perubahan kandidat yang tidak dipilih pun menghasilkan `ErrResolutionReplan`.
 Artefak asli tidak diubah. Method ini tidak menghasilkan keputusan atau receipt baru.
 
+Gate kandidat kini dikonsumsi `ReadGraphResolutionForAssembly` setelah receipt
+historis direkonstruksi dan sebelum preparation mengekspor view. Reader memakai
+bytes kandidat yang sama, membatasi lookup, dan memeriksa dependency source-only
+EXTRACT saat ini. Writer LINK/DEFER hanya menaikkan revision dan menulis ledger
+keputusan; ia tidak menulis alias. Karena itu gate tidak memerlukan pengecualian
+perubahan alias milik operasi sendiri. Perubahan konteks tetap meminta replan.
+Revision hasil RESOLVE wajib sama dengan target; belum ada receipt reaffirmation.
+
 Pemeriksaan kandidat ini belum cukup untuk memperluas guard revision GraphDelta.
 Caller harus membuktikan receipt committed, dependency EXTRACT/dokumen (termasuk
 scope luas `canonical-registry` dari BIND), keanggotaan snapshot sumber, serta binding

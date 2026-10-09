@@ -1,5 +1,8 @@
 # doc
 
+[verification-report-graph-resolution-view.md](verification-report-graph-resolution-view.md)
+mencatat integrasi receipt/konteks kandidat, dependency EXTRACT dan koreksi budget lookup.
+
 [verification-report-document-registry.md](verification-report-document-registry.md)
 mencatat rekonstruksi exact identity BIND, validasi lifetime historis, integrasi
 preparation dan batas bukti terhadap freshness/admission graph keseluruhan.

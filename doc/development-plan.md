@@ -1,5 +1,12 @@
 # Rencana implementasi berbasis dependency
 
+Lanjutan K01: freshness kandidat RESOLVE kini tersambung ke preparation pada revision
+hasil commit. Seluruh positive/negative scopes dibandingkan; EXTRACT dengan dependency
+eksternal tak didukung ditolak. Receipt historis dan bytes asli tidak diubah.
+[Laporan](verification-report-graph-resolution-view.md) mencatat regresi budget alias
+yang ditemukan review. Durable reaffirmation lintas revision, admission/inventory,
+dispatch dan publication Neo4j tetap diperlukan.
+
 Lanjutan K01: preparation graph memeriksa exact BIND registry dependencies pada target
 revision, menerima penambahan tak terkait dan menolak identitas yang berubah/ditutup.
 Binder PostgreSQL nyata dan jalur publication/preparation PG/Qdrant lulus beserta
