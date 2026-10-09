@@ -26,10 +26,7 @@ import (
 
 // AliasRegistration pairs a canonical registry record with one sourced alias. The canonical
 // identity must already exist; this operation never allocates an identity from text similarity.
-type AliasRegistration struct {
-	Entity *pb.CanonicalEntity
-	Alias  *pb.Alias
-}
+type AliasRegistration = domain.AliasRegistration
 
 type checkedAliasRegistration struct {
 	entity      *pb.CanonicalEntity
@@ -46,6 +43,15 @@ type checkedAliasRegistration struct {
 // fails; an existing alias/profile ID cannot silently change its meaning.
 func (r *Repository) RegisterCanonicalAliases(ctx context.Context, corpusID, operationKey string,
 	expectedRevision uint64, registrations []AliasRegistration) (uint64, error) {
+	return r.registerCanonicalAliases(ctx, corpusID, operationKey, expectedRevision, registrations, nil, nil)
+}
+
+// Hooks keep sourced operator review, proof revalidation and alias mutation in
+// this same transaction. The legacy internal caller remains source-compatible.
+func (r *Repository) registerCanonicalAliases(ctx context.Context, corpusID, operationKey string,
+	expectedRevision uint64, registrations []AliasRegistration,
+	admit func(context.Context, pgx.Tx, bool, int64) error,
+	record func(context.Context, pgx.Tx, int64) error) (uint64, error) {
 	checked, payloadHash, err := checkAliasRegistrations(corpusID, operationKey, expectedRevision, registrations)
 	if err != nil {
 		return 0, err
@@ -67,6 +73,11 @@ func (r *Repository) RegisterCanonicalAliases(ctx context.Context, corpusID, ope
 		if storedHash != payloadHash || storedRevision > current || storedRevision <= 0 {
 			return 0, fmt.Errorf("alias operation replay differs: %w", ErrConflict)
 		}
+		if admit != nil {
+			if err = admit(ctx, tx, true, storedRevision); err != nil {
+				return 0, err
+			}
+		}
 		if err = verifyAliasOperationReplay(ctx, tx, corpusID, storedRevision, checked); err != nil {
 			return 0, err
 		}
@@ -77,6 +88,11 @@ func (r *Repository) RegisterCanonicalAliases(ctx context.Context, corpusID, ope
 	}
 	if expectedRevision != uint64(current) {
 		return 0, fmt.Errorf("registry revision changed: %w", ErrConflict)
+	}
+	if admit != nil {
+		if err = admit(ctx, tx, false, current); err != nil {
+			return 0, err
+		}
 	}
 
 	canonicalIDs := make([]string, 0, len(checked))
@@ -187,6 +203,11 @@ func (r *Repository) RegisterCanonicalAliases(ctx context.Context, corpusID, ope
 	if _, err = tx.Exec(ctx, `INSERT INTO registry_alias_operations(corpus_id,operation_key,payload_hash,registry_revision)
 		VALUES ($1,$2,$3,$4)`, corpusID, operationKey, payloadHash, newRevision); err != nil {
 		return 0, fmt.Errorf("record alias operation: %w", err)
+	}
+	if record != nil {
+		if err = record(ctx, tx, newRevision); err != nil {
+			return 0, err
+		}
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return 0, fmt.Errorf("commit alias registration: %w", err)
