@@ -10,8 +10,11 @@ cache reauthorization, snapshot pin cleanup dan checkpoint recovery diuji terpis
 pada backend nyata serta fixture output Rust. Run actual Rust RPC bersama
 PostgreSQL hingga commit dari source nonempty sudah dibuktikan oleh
 [tes native graph](verification-report-native-graph.md), termasuk recovery sukses
-tanpa RPC ulang. Lanjutkan operator graph preparation/scheduling, Neo4j publication
-dan graph retrieval. Reaffirmation lintas registry revision,
+tanpa RPC ulang. [Adapter Neo4j](neo4j-graph-store.md) kini menyimpan delta tersebut
+ke generation additive, memeriksa isi exact dan melakukan seal; [bukti native](verification-report-neo4j.md)
+tidak menjadi izin publication. Lanjutkan catalog/write-intent/receipt graph,
+publication dengan indeks snapshot dasar, operator preparation/scheduling dan
+graph retrieval. Reaffirmation lintas registry revision,
 canonical mutations dan acceptance kualitas/performa K01 tetap terbuka.
 
 [Registry history](registry-history.md) kini memiliki binding publication immutable

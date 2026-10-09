@@ -16,7 +16,11 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 Subfolder: [inference/](inference/README.md), [neo4j/](neo4j/README.md), [postgres/](postgres/README.md), [qdrant/](qdrant/README.md), [storage/](storage/README.md), [worker/](worker/README.md).
 
-Adapter PostgreSQL, file storage, dan client Worker gRPC sudah memiliki implementasi runtime; adapter Neo4j, Qdrant, dan inference masih bertahap.
+PostgreSQL, file storage, Worker gRPC, Qdrant dan inference memiliki implementasi
+runtime bertahap. Neo4j kini menyediakan penulisan generation additive dan exact
+verification/seal melalui driver Bolt reusable. Publication graph PostgreSQL dan
+traversal serving belum tersambung; [kontrak](../../../../doc/neo4j-graph-store.md)
+menjelaskan boundary ini.
 
 ## Benchmark dan perhatian performa
 
@@ -26,7 +30,11 @@ Ikuti [kebijakan benchmark](../../../../doc/benchmark-policy.md). Angka wajib me
 
 ## Status
 
-Collector/audit D01, kontrak/validator C01, evaluator E01, storage/publication S01, serta client Worker gRPC tersedia. Worker Rust dan coordinator Go menjalankan handoff PARSE durable; pipeline graph/retrieval, mutasi search backend, layanan model, gold dataset, dan acceptance produksi belum aktif.
+Collector/audit D01, kontrak/validator C01, evaluator E01, storage/publication S01,
+client Worker gRPC dan adapter model tersedia. Mutation/readiness Qdrant serta query
+evidence dense/BM25 tersedia; graph ASSEMBLE sudah teruji hingga Neo4j terisolasi.
+Publication graph, traversal, alur jawaban graph penuh, gold dan acceptance produksi
+masih perlu diselesaikan.
 
 Gateway inference menyediakan RESOLVE kontekstual dan client reusable. Adapter memproyeksikan hasil model ke proposal; keputusan registry tetap melewati workflow/domain/storage.
 

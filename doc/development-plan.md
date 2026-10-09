@@ -1,6 +1,14 @@
 # Rencana implementasi berbasis dependency
 
-Checkpoint terbaru K01: integrasi nonempty sudah menjalankan allocator/alias/candidate,
+Checkpoint terbaru K01: [adapter Neo4j](neo4j-graph-store.md) menulis generation
+additive terisolasi, mempertahankan shared support, memverifikasi inventory exact dan
+melakukan seal. Output Rust aktual kini lulus Rust → PostgreSQL STAGED → Neo4j,
+termasuk replay dan cold recovery; lihat [laporan](verification-report-neo4j.md).
+Berikutnya catalog/write-intent/receipt graph PostgreSQL, publication dengan indeks
+snapshot dasar yang sah, operator preparation/scheduling, traversal dan jawaban.
+Graph SEALED belum menjadi snapshot query aktif. K01/Hybrid GraphRAG belum selesai.
+
+Checkpoint sebelumnya: integrasi nonempty sudah menjalankan allocator/alias/candidate,
 dua LINK RESOLVE dengan intent/checkpoint PostgreSQL, preparation/inventory, RPC Rust
 ASSEMBLE, validasi Go dan commit STAGED. Processor baru memulihkan output tanpa RPC
 tambahan. EXTRACT, review manusia, BIND dan vektor awal masih fixture sintetis;

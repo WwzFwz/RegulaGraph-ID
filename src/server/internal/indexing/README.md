@@ -40,7 +40,11 @@ entitas/mention, satu assertion/support, commit PostgreSQL dan cold recovery tan
 RPC ulang. `native_graph_source_test.go` menyiapkan EXTRACT/review sintetis tetapi
 memakai allocator, alias lookup, intent, registry CAS dan checkpoint RESOLVE produksi.
 Lihat [laporan native graph](../../../../doc/verification-report-native-graph.md)
-untuk prasyarat dan batas hasil terhadap Neo4j, model/gold serta benchmark.
+untuk prasyarat dan batas hasil terhadap model/gold serta benchmark.
+`native_graph_neo4j_test.go` menambahkan subtest opt-in yang menulis output Rust
+tersebut ke Neo4j nyata dan memeriksa exact replay/seal: 8 record, 5 edge, 1 operation.
+Helper ini menguji integrasi backend, belum publication graph PostgreSQL atau
+traversal query; lihat [laporan Neo4j](../../../../doc/verification-report-neo4j.md).
 
 `initial_snapshot.go` mengubah pilihan CHUNK terautentikasi menjadi snapshot awal
 dan corpus-facts manifest, lalu mengikat sumber melalui receipt. Identitas

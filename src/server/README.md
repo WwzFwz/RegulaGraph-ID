@@ -18,6 +18,12 @@ Subfolder: [cmd/](cmd/README.md), [internal/](internal/README.md).
 
 Berkas: [go.mod](go.mod), [go.sum](go.sum).
 
+Dependency Neo4j memakai driver Bolt Go v5.28.4. Adapter menyimpan generation
+additive dan memberikan proof exact verification/seal; integrasi actual Rust dan
+PostgreSQL STAGED diuji pada [laporan](../../doc/verification-report-neo4j.md).
+Catalog/receipt publication graph dan traversal query masih terbuka. Catatan
+checkpoint di bawah mencatat cakupan parsial komponen, bukan acceptance sistem.
+
 CLI discover/collect/audit sudah menjalankan acquisition D01. Scheduler/job dan publication control-plane S01 aktif. Coordinator menjalankan PARSE→STRUCTURE→BIND→CHUNK→EXTRACT durable; worker Rust dan Semantic Gateway menjalankan EXTRACT dengan kontrak/prompt/model terpin. API query, retrieval/answering, RESOLVE–INDEX, dan provider/model produksi belum tersambung. Lihat [panduan akuisisi](../../doc/acquisition.md).
 
 ## Benchmark dan perhatian performa

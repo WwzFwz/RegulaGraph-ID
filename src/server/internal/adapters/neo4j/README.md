@@ -14,7 +14,20 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
-Berkas: [store.go](store.go).
+[store.go](store.go) memiliki konfigurasi, binding generation dan transaksi Bolt
+eksplisit; [schema.go](schema.go) memasang serta memeriksa uniqueness constraints.
+[records.go](records.go) memproyeksikan GraphDelta C01 ke payload protobuf exact dan
+adjacency bertipe. [write.go](write.go) menulis batch atomik dengan replay operation
+ID/hash, sedangkan [readiness.go](readiness.go) memeriksa seluruh inventory dan
+menutup generation terhadap penulisan baru. [store_test.go](store_test.go) menguji
+boundary projection serta backend Neo4j nyata secara opt-in.
+
+Caller harus melakukan admission source/registry sebelum menyerahkan delta. Binding
+mengikat corpus, generation, publication/fence, base snapshot, target sequence dan
+registry revision. `New` tidak membuka koneksi; bootstrap memanggil `EnsureSchema`
+secara eksplisit, lalu `ApplyGraphDelta` dan `VerifyAndSeal`. Proof backend bukan
+receipt publication PostgreSQL atau izin melayani query. Kontrak lengkap, batas
+resource dan pekerjaan integrasi ada di [graph store](../../../../../doc/neo4j-graph-store.md).
 
 ## Benchmark dan perhatian performa
 
@@ -26,7 +39,12 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. Pipeline parsing/graph/retrieval, mutasi backend, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan target kualitas atau latency.
+Penulisan additive ke generation awal terisolasi, replay, shared support dan exact
+verification/seal tersedia. Output Rust aktual telah diuji hingga PostgreSQL STAGED
+dan Neo4j; lihat [bukti](../../../../../doc/verification-report-neo4j.md). Integrasi
+catalog/receipt publication PostgreSQL, traversal query, closure incremental dan
+readiness cluster belum tersedia. Tes fixture tidak membuktikan kualitas model,
+coverage corpus atau target latency/throughput.
 
 ## Rekomendasi implementasi anak
 
@@ -34,4 +52,5 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
-| [store.go](store.go) | Implement parameterized batched graph writes/readback with corpus, visibility and support identity constraints. | Test replay, shared-support retention and search-ready receipts on real Neo4j; profile query plans and fan-out. |
+| [store.go](store.go), [readiness.go](readiness.go) | Sambungkan proof generation ke catalog/receipt publication authoritative; tambah pembacaan untuk retrieval setelah admission snapshot. | Crash/retry antar-backend, stale fence, publication atomik pada pointer PostgreSQL dan isolasi snapshot. |
+| [write.go](write.go), [records.go](records.go) | Tambah incremental closure/support changes dengan dependency manifest dan historical visibility yang sah. | Equivalence terhadap rebuild, retensi shared support dan versi lama; ukur fan-out, commit, peak RSS dan contention. |

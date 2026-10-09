@@ -1,5 +1,10 @@
 # doc
 
+[neo4j-graph-store.md](neo4j-graph-store.md) menjelaskan generation immutable,
+transaksi/replay, shared support, exact verification dan batas publication.
+[Laporan Neo4j](verification-report-neo4j.md) mencatat backend nyata serta output
+Rust hingga PostgreSQL STAGED/Neo4j; snapshot query graph masih perlu diintegrasikan.
+
 [verification-report-native-graph.md](verification-report-native-graph.md) mencatat
 integrasi nonempty dari keputusan RESOLVE PostgreSQL ke RPC Rust ASSEMBLE, commit
 output dan cold recovery tanpa RPC tambahan, serta batas fixture/model/Neo4j.
