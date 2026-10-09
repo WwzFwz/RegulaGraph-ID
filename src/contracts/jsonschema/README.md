@@ -2,6 +2,13 @@
 
 Folder ini menampung schema structured-output yang dipin dan di-hash untuk boundary provider model. Schema di sini bukan wire contract paralel: gateway Go memvalidasi keluaran provider lalu memproyeksikannya ke protobuf C01 pada `src/contracts/proto`.
 
+`extraction-output-v3.json` menambahkan opsi rentang unit leksikal 1-based inklusif
+(`first_token`, `last_token`). Gateway membentuk surface/quote/byte span dari
+sumber persis; model tidak mengirim surface atau offset. Source dan Unicode
+renderer terpin; invalid range ditolak tanpa fallback. C01 tidak berubah.
+[Kontrak/profil](../../../doc/semantic-model-profiles.md) menjelaskan batas,
+replay dan pergantian model. Schema v1/v2 dan default tetap tersedia.
+
 `extraction-output-v2.json` memakai locator `quote`, `prefix`, `suffix` sebagai
 string wajib. Gabungan ketiganya harus tepat muncul sekali dalam teks item;
 prefix/suffix adalah konteks langsung, maksimum 256 karakter/1024 byte UTF-8 per

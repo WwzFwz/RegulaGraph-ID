@@ -38,6 +38,12 @@ SHA-256, perbarui pin schema worker, ekspor producer baru, dan submit request ba
 Jangan mengganti schema saja sambil memakai prompt/model pins lama. Gateway
 memilih projector quote dari `$id` schema v2 yang byte-nya dipin; v1 tetap tersedia.
 
+Format indexed v3 opsional memakai pasangan `configs/prompts/extraction-v3.md`
+dan `src/contracts/jsonschema/extraction-output-v3.json`, dengan pin/producer
+baru seperti prosedur v2. Model memilih rentang unit sumber, gateway mengambil
+teks/offset; konteks/counting memakai encoding yang sama. Default tidak berubah.
+Lihat [kontrak dan cara mengganti model](../../../../doc/semantic-model-profiles.md).
+
 `REGULAGRAPH_SEMANTIC_MAX_OUTPUT_TOKENS` menetapkan completion cap eksplisit
 (default 4096) untuk setiap panggilan EXTRACT maupun RESOLVE. Nilainya harus
 positif dan lebih kecil dari konteks model terpin. Cap dikirim sebagai `max_tokens`,

@@ -27,6 +27,16 @@ func encodeStructuredChat(request StructuredRequest) ([]byte, error) {
 		ItemID       string `json:"item_id"`
 		DocumentText string `json:"document_text"`
 	}{request.ItemID, request.Text})
+	if request.SchemaName == indexedExtractionSchemaName {
+		indexed, renderErr := renderIndexedSource(request.Text)
+		if renderErr != nil {
+			return nil, &ProviderError{Code: "invalid_request", Safe: "indexed source exceeds representation bounds", cause: renderErr}
+		}
+		documentPayload, err = json.Marshal(struct {
+			ItemID      string `json:"item_id"`
+			IndexedText string `json:"indexed_text"`
+		}{request.ItemID, indexed})
+	}
 	if err != nil {
 		return nil, &ProviderError{Code: "encode", Safe: "failed to encode document payload", cause: err}
 	}

@@ -2,6 +2,12 @@
 
 Folder ini menyimpan prompt produksi yang dipin untuk tugas semantik internal. Byte file menjadi bagian `ModelManifest.prompt_hash`; perubahan sekecil apa pun menghasilkan identitas prompt baru dan harus dievaluasi sebagai konfigurasi model baru.
 
+`extraction-v3.md` adalah profil opsional untuk sumber dengan nomor unit leksikal,
+dipasangkan dengan `extraction-output-v3.json`. Model memilih rentang dan menalar
+fakta, sedangkan gateway mengambil teks/offset persis; prompt tidak terikat merek
+model tertentu. Format lama dan default tidak berubah. Batas coverage dan langkah
+pergantian model berada pada [panduan profil](../../doc/semantic-model-profiles.md).
+
 `extraction-v2.md` dipasangkan dengan `extraction-output-v2.json`: model memilih
 kutipan persis dan konteks kiri/kanan bila perlu, gateway menghitung offset UTF-8
 melalui pencocokan unik. Ini mengurangi pekerjaan hitung byte model tanpa

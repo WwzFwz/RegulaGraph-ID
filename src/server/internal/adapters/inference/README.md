@@ -14,6 +14,13 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+`semantic_indexed_source.go` dan `semantic_indexed_spans.go` mendukung format
+EXTRACT v3 opsional: sumber bernomor mempertahankan whitespace/Unicode, model
+memilih rentang, gateway mengambil exact source spans melalui projector C01.
+ID range bukan canonical ID atau semantic approval. Resource bound, producer
+renderer pin dan replay diuji pada `semantic_indexed_test.go`; v1/v2 tetap utuh.
+Lihat [pilihan format dan model](../../../../../doc/semantic-model-profiles.md).
+
 `llm_request.go` menjadi satu encoder body untuk generation dan full-prompt
 counting. `llama_tokens.go` menyediakan counter konteks dan prompt llama.cpp
 melalui client generation yang sama, dengan budget byte/jumlah, cancellation dan

@@ -51,6 +51,8 @@ func SemanticSchemaName(task pb.ModelTask, schema json.RawMessage) (string, erro
 			return "regulagraph_extraction_v1", nil
 		case quotedExtractionSchemaID:
 			return "regulagraph_extraction_v2", nil
+		case indexedExtractionSchemaID:
+			return indexedExtractionSchemaName, nil
 		}
 	case pb.ModelTask_MODEL_TASK_RESOLVE:
 		if id == "" || id == "https://regulagraph.local/schema/resolution-output-v1.json" {

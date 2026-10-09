@@ -61,6 +61,7 @@ type SemanticService struct {
 	producer          *pb.ProducerManifest
 	extractionContext string
 	quotedExtraction  bool
+	indexedExtraction bool
 	semaphore         chan struct{}
 	operations        chan struct{}
 	cache             *semanticCache
@@ -115,6 +116,13 @@ func NewSemanticService(provider StructuredProvider, config SemanticConfig) (*Se
 		return nil, err
 	}
 	quotedExtraction := selectedSchema == "regulagraph_extraction_v2"
+	indexedExtraction := selectedSchema == indexedExtractionSchemaName
+	if indexedExtraction || config.SchemaName == indexedExtractionSchemaName {
+		if config.SchemaName != selectedSchema {
+			return nil, errors.New("indexed extraction schema name differs from pinned schema identity")
+		}
+		producer.InputHashes = append(producer.InputHashes, &pb.ContentHash{Sha256: sha256String([]byte(indexedSourceVersion))})
+	}
 	producer.InputHashes = append(producer.InputHashes, &pb.ContentHash{Sha256: sha256String([]byte(
 		fmt.Sprintf("regulagraph-semantic-output-budget-v1:%d", config.MaximumOutputTokens)))})
 	if config.ExtractionStore != nil {
@@ -136,6 +144,7 @@ func NewSemanticService(provider StructuredProvider, config SemanticConfig) (*Se
 		producer:          producer,
 		extractionContext: extractionContext,
 		quotedExtraction:  quotedExtraction,
+		indexedExtraction: indexedExtraction,
 		semaphore:         make(chan struct{}, config.MaximumConcurrent),
 		operations:        make(chan struct{}, config.MaximumConcurrent),
 		cache:             newSemanticCache(config.MaximumCacheEntries, config.MaximumCacheBytes),
@@ -215,6 +224,11 @@ func (s *SemanticService) validateExtractRequest(request *pb.ExtractBatchRequest
 			return status.Error(codes.ResourceExhausted, "semantic input bytes exceed the configured limit")
 		}
 		total += len(item.Text)
+		if s.indexedExtraction {
+			if _, err := sourceLexicalUnits(item.Text); err != nil {
+				return status.Error(codes.ResourceExhausted, "semantic indexed source exceeds representation bounds")
+			}
+		}
 		if item.Provenance == nil || len(item.Provenance.Spans) != 1 || len(item.Provenance.Sources) == 0 {
 			return status.Error(codes.InvalidArgument, "semantic item requires one source span and source-version provenance")
 		}
@@ -272,6 +286,9 @@ func (s *SemanticService) executeExtract(ctx context.Context, request *pb.Extrac
 			project := projectExtractionProposal
 			if s.quotedExtraction {
 				project = projectQuotedExtractionProposal
+			}
+			if s.indexedExtraction {
+				project = projectIndexedExtractionProposal
 			}
 			proposal, proposalErr := project(request, item, generated.JSON, s.producer, s.config.Ontology.Version())
 			if proposalErr == nil {
