@@ -13,8 +13,11 @@ Indonesian regulations are distributed across sources, reference one another, ch
 The `review-alias` operator command now connects successful EXTRACT mentions to
 existing BIND identities after explicit source-and-target review. It records aliases,
 profiles and review receipts atomically for downstream resolution candidates.
-It does not create new canonical entities or publish a graph. See the
-[sourced alias guide](doc/sourced-alias-review.md).
+An explicit `-create-provisional` mode can also allocate source-occurrence identities
+for non-BIND semantic types, with an UNREVIEWED profile and atomic review receipt.
+This bootstraps resolution candidates; it does not automatically equate occurrences
+or publish a graph. See the [sourced alias guide](doc/sourced-alias-review.md) and
+[provisional review workflow](doc/provisional-entity-review.md).
 
 The persistent PP 12/2006 trial now has 35 chunks indexed with native BGE-M3 and BM25, a published Qdrant snapshot, successful hybrid evidence queries, and real local-model cited drafts through the CLI and HTTP API. A failed first inventory was preserved and recovered through guarded abort and a new publication. Results remain explicitly PARTIAL/UNREVIEWED where context, temporal information, or claim support is unresolved. Successful CPU trials took about 182 seconds through the CLI and 155 seconds through the API; interactive latency and real-corpus graph extraction remain unfinished. See the [real-index verification](doc/verification-report-real-index.md), [generation results](doc/verification-report-real-answer.md), and [start/query/stop instructions](doc/operational-handoff.md#memakai-snapshot-yang-sudah-tersedia).
 

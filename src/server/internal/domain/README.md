@@ -1,5 +1,9 @@
 # src/server/internal/domain
 
+`provisional_identity.go` menurunkan ID occurrence dari source/text/span dan seluruh
+versi provision yang menaunginya. Mode provisional pada alias preview menolak tipe
+BIND; ID baru belum authoritative sebelum registry commit. [Kontrak](../../../../doc/provisional-entity-review.md).
+
 `alias_registration.go` membentuk preview alias dari bytes EXTRACT/document/text
 berhash, target identity BIND dan policy scope. Hash review mencakup source/target
 serta revision; storage tetap wajib membuktikan membership dan commit atomik.

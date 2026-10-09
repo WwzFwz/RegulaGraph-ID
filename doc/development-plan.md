@@ -1,5 +1,13 @@
 # Rencana implementasi berbasis dependency
 
+Checkpoint provisional registry: `review-alias -create-provisional` membuat
+identity/profile/alias/review atomik untuk tipe non-BIND dengan anchor sumber stabil.
+Enam skenario PostgreSQL, kandidat/hidrasi, export canonical dan review independen
+lulus pada fixture; durable LINK sampai ASSEMBLE dalam fixture ini belum dibuktikan.
+Alias baru ke provisional existing, semantic CREATE/MERGE/SPLIT dan corpus nyata
+tetap terbuka. [Panduan](provisional-entity-review.md),
+[bukti](verification-report-provisional-alias.md).
+
 Checkpoint registry alias: CLI `review-alias` kini memberi jalur inspect/accept
 untuk mention EXTRACT sukses ke canonical BIND existing. Source/target/policy/hash
 dan revision diikat pada review; profile/alias/lookup/receipt ditulis atomik.

@@ -1,5 +1,9 @@
 # migrations
 
+Migration 0026 menambah discriminator `create_provisional` pada ledger review dan
+constraint revision E+1. Row lama tetap false; tidak ada backfill canonical.
+[Panduan](../doc/provisional-entity-review.md).
+
 Migration 0025 menambah ledger `sourced_alias_reviews` append-only, terikat alias
 operation dan berisi actor/reason/source/target/policy serta revision. Writer alias
 dan review memakai satu transaksi. Tidak ada backfill atau pengalokasian canonical;

@@ -1,5 +1,10 @@
 # src/server/internal/workflows
 
+Mode `CreateProvisional` pada `sourced_alias.go` memakai inventory BIND sumber dan
+lookup historis lengkap; tidak memilih existing target atau mengisi keputusan LINK.
+Tes terisolasi membuktikan candidate hydration dan canonical export sesudah commit.
+[Panduan](../../../../doc/provisional-entity-review.md).
+
 `sourced_alias.go` menghidrasi inspeksi alias bersumber dan meneruskan persetujuan
 exact ke registry. Ia tidak menafsirkan source regulation sebagai referent mention;
 operator memilih target BIND terpisah. [Kontrak](../../../../doc/sourced-alias-review.md)

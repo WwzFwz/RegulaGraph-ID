@@ -8,6 +8,10 @@ review atomik. Ini bukan CREATE entitas baru, keputusan LINK suatu batch RESOLVE
 atau publication graph. Penyamaan referent tetap keputusan operator yang membaca
 bukti; teks sama dan provenance dokumen tidak otomatis berarti entitas sama.
 
+Mode tambahan untuk entitas non-BIND yang belum memiliki kandidat tersedia di
+[panduan provisional](provisional-entity-review.md). Bagian existing-target di
+dokumen ini tetap mensyaratkan canonical BIND existing.
+
 ## Prasyarat dan alur
 
 1. Terapkan migration `0025_sourced_alias_reviews.up.sql` melalui CLI `migrate`.
@@ -20,7 +24,7 @@ bukti; teks sama dan provenance dokumen tidak otomatis berarti entitas sama.
    BIND/CHUNK yang membuktikan target tersebut. Target dapat berasal dari dokumen
    berbeda, tetapi corpus dan auth scope harus sama. Jenis mention harus sama dengan
    jenis identity target. Saat ini BIND menyediakan regulasi, organisasi penerbit,
-   dan provision; pembuatan entitas semantik lain masih pekerjaan berikutnya.
+   dan provision; bootstrap entitas semantik lain menggunakan mode provisional terpisah.
 4. Pilih scope dari candidate policy corpus yang terpin pada request ingest sumber.
    Label usulan tidak menjadi bukti identitas. Profil existing wajib dipertahankan
    persis; jalur alias tidak mengganti label, scope atau identity keys profil itu.

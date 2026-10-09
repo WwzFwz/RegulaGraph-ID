@@ -1,5 +1,11 @@
 # Panduan melanjutkan sampai aplikasi bisa digunakan
 
+Kelanjutan registry: setelah EXTRACT valid, operator dapat memakai
+[review provisional](provisional-entity-review.md) untuk membentuk inventory entitas
+non-BIND dari occurrence bersumber. Terapkan migration 0026, inspect/accept eksplisit,
+lalu replan kandidat dan lanjutkan RESOLVE biasa. Ini tidak menyelesaikan kegagalan
+model EXTRACT atau mempublikasikan graph.
+
 Dokumen ini adalah catatan serah-terima pekerjaan agar pengembangan dapat
 dilanjutkan setelah pergantian sesi/model atau token habis. Isinya adalah kondisi
 aktual, urutan pekerjaan, lokasi kode, cara verifikasi, dan titik berhenti yang

@@ -1,5 +1,9 @@
 # doc
 
+[Review provisional](provisional-entity-review.md) menjelaskan pembuatan identity
+occurrence UNREVIEWED melalui operator, negatif lookup seluruh scope, replay dan
+batas integrasi semantic CREATE penuh. [Verifikasi](verification-report-provisional-alias.md).
+
 [Review alias bersumber](sourced-alias-review.md) menjelaskan command inspect/accept
 untuk menghubungkan mention EXTRACT sukses ke canonical BIND existing. Profile,
 alias, lookup revision dan review tersimpan atomik; CREATE entitas baru terpisah.

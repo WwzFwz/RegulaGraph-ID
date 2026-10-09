@@ -1,5 +1,9 @@
 # src/server/internal/adapters/postgres
 
+Mode provisional memakai migration 0026 dan `provisional_alias.go`: registry
+identity, profile, alias dan review tersimpan atomik setelah semua policy scope
+diperiksa kosong di bawah CAS. Replay diperiksa lebih dahulu. [Kontrak](../../../../../doc/provisional-entity-review.md).
+
 `sourced_alias.go` mengautentikasi source EXTRACT, target BIND dan review hash,
 kemudian memakai transaksi alias yang sama untuk profile/alias/lookup/review.
 Profil dibaca pada revision historis saat replay. Migration 0025 diperlukan;

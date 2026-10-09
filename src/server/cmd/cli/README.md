@@ -1,10 +1,15 @@
 # src/server/cmd/cli
 
+`review-alias -create-provisional` kini mengekspos review occurrence untuk tipe
+semantik selain regulation/organization/provision. Mode ini menolak `-canonical`
+dan `-target-document`, serta mempertahankan approval/replay eksplisit.
+[Panduan provisional](../../../../doc/provisional-entity-review.md).
+
 `review-alias` menyediakan inspect/accept source mention EXTRACT dan target BIND
 existing. Actor berasal dari akun OS; acceptance memerlukan operation, hash rencana,
 revision dan reason eksplisit. Input/output serta recovery ada di
 [panduan](../../../../doc/sourced-alias-review.md); command tidak memanggil model
-atau membuat canonical baru.
+pada mode existing-target.
 
 `abort-index -corpus ... -publication ...` menutup publication INDEX yang belum
 published melalui coordinator publication setelah memeriksa ownership inventory.
