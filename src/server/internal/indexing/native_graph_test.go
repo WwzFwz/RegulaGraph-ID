@@ -29,6 +29,12 @@ import (
 )
 
 func TestNativeGraphAssemblyPipeline(t *testing.T) {
+	requireNativeGraph(t)
+	runInitialIndexPublication(t, false, true, "graph-rpc")
+}
+
+func requireNativeGraph(t *testing.T) {
+	t.Helper()
 	if os.Getenv("REGULAGRAPH_TEST_NATIVE_GRAPH") != "1" {
 		t.Skip("explicit native graph integration opt-in required")
 	}
@@ -41,7 +47,6 @@ func TestNativeGraphAssemblyPipeline(t *testing.T) {
 	if err != nil || !net.ParseIP(host).IsLoopback() {
 		t.Fatal("native graph test worker must use a loopback address")
 	}
-	runInitialIndexPublication(t, false, true, "graph-rpc")
 }
 
 type countedGraphRPC struct {
@@ -134,6 +139,9 @@ func checkNativeGraphExecution(t *testing.T, ctx context.Context, repo *postgres
 	}
 	if len(delta.Entities) != 2 || len(delta.Mentions) != 2 || len(delta.Assertions) != 1 || len(delta.Supports) != 1 || delta.Assertions[0].SubjectId == delta.Assertions[0].ObjectId {
 		t.Fatal("native graph lost resolved endpoints or source evidence")
+	}
+	if nativeProvisionalGraph() {
+		checkNativeProvisionalOutput(t, ctx, repo, db, delta, prepared.Plan.RegistryRevision, prepared.Plan.TargetSequence)
 	}
 	publicationInputs, err := workflows.PrepareCompletedGraph(ctx, admitted, files, pin, ontology)
 	if err != nil || publicationInputs == nil || len(publicationInputs.Deltas()) != 1 || !proto.Equal(publicationInputs.Deltas()[0], delta) {

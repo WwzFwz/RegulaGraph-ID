@@ -105,7 +105,7 @@ func checkGraphSourceBindingReceipt(t *testing.T, ctx context.Context, repo *pos
 	sourceCheckpointID := "checkpoint:graph-binding"
 	if nativeRPC {
 		var output *workflows.SemanticResolutionOutput
-		output = commitNativeGraphResolution(t, ctx, repo, conn, files, job, extraction, extract, resolveModel, resolveProducer, put)
+		output = commitNativeGraphResolution(t, ctx, repo, conn, files, job, original, artifacts, extraction, extract, resolveModel, resolveProducer, put)
 		resolution, revision, sourceCheckpointID = output.Batch, output.Batch.RegistryRevision, output.Checkpoint.Meta.RecordId
 		raw, e := files.ReadVerified(ctx, output.Artifact, uint64(domain.DefaultWireLimits.MaxBytes))
 		if e != nil {

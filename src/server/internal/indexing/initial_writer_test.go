@@ -291,6 +291,15 @@ func runInitialIndexPublication(t *testing.T, requireGraph, contentAddressed boo
 	checkpointSum := sha256.Sum256(checkpointRaw)
 	request := &pb.IngestionRequest{CorpusId: corpus, Operation: pb.JobOperation_JOB_OPERATION_INGEST, IdempotencyKey: job,
 		Sources: []*pb.SourceLocator{{PortalId: "bpk", Locator: &pb.SourceLocator_Url{Url: "https://example.test/source.pdf"}}}, ConfigManifest: plan.Producer}
+	if graphRPC && nativeProvisionalGraph() {
+		request.ConfigManifest = proto.Clone(request.ConfigManifest).(*pb.ProducerManifest)
+		request.ConfigManifest.ConfigHash = proto.Clone(source.Context.ConfigFingerprint).(*pb.ContentHash)
+		policyHash, e := nativeProvisionalPolicy().Fingerprint()
+		if e != nil {
+			t.Fatal(e)
+		}
+		request.ConfigManifest.InputHashes = append(request.ConfigManifest.InputHashes, policyHash)
+	}
 	requestBytes, err := proto.Marshal(request)
 	if err != nil {
 		t.Fatal(err)

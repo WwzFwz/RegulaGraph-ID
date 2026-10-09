@@ -70,7 +70,7 @@ func checkPublishedGraphAnswer(t *testing.T, ctx context.Context, repo *postgres
 	}
 	t.Log("actual graph traversal/source text rendered into production generator prompt; cited fixture draft retains unresolved graph dependencies")
 	for _, profile := range []pb.RetrievalProfile{pb.RetrievalProfile_RETRIEVAL_PROFILE_GRAPH_RAG, pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_GRAPH_RAG} {
-		seedResolver, err := workflows.NewQueryGraphSeedResolver(repo, query.EntityLinkingPolicy{Namespaces: []query.EntityNamespace{{EntityType: "organization", Scope: "ID:national"}}, MaximumQueryBytes: 4096, MaximumPhraseTokens: 4, MaximumPhrases: 128, MaximumLookups: 128, MaximumAliasesPerLookup: 32, MaximumSeeds: 64})
+		seedResolver, err := workflows.NewQueryGraphSeedResolver(repo, query.EntityLinkingPolicy{Namespaces: []query.EntityNamespace{{EntityType: "organization", Scope: "ID:national"}, {EntityType: "defined_term", Scope: "ID:national"}}, MaximumQueryBytes: 4096, MaximumPhraseTokens: 4, MaximumPhrases: 128, MaximumLookups: 128, MaximumAliasesPerLookup: 32, MaximumSeeds: 64})
 		if err != nil {
 			t.Fatal(err)
 		}
