@@ -1,5 +1,7 @@
 # src/server/internal/api/routes
 
+Endpoint evidence menerima COMPARE eksplisit dengan 2..8 tanggal; schemas memvalidasi seluruh output sebelum ditulis. Endpoint questions menolak comparative generation serta output campuran. Lihat [panduan](../../../../../doc/compare-evidence.md).
+
 `temporal.go` memvalidasi audit CURRENT/AS_OF dan header X-Effective-Date/X-Query-Time-Zone; tidak mengambil clock kedua. CURRENT hanya diterima bila zona operator tersedia. [Kontrak](../../../../../doc/current-query.md).
 
 Definisi endpoint yang menerjemahkan HTTP ke pemanggilan workflow dan response schema. Implementasi runtime berada di Go. Dokumen ini mendefinisikan superset tanggung jawab folder dan kontrak integrasi anaknya.

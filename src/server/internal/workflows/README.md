@@ -1,6 +1,6 @@
 # src/server/internal/workflows
 
-`rag_comparison.go` menyediakan CompareEvidence dengan satu lease/factory/discovery. Tiap tanggal dihidrasi, diproyeksikan pada graph dan direrank tersendiri; hasil gagal dibuang seluruhnya. `rag_session.go` memakai helper lease bersama untuk single-date dan comparison. Public COMPARE/sintesis masih terbuka. [Kontrak dan verifikasi](../../../../doc/compare-evidence.md).
+`rag_comparison.go` menyediakan CompareEvidence dengan satu lease/factory/discovery. Tiap tanggal dihidrasi, diproyeksikan pada graph dan direrank tersendiri; hasil gagal dibuang seluruhnya. `rag_session.go` memakai helper lease bersama untuk single-date dan comparison. COMPARE evidence tersedia melalui CLI/HTTP; sintesis masih terbuka. [Kontrak dan verifikasi](../../../../doc/compare-evidence.md).
 
 `RAGSession` menerima CURRENT dengan zona operator eksplisit, membekukan tanggal sebelum pin dan meneruskan scope AS_OF milik session ke seluruh tahap. RAGResult membawa audit terpisah; caller request tetap utuh. [Kontrak](../../../../doc/current-query.md).
 

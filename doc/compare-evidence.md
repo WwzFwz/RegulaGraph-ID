@@ -1,9 +1,8 @@
 # Fondasi evidence untuk perbandingan tanggal
 
 Dokumen ini menjelaskan library Q01 untuk menyiapkan bukti bertanggal pada satu
-snapshot. Ini tahap dependency bagi transport COMPARE dan generation komparatif;
-CLI/API publik masih menolak COMPARE. Jangan menyebut endpoint atau sintesis
-perbandingan sudah tersedia dari library ini.
+snapshot. Transport evidence tersedia melalui CLI dan HTTP. Generation jawaban
+komparatif belum tersedia; permintaan comparative answer ditolak sebelum eksekusi.
 
 ## Kontrak dan alur
 
@@ -74,9 +73,8 @@ Target tetap [benchmark-targets.yaml](../configs/benchmark-targets.yaml), mengik
 
 ## Integrasi berikutnya sampai COMPARE penuh
 
-1. Tambahkan envelope transport berisi snapshot dan daftar tanggal/bundle C01 pada
-   CLI dan endpoint evidence. Validasi urutan, tanggal, profil, ukuran total dan
-   snapshot sebelum output; satu tanggal gagal tidak menjadi partial success.
+1. Transport evidence selesai: snapshot dan daftar tanggal/bundle C01 divalidasi
+   bersama sebelum output; satu tanggal gagal tidak menjadi partial success.
 2. Bentuk context komparatif yang tetap menyatakan applicability/unknown/omissions
    per tanggal dan menangani evidence ID yang muncul di beberapa bucket. Pakai
    tokenizer eksak; jangan flatten tanggal sehingga model melihat fakta seolah
@@ -87,3 +85,67 @@ Target tetap [benchmark-targets.yaml](../configs/benchmark-targets.yaml), mengik
    mendukungnya dan direview. Kegagalan generator bukan evidence-only fallback.
 4. Uji corpus nyata yang berubah antar tanggal, versi unknown/conflict, penerbit
    berbeda, dan required retrieval/answer/performance gates. Fixture bukan gold.
+
+## Menggunakan transport evidence
+
+Gunakan konfigurasi/backend/published corpus yang sama dengan
+[evidence API](evidence-api.md) dan CLI query biasa. Dari root PowerShell:
+
+```powershell
+go run ./src/server/cmd/cli query-evidence -question 'Apa ketentuan izin?' -profile hybrid -compare-dates '2026-01-01,2025-01-01' -timeout 2m
+```
+
+`-compare-dates` menerima 2..8 tanggal unik, mempertahankan urutan pengguna dan
+bersifat eksklusif dengan `-as-of`, `-current`, serta `-answer`. Zona waktu tidak
+diperlukan untuk tanggal eksplisit. Dependency dan model tetap mengikuti profil;
+perintah ini tidak menyiapkan corpus atau menyalakan backend secara otomatis.
+
+Pada `POST /v1/evidence`, gunakan autentikasi/profil operator yang sama dan scope:
+
+```json
+{
+  "corpus_id": "corpus:example",
+  "question": "Apa ketentuan izin?",
+  "requested_profile": "RETRIEVAL_PROFILE_HYBRID_RAG",
+  "response_mode": "RESPONSE_MODE_COMPLETE",
+  "temporal_scope": {
+    "mode": "TEMPORAL_MODE_COMPARE",
+    "compare_dates": [{"year": 2026, "month": 1, "day": 1}, {"year": 2025, "month": 1, "day": 1}],
+    "unresolved_policy": "UNRESOLVED_POLICY_REPORT"
+  }
+}
+```
+
+Output JSON memakai `mode: evidence_comparison`, `profile`, `snapshot`, dan
+`dates[]`. Setiap bucket berisi `effective_date`, `evidence` (C01 ProtoJSON),
+`rejected`, serta `reranking` bila diminta melalui konfigurasi CLI. HTTP saat ini
+tidak mengaktifkan reranker. `X-Snapshot-ID` menyatakan snapshot bersama;
+`X-Effective-Date` tunggal tidak ditulis. Output AS_OF/CURRENT tidak berubah.
+`POST /v1/questions` COMPARE ditolak 400; belum ada sintesis komparatif otomatis.
+
+`api/schemas/comparison.go` memeriksa urutan/date audit, original question,
+profil, corpus, full snapshot, bundle ID unik, status sukses, dan diagnostic
+budget. Agregat JSON dibatasi 16 MiB selain cap protobuf library. Akumulasi
+reranking memperhitungkan manifest yang berulang sebelum menyimpan scores;
+cap output bukan jaminan peak RSS 16 MiB. Respons divalidasi seluruhnya sebelum
+ditulis; kegagalan jaringan saat menulis tetap dapat menghasilkan transfer putus.
+
+## Checkpoint transport dan pekerjaan tersisa
+
+Baseline implementasi `f89cf02`; raw logs/fingerprint tersedia pada
+`artifacts/verification/20261009-compare-transport/manifest.json`.
+Review independen menemukan mixed comparison/single-date answer yang perlu ditolak
+serta akumulasi diagnostics reranking sebelum cap. Keduanya diperbaiki dan dites
+ulang. Kasus regresi meliputi tanggal invalid/duplikat/urutan, scope/snapshot/audit
+mismatch, hasil parsial, cancellation, error redaction, kegagalan penulisan CLI,
+budget berulang dan JSON escaping. Go 1.26.8 windows/amd64: `go test ./src/server/...`,
+tes transport final, `go vet` komponen terdampak, dan CLI `query-evidence -help`
+seluruhnya exit 0. Review independen scoped PASS; pemeriksaan diff dan tautan lokal
+lulus. Percobaan tes awal terhalang akses sandbox ke Go cache, lalu run ulang
+berhasil. Fixture transport sintetis bukan hasil corpus
+nyata atau pengukuran kualitas/performa. Required benchmark tetap NOT_MEASURED.
+
+Checkpoint berhenti atas permintaan penghematan usage pengguna. Langkah berikut:
+context komparatif dengan applicability per tanggal, generation/citation bertanggal,
+kemudian corpus nyata dan evaluasi. Jalur single-date RAG/draft dan demo tetap
+tersedia dengan prasyarat pada README. Jangan menandai seluruh proyek selesai.

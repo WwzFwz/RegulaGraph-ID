@@ -44,7 +44,7 @@ lokal atau jalankan executable terkompilasi di terminal proses yang terpisah.
 
 Pilihan profile `vector`, `hybrid`, `graph` atau `hybrid-graph` wajib eksplisit.
 Reranking opsional yang tersedia pada CLI belum dikonfigurasi di entry point API
-ini. CURRENT tersedia dengan zona operator eksplisit; lihat [panduan tanggal](current-query.md). COMPARE dan streaming tetap ditolak, tanpa fallback diam-diam.
+ini. CURRENT tersedia dengan zona operator eksplisit; lihat [panduan tanggal](current-query.md). COMPARE evidence tersedia melalui `/v1/evidence`; lihat [tanggal komparatif](compare-evidence.md). Comparative answers dan streaming tetap ditolak, tanpa fallback diam-diam.
 
 Untuk profil graph, siapkan snapshot graph terbit dan file JSON route/policy
 sesuai [konfigurasi graph CLI](query-evidence.md). Gunakan environment yang sama:

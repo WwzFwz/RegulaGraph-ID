@@ -1,5 +1,7 @@
 # src/server/cmd/cli
 
+`query-evidence -compare-dates` mengekspos evidence 2..8 tanggal dalam satu snapshot, eksklusif dengan -as-of/-current/-answer. Output memakai serializer transport bersama; generation komparatif belum aktif. Lihat [cara pakai](../../../../doc/compare-evidence.md).
+
 `query-evidence -current` memakai zona eksplisit REGULAGRAPH_QUERY_TIME_ZONE dan mengembalikan temporal_resolution. Jangan gabungkan dengan -as-of; tanggal jawaban diverifikasi untuk kedua mode. [Panduan](../../../../doc/current-query.md).
 
 `query-evidence` membaca REGULAGRAPH_QUERY_NORMALIZATION dan menampilkan report `query_normalization` dari workflow pada JSON hasil. Pertanyaan asli tetap diteruskan untuk answering. [Policy dan contoh](../../../../doc/query-normalization.md).

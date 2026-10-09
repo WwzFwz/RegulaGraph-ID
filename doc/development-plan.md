@@ -1,10 +1,10 @@
 # Rencana implementasi berbasis dependency
 
-Checkpoint COMPARE evidence: PlanComparisonScopes dan RAGSession.CompareEvidence aktif sebagai library. Satu lease/factory/discovery dipakai bersama; per-date hydration/projection/reranking dan all-or-error teruji empat profil. CLI/API COMPARE dan sintesis belum tersedia. [Kontrak/bukti/kelanjutan](compare-evidence.md).
+Checkpoint COMPARE evidence: PlanComparisonScopes dan RAGSession.CompareEvidence aktif sebagai library. Satu lease/factory/discovery dipakai bersama; per-date hydration/projection/reranking dan all-or-error teruji empat profil. CLI/API COMPARE evidence tersedia; sintesis komparatif belum tersedia. [Kontrak/bukti/kelanjutan](compare-evidence.md).
 
-Checkpoint temporal Q01: CURRENT eksplisit tersedia pada CLI/API bila zona operator dikonfigurasi. Session membekukan satu tanggal AS_OF; output memeriksa kesesuaian audit/tanggal jawaban. COMPARE, classifier dan semantic expansion tetap terbuka. [Cara pakai dan bukti](current-query.md).
+Checkpoint temporal Q01: CURRENT eksplisit tersedia pada CLI/API bila zona operator dikonfigurasi. Session membekukan satu tanggal AS_OF; output memeriksa kesesuaian audit/tanggal jawaban. Sintesis COMPARE, classifier dan semantic expansion tetap terbuka. [Cara pakai dan bukti](current-query.md).
 
-Checkpoint Q01: normalisasi mekanis opt-in dan trace UTF-8 sudah terhubung ke CLI/API serta workflow. Default tetap original; graph/reranker/generator mempertahankan input asli. Classifier, semantic expansion dan temporal CURRENT/COMPARE tetap terbuka. [Kontrak](query-normalization.md), [verifikasi](verification-report-query-normalization.md).
+Checkpoint Q01: normalisasi mekanis opt-in dan trace UTF-8 sudah terhubung ke CLI/API serta workflow. Default tetap original; graph/reranker/generator mempertahankan input asli. Classifier dan semantic expansion tetap terbuka; status temporal mengikuti checkpoint di atas. [Kontrak](query-normalization.md), [verifikasi](verification-report-query-normalization.md).
 
 Checkpoint provisional graph: source-reviewed identity kini teruji dalam satu
 run sampai candidate planning, durable LINK, actual Rust ASSEMBLE/recovery,

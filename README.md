@@ -1,8 +1,8 @@
 # RegulaGraph-ID
 
-**Multi-date evidence foundation:** the internal `RAGSession.CompareEvidence` library now retrieves separate date buckets under one snapshot lease and reuses candidate discovery across dates. Each date still receives temporal hydration, graph projection and reranking. Public COMPARE transport and comparative answer synthesis remain unfinished. [Contract, evidence and next steps](doc/compare-evidence.md).
+**Multi-date evidence:** CLI `query-evidence -compare-dates` and HTTP `/v1/evidence` now return separate date buckets under one snapshot lease, reusing candidate discovery across dates. Each date receives temporal hydration and graph projection, plus reranking when configured in the CLI. Comparative answer synthesis remains unfinished. [Contract, evidence and next steps](doc/compare-evidence.md).
 
-**Current-date queries:** CLI `-current` and API `TEMPORAL_MODE_CURRENT` now freeze one calendar date using an explicitly configured `REGULAGRAPH_QUERY_TIME_ZONE`. The same date reaches retrieval and generation and is exposed in the output audit/headers. [Configuration and limits](doc/current-query.md). COMPARE and automatic intent routing remain unfinished.
+**Current-date queries:** CLI `-current` and API `TEMPORAL_MODE_CURRENT` now freeze one calendar date using an explicitly configured `REGULAGRAPH_QUERY_TIME_ZONE`. The same date reaches retrieval and generation and is exposed in the output audit/headers. [Configuration and limits](doc/current-query.md). Comparative answer generation and automatic intent routing remain unfinished.
 
 **Query preparation:** CLI/API support optional `REGULAGRAPH_QUERY_NORMALIZATION=mechanical-v1` for NFC and whitespace normalization outside quotes. The default `original-v1` preserves exact input. Dense/BM25 use the search form; graph linking, reranking and generation keep the original. [Policy and audit output](doc/query-normalization.md). Retrieval quality impact remains unmeasured.
 
@@ -101,7 +101,7 @@ SVGs are rendered from PlantUML and stored in the repository so GitHub can displ
 
 | Stage / component | Input → processing → output | Main location | Rationale / current limits |
 | --- | --- | --- | --- |
-| 1. Admission | Question + corpus/date → auth/budget/profile validation → context | `server/internal/api`, `config` | Trusted scope comes from the server. The API accepts AS_OF and configured CURRENT requests; COMPARE and streaming are not active. |
+| 1. Admission | Question + corpus/date → auth/budget/profile validation → context | `server/internal/api`, `config` | Trusted scope comes from the server. The API accepts AS_OF and configured CURRENT; the evidence endpoint also accepts explicit COMPARE dates. Comparative answers and streaming are not active. |
 | 2. Preparation | Context → snapshot pinning, normalization, lexical/entity lookup → query plan | `workflows`, `retrieval/query` | Each answer uses a consistent corpus view. Profiles are explicit; there is no automatic factual/relational classifier yet. |
 | 3. Retrieval | Plan → dense/BM25/graph retrieval for the selected profile → sourced candidates | `retrieval`, `retrieval/graph`, adapters | Dense retrieval handles paraphrases, BM25 handles exact terms/numbers, and graph retrieval follows cross-document relationships. |
 | 4. Filter/fusion | Candidates + scope/version → filtering, evidence/version deduplication, RRF → ranking | `retrieval/fusion.go`, domain boundaries | Raw scores from different engines use different scales. Date filtering does not imply all legal amendments have been modeled. |

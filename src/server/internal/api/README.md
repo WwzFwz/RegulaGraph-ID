@@ -1,5 +1,7 @@
 # src/server/internal/api
 
+Transport COMPARE evidence kini memakai session CompareEvidence dan envelope date buckets tervalidasi; endpoint questions tetap single-date. Lihat [kontrak](../../../../doc/compare-evidence.md).
+
 EvidenceService.Search kini mengembalikan RAGResult internal agar HTTP bisa memvalidasi audit tanggal beku. Payload evidence wire tetap C01. Konfigurasi zona masuk fingerprint dan runtime session. [CURRENT](../../../../doc/current-query.md).
 
 `EvidenceRuntimeConfig.Normalization` divalidasi sebelum backend dibuka dan masuk fingerprint konfigurasi. Trace tersedia di workflow; schema HTTP tetap. [Policy](../../../../doc/query-normalization.md).

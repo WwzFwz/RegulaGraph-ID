@@ -1,6 +1,6 @@
 # doc
 
-[Fondasi COMPARE](compare-evidence.md) menjelaskan satu lease/discovery, evidence per tanggal, budget/failure gates dan langkah transport/sintesis yang belum aktif.
+[Fondasi COMPARE](compare-evidence.md) menjelaskan satu lease/discovery, evidence per tanggal, budget/failure gates dan transport CLI/HTTP aktif serta sintesis yang belum aktif.
 
 [Query CURRENT](current-query.md) menjelaskan zona operator, pembekuan tanggal sekali sebelum pin, audit/headers, verifikasi midnight, serta batas tzdb dan kualitas.
 

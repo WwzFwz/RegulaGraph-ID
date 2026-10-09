@@ -1,5 +1,7 @@
 # src/server/internal/api/schemas
 
+`comparison.go` membungkus bundle C01 per tanggal untuk HTTP/CLI dengan validasi scope, snapshot dan budget agregat. `reranking.go` berbagi serialization diagnostik bounded; tidak mengimplementasikan algoritma ranking. Format single-date tetap kompatibel. Lihat [kontrak](../../../../../doc/compare-evidence.md).
+
 Kontrak transport HTTP bagi pertanyaan, dokumen, hasil job, dan response kesalahan. Implementasi runtime berada di Go. Dokumen ini mendefinisikan superset tanggung jawab folder dan kontrak integrasi anaknya.
 
 ## Batas tanggung jawab
