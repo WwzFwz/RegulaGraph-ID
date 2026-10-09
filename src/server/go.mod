@@ -1,7 +1,7 @@
 // Metadata modul Go untuk serving dan coordinator RegulaGraph-ID.
 // Integrasi: seluruh komponen internal satu module; x/net/html mem-parsing halaman sumber collector,
 // pgx menyediakan pool/transaksi PostgreSQL S01, x/text menyamakan casing alias dengan Rust,
-// dan protobuf membawa kontrak wire C01.
+// protobuf membawa kontrak wire C01, dan driver Neo4j memakai Bolt untuk generation graph.
 // Performa: build tidak memuat model atau memulai layanan; benchmark menggunakan runtime aktif kelak.
 module regulagraph.local/server
 
@@ -11,6 +11,7 @@ toolchain go1.26.8
 
 require (
 	github.com/jackc/pgx/v5 v5.11.0
+	github.com/neo4j/neo4j-go-driver/v5 v5.28.4
 	golang.org/x/net v0.59.0
 	golang.org/x/text v0.42.0
 	google.golang.org/grpc v1.84.0

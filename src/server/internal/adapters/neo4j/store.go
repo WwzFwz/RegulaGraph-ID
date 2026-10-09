@@ -13,10 +13,162 @@
 // Target numerik required: configs/benchmark-targets.yaml; status REQUIRED_UNMEASURED.
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
-// Status: scaffold dokumentasi; perilaku modul belum diimplementasikan.
-// Rekomendasi implementasi berikutnya (belum merupakan fitur aktif):
-// Implement parameterized batched graph writes/readback with corpus, visibility and support identity constraints.
+// Status: driver Bolt reusable dengan transaksi eksplisit dan generation graph awal
+// immutable. Apply/verify/seal tidak mengubah pointer publication PostgreSQL. Binding
+// hanya boleh datang dari coordinator terpercaya setelah admission GraphDelta.
+// Closure incremental, takeover writer dan readiness multi-replica belum tersedia.
 // Bukti verifikasi: Test replay, shared-support retention and search-ready receipts on real Neo4j; profile query plans and fan-out.
 // Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
 
 package neo4j
+
+import (
+	"context"
+	"crypto/sha256"
+	"errors"
+	"fmt"
+	"math"
+	"net"
+	"net/url"
+	"sync/atomic"
+	"time"
+
+	bolt "github.com/neo4j/neo4j-go-driver/v5/neo4j"
+	"google.golang.org/protobuf/proto"
+	pb "regulagraph.local/server/gen/regulagraph/v1"
+	"regulagraph.local/server/internal/domain"
+)
+
+var ErrGraphConflict = errors.Join(errors.New("graph generation or immutable record conflict"), domain.ErrPersistentIntegrity)
+
+// Binding is a local backend routing/ownership value, not a second wire schema.
+// A generation has exactly one publication/fence/base/target/revision. Publication
+// authority remains PostgreSQL; an unsealed or aborted generation is never served.
+type Binding struct {
+	CorpusID, Generation, PublicationID string
+	Fence, Sequence, RegistryRevision   uint64
+	BaseSnapshot                        *pb.SnapshotRef
+}
+
+type Config struct {
+	URI, Username, Password, Database string
+	PoolSize                          int
+	Timeout                           time.Duration
+}
+
+type Store struct {
+	driver      bolt.DriverWithContext
+	database    string
+	timeout     time.Duration
+	binding     Binding
+	bindingHash string
+	schemaReady atomic.Bool
+}
+
+// New validates configuration without opening a connection. Direct Bolt is used
+// deliberately: this adapter has no proof of readiness across routed replicas.
+func New(config Config, binding Binding) (*Store, error) {
+	u, err := url.Parse(config.URI)
+	if err != nil || u.User != nil || u.Hostname() == "" || u.Port() == "" || u.RawQuery != "" || u.Fragment != "" || u.Path != "" ||
+		(u.Scheme != "bolt" && u.Scheme != "bolt+s") || (u.Scheme == "bolt" && !net.ParseIP(u.Hostname()).IsLoopback()) {
+		return nil, errors.New("direct Bolt URI required; unencrypted transport is loopback-only")
+	}
+	if config.Database == "" || config.Username == "" || config.Password == "" || config.PoolSize < 1 || config.PoolSize > 128 || config.Timeout <= 0 || config.Timeout > 5*time.Minute {
+		return nil, errors.New("explicit database, credentials and bounded pool/timeout required")
+	}
+	for _, id := range []string{binding.CorpusID, binding.Generation, binding.PublicationID} {
+		if err := domain.ValidateWire(&pb.RecordMeta{SchemaVersion: 1, CorpusId: binding.CorpusID, RecordId: id}, domain.DefaultWireLimits); err != nil {
+			return nil, err
+		}
+	}
+	if err := domain.ValidateWire(binding.BaseSnapshot, domain.DefaultWireLimits); err != nil {
+		return nil, err
+	}
+	if binding.BaseSnapshot.CorpusId != binding.CorpusID || binding.Sequence <= binding.BaseSnapshot.Sequence || binding.Sequence > math.MaxInt64 || binding.Fence == 0 || binding.Fence > math.MaxInt64 || binding.RegistryRevision == 0 || binding.RegistryRevision > math.MaxInt64 {
+		return nil, errors.New("bounded graph target/fence/revision and matching base required")
+	}
+	binding.BaseSnapshot = proto.Clone(binding.BaseSnapshot).(*pb.SnapshotRef)
+	raw, err := proto.MarshalOptions{Deterministic: true}.Marshal(binding.BaseSnapshot)
+	if err != nil {
+		return nil, err
+	}
+	hash := sha256.New()
+	for _, v := range []string{"graph-binding-v1", binding.CorpusID, binding.Generation, binding.PublicationID, fmt.Sprint(binding.Fence), fmt.Sprint(binding.Sequence), fmt.Sprint(binding.RegistryRevision), string(raw)} {
+		fmt.Fprintf(hash, "%d:%s", len(v), v)
+	}
+	driver, err := bolt.NewDriverWithContext(config.URI, bolt.BasicAuth(config.Username, config.Password, ""), func(c *bolt.Config) {
+		c.MaxConnectionPoolSize = config.PoolSize
+		c.ConnectionAcquisitionTimeout = config.Timeout
+		c.SocketConnectTimeout = config.Timeout
+		c.MaxTransactionRetryTime = 0
+		c.FetchSize = 256
+		c.TelemetryDisabled = true
+	})
+	if err != nil {
+		return nil, errors.New("invalid Neo4j driver configuration")
+	}
+	return &Store{driver: driver, database: config.Database, timeout: config.Timeout, binding: binding, bindingHash: fmt.Sprintf("%x", hash.Sum(nil))}, nil
+}
+
+func (s *Store) Close(ctx context.Context) error { return s.driver.Close(ctx) }
+
+func (s *Store) transaction(ctx context.Context, write bool, run func(context.Context, bolt.ExplicitTransaction) error) error {
+	if ctx == nil {
+		return errors.New("context required")
+	}
+	ctx, cancel := context.WithTimeout(ctx, s.timeout)
+	defer cancel()
+	mode := bolt.AccessModeRead
+	if write {
+		mode = bolt.AccessModeWrite
+	}
+	session := s.driver.NewSession(ctx, bolt.SessionConfig{DatabaseName: s.database, AccessMode: mode, FetchSize: 256})
+	defer func() {
+		cleanup, done := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
+		defer done()
+		_ = session.Close(cleanup)
+	}()
+	tx, err := session.BeginTransaction(ctx, bolt.WithTxTimeout(s.timeout))
+	if err != nil {
+		return err
+	}
+	defer func() {
+		cleanup, done := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
+		defer done()
+		_ = tx.Close(cleanup)
+	}()
+	if err = run(ctx, tx); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func (s *Store) params() map[string]any {
+	return map[string]any{"corpus": s.binding.CorpusID, "generation": s.binding.Generation, "binding": s.bindingHash, "sequence": int64(s.binding.Sequence)}
+}
+
+func one(ctx context.Context, tx bolt.ExplicitTransaction, query string, params map[string]any) (*bolt.Record, error) {
+	r, err := tx.Run(ctx, query, params)
+	if err != nil {
+		return nil, err
+	}
+	return r.Single(ctx)
+}
+
+// lockGeneration serializes writes and sealing inside Neo4j, not just in Go.
+// Incrementing a property takes the database write lock before checking binding.
+func (s *Store) lockGeneration(ctx context.Context, tx bolt.ExplicitTransaction) (bool, error) {
+	r, err := one(ctx, tx, `MERGE (g:RGGeneration {corpus:$corpus,generation:$generation})
+ON CREATE SET g.binding=$binding,g.state='OPEN',g.sequence=$sequence,g.lock=0,g.operations=0,g.bytes=0
+SET g.lock=g.lock+1 RETURN g.binding AS binding,g.state AS state`, s.params())
+	if err != nil {
+		return false, err
+	}
+	if r.Values[0] != s.bindingHash {
+		return false, ErrGraphConflict
+	}
+	if r.Values[1] != "OPEN" && r.Values[1] != "SEALED" {
+		return false, ErrGraphConflict
+	}
+	return r.Values[1] == "SEALED", nil
+}
