@@ -39,6 +39,15 @@ func (r *Repository) VerifyPublishedGraphSourceBinding(ctx context.Context, pin 
 		return err
 	}
 	defer tx.Rollback(bounded)
+	if err = verifyPublishedGraphSourceBinding(bounded, tx, pin, binding); err != nil {
+		return err
+	}
+	return tx.Commit(bounded)
+}
+
+// Writers can compose membership with their own publication/source locks and
+// must repeat the live lease check immediately before committing their receipt.
+func verifyPublishedGraphSourceBinding(bounded context.Context, tx pgx.Tx, pin domain.SnapshotPin, binding domain.IndexSourceBinding) error {
 	index, err := readPinnedIndex(bounded, tx, pin)
 	if err != nil {
 		return err
@@ -105,5 +114,5 @@ func (r *Repository) VerifyPublishedGraphSourceBinding(ctx context.Context, pin 
 	if err = checkIndexLease(bounded, tx, pin); err != nil {
 		return err
 	}
-	return tx.Commit(bounded)
+	return nil
 }

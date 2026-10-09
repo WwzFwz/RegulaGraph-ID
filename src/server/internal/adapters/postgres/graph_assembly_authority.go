@@ -24,9 +24,14 @@ func (r *Repository) VerifyGraphAssemblyPublication(ctx context.Context, plan *p
 	if err := domain.ValidateGraphAssemblyPlan(plan); err != nil {
 		return err
 	}
-	base := plan.Context.SnapshotRef
+	return verifyGraphPublicationBinding(ctx, r.pool, plan.PublicationId, plan.Meta.CorpusId, plan.PublicationFence, plan.TargetSequence, plan.RegistryRevision, plan.Context.SnapshotRef)
+}
+
+// Caller validates shape first; writers also hold snapshot/corpus locks.
+func verifyGraphPublicationBinding(ctx context.Context, query indexQuerier, publication, corpus string,
+	fence, sequence, revision uint64, base *pb.SnapshotRef) error {
 	var valid bool
-	err := r.pool.QueryRow(ctx, `SELECT EXISTS (
+	err := query.QueryRow(ctx, `SELECT EXISTS (
  SELECT 1 FROM snapshots s
  JOIN corpus_state c ON c.corpus_id=s.corpus_id
  JOIN snapshots b ON b.snapshot_id=s.parent_snapshot_id AND b.corpus_id=s.corpus_id
@@ -36,10 +41,10 @@ func (r *Repository) VerifyGraphAssemblyPublication(ctx context.Context, plan *p
  AND c.active_snapshot_id=b.snapshot_id AND b.state=$8 AND b.sequence=$9
  AND b.manifest_hash=$10 AND b.representation_generation=$11
  AND v.fence=s.fence AND v.registry_revision=$12 AND v.registry_revision>=c.registry_history_floor
- AND v.registry_revision<=c.registry_revision)`, plan.PublicationId, plan.Meta.CorpusId, int64(plan.PublicationFence),
-		int64(plan.TargetSequence), int16(pb.SnapshotState_SNAPSHOT_STATE_STAGING), int16(pb.SnapshotState_SNAPSHOT_STATE_VALIDATING),
+ AND v.registry_revision<=c.registry_revision)`, publication, corpus, int64(fence),
+		int64(sequence), int16(pb.SnapshotState_SNAPSHOT_STATE_STAGING), int16(pb.SnapshotState_SNAPSHOT_STATE_VALIDATING),
 		base.SnapshotId, int16(pb.SnapshotState_SNAPSHOT_STATE_PUBLISHED), int64(base.Sequence), base.ManifestHash.Sha256,
-		base.RepresentationGeneration, int64(plan.RegistryRevision)).Scan(&valid)
+		base.RepresentationGeneration, int64(revision)).Scan(&valid)
 	if err != nil {
 		return err
 	}
@@ -50,6 +55,10 @@ func (r *Repository) VerifyGraphAssemblyPublication(ctx context.Context, plan *p
 }
 
 func (r *Repository) VerifyGraphAssemblySourceCheckpoint(ctx context.Context, corpus, job, checkpointID string, ref *pb.ArtifactRef) error {
+	return verifyGraphAssemblySourceCheckpoint(ctx, r.pool, corpus, job, checkpointID, ref)
+}
+
+func verifyGraphAssemblySourceCheckpoint(ctx context.Context, query indexQuerier, corpus, job, checkpointID string, ref *pb.ArtifactRef) error {
 	if !storageIDPattern.MatchString(corpus) || !storageIDPattern.MatchString(job) || !storageIDPattern.MatchString(checkpointID) || ref == nil {
 		return errors.New("complete ASSEMBLE source checkpoint required")
 	}
@@ -59,7 +68,7 @@ func (r *Repository) VerifyGraphAssemblySourceCheckpoint(ctx context.Context, co
 	if ref.SchemaVersion != 1 || ref.MediaType != "application/x-protobuf" && ref.MediaType != "application/x-protobuf; message=regulagraph.v1.ResolutionBatch" {
 		return errors.New("typed RESOLVE artifact required")
 	}
-	registered, err := r.LoadArtifact(ctx, corpus, ref.ArtifactId)
+	registered, err := loadArtifact(ctx, query, corpus, ref.ArtifactId)
 	if err != nil {
 		return err
 	}
@@ -70,7 +79,7 @@ func (r *Repository) VerifyGraphAssemblySourceCheckpoint(ctx context.Context, co
 	var digest, storedID string
 	var fence int64
 	var terminal int16
-	err = r.pool.QueryRow(ctx, `SELECT c.payload,c.payload_hash,c.checkpoint_id,c.fence,COALESCE(c.terminal_status,0)
+	err = query.QueryRow(ctx, `SELECT CASE WHEN octet_length(c.payload)<=16777216 THEN c.payload ELSE NULL END,c.payload_hash,c.checkpoint_id,c.fence,COALESCE(c.terminal_status,0)
  FROM jobs j JOIN job_checkpoints c ON c.checkpoint_id=j.latest_checkpoint_id AND c.job_id=j.job_id
  WHERE j.job_id=$1 AND j.corpus_id=$2 AND NOT j.cancellation_requested
  AND j.stage=$3 AND c.stage=$3 AND c.fence=j.lease_fence AND j.state IN ($4,$5)`, job, corpus, int16(pb.JobStage_JOB_STAGE_RESOLVE),
