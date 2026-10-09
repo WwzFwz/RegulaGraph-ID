@@ -1,5 +1,5 @@
-// Coordinates snapshot-bound Vector/Hybrid RAG candidate search through the
-// production retrieval branches. Hybrid branches run concurrently; an error
+// Coordinates all four snapshot-bound RAG profiles through production retrieval
+// branches. Hybrid branches run concurrently; an error
 // cancels its sibling and never silently changes the effective profile. The
 // caller owns authorization/read lease, generation admission and later evidence
 // hydration/legal filtering. These candidates are not yet an EvidenceBundle.
@@ -18,6 +18,7 @@ import (
 	pb "regulagraph.local/server/gen/regulagraph/v1"
 	"regulagraph.local/server/internal/adapters/qdrant"
 	"regulagraph.local/server/internal/retrieval"
+	"regulagraph.local/server/internal/retrieval/graph"
 )
 
 type CandidateBranch func(context.Context, retrieval.SearchInput) (*retrieval.BranchOutput, error)
@@ -25,6 +26,7 @@ type CandidateBranch func(context.Context, retrieval.SearchInput) (*retrieval.Br
 type CandidateSearch struct {
 	Dense   CandidateBranch
 	Lexical CandidateBranch
+	Graph   CandidateBranch
 	Fusion  retrieval.RRFConfig
 }
 
@@ -35,21 +37,43 @@ type CandidateSearchResult struct {
 	Hits       map[string]qdrant.Hit
 	Branches   []*retrieval.BranchOutput
 	Duration   time.Duration
+	Graph      *graph.TraversalResult
 }
 
 // SearchCandidates retains every returned candidate up to the explicit branch
-// budgets. Only Vector RAG and Hybrid RAG are admitted; graph-dependent profiles
-// fail before calling dependencies. It never acquires/releases the caller's pin.
+// budgets. Every branch required by the explicit profile must be configured;
+// graph discovery travels with its ranked source candidates. It never acquires
+// or releases the caller's pin, and does not infer a fallback profile.
 func (s *CandidateSearch) SearchCandidates(ctx context.Context, input retrieval.SearchInput, profile pb.RetrievalProfile) (*CandidateSearchResult, error) {
 	started := time.Now()
-	if ctx == nil || s == nil || s.Dense == nil || input.Context == nil || input.Context.SnapshotRef == nil || input.Generation == nil {
+	if ctx == nil || s == nil || input.Context == nil || input.Context.SnapshotRef == nil || input.Generation == nil {
 		return nil, errors.New("candidate search dependencies and pinned input required")
 	}
-	if profile != pb.RetrievalProfile_RETRIEVAL_PROFILE_VECTOR_RAG && profile != pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_RAG {
-		return nil, errors.New("candidate search supports only explicit vector or hybrid RAG profiles")
+	var branches []CandidateBranch
+	var kinds []pb.RetrieverKind
+	add := func(branch CandidateBranch, kind pb.RetrieverKind) {
+		branches = append(branches, branch)
+		kinds = append(kinds, kind)
 	}
-	if profile == pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_RAG && s.Lexical == nil {
-		return nil, errors.New("hybrid RAG requires lexical branch")
+	switch profile {
+	case pb.RetrievalProfile_RETRIEVAL_PROFILE_VECTOR_RAG:
+		add(s.Dense, pb.RetrieverKind_RETRIEVER_KIND_DENSE)
+	case pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_RAG:
+		add(s.Dense, pb.RetrieverKind_RETRIEVER_KIND_DENSE)
+		add(s.Lexical, pb.RetrieverKind_RETRIEVER_KIND_BM25)
+	case pb.RetrievalProfile_RETRIEVAL_PROFILE_GRAPH_RAG:
+		add(s.Graph, pb.RetrieverKind_RETRIEVER_KIND_GRAPH)
+	case pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_GRAPH_RAG:
+		add(s.Dense, pb.RetrieverKind_RETRIEVER_KIND_DENSE)
+		add(s.Lexical, pb.RetrieverKind_RETRIEVER_KIND_BM25)
+		add(s.Graph, pb.RetrieverKind_RETRIEVER_KIND_GRAPH)
+	default:
+		return nil, errors.New("unsupported retrieval profile")
+	}
+	for _, branch := range branches {
+		if branch == nil {
+			return nil, errors.New("requested profile requires every configured branch")
+		}
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -60,12 +84,6 @@ func (s *CandidateSearch) SearchCandidates(ctx context.Context, input retrieval.
 		index  int
 		result *retrieval.BranchOutput
 		err    error
-	}
-	branches := []CandidateBranch{s.Dense}
-	kinds := []pb.RetrieverKind{pb.RetrieverKind_RETRIEVER_KIND_DENSE}
-	if profile == pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_RAG {
-		branches = append(branches, s.Lexical)
-		kinds = append(kinds, pb.RetrieverKind_RETRIEVER_KIND_BM25)
 	}
 	preflight := make([]retrieval.RankedBranch, len(kinds))
 	for i, kind := range kinds {
@@ -108,11 +126,23 @@ func (s *CandidateSearch) SearchCandidates(ctx context.Context, input retrieval.
 	}
 	ranked := make([]retrieval.RankedBranch, len(ordered))
 	hits := map[string]qdrant.Hit{}
+	var paths *graph.TraversalResult
 	for i, branch := range ordered {
 		if branch == nil || branch.Ranking.Kind != kinds[i] || len(branch.Hits) != len(branch.Ranking.Candidates) {
 			return nil, errors.New("branch result identity or cardinality mismatch")
 		}
 		ranked[i] = branch.Ranking
+		if kinds[i] == pb.RetrieverKind_RETRIEVER_KIND_GRAPH {
+			if branch.Graph == nil || !proto.Equal(branch.Graph.Snapshot, input.Context.SnapshotRef) {
+				return nil, errors.New("graph branch lost pinned discovery")
+			}
+			if err := validateCandidateTraversal(branch.Graph); err != nil {
+				return nil, err
+			}
+			paths = cloneTraversal(branch.Graph)
+		} else if branch.Graph != nil {
+			return nil, errors.New("non-graph branch supplied graph proof")
+		}
 		for j, hit := range branch.Hits {
 			candidate := branch.Ranking.Candidates[j]
 			if candidate == nil || hit.RecordID != candidate.EvidenceKey {
@@ -129,5 +159,5 @@ func (s *CandidateSearch) SearchCandidates(ctx context.Context, input retrieval.
 	if err != nil {
 		return nil, err
 	}
-	return &CandidateSearchResult{Profile: profile, Snapshot: proto.Clone(input.Context.SnapshotRef).(*pb.SnapshotRef), Candidates: fused, Hits: hits, Branches: ordered, Duration: time.Since(started)}, nil
+	return &CandidateSearchResult{Profile: profile, Snapshot: proto.Clone(input.Context.SnapshotRef).(*pb.SnapshotRef), Candidates: fused, Hits: hits, Branches: ordered, Duration: time.Since(started), Graph: paths}, nil
 }

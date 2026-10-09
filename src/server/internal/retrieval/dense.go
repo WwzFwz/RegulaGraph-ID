@@ -35,6 +35,7 @@ import (
 	pb "regulagraph.local/server/gen/regulagraph/v1"
 	"regulagraph.local/server/internal/adapters/qdrant"
 	"regulagraph.local/server/internal/domain"
+	"regulagraph.local/server/internal/retrieval/graph"
 )
 
 // EmbeddingClient is implemented by the reusable native adapter. Retrieval also
@@ -58,6 +59,7 @@ type BranchOutput struct {
 	Hits     []qdrant.Hit
 	OOV      uint32
 	Duration time.Duration
+	Graph    *graph.TraversalResult // Only GRAPH; owned admitted discovery, not client DTOs.
 }
 
 type SearchInput struct {

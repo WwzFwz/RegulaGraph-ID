@@ -14,8 +14,9 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: workflow draft dari EvidenceBundle terpin aktif; graph profile menuntut
-// immutable GraphContext untuk rendering/citation/final validation. Query routing
-// graph, tokenizer generator nyata dan streaming masih perlu disambungkan.
+// immutable GraphContext untuk rendering/citation/final validation. Empat profil
+// retrieval terhubung di library; automatic seed linking/API graph, tokenizer
+// generator nyata dan streaming masih perlu disambungkan.
 // Integrasi berikutnya:
 // Pin one snapshot, resolve temporal intent, coordinate retrieval/context/generation and validate terminal evidence; propagate cancellation.
 // Bukti verifikasi: Test unavailable dependencies, evidence conflicts and snapshot rollover mid-request; trace queue and stage durations.

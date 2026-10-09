@@ -16,8 +16,10 @@ import (
 	"google.golang.org/protobuf/proto"
 	pb "regulagraph.local/server/gen/regulagraph/v1"
 	"regulagraph.local/server/internal/adapters/qdrant"
+	"regulagraph.local/server/internal/answering"
 	"regulagraph.local/server/internal/domain"
 	"regulagraph.local/server/internal/retrieval"
+	"regulagraph.local/server/internal/retrieval/graph"
 )
 
 // HydratedCandidates is local accounting, not another wire schema. Each searched
@@ -33,21 +35,23 @@ type HydratedCandidates struct {
 type CandidateHydrator func(context.Context, *pb.QuestionRequest, *CandidateSearchResult) (*HydratedCandidates, error)
 
 type RAGWorkflow struct {
-	Search   *CandidateSearch
-	Hydrate  CandidateHydrator
-	Answer   *EvidenceAnswerWorkflow
-	Reranker *retrieval.EvidenceReranker
-	profile  pb.RetrievalProfile // Nonzero pins a prepared factory's enabled profile.
+	Search         *CandidateSearch
+	Hydrate        CandidateHydrator
+	Answer         *EvidenceAnswerWorkflow
+	Reranker       *retrieval.EvidenceReranker
+	profile        pb.RetrievalProfile                                // Nonzero pins a prepared factory's enabled profile.
+	GraphAdmission func(context.Context, retrieval.SearchInput) error // Live graph authority, required for graph profiles.
 }
 
 type RAGResult struct {
-	Search     *CandidateSearchResult
-	Evidence   *pb.EvidenceBundle
-	Answer     *EvidenceAnswerResult
-	Reranking  *retrieval.EvidenceRerankResult
-	Rejected   map[string]string
-	Duration   time.Duration
-	sourceURLs domain.SourceURLLookup
+	Search       *CandidateSearchResult
+	Evidence     *pb.EvidenceBundle
+	Answer       *EvidenceAnswerResult
+	Reranking    *retrieval.EvidenceRerankResult
+	Rejected     map[string]string
+	Duration     time.Duration
+	sourceURLs   domain.SourceURLLookup
+	graphContext *answering.GraphContext
 }
 
 // AnswerPinnedQuestion is the shared composition point for CLI/API/evaluation.
@@ -62,9 +66,14 @@ func (w *RAGWorkflow) AnswerPinnedQuestion(ctx context.Context, request *pb.Ques
 	if err != nil {
 		return nil, err
 	}
-	answer, err := w.Answer.AnswerEvidence(ctx, request, input.Context, result.Evidence, result.sourceURLs)
+	answer, err := w.Answer.AnswerEvidence(ctx, request, input.Context, result.Evidence, result.sourceURLs, result.graphContext)
 	if err != nil {
 		return nil, err
+	}
+	if result.graphContext != nil {
+		if err = w.GraphAdmission(ctx, input); err != nil {
+			return nil, err
+		}
 	}
 	result.Answer, result.Duration = answer, time.Since(started)
 	return result, nil
@@ -83,6 +92,9 @@ func (w *RAGWorkflow) SearchPinnedQuestion(ctx context.Context, request *pb.Ques
 	}
 	if w.profile != pb.RetrievalProfile_RETRIEVAL_PROFILE_UNSPECIFIED && w.profile != request.RequestedProfile {
 		return nil, errors.New("request profile differs from prepared query")
+	}
+	if (request.RequestedProfile == pb.RetrievalProfile_RETRIEVAL_PROFILE_GRAPH_RAG || request.RequestedProfile == pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_GRAPH_RAG) && w.GraphAdmission == nil {
+		return nil, errors.New("graph RAG requires final live authority check")
 	}
 	if err := domain.ValidateWire(input.Context, domain.DefaultWireLimits); err != nil {
 		return nil, err
@@ -114,12 +126,31 @@ func (w *RAGWorkflow) SearchPinnedQuestion(ctx context.Context, request *pb.Ques
 		return nil, err
 	}
 	result := &RAGResult{Search: found, Evidence: hydrated.Evidence, Rejected: hydrated.Rejected, sourceURLs: hydrated.SourceURLs}
+	var mapping *graph.EvidenceMapping
+	if found.Graph != nil {
+		mapping, err = mergeGraphEvidence(found.Graph, request, hydrated)
+		if err != nil {
+			return nil, err
+		}
+		result.Evidence = mapping.Bundle
+		result.Rejected = hydrated.Rejected
+	}
 	if w.Reranker != nil {
-		result.Reranking, err = w.Reranker.Rank(call, input.Context, request.Question, hydrated.Evidence)
+		result.Reranking, err = w.Reranker.Rank(call, input.Context, request.Question, result.Evidence)
 		if err != nil {
 			return nil, fmt.Errorf("rerank authenticated evidence: %w", err)
 		}
 		result.Evidence = result.Reranking.Evidence
+	}
+	if mapping != nil {
+		mapping.Bundle = result.Evidence
+		result.graphContext, err = answering.NewGraphContext(found.Graph, mapping)
+		if err != nil {
+			return nil, err
+		}
+		if err = w.GraphAdmission(call, input); err != nil {
+			return nil, err
+		}
 	}
 	result.Duration = time.Since(started)
 	return result, nil
@@ -129,6 +160,7 @@ func (w *RAGWorkflow) SearchPinnedQuestion(ctx context.Context, request *pb.Ques
 // rewrite the expected version/identity/provenance used by the boundary gate.
 func cloneCandidateSearch(found *CandidateSearchResult) *CandidateSearchResult {
 	copy := *found
+	copy.Graph = cloneTraversal(found.Graph)
 	copy.Snapshot = proto.Clone(found.Snapshot).(*pb.SnapshotRef)
 	copy.Candidates = make([]retrieval.FusedCandidate, len(found.Candidates))
 	cloneRanking := func(candidates []*pb.Candidate) []*pb.Candidate {
@@ -150,6 +182,7 @@ func cloneCandidateSearch(found *CandidateSearchResult) *CandidateSearchResult {
 	copy.Branches = make([]*retrieval.BranchOutput, len(found.Branches))
 	for i, branch := range found.Branches {
 		owned := *branch
+		owned.Graph = cloneTraversal(branch.Graph)
 		owned.Ranking = retrieval.RankedBranch{Kind: branch.Ranking.Kind, Candidates: cloneRanking(branch.Ranking.Candidates)}
 		owned.Hits = make([]qdrant.Hit, len(branch.Hits))
 		for j, hit := range branch.Hits {

@@ -45,6 +45,15 @@ type TraversalConfig struct {
 	Read         domain.GraphReadLimits
 }
 
+// Validate also runs during preparation, so an empty seed result cannot hide
+// invalid traversal limits until a later question happens to match an entity.
+func (config TraversalConfig) Validate() error {
+	if config.MaximumHops < 1 || config.MaximumHops > 16 || config.MaximumPaths < 1 || config.MaximumPaths > 4096 || config.Read.Assertions < 1 || config.Read.Assertions > 128 || config.Read.Supports < 1 || config.Read.Supports > 256 || config.Read.Bytes < 1 || config.Read.Bytes > 16<<20 {
+		return errors.New("bounded graph traversal configuration required")
+	}
+	return nil
+}
+
 type TraversalResult struct {
 	Snapshot          *pb.SnapshotRef
 	Paths             []*pb.GraphPath
@@ -62,7 +71,7 @@ type TraversalResult struct {
 // Seeds must already be linked under the same authorized snapshot. Deadline comes
 // from the request/pin; no timer goroutine or model call is created here.
 func Traverse(ctx context.Context, reader NeighborhoodReader, snapshot *pb.SnapshotRef, seeds []string, config TraversalConfig) (*TraversalResult, error) {
-	if ctx == nil || reader == nil || snapshot == nil || len(seeds) < 1 || len(seeds) > 64 || config.MaximumHops < 1 || config.MaximumHops > 16 || config.MaximumPaths < 1 || config.MaximumPaths > 4096 || config.Read.Assertions < 1 || config.Read.Assertions > 128 || config.Read.Supports < 1 || config.Read.Supports > 256 || config.Read.Bytes < 1 || config.Read.Bytes > 16<<20 {
+	if ctx == nil || reader == nil || snapshot == nil || len(seeds) < 1 || len(seeds) > 64 || config.Validate() != nil {
 		return nil, errors.New("bounded traversal configuration and snapshot required")
 	}
 	if _, ok := ctx.Deadline(); !ok {
