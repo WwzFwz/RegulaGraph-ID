@@ -59,6 +59,10 @@ func configuration(env func(string) string) (string, api.EvidenceRuntimeConfig, 
 	if err != nil {
 		return "", runtime, routes.EvidenceConfig{}, err
 	}
+	runtime.TimeZone = env("REGULAGRAPH_QUERY_TIME_ZONE")
+	if _, err = query.LoadQueryTimeZone(runtime.TimeZone); err != nil {
+		return "", runtime, routes.EvidenceConfig{}, err
+	}
 	runtime.GraphPath = env("REGULAGRAPH_QUERY_GRAPH_CONFIG")
 	runtime.GraphHash = env("REGULAGRAPH_QUERY_GRAPH_CONFIG_SHA256")
 	runtime.GraphUsername = env("REGULAGRAPH_NEO4J_USERNAME")
@@ -81,7 +85,7 @@ func configuration(env func(string) string) (string, api.EvidenceRuntimeConfig, 
 			return "", runtime, routes.EvidenceConfig{}, errors.New("API timeout must be between 1s and 5m")
 		}
 	}
-	httpConfig := routes.EvidenceConfig{Token: env("REGULAGRAPH_API_TOKEN"), Corpus: runtime.Corpus, Profile: profile, Concurrent: 8, Timeout: runtime.Timeout}
+	httpConfig := routes.EvidenceConfig{TimeZone: runtime.TimeZone, Token: env("REGULAGRAPH_API_TOKEN"), Corpus: runtime.Corpus, Profile: profile, Concurrent: 8, Timeout: runtime.Timeout}
 	httpConfig.EnableAnswers = runtime.EnableAnswers
 	if err := routes.ValidateEvidenceConfig(httpConfig); err != nil {
 		return "", runtime, httpConfig, err

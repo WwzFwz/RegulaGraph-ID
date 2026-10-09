@@ -65,6 +65,10 @@ func (h *Evidence) serveAnswer(ctx context.Context, w http.ResponseWriter, reque
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
+	if err = writeTemporalHeaders(w, request, result, h.config.TimeZone); err != nil {
+		evidenceError(w, 502, "invalid_workflow_output")
+		return
+	}
 	w.Header().Set("X-Evidence-ID", result.Evidence.Meta.RecordId)
 	w.Header().Set("X-Answer-ID", result.Answer.Draft.Answer.Meta.RecordId)
 	_, _ = w.Write(raw)
@@ -76,12 +80,16 @@ func encodeAnswerDraft(request *pb.QuestionRequest, result *workflows.RAGResult)
 	}
 	b, draft := result.Evidence, result.Answer.Draft
 	a := draft.Answer
+	effectiveDate, err := resultEffectiveDate(request, result)
+	if err != nil {
+		return nil, err
+	}
 	for _, message := range []proto.Message{b, a} {
 		if err := domain.ValidateWire(message, domain.DefaultWireLimits); err != nil {
 			return nil, err
 		}
 	}
-	if a.Meta.CorpusId != request.CorpusId || b.Meta.CorpusId != request.CorpusId || !proto.Equal(a.Snapshot, b.Snapshot) || a.CompletionStatus != pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED || b.CompletionStatus != pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED || (a.SemanticStatus != pb.SemanticStatus_SEMANTIC_STATUS_PARTIAL && a.SemanticStatus != pb.SemanticStatus_SEMANTIC_STATUS_ABSTAIN) || len(a.EffectiveDates) != 1 || !proto.Equal(a.EffectiveDates[0], request.TemporalScope.EffectiveAt) {
+	if a.Meta.CorpusId != request.CorpusId || b.Meta.CorpusId != request.CorpusId || !proto.Equal(a.Snapshot, b.Snapshot) || a.CompletionStatus != pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED || b.CompletionStatus != pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED || (a.SemanticStatus != pb.SemanticStatus_SEMANTIC_STATUS_PARTIAL && a.SemanticStatus != pb.SemanticStatus_SEMANTIC_STATUS_ABSTAIN) || len(a.EffectiveDates) != 1 || !proto.Equal(a.EffectiveDates[0], effectiveDate) {
 		return nil, errors.New("answer identity, date or draft status mismatch")
 	}
 	if (request.SnapshotId != nil && *request.SnapshotId != a.Snapshot.SnapshotId) || (request.TemporalScope.KnowledgeSnapshot != nil && !proto.Equal(request.TemporalScope.KnowledgeSnapshot, a.Snapshot)) {

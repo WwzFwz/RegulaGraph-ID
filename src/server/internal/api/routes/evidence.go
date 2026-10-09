@@ -20,14 +20,17 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	pb "regulagraph.local/server/gen/regulagraph/v1"
 	"regulagraph.local/server/internal/domain"
+	"regulagraph.local/server/internal/retrieval/query"
+	"regulagraph.local/server/internal/workflows"
 )
 
 type EvidenceService interface {
-	Search(context.Context, *pb.QuestionRequest) (*pb.EvidenceBundle, error)
+	Search(context.Context, *pb.QuestionRequest) (*workflows.RAGResult, error)
 	Ready(context.Context) error
 }
 
 type EvidenceConfig struct {
+	TimeZone      string
 	Token, Corpus string
 	EnableAnswers bool
 	Profile       pb.RetrievalProfile
@@ -64,6 +67,9 @@ func NewEvidence(service EvidenceService, cfg EvidenceConfig) (*Evidence, error)
 }
 
 func ValidateEvidenceConfig(cfg EvidenceConfig) error {
+	if _, err := query.LoadQueryTimeZone(cfg.TimeZone); err != nil {
+		return err
+	}
 	if len(cfg.Token) < 32 || len(cfg.Token) > 256 || strings.ContainsAny(cfg.Token, " \t\r\n") || cfg.Corpus == "" || cfg.Concurrent < 1 || cfg.Concurrent > 128 || cfg.Timeout < time.Second || cfg.Timeout > 5*time.Minute || (cfg.Profile != pb.RetrievalProfile_RETRIEVAL_PROFILE_VECTOR_RAG && cfg.Profile != pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_RAG && cfg.Profile != pb.RetrievalProfile_RETRIEVAL_PROFILE_GRAPH_RAG && cfg.Profile != pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_GRAPH_RAG) {
 		return errors.New("invalid evidence HTTP configuration")
 	}
@@ -177,7 +183,7 @@ func (h *Evidence) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		evidenceError(w, 403, "corpus_not_authorized")
 		return
 	}
-	if request.RequestedProfile != h.config.Profile || request.ResponseMode != pb.ResponseMode_RESPONSE_MODE_COMPLETE || request.TemporalScope == nil || request.TemporalScope.Mode != pb.TemporalMode_TEMPORAL_MODE_AS_OF || request.TemporalScope.EffectiveAt == nil || len(request.TemporalScope.CompareDates) != 0 {
+	if request.RequestedProfile != h.config.Profile || request.ResponseMode != pb.ResponseMode_RESPONSE_MODE_COMPLETE || request.TemporalScope == nil || !supportedTemporalRequest(request.TemporalScope, h.config.TimeZone != "") {
 		evidenceError(w, 400, "unsupported_query_mode")
 		return
 	}
@@ -185,7 +191,7 @@ func (h *Evidence) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.serveAnswer(ctx, w, request)
 		return
 	}
-	result, err := h.service.Search(ctx, request)
+	run, err := h.service.Search(ctx, request)
 	if err != nil {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) || errors.Is(err, context.DeadlineExceeded) {
 			evidenceError(w, 504, "deadline_exceeded")
@@ -200,6 +206,11 @@ func (h *Evidence) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		evidenceError(w, 504, "deadline_exceeded")
 		return
 	}
+	if run == nil || writeTemporalHeaders(w, request, run, h.config.TimeZone) != nil {
+		evidenceError(w, 502, "invalid_workflow_output")
+		return
+	}
+	result := run.Evidence
 	if result == nil || result.Meta == nil || result.Meta.CorpusId != h.config.Corpus || domain.ValidateWire(result, domain.DefaultWireLimits) != nil {
 		evidenceError(w, 502, "invalid_workflow_output")
 		return

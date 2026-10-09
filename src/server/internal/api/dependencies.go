@@ -56,6 +56,7 @@ import (
 // EvidenceRuntimeConfig is operator configuration, never a request payload.
 // This local runtime serves one explicitly authorized corpus and profile.
 type EvidenceRuntimeConfig struct {
+	TimeZone                                                     string
 	Normalization                                                query.NormalizationMode
 	DSN, ArtifactRoot, NativeEndpoint, QdrantEndpoint, QdrantKey string
 	Corpus, AuthScope, Build                                     string
@@ -68,6 +69,7 @@ type EvidenceRuntimeConfig struct {
 }
 
 type EvidenceRuntime struct {
+	timeZone    *time.Location
 	config      EvidenceRuntimeConfig
 	repo        *postgres.Repository
 	files       *storage.FileStore
@@ -90,6 +92,10 @@ func OpenEvidenceRuntime(ctx context.Context, cfg EvidenceRuntimeConfig) (*Evide
 		return nil, modeErr
 	}
 	cfg.Normalization = mode
+	zone, zoneErr := query.LoadQueryTimeZone(cfg.TimeZone)
+	if zoneErr != nil {
+		return nil, zoneErr
+	}
 	graphProfile := cfg.Profile == pb.RetrievalProfile_RETRIEVAL_PROFILE_GRAPH_RAG || cfg.Profile == pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_GRAPH_RAG
 	host, port, err := net.SplitHostPort(cfg.NativeEndpoint)
 	number, portErr := strconv.Atoi(port)
@@ -137,15 +143,16 @@ func OpenEvidenceRuntime(ctx context.Context, cfg EvidenceRuntimeConfig) (*Evide
 	// and route pins; the actual model generation is added from the catalog.
 	raw, _ := json.Marshal(struct {
 		Corpus, Scope, Build, Native, Qdrant string
+		TimeZone, TemporalPolicy             string
 		Normalization                        query.NormalizationMode
 		Profile                              pb.RetrievalProfile
 		Limit                                int
 		Timeout                              time.Duration
 		GraphHash                            string
 		AnswerHash                           string
-	}{cfg.Corpus, cfg.AuthScope, cfg.Build, cfg.NativeEndpoint, cfg.QdrantEndpoint, cfg.Normalization, cfg.Profile, cfg.Limit, cfg.Timeout, cfg.GraphHash, cfg.AnswerHash})
+	}{cfg.Corpus, cfg.AuthScope, cfg.Build, cfg.NativeEndpoint, cfg.QdrantEndpoint, cfg.TimeZone, query.TemporalPolicyVersion, cfg.Normalization, cfg.Profile, cfg.Limit, cfg.Timeout, cfg.GraphHash, cfg.AnswerHash})
 	hash := sha256.Sum256(raw)
-	r := &EvidenceRuntime{config: cfg, fingerprint: &pb.ContentHash{Sha256: hex.EncodeToString(hash[:])}, preparing: make(chan struct{}, 1), graphConfig: graphConfig}
+	r := &EvidenceRuntime{config: cfg, timeZone: zone, fingerprint: &pb.ContentHash{Sha256: hex.EncodeToString(hash[:])}, preparing: make(chan struct{}, 1), graphConfig: graphConfig}
 	if answerConfig != nil {
 		r.answer, err = workflows.OpenLocalAnswer(ctx, answerConfig, cfg.AnswerKey, cfg.Build, cfg.Timeout)
 		if err != nil {
@@ -304,12 +311,8 @@ func (r *EvidenceRuntime) prepare(ctx context.Context, index *domain.PinnedIndex
 	return resource, release, nil
 }
 
-func (r *EvidenceRuntime) Search(ctx context.Context, question *pb.QuestionRequest) (*pb.EvidenceBundle, error) {
-	result, err := r.query(ctx, question, false)
-	if err != nil {
-		return nil, err
-	}
-	return result.Evidence, nil
+func (r *EvidenceRuntime) Search(ctx context.Context, question *pb.QuestionRequest) (*workflows.RAGResult, error) {
+	return r.query(ctx, question, false)
 }
 func (r *EvidenceRuntime) AnswerEnabled() bool { return r != nil && r.answer != nil }
 
@@ -335,7 +338,7 @@ func (r *EvidenceRuntime) query(ctx context.Context, question *pb.QuestionReques
 			release()
 		}
 	}()
-	session := &workflows.RAGSession{Store: r.repo, OwnerID: call.RequestId, MaximumDuration: r.config.Timeout, SearchLimit: r.config.Limit, Factory: func(c context.Context, index *domain.PinnedIndex) (*workflows.RAGWorkflow, error) {
+	session := &workflows.RAGSession{TimeZone: r.timeZone, Store: r.repo, OwnerID: call.RequestId, MaximumDuration: r.config.Timeout, SearchLimit: r.config.Limit, Factory: func(c context.Context, index *domain.PinnedIndex) (*workflows.RAGWorkflow, error) {
 		resource, done, e := r.prepare(c, index, call)
 		if e != nil {
 			return nil, e

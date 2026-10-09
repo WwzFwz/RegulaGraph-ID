@@ -7,6 +7,23 @@ import (
 	"time"
 )
 
+func TestAPIQueryTimeZoneEnvironment(t *testing.T) {
+	env := map[string]string{"REGULAGRAPH_API_TOKEN": "test-operator-token-at-least-32-characters", "REGULAGRAPH_QUERY_CORPUS_ID": "corpus:test", "REGULAGRAPH_API_PROFILE": "hybrid"}
+	for _, zone := range []string{"", "Asia/Jakarta", "UTC", "Local", "invalid/zone"} {
+		env["REGULAGRAPH_QUERY_TIME_ZONE"] = zone
+		_, runtime, route, err := configuration(func(k string) string { return env[k] })
+		if zone == "Local" || zone == "invalid/zone" {
+			if err == nil {
+				t.Fatal("accepted zone", zone)
+			}
+			continue
+		}
+		if err != nil || runtime.TimeZone != zone || route.TimeZone != zone {
+			t.Fatal("time zone policy drift", zone, err)
+		}
+	}
+}
+
 func TestAPIQueryNormalizationEnvironment(t *testing.T) {
 	env := map[string]string{"REGULAGRAPH_API_TOKEN": "test-operator-token-at-least-32-characters", "REGULAGRAPH_QUERY_CORPUS_ID": "corpus:test", "REGULAGRAPH_API_PROFILE": "hybrid"}
 	for _, mode := range []string{"", "original-v1", "mechanical-v1", "guess"} {

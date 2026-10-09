@@ -16,6 +16,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 	pb "regulagraph.local/server/gen/regulagraph/v1"
+	"regulagraph.local/server/internal/workflows"
 )
 
 const questionJSON = `{"corpus_id":"corpus:test","question":"Apa ketentuan izin?","response_mode":"RESPONSE_MODE_COMPLETE","requested_profile":"RETRIEVAL_PROFILE_HYBRID_RAG","temporal_scope":{"mode":"TEMPORAL_MODE_AS_OF","effective_at":{"year":2026,"month":1,"day":1},"unresolved_policy":"UNRESOLVED_POLICY_REPORT"}}`
@@ -48,9 +49,10 @@ type evidenceFake struct {
 	ready  error
 }
 
-func (f *evidenceFake) Search(ctx context.Context, _ *pb.QuestionRequest) (*pb.EvidenceBundle, error) {
+func (f *evidenceFake) Search(ctx context.Context, _ *pb.QuestionRequest) (*workflows.RAGResult, error) {
 	f.calls.Add(1)
-	return f.search(ctx)
+	bundle, err := f.search(ctx)
+	return &workflows.RAGResult{Evidence: bundle}, err
 }
 func (f *evidenceFake) Ready(context.Context) error { return f.ready }
 func bundleFixture() *pb.EvidenceBundle {

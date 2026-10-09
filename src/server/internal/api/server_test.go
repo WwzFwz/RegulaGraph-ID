@@ -16,6 +16,7 @@ import (
 
 	pb "regulagraph.local/server/gen/regulagraph/v1"
 	"regulagraph.local/server/internal/api/routes"
+	"regulagraph.local/server/internal/workflows"
 )
 
 type lifecycleEvidence struct{ entered, release chan struct{} }
@@ -28,7 +29,7 @@ func TestAnswerServerRejectsEvidenceOnlyRuntime(t *testing.T) {
 	}
 }
 
-func (s *lifecycleEvidence) Search(ctx context.Context, _ *pb.QuestionRequest) (*pb.EvidenceBundle, error) {
+func (s *lifecycleEvidence) Search(ctx context.Context, _ *pb.QuestionRequest) (*workflows.RAGResult, error) {
 	close(s.entered)
 	select {
 	case <-s.release:
