@@ -4,6 +4,11 @@ Native published graph test memperoleh seed melalui exact-alias lookup PostgreSQ
 dari teks pertanyaan. Alias/model tetap sintetis; kedua profil graph diuji sampai
 draft tanpa klaim candidate recall pada corpus nyata.
 
+`published_graph_cli_test.go` menjalankan executable CLI graph-only terhadap
+schema database terisolasi dan FileStore fixture, tanpa endpoint native. Set
+`REGULAGRAPH_TEST_QUERY_CLI` ke binary hasil build untuk mengaktifkannya bersama
+native graph opt-in; tanpa variabel tersebut pemeriksaan executable tidak dijalankan.
+
 `published_graph_test.go` melanjutkan fixture native ke admission scope/pin dan
 pembacaan record Neo4j, discovery traversal dan hidrasi support dari snapshot terbit.
 Lookup Qdrant diteruskan ke verifikasi PostgreSQL/artefak sumber; pencabutan pin pada

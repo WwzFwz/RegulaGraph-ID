@@ -1,5 +1,10 @@
 # src/server/cmd/cli
 
+`query-evidence` menerima `graph` dan `hybrid-graph` dengan file route/policy
+terpin; graph-only tanpa reranker tidak membuka native inference. Command
+tetap evidence-only. Scope operator berasal dari konfigurasi, bukan pertanyaan.
+Lihat [penggunaan](../../../../doc/query-evidence.md).
+
 `semantic_review.go` menyediakan `review-resolution` untuk inspeksi dan acceptance
 batch LINK/DEFER exact. Akun OS menjadi identitas audit; corpus/scope dan kredensial
 operator menjadi batas akses. Approval belum berarti registry committed/published;

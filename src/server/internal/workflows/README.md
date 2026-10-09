@@ -7,7 +7,7 @@ Traversal harus berasal dari reader terautentikasi, bukan input klien/model.
 menyambungkan empat profil retrieval, shared hydration, reranking, immutable
 rendering serta authority check setelah generation. Resolver seed adalah port
 read-only eksplisit; `query_graph_seeds.go` menghubungkan exact-alias lookup terpin
-dari pertanyaan. Konfigurasi graph API/CLI belum tersambung. Lihat
+dari pertanyaan. Konfigurasi graph API belum tersambung. Lihat
 [linking](../../../../doc/query-entity-linking.md), [graph fusion](../../../../doc/graph-fusion.md),
 [kontrak bukti](../../../../doc/graph-evidence.md) dan [rendering](../../../../doc/graph-context.md).
 

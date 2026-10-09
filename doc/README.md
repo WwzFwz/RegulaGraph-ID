@@ -1,5 +1,9 @@
 # doc
 
+[query-evidence.md](query-evidence.md) kini mencakup empat profil CLI, config graph
+terpin dan native optionality; [verifikasi](verification-report-graph-query-cli.md)
+mencatat executable graph-only pada database nyata.
+
 [query-entity-linking.md](query-entity-linking.md) menjelaskan exact-alias seed
 discovery, namespace policy, audit revision dan ambiguity.
 

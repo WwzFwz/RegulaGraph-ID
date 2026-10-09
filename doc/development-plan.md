@@ -1,9 +1,15 @@
 # Rencana implementasi berbasis dependency
 
+Checkpoint entrypoint graph: CLI `query-evidence` menerima graph/hybrid-graph
+dengan route/policy byte-pinned; graph-only executable teruji tanpa native
+endpoint terhadap snapshot nyata dengan data sintetis. Lihat
+[penggunaan](query-evidence.md). API graph configuration, command generation,
+corpus/model/gold run dan required acceptance masih terbuka.
+
 Checkpoint query linking: exact-alias seed discovery dari pertanyaan kini memakai
 registry snapshot-bound dengan audit key positif/negatif dan alternatif ambigu.
 Native kedua profil graph memakai lookup PostgreSQL hingga draft. Lihat
-[kontrak](query-entity-linking.md); API/CLI graph configuration, semantic query
+[kontrak](query-entity-linking.md); API graph configuration, semantic query
 disambiguation dan quality/performance acceptance tetap belum selesai.
 
 Checkpoint Q01: admission graph, typed reader dan discovery traversal kini teruji
@@ -16,7 +22,7 @@ generator/citation/final validation; [kontrak](graph-context.md) dan
 [verifikasi](verification-report-graph-context.md). Graph branch/fusion serta
 factory empat profil kini teruji sampai cited draft dengan fixed seed fixture:
 [kontrak](graph-fusion.md), [verifikasi](verification-report-graph-fusion.md).
-Berikutnya semantic query disambiguation, konfigurasi API/CLI graph,
+Berikutnya semantic query disambiguation, konfigurasi API graph,
 applicability/dependency resolution dan acceptance.
 
 Checkpoint terbaru K01: [adapter Neo4j](neo4j-graph-store.md) menulis generation

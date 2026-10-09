@@ -42,7 +42,8 @@ Ini batas admission, bukan target benchmark atau jaminan peak RSS.
 Baseline hanya exact alias dalam scope/jendela terkonfigurasi; typo, parafrasa,
 issuer implisit dan model disambiguation belum selesai. Unique match bukan bukti
 relevansi. Alias registry yang belum materialized di graph bisa menghasilkan read
-error eksplisit. API/CLI belum mengonfigurasi backend/policy graph. DTO lookup
+error eksplisit. [CLI](query-evidence.md) kini mengonfigurasi backend/policy graph;
+API belum. DTO lookup
 dibagi domain/adapter tanpa perubahan protobuf atau migration.
 
 Ukur candidate recall, false exclusions, ambiguity, scope coverage, key/alias
