@@ -67,7 +67,7 @@ func NewOpenAICompatibleProvider(config OpenAICompatibleConfig) (*OpenAICompatib
 		return nil, errors.New("provider timeout and response byte limit must be positive")
 	}
 	endpoint, err := url.Parse(config.Endpoint)
-	if err != nil || endpoint.Scheme == "" || endpoint.Host == "" {
+	if err != nil || endpoint.Scheme == "" || endpoint.Host == "" || endpoint.User != nil || endpoint.RawQuery != "" || endpoint.ForceQuery || endpoint.Fragment != "" {
 		return nil, errors.New("provider endpoint must be an absolute URL")
 	}
 	if endpoint.Scheme != "https" && !(endpoint.Scheme == "http" && loopbackHost(endpoint.Hostname())) {
@@ -132,28 +132,12 @@ type chatResponse struct {
 }
 
 func (p *OpenAICompatibleProvider) Generate(ctx context.Context, request StructuredRequest) (StructuredResponse, error) {
-	if request.ModelID == "" || request.SystemPrompt == "" || request.ItemID == "" || request.Text == "" || request.SchemaName == "" || len(request.Schema) == 0 {
-		return StructuredResponse{}, &ProviderError{Code: "invalid_request", Safe: "structured provider request is incomplete"}
+	if p == nil || ctx == nil {
+		return StructuredResponse{}, errors.New("provider and context required")
 	}
-	documentPayload, err := json.Marshal(struct {
-		ItemID       string `json:"item_id"`
-		DocumentText string `json:"document_text"`
-	}{ItemID: request.ItemID, DocumentText: request.Text})
+	body, err := encodeStructuredChat(request)
 	if err != nil {
-		return StructuredResponse{}, &ProviderError{Code: "encode", Safe: "failed to encode document payload", cause: err}
-	}
-	body, err := json.Marshal(chatRequest{
-		Model: request.ModelID,
-		Messages: []chatMessage{
-			{Role: "system", Content: request.SystemPrompt},
-			{Role: "user", Content: string(documentPayload)},
-		},
-		ResponseFormat: responseFormat{Type: "json_schema", JSONSchema: jsonSchema{Name: request.SchemaName, Strict: true, Schema: request.Schema}},
-		Temperature:    0,
-		MaxTokens:      request.MaxOutputTokens,
-	})
-	if err != nil {
-		return StructuredResponse{}, &ProviderError{Code: "encode", Safe: "failed to encode provider request", cause: err}
+		return StructuredResponse{}, err
 	}
 	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, p.endpoint, bytes.NewReader(body))
 	if err != nil {
