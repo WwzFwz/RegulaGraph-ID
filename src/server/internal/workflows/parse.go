@@ -5,6 +5,8 @@
 // worker-produced checkpoint, then advances state. It never publishes a snapshot. Calls are bounded by
 // the lease and configured timeout; retryable transport failures enter RETRY_WAIT while permanent input
 // failures become FAILED. Measure queue/RPC/checkpoint p95/p99 and lease loss against benchmark targets.
+// Optional extraction suspension omits EXTRACT claims without changing durable jobs or receipts;
+// restart with extraction enabled to resume. It is not a completed graph or a reduced benchmark workload.
 package workflows
 
 import (
@@ -74,6 +76,7 @@ type ParseWorker interface {
 }
 
 type ParseExecutorConfig struct {
+	DisableExtraction bool // Operator scheduling choice only; zero value preserves all four stages.
 	Ontology          *domain.Ontology
 	OwnerID           string
 	AuthScope         string
@@ -121,8 +124,8 @@ func NewParseExecutor(store ParseExecutionStore, worker ParseWorker, config Pars
 	return &ParseExecutor{store: store, worker: worker, config: config}, nil
 }
 
-// RunOnce rotates first preference across PARSE, STRUCTURE, CHUNK, and EXTRACT so no ready stage can be
-// starved by a sustained backlog in another stage.
+// RunOnce rotates first preference across enabled PARSE, STRUCTURE, CHUNK, and EXTRACT claims
+// so no enabled stage is starved by a sustained backlog in another stage.
 func (e *ParseExecutor) RunOnce(ctx context.Context) (domain.JobRecord, *pb.ProcessBatchResponse, error) {
 	claimParse := func() (domain.JobRecord, error) {
 		return e.store.ClaimParseJob(ctx, e.config.OwnerID, e.config.Lease)
@@ -136,7 +139,10 @@ func (e *ParseExecutor) RunOnce(ctx context.Context) (domain.JobRecord, *pb.Proc
 	claimExtract := func() (domain.JobRecord, error) {
 		return e.store.ClaimExtractJob(ctx, e.config.OwnerID, e.config.Lease)
 	}
-	claims := [4]func() (domain.JobRecord, error){claimParse, claimStructure, claimChunk, claimExtract}
+	claims := []func() (domain.JobRecord, error){claimParse, claimStructure, claimChunk}
+	if !e.config.DisableExtraction {
+		claims = append(claims, claimExtract)
+	}
 	start := int((e.claimSequence.Add(1) - 1) % uint64(len(claims)))
 	var job domain.JobRecord
 	var err error
