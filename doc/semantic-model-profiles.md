@@ -5,6 +5,11 @@ atau provider, agar hambatan model saat ini tidak menjadi ketergantungan permane
 pipeline. Konfigurasi model adalah profil terpin, bukan aturan hukum. Dokumen ini
 tidak memilih model baru atau mengklaim kualitas/performa model sudah lulus.
 
+[Kondisi percobaan EXTRACT](extraction-trial-limitations.md) mencatat model
+Qwen2.5 7B/Q4_K_M, perbedaan run CPU/Ollama, dan hipotesis penggantian model
+yang belum diuji. Model lebih besar atau hosted belum otomatis menjadi pilihan
+yang terverifikasi; gunakan sumber dan gate yang sama untuk membandingkan.
+
 ## Pisahkan tugas dan dampaknya
 
 | Tugas | Yang diganti | Dampak pada hasil lama |

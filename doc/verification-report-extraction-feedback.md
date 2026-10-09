@@ -4,6 +4,11 @@ Dokumen ini mencatat diagnostik EXTRACT yang dapat dipakai untuk koreksi terarah
 serta dua eksperimen feedback pada model lokal. Eksperimen belum menunjukkan
 perbaikan validitas sumber, sehingga retry otomatis tidak ditambahkan ke runtime.
 
+**Cakupan model:** rangkaian diagnostic ini terbatas pada Qwen2.5 kelas 7B lokal
+terkuantisasi. Model hosted yang lebih kuat atau model lokal lebih besar belum
+dibandingkan. Setup CPU/GPU berbeda antar-run; hasilnya tidak dapat digeneralisasi
+sebagai batas kualitas proyek. Lihat [kondisi dan batas kesimpulan](extraction-trial-limitations.md).
+
 ## Implementasi yang diverifikasi
 
 Gateway mengumpulkan lokasi kesalahan kutipan v2 seperti `mentions[1].span` dan

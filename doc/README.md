@@ -1,5 +1,9 @@
 # doc
 
+[Kondisi percobaan EXTRACT](extraction-trial-limitations.md) memisahkan bukti
+engineering dari keterbatasan Qwen2.5 7B/Q4_K_M yang diuji. Setup CPU/GPU, hasil
+aktual, hipotesis model pengganti dan batas klaim dirangkum untuk pembaca laporan.
+
 [Review provisional](provisional-entity-review.md) menjelaskan pembuatan identity
 occurrence UNREVIEWED melalui operator, negatif lookup seluruh scope, replay dan
 batas integrasi semantic CREATE penuh. [Verifikasi](verification-report-provisional-alias.md).

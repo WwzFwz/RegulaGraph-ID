@@ -4,7 +4,18 @@ RegulaGraph-ID is a **Hybrid GraphRAG project for Indonesian regulations**. It t
 
 Indonesian regulations are distributed across sources, reference one another, change over time, and use different terms for the same concepts. The project aims to speed up research while making each answer traceable to its source text or article. A citation alone does not establish legal correctness.
 
-**Status:** acquisition/import, document processing, native embedding/reranking, registry/resolution, graph assembly/publication, four retrieval profiles, and local draft answers through the CLI/API have implementations. Backend/native integrations have been tested on fixtures; an acquired PDF has passed PARSE → STRUCTURE → BIND → CHUNK. Database migration is available through the CLI. EXTRACT now includes pinned ontology vocabulary and rejects mismatched job/output context pins. The full-PDF local model test has not passed because of timeouts and invalid model output; this is not a successful extraction run. Real-corpus acceptance, gold-set quality evaluation, all required performance targets, and several advanced features **remain unfinished**. See the [development plan](doc/development-plan.md) and [real-PDF verification](doc/verification-report-real-pdf.md).
+**Status:** acquisition/import, document processing, native embedding/reranking, registry/resolution, graph assembly/publication, four retrieval profiles, and local draft answers through the CLI/API have implementations. Backend/native integrations have been tested on fixtures; an acquired PDF has passed PARSE → STRUCTURE → BIND → CHUNK. Database migration is available through the CLI. EXTRACT now includes pinned ontology vocabulary and rejects mismatched job/output context pins. Full-PDF extraction remains unverified: opening-chunk diagnostics encountered timeouts and invalid model output. Real-corpus acceptance, gold-set quality evaluation, all required performance targets, and several advanced features **remain unfinished**. See the [development plan](doc/development-plan.md) and [real-PDF verification](doc/verification-report-real-pdf.md).
+
+**Extraction experiment scope:** the reported EXTRACT diagnostics used a local
+**Qwen2.5 7B-class, Q4_K_M** model (Ollama reports 7.6B parameters). llama.cpp
+trials ran on **four CPU threads with zero GPU layers**; separate Ollama trials
+recorded GPU memory allocation. These trials encountered invalid source locators,
+repetition/truncation, or timeouts. They are not a comparison against stronger
+hosted models or larger GPU-backed local models, and do not establish the quality
+ceiling of the architecture. Such models may improve extraction, but this remains
+untested; GPU acceleration alone does not establish better accuracy. Tested
+engineering components and unfinished features are distinguished in the
+[experiment conditions and limitations](doc/extraction-trial-limitations.md).
 
 **Try it now:** the [local demo](#running-the-local-demo) runs without a database. The [full GraphRAG pipeline](#running-the-local-graphrag-pipeline) requires backend services, pinned models, and a published corpus.
 

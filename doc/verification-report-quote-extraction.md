@@ -4,6 +4,11 @@ Dokumen ini mencatat boundary schema/prompt EXTRACT v2 dan pemetaan kutipan ke s
 C01, serta kegagalan model nyata yang belum terselesaikan. Mekanisme alignment
 dan kualitas ekstraksi dinilai terpisah; required benchmark tidak diubah.
 
+**Cakupan model:** rangkaian diagnostic ini terbatas pada Qwen2.5 kelas 7B lokal
+terkuantisasi. Model hosted yang lebih kuat atau model lokal lebih besar belum
+dibandingkan. Setup CPU/GPU berbeda antar-run; hasilnya tidak dapat digeneralisasi
+sebagai batas kualitas proyek. Lihat [kondisi dan batas kesimpulan](extraction-trial-limitations.md).
+
 ## Perilaku dan kompatibilitas
 
 Schema/prompt v1 tetap utuh. Schema `extraction-output-v2.json` meminta quote,

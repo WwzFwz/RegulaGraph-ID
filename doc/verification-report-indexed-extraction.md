@@ -6,6 +6,11 @@ timeout. Baseline sebelum perubahan `539e68a`; fingerprint implementasi final
 dan perintah berada di `artifacts/verification/20261009-indexed-extraction/`.
 PASS boundary tidak berarti model atau seluruh graph pipeline sudah berhasil.
 
+**Cakupan model:** rangkaian diagnostic ini terbatas pada Qwen2.5 kelas 7B lokal
+terkuantisasi. Model hosted yang lebih kuat atau model lokal lebih besar belum
+dibandingkan. Setup CPU/GPU berbeda antar-run; hasilnya tidak dapat digeneralisasi
+sebagai batas kualitas proyek. Lihat [kondisi dan batas kesimpulan](extraction-trial-limitations.md).
+
 ## Masalah dan desain
 
 Eksperimen v2 sebelumnya sering gagal menyalin newline, kapitalisasi atau kutipan

@@ -5,6 +5,11 @@ gagal quote alignment. Semua run gagal menghasilkan completion yang dapat diteri
 Tidak ada perubahan prompt produksi, validator, target benchmark, atau klaim
 peningkatan kualitas dari eksperimen ini.
 
+**Cakupan model:** rangkaian diagnostic ini terbatas pada Qwen2.5 kelas 7B lokal
+terkuantisasi. Model hosted yang lebih kuat atau model lokal lebih besar belum
+dibandingkan. Setup CPU/GPU berbeda antar-run; hasilnya tidak dapat digeneralisasi
+sebagai batas kualitas proyek. Lihat [kondisi dan batas kesimpulan](extraction-trial-limitations.md).
+
 ## Cakupan dan bukti
 
 Revision kode `9a2a34c07aa3cfa683f543a18cf6e0102fb31db7`. Input berasal dari
