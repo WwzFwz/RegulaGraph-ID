@@ -1,5 +1,10 @@
 # src/server/internal/workflows
 
+`graph_source_envelope_test.go` menguji handoff CHUNK/EXTRACT/RESOLVE melalui helper
+domain, termasuk preservation model/assignment, dependency, remap diagnostic root dan
+replay. Workflow persistence/scheduling ASSEMBLE belum tersedia; fixture ini tidak
+menggantikan receipt registry atau bukti membership sumber yang dipublikasikan.
+
 Orchestration alur ingestion, pembaruan incremental, dan tanya jawab. Folder ini mengatur urutan tahap, percabangan, checkpoint, retry, dan pelaporan status. Implementasi runtime berada di Go. Dokumen ini mendefinisikan superset tanggung jawab folder dan kontrak integrasi anaknya.
 
 ## Batas tanggung jawab

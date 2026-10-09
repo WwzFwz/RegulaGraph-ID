@@ -1,5 +1,10 @@
 # src/server/internal/indexing
 
+`graph_source_membership_test.go` memakai alur publication PostgreSQL/Qdrant nyata
+untuk memverifikasi receipt sumber snapshot sebelum dipakai oleh graph preparation.
+Kode assembly tetap milik domain/workflow; pengujian di sini membuktikan batas keluar
+komponen indexing tanpa menambahkan algoritma graph ke writer indeks.
+
 `initial_snapshot.go` mengubah pilihan CHUNK terautentikasi menjadi snapshot awal
 dan corpus-facts manifest, lalu mengikat sumber melalui receipt. Identitas
 snapshot mencakup seluruh pilihan terurut; count graph nol eksplisit untuk

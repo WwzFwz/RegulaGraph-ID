@@ -18,6 +18,13 @@ Submilestone K01 writer PostgreSQL menyimpan receipt LINK/DEFER secara atomik de
 
 ## 1. Prinsip pelaksanaan
 
+Pembaruan graph source 2026-10-09: transform envelope CHUNK-to-EXTRACT/RESOLVE dan
+reader membership pada published index inventory tersedia serta diuji. Hasil model,
+assignment dan revisi historis dipertahankan; diagnostic root refs diremap secara
+terbatas. Persistence receipt graph, dependency lintas revision, inventory/dispatch
+ASSEMBLE dan writer Neo4j masih terbuka. Lihat
+[laporan verifikasi](verification-report-graph-source-envelope.md).
+
 Pembaruan K01 2026-10-09: [review/resume lokal](semantic-review.md) tersambung dari
 queue ke approval/intent atomik dan executor. Perubahan canonical, registry view
 historis, ASSEMBLE/Neo4j serta acceptance gold/performance tetap diperlukan.

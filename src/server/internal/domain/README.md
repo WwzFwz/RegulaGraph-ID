@@ -1,5 +1,11 @@
 # src/server/internal/domain
 
+[graph_source_envelope.go](graph_source_envelope.go) membentuk envelope EXTRACT/RESOLVE
+baru dari rantai artefak asli dan CHUNK snapshot-bound yang exact. Model output dan
+keputusan dipertahankan; hanya metadata envelope, dependency dan diagnostic root refs
+yang direbind. Storage membership dan receipt wajib dibuktikan caller; lihat
+[coordinator graph](../../../../doc/graph-assembly-coordinator.md).
+
 [graph_assembly.go](graph_assembly.go) memvalidasi plan ASSEMBLE dan canonical view
 terikat publication/revision; gate menolak unknown stage fields, drift, role overlap,
 partial coverage dan overflow. Byte hash, registry receipt serta live authority tetap

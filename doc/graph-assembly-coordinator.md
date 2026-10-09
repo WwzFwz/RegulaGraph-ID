@@ -51,6 +51,42 @@ revision publication. Receipt pada revision R tidak otomatis dapat dipakai pada 
 hanya karena candidate view sama. Alias baru dari commit RESOLVE sendiri juga tidak
 dikecualikan diam-diam: jika mengubah konteks, perlu replan/reaffirmation eksplisit.
 
+## Envelope sumber dan membership snapshot
+
+`BindGraphSourceEnvelopes` menerima empat artefak berhash: CHUNK asli tanpa snapshot,
+CHUNK snapshot-bound, EXTRACT asli, dan RESOLVE asli. Jumlah bytes input dibatasi 16 MiB
+sebelum decode, output EXTRACT/RESOLVE bersama dibatasi 16 MiB. Schema/media/unknown
+fields, closure EXTRACT/RESOLVE dan hash seluruh input diperiksa. CHUNK bound harus
+identik dengan hasil `BindInitialSnapshotSource` untuk job dan snapshot tersebut;
+penggantian judul, teks, chunk atau metadata di luar transform itu ditolak.
+
+Hasilnya dua artefak baru content-addressed. ID root, request/trace, snapshot/config
+context dan immediate source ref menunjuk envelope baru. Dependency asli, termasuk
+observasi lookup negatif, tetap ada; hash artefak asal dan policy binder ditambahkan.
+Mention, assertion, support, proposal, assignment canonical, model/prompt/producers,
+counts dan recorded registry revision tidak diubah. Producer tetap menyatakan proses
+inference asli; dependency policy menyatakan transform metadata sesudahnya. Referensi
+diagnostik `ResolutionBatch.Issues.EvidenceRefs` yang menunjuk root EXTRACT/RESOLVE lama
+diremap ke root baru. Referensi record bukti lain tidak diubah; diagnostik asli masih
+tersimpan pada artefak asal. Collision root dengan record anak ditolak agar remap
+tidak ambigu. Helper tidak memanggil LLM, menulis storage, atau mengesahkan receipt.
+
+`VerifyPublishedGraphSourceBinding` membuktikan pasangan CHUNK asli/bound melalui pin
+snapshot yang masih hidup. Reader memakai publication/index generation yang sudah
+published dan memiliki receipt backend, inventory terverifikasi yang memuat source job
+serta bound ref tersebut, snapshot/scope/fence asal yang exact, immutable source-binding
+receipt, dan registrasi kedua artefak. Lease diperiksa lagi sebelum transaksi read selesai.
+Inventory dibaca dalam transaksi yang sama; payload plan dibatasi SQL sebelum transfer
+(16 MiB per plan, 64 MiB seluruh plan, maksimal 256 plan). Binding yang dibuat sebelum
+publication atau yang tidak tercantum dalam inventory bukan bukti membership published.
+
+Membership ini merupakan fakta snapshot historis; source cancellation/current RESOLVE
+checkpoint dan otoritas target graph tetap diperiksa terpisah. Scope saat ini memakai
+receipt initial-index yang tersedia, bukan reuse bebas antar snapshot incremental.
+Penyimpanan receipt baru original-to-bound EXTRACT/RESOLVE, komposisi seluruh gate dan
+penjadwalan ASSEMBLE masih harus diselesaikan. Jangan menganggap hasil helper murni atau
+membership lama sebagai izin publikasi graph.
+
 ## Integrasi yang perlu diselesaikan
 
 1. Baca RESOLVE output/checkpoint dan intent immutable; autentikasi EXTRACT/kandidat,
@@ -60,6 +96,8 @@ dikecualikan diam-diam: jika mengubah konteks, perlu replan/reaffirmation ekspli
    belum memiliki snapshot. Pertahankan original-to-bound mapping, bytes/hash asli,
    canonical/provision/source ID dan dependency. Jangan mengganti context/refs di
    artefak lama atau menganggap source tanpa snapshot otomatis anggota corpus.
+   Transform envelope dan reader membership initial-index sudah tersedia di atas;
+   persistence receipt graph dan workflow yang menggabungkannya belum tersedia.
 3. Pilih satu registry revision publication. Receipt dari beberapa dokumen bisa
    berasal dari revision berbeda karena setiap CAS RESOLVE menaikkan revision global.
    Guard delta saat ini masih mensyaratkan revision sama. Sebelum memperluasnya ke

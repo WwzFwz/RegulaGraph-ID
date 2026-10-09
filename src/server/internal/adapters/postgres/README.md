@@ -1,5 +1,10 @@
 # src/server/internal/adapters/postgres
 
+`graph_source_membership.go` memeriksa receipt CHUNK original/bound terhadap inventory
+generation yang sudah published dan pin pembaca hidup. Reader berbagi decoder inventory
+dalam transaksi yang sama dengan batas payload SQL. Ini membuktikan sumber pada base
+snapshot, bukan izin output graph atau kelayakan keputusan registry pada revision baru.
+
 Revalidasi konteks kandidat historis tersedia melalui
 `registry_candidate_revalidation.go`: ref/bytes terdaftar, lookup positif/negatif,
 alias bersumber dan seluruh profil kandidat dibandingkan pada revision tujuan tanpa

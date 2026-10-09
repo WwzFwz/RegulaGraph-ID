@@ -1,5 +1,9 @@
 # doc
 
+[verification-report-graph-source-envelope.md](verification-report-graph-source-envelope.md)
+mencatat transform envelope EXTRACT/RESOLVE dan pembuktian keanggotaan sumber pada
+inventory snapshot terpublikasi, termasuk review provenance dan regresi backend nyata.
+
 [verification-report-candidate-revalidation.md](verification-report-candidate-revalidation.md)
 mencatat revalidasi konteks kandidat historis, lookup kosong dan perubahan profil/alias
 sebagai salah satu prasyarat reuse hasil RESOLVE pada publication berikutnya.
