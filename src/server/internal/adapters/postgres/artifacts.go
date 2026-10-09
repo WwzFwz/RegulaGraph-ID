@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/proto"
@@ -253,6 +254,12 @@ func (r *Repository) saveArtifactDependencies(ctx context.Context, corpusID, art
 func (r *Repository) AdvanceLookupScope(ctx context.Context, corpusID, scopeKey string, expectedRevision uint64) (uint64, error) {
 	if expectedRevision > math.MaxInt64-1 || scopeKey == "" {
 		return 0, errors.New("valid scope and revision required")
+	}
+	// Registry alias keys (including absent/negative scopes) belong exclusively
+	// to the versioned alias writer. A generic INSERT would otherwise change a
+	// historical candidate view without advancing the corpus registry stamp.
+	if strings.HasPrefix(scopeKey, "lookup:") {
+		return 0, fmt.Errorf("registry alias scope requires versioned writer: %w", ErrConflict)
 	}
 	tx, err := r.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
 	if err != nil {

@@ -145,6 +145,14 @@ func TestRegistrySnapshotHistoryAgainstPostgres(t *testing.T) {
 	if _, err = r.AdvanceLookupScope(ctx, corpus, domain.RegistryLookupScopeID("organization", entity.Scope, "old name"), next); !errors.Is(err, ErrConflict) {
 		t.Fatalf("generic scope writer changed alias history: %v", err)
 	}
+	missingScope := domain.RegistryLookupScopeID("organization", entity.Scope, "never observed alias")
+	if _, err = r.AdvanceLookupScope(ctx, corpus, missingScope, 0); !errors.Is(err, ErrConflict) {
+		t.Fatalf("generic scope writer created unstamped negative registry scope: %v", err)
+	}
+	var injectedScopes int
+	if err = r.pool.QueryRow(ctx, `SELECT count(*) FROM lookup_scope_revisions WHERE corpus_id=$1 AND scope_key=$2`, corpus, missingScope).Scan(&injectedScopes); err != nil || injectedScopes != 0 {
+		t.Fatalf("rejected generic registry scope left rows: count=%d err=%v", injectedScopes, err)
+	}
 	// Reopen the repository to prove history does not depend on in-process caching.
 	reopened, e := Open(ctx, Config{DSN: dsn, MaxConnections: 2, HealthTimeout: time.Second})
 	if e != nil {
