@@ -20,6 +20,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	pb "regulagraph.local/server/gen/regulagraph/v1"
 	"regulagraph.local/server/internal/adapters/postgres"
+	"regulagraph.local/server/internal/adapters/storage"
 	serverconfig "regulagraph.local/server/internal/config"
 	"regulagraph.local/server/internal/domain"
 	"regulagraph.local/server/internal/workflows"
@@ -32,10 +33,17 @@ func runSubmit(ctx context.Context, args []string, out, errOut io.Writer) int {
 	fs.SetOutput(errOut)
 	requestPath := fs.String("request", "", "Path to a bounded IngestionRequest ProtoJSON file")
 	jobID := fs.String("job-id", "", "Durable job ID (opaque ASCII ID)")
+	acquisitionRecord := fs.String("acquisition-record", "", "Optional complete collector record JSON; request must have no sources/observations")
+	acquisitionRoot := fs.String("acquisition-root", "", "Collector root containing blobs; required with -acquisition-record")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
 		}
+		return 2
+	}
+	if (*acquisitionRecord == "") != (*acquisitionRoot == "") ||
+		(*acquisitionRecord != "" && os.Getenv("REGULAGRAPH_ARTIFACTS_DIR") == "") {
+		fmt.Fprintln(errOut, "acquisition import requires both -acquisition-record and -acquisition-root, plus REGULAGRAPH_ARTIFACTS_DIR")
 		return 2
 	}
 	if fs.NArg() != 0 || *requestPath == "" || *jobID == "" ||
@@ -60,6 +68,17 @@ func runSubmit(ctx context.Context, args []string, out, errOut io.Writer) int {
 	if err != nil {
 		fmt.Fprintln(errOut, "read ingestion request:", err)
 		return 2
+	}
+	var acquisition *workflows.AcquisitionImport
+	if *acquisitionRecord != "" {
+		acquisition, err = prepareSubmitAcquisition(requestBytes, *acquisitionRecord)
+		if err == nil {
+			requestBytes, err = protojson.Marshal(acquisition.Request())
+		}
+		if err != nil {
+			fmt.Fprintln(errOut, "prepare acquisition import:", err)
+			return 2
+		}
 	}
 	request, err := prepareSubmitRequest(requestBytes, ontology, policies)
 	if err != nil {
@@ -95,6 +114,29 @@ func runSubmit(ctx context.Context, args []string, out, errOut io.Writer) int {
 	if err != nil {
 		fmt.Fprintln(errOut, "configure job scheduler:", err)
 		return 2
+	}
+	if acquisition != nil {
+		info, statErr := os.Stat(*acquisitionRoot)
+		if statErr != nil || !info.IsDir() {
+			fmt.Fprintln(errOut, "acquisition root must be an existing directory")
+			return 2
+		}
+		source, openErr := storage.NewFileStore(*acquisitionRoot)
+		if openErr != nil {
+			fmt.Fprintln(errOut, "open acquisition root:", openErr)
+			return 1
+		}
+		defer source.Close()
+		destination, openErr := storage.NewFileStore(os.Getenv("REGULAGRAPH_ARTIFACTS_DIR"))
+		if openErr != nil {
+			fmt.Fprintln(errOut, "open shared artifact root:", openErr)
+			return 1
+		}
+		defer destination.Close()
+		if err := acquisition.Import(ctx, source, destination, repository); err != nil {
+			fmt.Fprintln(errOut, "import acquisition failed; no job submitted:", err)
+			return 1
+		}
 	}
 	job, reused, err := scheduler.Submit(ctx, *jobID, request)
 	if err != nil {
