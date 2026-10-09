@@ -85,6 +85,13 @@ func (w *RAGWorkflow) AnswerPinnedQuestion(ctx context.Context, request *pb.Ques
 // without calling a generator. It is the same retrieval path used by answering;
 // absence of an answer does not imply abstention or a model-quality judgment.
 func (w *RAGWorkflow) SearchPinnedQuestion(ctx context.Context, request *pb.QuestionRequest, input retrieval.SearchInput) (*RAGResult, error) {
+	return w.searchPinnedCandidates(ctx, request, input, nil)
+}
+
+// Candidate discovery is date-independent today; comparisons reuse exactly one
+// authenticated discovery under the same question/profile/generation/snapshot.
+// Hydration, graph temporal projection and reranking still run for each date.
+func (w *RAGWorkflow) searchPinnedCandidates(ctx context.Context, request *pb.QuestionRequest, input retrieval.SearchInput, cached *CandidateSearchResult) (*RAGResult, error) {
 	started := time.Now()
 	if ctx == nil || w == nil || w.Search == nil || w.Hydrate == nil || request == nil || input.Context == nil {
 		return nil, errors.New("RAG workflow requires search, hydrator and admitted request")
@@ -113,9 +120,18 @@ func (w *RAGWorkflow) SearchPinnedQuestion(ctx context.Context, request *pb.Ques
 	if err := call.Err(); err != nil {
 		return nil, err
 	}
-	found, err := w.Search.SearchCandidates(call, input, request.RequestedProfile)
-	if err != nil {
-		return nil, err
+	var found *CandidateSearchResult
+	var err error
+	if cached == nil {
+		found, err = w.Search.SearchCandidates(call, input, request.RequestedProfile)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		if cached.Profile != request.RequestedProfile || !proto.Equal(cached.Snapshot, input.Context.SnapshotRef) || cached.Normalization == nil || cached.Normalization.Original != request.Question {
+			return nil, errors.New("comparison discovery differs from admitted request")
+		}
+		found = cloneCandidateSearch(cached)
 	}
 	hydrated, err := w.Hydrate(call, proto.Clone(request).(*pb.QuestionRequest), cloneCandidateSearch(found))
 	if err != nil {

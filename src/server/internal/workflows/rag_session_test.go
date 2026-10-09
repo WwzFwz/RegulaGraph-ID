@@ -64,6 +64,27 @@ func sessionGeneration() *pb.IndexGeneration {
 		LexicalAnalyzer: artifact, LexicalDictionary: artifact, LexicalStatistics: artifact, OntologyVersion: "ontology:v1", FilterFormat: pb.IndexFilterFormat_INDEX_FILTER_FORMAT_PAIRED_PROVISION_V1, EmbeddingInputPolicy: "structure-labels-v1"}
 }
 
+func TestRAGSessionRejectsOversizedInputBeforeCalendarPlanning(t *testing.T) {
+	w, request, input, _ := ragFixture(t)
+	request.Question = strings.Repeat("x", domain.DefaultWireLimits.MaxBytes+1)
+	request.TemporalScope.Mode = pb.TemporalMode_TEMPORAL_MODE_CURRENT
+	request.TemporalScope.EffectiveAt = nil
+	store := &ragLeaseStore{}
+	zone, _ := query.LoadQueryTimeZone("Asia/Jakarta")
+	session := &RAGSession{Store: store, TimeZone: zone, Clock: func() time.Time {
+		t.Fatal("oversized request reached temporal planning before envelope guard")
+		return time.Time{}
+	}, OwnerID: "reader:test", MaximumDuration: time.Second, SearchLimit: 1, Factory: func(context.Context, *domain.PinnedIndex) (*RAGWorkflow, error) {
+		t.Fatal("invalid request reached factory")
+		return w, nil
+	}}
+	input.Context.SnapshotRef = nil
+	result, err := session.SearchQuestion(context.Background(), request, input.Context)
+	if err == nil || result != nil || store.pins != 0 {
+		t.Fatal("oversized input was admitted")
+	}
+}
+
 func TestRAGSessionOwnsLeaseThroughDraft(t *testing.T) {
 	for _, mode := range []string{"success", "current across midnight", "factory failure", "lease revoked", "cleanup failure", "cancelled generation", "historical mismatch", "malformed catalog", "missing date", "unauthorized corpus"} {
 		t.Run(mode, func(t *testing.T) {
