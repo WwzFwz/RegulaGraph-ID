@@ -1,5 +1,12 @@
 # Rencana implementasi berbasis dependency
 
+Lanjutan K01: [dispatch/admission output](graph-output-admission.md) tersedia sebagai
+library Go dari authority inventory ke RPC port dan GraphDelta terverifikasi. Projection
+source/canonical/support/dependency diuji dengan fixture worker Rust aktual, termasuk
+exception DAG dan normalisasi hash-v1. Commit checkpoint/STAGED/recovery, daemon,
+integrasi RPC nyata bersama PostgreSQL serta Neo4j masih terbuka; lihat
+[laporan](verification-report-graph-output.md). Ini belum completion K01 atau benchmark.
+
 Lanjutan K01: [inventory ASSEMBLE](graph-job-inventory.md) kini memiliki preflight
 source/receipt/view, admission dengan registry stamp di bawah lock, child jobs atomik,
 replay dan claim terpisah. PostgreSQL/Qdrant menguji rollback, pool satu koneksi,

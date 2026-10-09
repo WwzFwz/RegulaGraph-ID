@@ -4,6 +4,12 @@ Dokumen ini memandu agent implementasi berikutnya, termasuk Sol 5.6, untuk merea
 
 ## Mulai setiap sesi
 
+Checkpoint ASSEMBLE: inventory/claim, live authorization, builder request dan
+[library dispatch/output admission](graph-output-admission.md) tersedia. Lanjutkan
+registration output dan atomic checkpoint/STAGED dengan recheck fence/source/registry,
+recovery acknowledgement hilang, wiring daemon, kemudian Neo4j publication. Fixture
+Rust-to-Go lulus; RPC nyata bersama PostgreSQL serta kualitas/performa belum dibuktikan.
+
 [Registry history](registry-history.md) kini memiliki binding publication immutable
 dan lookup di bawah live snapshot lease. Migration 0018 membatasi history corpus lama
 sejak revision upgrade. Library ini belum mengikat GraphDelta/generation atau entity

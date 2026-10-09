@@ -5,6 +5,12 @@
 budget/cancellation serta service Tonic in-process/replay. Model tidak dipanggil
 saat assembly; receipt durable dan publication tetap milik Go.
 
+Fixture ASSEMBLE dapat diekspor melalui `REGULAGRAPH_GRAPH_FIXTURE_DIR` untuk
+admission Go. Test export dasar dan rich dijalankan terpisah; fixture rich mencakup
+hash canonical, qualifier/temporal normalization, exception DAG dan dedup support.
+Evidence RESOLVE, producer dan chunk token count tetap sintetis tetapi mengikuti
+kontrak coordinator. Lihat [verifikasi output](../../../../doc/verification-report-graph-output.md).
+
 `index.rs` menyediakan handler INDEX dan adapter client native reusable;
 `index_tests.rs` menguji alur dari CHUNK dengan artefak storage nyata dan model
 fixture, serta mengekspor output untuk admission Go. Bootstrap dan kontrak

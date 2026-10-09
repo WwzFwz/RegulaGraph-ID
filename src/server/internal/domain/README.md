@@ -1,5 +1,13 @@
 # src/server/internal/domain
 
+`graph_output.go`, `graph_output_relations.go` dan `graph_output_sources.go` memeriksa
+GraphDelta terhadap source projection: canonical hash-v1, support/provenance, visibility,
+dependency dan bytes teks. `graph_output_test.go` membaca output worker Rust aktual;
+schema/budget/ontology diperiksa sebelum projection. Envelope respons ditangani
+`ValidateGraphWorkerEnvelope` pada graph_dispatch.go. Lihat
+[admission output](../../../../doc/graph-output-admission.md); tidak ada database/model
+atau persetujuan publication pada validator domain.
+
 `graph_jobs.go` memvalidasi inventory ASSEMBLE lokal: ownership ID, urutan source,
 kesamaan publication/registry/producer dan hash plan. `graph_source_dependencies.go`
 menyatukan canonical selection, batas normalized text dan gate dependency EXTRACT

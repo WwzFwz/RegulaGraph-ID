@@ -1,5 +1,9 @@
 # doc
 
+[graph-output-admission.md](graph-output-admission.md) menjelaskan RPC workflow dan
+validasi delta terhadap source projection. [Laporan](verification-report-graph-output.md)
+mencatat parity Rust/Go, kasus adversarial dan batas sebelum commit/publication.
+
 [graph-job-inventory.md](graph-job-inventory.md) menjelaskan admission opaque dengan
 registry stamp, inventory/child jobs atomik, claim ASSEMBLE dan batas worker/Neo4j.
 [Laporan verifikasi](verification-report-graph-job-inventory.md) mencatat rollback,

@@ -1,5 +1,12 @@
 # src/server/internal/workflows
 
+`graph_assembly_dispatch.go` menjalankan port batch worker dari assignment admitted,
+membaca bytes sumber/output dengan batas, memanggil validator delta dan mengulang
+authority pasca-RPC. Hasil opaque belum checkpoint durable atau publication. Test
+menggunakan actual Rust artifact bytes dengan authority/RPC sintetis; lihat
+[kontrak](../../../../doc/graph-output-admission.md). Commit/STAGED/recovery dan wiring
+daemon merupakan langkah berikutnya.
+
 Preparation graph kini memanggil `VerifyDocumentRegistryView` sebelum ekspor/write.
 Tes `document_registry_integration_test.go` memakai binder/allocator produksi dan
 PostgreSQL terisolasi untuk reuse BIND; tidak mengklaim scheduler BIND atau model
@@ -26,8 +33,8 @@ domain, termasuk preservation model/assignment, dependency, remap diagnostic roo
 replay. `graph_source_binding.go` menyimpan envelope dan dependency immutable lalu
 meminta receipt transactional dengan pemeriksaan ulang authority. Retry setelah
 interruption/lost acknowledgement memakai artefak yang sama. Library scheduling ASSEMBLE
-tersedia melalui [inventory](../../../../doc/graph-job-inventory.md), tetapi dispatch/output
-belum tersambung; receipt transform tidak menggantikan receipt keputusan atau freshness
+tersedia melalui [inventory](../../../../doc/graph-job-inventory.md); library dispatch/output
+admission tersedia di atas, sedangkan commit/daemon belum tersambung. Receipt transform tidak menggantikan receipt keputusan atau freshness
 registry. Lihat [kontrak coordinator](../../../../doc/graph-assembly-coordinator.md).
 
 Orchestration alur ingestion, pembaruan incremental, dan tanya jawab. Folder ini mengatur urutan tahap, percabangan, checkpoint, retry, dan pelaporan status. Implementasi runtime berada di Go. Dokumen ini mendefinisikan superset tanggung jawab folder dan kontrak integrasi anaknya.

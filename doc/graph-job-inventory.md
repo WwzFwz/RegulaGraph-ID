@@ -3,6 +3,8 @@
 Dokumen ini menjelaskan admission sumber, penyimpanan inventory dan claim job graph.
 Go/PostgreSQL memiliki authority penjadwalan; Rust tetap menghasilkan GraphDelta.
 Library ini belum mengeksekusi worker, meng-commit output atau memublikasikan Neo4j.
+Library workflow terpisah kini menyediakan [dispatch dan admission output](graph-output-admission.md);
+commit durable dan publication masih harus disambungkan.
 
 ## Input dan admission
 
