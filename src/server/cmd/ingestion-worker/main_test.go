@@ -50,6 +50,7 @@ func TestLoadConfigIncludesBoundedBindingRuntime(t *testing.T) {
 		"REGULAGRAPH_BUILD_ID": "test-build", "REGULAGRAPH_BIND_MAX_BATCH_BYTES": "4096",
 		"REGULAGRAPH_BIND_MAX_RECORDS":         "200",
 		"REGULAGRAPH_BIND_REGISTRY_BATCH_SIZE": "128",
+		"REGULAGRAPH_EXTRACT_ENABLED":          "",
 	}
 	for name, value := range values {
 		t.Setenv(name, value)
@@ -59,9 +60,18 @@ func TestLoadConfigIncludesBoundedBindingRuntime(t *testing.T) {
 		t.Fatal(err)
 	}
 	if config.artifactRoot == "" || config.jurisdiction != "ID" || config.buildID != "test-build" ||
-		config.bindMaxBytes != 4096 || config.bindMaxRecords != 200 || config.bindRegistryBatch != 128 {
+		config.bindMaxBytes != 4096 || config.bindMaxRecords != 200 || config.bindRegistryBatch != 128 || !config.extractionEnabled {
 		t.Fatalf("binding runtime configuration was not retained: %+v", config)
 	}
+	t.Setenv("REGULAGRAPH_EXTRACT_ENABLED", "false")
+	if config, err = loadConfig(); err != nil || config.extractionEnabled {
+		t.Fatalf("explicit extraction suspension not retained: %v", err)
+	}
+	t.Setenv("REGULAGRAPH_EXTRACT_ENABLED", "flase")
+	if _, err = loadConfig(); err == nil {
+		t.Fatal("misspelled extraction flag accepted")
+	}
+	t.Setenv("REGULAGRAPH_EXTRACT_ENABLED", "true")
 	t.Setenv("REGULAGRAPH_BIND_MAX_RECORDS", "0")
 	if _, err = loadConfig(); err == nil {
 		t.Fatal("zero BIND record bound accepted")

@@ -6,6 +6,8 @@
 // emits JSON operational events, and drains through signal cancellation. RESOLVE proposals
 // wait for review; migrations and backend publication remain separate. Measure queue and
 // stage p95/p99 plus retry/cancellation behavior against configs/benchmark-targets.yaml.
+// EXTRACT claiming may be suspended explicitly for independent document/index preparation;
+// durable pending jobs remain unchanged and resume when enabled on coordinator restart.
 package main
 
 import (
@@ -33,6 +35,7 @@ import (
 )
 
 type runtimeConfig struct {
+	extractionEnabled bool
 	postgresDSN       string
 	workerEndpoint    string
 	ownerID           string
@@ -97,8 +100,9 @@ func run(ctx context.Context) error {
 		return err
 	}
 	parseExecutor, err := workflows.NewParseExecutor(documentStore, worker, workflows.ParseExecutorConfig{
-		Ontology: ontology,
-		OwnerID:  config.ownerID, AuthScope: config.authScope, Lease: config.lease,
+		DisableExtraction: !config.extractionEnabled,
+		Ontology:          ontology,
+		OwnerID:           config.ownerID, AuthScope: config.authScope, Lease: config.lease,
 		CallTimeout: config.callTimeout, CancellationPoll: config.cancellationPoll,
 		RetryBase: config.retryBase, RetryMax: config.retryMax,
 		MaximumBatchBytes: uint64(config.bindMaxBytes),
@@ -256,6 +260,10 @@ func loadConfig() (runtimeConfig, error) {
 		return runtimeConfig{}, err
 	}
 	var err error
+	config.extractionEnabled, err = extractionEnabledEnv(os.Getenv("REGULAGRAPH_EXTRACT_ENABLED"))
+	if err != nil {
+		return runtimeConfig{}, err
+	}
 	if config.lease, err = durationEnv("REGULAGRAPH_COORDINATOR_LEASE", 5*time.Minute); err != nil {
 		return runtimeConfig{}, err
 	}
@@ -297,6 +305,18 @@ func loadConfig() (runtimeConfig, error) {
 		return runtimeConfig{}, errors.New("coordinator retry maximum must not be shorter than retry base")
 	}
 	return config, nil
+}
+
+// Keep the default enabled; reject typos rather than silently changing the stages claimed.
+func extractionEnabledEnv(value string) (bool, error) {
+	switch value {
+	case "", "true":
+		return true, nil
+	case "false":
+		return false, nil
+	default:
+		return false, errors.New("REGULAGRAPH_EXTRACT_ENABLED must be true or false")
+	}
 }
 
 func printableOpaqueID(value string) bool {
