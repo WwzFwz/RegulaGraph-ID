@@ -1,5 +1,9 @@
 # src/server/internal/workflows
 
+`graph_preparation.go` mengomposisikan complete source discovery, preflight RESOLVE,
+reservation, envelope binding dan plan deterministik. Hasil inventory tetap
+memerlukan fresh storage admission serta Schedule atomik; [panduan](../../../../doc/graph-preparation.md).
+
 `ReadGraphInventoryInputs` menyediakan restore sumber registry/artifact yang sama
 bagi daemon ASSEMBLE dan CLI publication, dengan budget aggregate sebelum I/O.
 Byte hasil restore bukan authority; storage admission tetap wajib sebelum

@@ -1,5 +1,11 @@
 # src/server/internal/indexing
 
+Native test opt-in `REGULAGRAPH_TEST_PREPARE_GRAPH_CLI` menjalankan executable dari
+source RESOLVE sebelum graph reservation. Pengujian mencakup extra/corrupt source
+receipt, scope/base/cancellation, scheduling replay lalu actual Rust/publication.
+Preparation dimiliki workflows, bukan salinan algoritma indexing; lihat
+[panduan](../../../../doc/graph-preparation.md).
+
 `graph_publish.go` mengomposisikan manifest graph+inherited index, source admission,
 dua backend receipt dan pointer CAS. Output baru sukses setelah keduanya siap;
 retry tidak mengubah generation. CLI `publish-graph` menggunakan fungsi ini.

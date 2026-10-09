@@ -1,5 +1,9 @@
 # doc
 
+[Persiapan graph](graph-preparation.md) menjelaskan `prepare-graph`, source selection
+lengkap, penjadwalan atomik dan batas revision. [Verifikasi](verification-report-graph-prepare.md)
+memisahkan bukti executable/native dari acceptance corpus dan benchmark.
+
 [Publication graph](graph-publication.md) menjelaskan CLI untuk mengaktifkan
 inventory ASSEMBLE lengkap bersama indeks yang diwarisi. [Verifikasi](verification-report-graph-publish.md)
 memuat fresh publication, replay serta readback failure recovery.

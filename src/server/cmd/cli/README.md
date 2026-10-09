@@ -1,10 +1,14 @@
 # src/server/cmd/cli
 
+`prepare_graph.go` menyediakan `prepare-graph` untuk seluruh sumber snapshot indeks
+awal yang sudah RESOLVE, dengan base/scope eksplisit dan child scheduling atomik.
+Tidak ada keputusan model/review otomatis; [panduan](../../../../doc/graph-preparation.md).
+
 `publish_graph.go` menyediakan `publish-graph` untuk inventory ASSEMBLE lengkap.
 Corpus, reservation snapshot, graph generation, auth scope, ontology dan backend
 routes harus eksplisit. Command memanggil coordinator graph+index bersama,
 menolak partial success dan memeriksa durable replay tanpa model/embedding ulang.
-Source preparation/scheduling belum dibuat otomatis oleh command ini.
+Source preparation/scheduling dilakukan oleh `prepare-graph` sebelum worker.
 [Panduan](../../../../doc/graph-publication.md) memuat dependency dan retry.
 
 `query-evidence` menerima `graph` dan `hybrid-graph` dengan file route/policy

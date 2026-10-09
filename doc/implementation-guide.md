@@ -4,6 +4,13 @@ Dokumen ini memandu agent implementasi berikutnya, termasuk Sol 5.6, untuk merea
 
 ## Mulai setiap sesi
 
+Checkpoint terbaru: [prepare-graph](graph-preparation.md) kini menyambungkan
+published source membership, completed RESOLVE, source envelope dan plan ke
+penjadwalan ASSEMBLE atomik. Selanjutnya worker dan `publish-graph` melayani query.
+Jangan ulangi wiring tersebut. Prioritas berikutnya: durable reaffirmation untuk
+RESOLVE lintas revision, run corpus/model aktual, kemudian kelengkapan semantic/
+temporal query, streaming, incremental dan acceptance yang masih terbuka.
+
 Checkpoint operator terbaru: [publish-graph](graph-publication.md) tersedia untuk
 inventory ASSEMBLE lengkap, termasuk fresh activation dan recovery setelah index
 readback gagal. Query dan draft answering tersedia melalui CLI/API. Langkah dekat

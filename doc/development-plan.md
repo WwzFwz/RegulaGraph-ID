@@ -1,5 +1,13 @@
 # Rencana implementasi berbasis dependency
 
+Checkpoint persiapan operator: [prepare-graph](graph-preparation.md) membaca semua
+anggota snapshot indeks awal, memverifikasi RESOLVE, menyimpan envelope/plan dan
+menjadwalkan child ASSEMBLE atomik. Executable preparation hingga Rust, publication
+Neo4j/Qdrant dan retrieval/draft fixture teruji. Reaffirmation lintas registry
+revision masih diperlukan untuk menggabungkan sumber yang di-resolve pada revision
+berbeda; corpus/model/gold dan required performance acceptance belum selesai.
+Checkpoint lama di bawah merupakan riwayat, bukan seluruh backlog aktif.
+
 Checkpoint operator publication: `publish-graph` kini merangkai restore/admission,
 manifest graph+index, Neo4j write/receipt, verifikasi reuse Qdrant dan active CAS.
 Fresh publication serta retry executable memakai output Rust nyata sudah diuji;

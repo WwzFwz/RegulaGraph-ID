@@ -1,5 +1,10 @@
 # src/server/internal/adapters/postgres
 
+`graph_source_selection.go` membaca seluruh anggota inventory indeks terpublikasi
+melalui source receipt terdaftar di bawah lease. Query hanya memilih anggota exact,
+membatasi byte sebelum transfer, dan menolak missing/corrupt receipt. Ini discovery,
+bukan izin scheduling/publication; [kontrak operator](../../../../../doc/graph-preparation.md).
+
 Query linker memakai `LookupPinnedCanonicalAliases` melalui DTO domain; nama
 `RegistryLookupResult` adapter tetap alias kompatibel. Policy dan discovery milik
 query/workflow, bukan adapter; lihat [kontrak](../../../../../doc/query-entity-linking.md).

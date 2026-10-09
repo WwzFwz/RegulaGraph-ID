@@ -16,8 +16,9 @@ HTTP opsional dengan model reusable, status UNREVIEWED/PARTIAL atau ABSTAIN.
 
 **Publication graph:** [publish-graph](doc/graph-publication.md) mengaktifkan
 inventory ASSEMBLE lengkap bersama indeks terverifikasi, dengan retry dan
-perlindungan terhadap publication parsial. Preparation/scheduling graph dari
-corpus masih pekerjaan lanjutan.
+perlindungan terhadap publication parsial. [prepare-graph](doc/graph-preparation.md)
+menyiapkan seluruh sumber indeks yang sudah selesai RESOLVE dan menjadwalkan
+ASSEMBLE secara atomik; sumber lintas registry revision masih memerlukan reafirmasi.
 
 **Status: graph/index publication, empat profil retrieval, native embedding/reranker,
 serta jawaban draft lokal melalui CLI/API tersedia; acceptance release Hybrid

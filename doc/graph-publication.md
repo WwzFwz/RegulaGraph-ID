@@ -12,8 +12,9 @@ dense/BM25 terbit, reservation graph dengan parent indeks tersebut, registry
 binding, source receipts, inventory ASSEMBLE lengkap, dan output seluruh child
 STAGED. [Preparation](graph-publication-preparation.md) serta
 [daemon ASSEMBLE](graph-job-execution.md) menjelaskan dependency tersebut.
-Preparation/scheduling inventory graph masih melalui library; command ini
-menyelesaikan publication setelah pekerjaan tersebut, bukan ingestion corpus penuh.
+[prepare-graph](graph-preparation.md) menyediakan preparation/scheduling inventory
+dari seluruh sumber indeks yang siap. Command publication ini dijalankan setelah
+worker menyelesaikan inventory tersebut.
 
 Gunakan artifact root yang sama dengan worker. Pilih route eksplisit dan ontology
 byte-pinned yang sama dengan extraction/assembly:
