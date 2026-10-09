@@ -10,9 +10,9 @@
 // Benchmark dan gate penerimaan:
 // Ukur p50/p95/p99, throughput, waktu antre, serta RSS/VRAM sesuai workload. Ambang wajib ada di configs/benchmark-targets.yaml (REQUIRED_UNMEASURED); ukur cold/warm terpisah dan pertahankan kualitas sumber/versi.
 //
-// Status: evidence API empat profil aktif; API jawaban/streaming belum aktif.
+// Status: evidence API empat profil dan optional local draft answers aktif.
 // Graph route/policy dipin sebelum startup; graph-only tidak membutuhkan native.
-// Integrasi berikutnya: tokenizer/generator terpin.
+// Integrasi berikutnya: streaming serta acceptance corpus/model/gold.
 // Bukti verifikasi: Test startup rollback, signals and graceful drain; no model load or connection at import.
 // Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
 
@@ -58,7 +58,26 @@ func configuration(env func(string) string) (string, api.EvidenceRuntimeConfig, 
 	runtime.GraphHash = env("REGULAGRAPH_QUERY_GRAPH_CONFIG_SHA256")
 	runtime.GraphUsername = env("REGULAGRAPH_NEO4J_USERNAME")
 	runtime.GraphPassword = env("REGULAGRAPH_NEO4J_PASSWORD")
+	if mode := env("REGULAGRAPH_API_ANSWERS"); mode != "" && mode != "false" {
+		if mode != "true" {
+			return "", runtime, routes.EvidenceConfig{}, errors.New("API answers must be true or false")
+		}
+		runtime.EnableAnswers = true
+		runtime.AnswerPath = env("REGULAGRAPH_ANSWER_CONFIG")
+		runtime.AnswerHash = env("REGULAGRAPH_ANSWER_CONFIG_SHA256")
+		runtime.AnswerKey = env("REGULAGRAPH_ANSWER_API_KEY")
+		if runtime.AnswerPath == "" || runtime.AnswerHash == "" {
+			return "", runtime, routes.EvidenceConfig{}, errors.New("answer configuration pins required")
+		}
+	}
+	if raw := env("REGULAGRAPH_API_TIMEOUT"); raw != "" {
+		runtime.Timeout, err = time.ParseDuration(raw)
+		if err != nil || runtime.Timeout < time.Second || runtime.Timeout > 5*time.Minute {
+			return "", runtime, routes.EvidenceConfig{}, errors.New("API timeout must be between 1s and 5m")
+		}
+	}
 	httpConfig := routes.EvidenceConfig{Token: env("REGULAGRAPH_API_TOKEN"), Corpus: runtime.Corpus, Profile: profile, Concurrent: 8, Timeout: runtime.Timeout}
+	httpConfig.EnableAnswers = runtime.EnableAnswers
 	if err := routes.ValidateEvidenceConfig(httpConfig); err != nil {
 		return "", runtime, httpConfig, err
 	}
@@ -72,7 +91,11 @@ func run(ctx context.Context) int {
 		return 2
 	}
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
-	startup, cancel := context.WithTimeout(ctx, 15*time.Second)
+	startupLimit := 15 * time.Second
+	if cfg.EnableAnswers {
+		startupLimit = 2 * time.Minute
+	}
+	startup, cancel := context.WithTimeout(ctx, startupLimit)
 	runtime, err := api.OpenEvidenceRuntime(startup, cfg)
 	cancel()
 	if err != nil {
@@ -92,7 +115,11 @@ func run(ctx context.Context) int {
 	}
 	finished := make(chan error, 1)
 	go func() { finished <- server.Serve(listener) }()
-	logger.Info("evidence_api_listening", "address", address, "capability", "evidence", "readiness", "check_readyz")
+	capability := "evidence"
+	if cfg.EnableAnswers {
+		capability = "evidence_and_answer_draft"
+	}
+	logger.Info("evidence_api_listening", "address", address, "capability", capability, "readiness", "check_readyz")
 	select {
 	case err = <-finished:
 		if !errors.Is(err, http.ErrServerClosed) {
