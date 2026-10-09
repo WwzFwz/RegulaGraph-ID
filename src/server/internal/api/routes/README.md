@@ -14,6 +14,11 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+Liveness `/livez` dirakit di [server.go](../server.go); readiness `/readyz`
+ditangani [evidence.go](evidence.go) dengan dependency runtime. Scaffold health
+terpisah telah dihapus. Pertahankan timeout probe dan respons tanpa rahasia;
+probe tidak menjalankan inference penuh.
+
 `evidence.go` menyediakan `/v1/evidence` dan `/readyz` dengan bearer auth satu
 corpus/profile, input C01, batas body, deadline dan fail-fast overload. Ia hanya
 memanggil interface workflow dan tidak mengambil model/backend dari JSON caller.
@@ -24,7 +29,7 @@ dengan mode draft/token usage; scope/snapshot/date/status dicek sebelum serialis
 `questions_test.go` menguji output salah, no fallback, shared overload dan cancel.
 Route documents dan streaming tetap scaffold.
 
-Berkas: [documents.go](documents.go), [health.go](health.go), [questions.go](questions.go).
+Berkas: [documents.go](documents.go), [questions.go](questions.go).
 
 ## Benchmark dan perhatian performa
 
@@ -47,5 +52,5 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
 | [documents.go](documents.go) | Expose snapshot-bound document/version reads and ingestion job submission through workflow interfaces. | Test corpus isolation, unavailable historical versions, cursor mismatch and idempotent submissions. |
-| [health.go](health.go) | Report process liveness separately from backend/model/snapshot readiness without expensive full queries. | Test degraded dependencies and drain state; bound probe timeout and exclude secrets from responses. |
+| [server.go](../server.go) | Report process liveness separately from backend/model/snapshot readiness without expensive full queries. | Test degraded dependencies and drain state; bound probe timeout and exclude secrets from responses. |
 | [questions.go](questions.go) | Validate/authenticate question requests, call answer workflow once and stream typed events with backpressure. | Test client disconnect, exactly one terminal event, partial generation and unavailable snapshot; record TTFT and total latency. |

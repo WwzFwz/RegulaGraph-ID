@@ -14,7 +14,15 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
-Berkas: [documents.go](documents.go), [errors.go](errors.go), [questions.go](questions.go).
+Pertanyaan/jawaban saat ini memakai Protobuf JSON C01 langsung melalui
+[routes/evidence.go](../routes/evidence.go) dan
+[routes/questions.go](../routes/questions.go); kode error aman berada di handler
+tersebut. Scaffold schema pertanyaan/error yang tidak dipakai telah dihapus,
+bukan diganti kontrak kedua. Scaffold dokumen tetap disimpan untuk endpoint yang
+belum aktif. Presence, enum invalid, tanggal, uint64, error redaction dan terminal
+event tetap perlu diverifikasi saat transport diperluas; streaming belum aktif.
+
+Berkas: [documents.go](documents.go).
 
 ## Benchmark dan perhatian performa
 
@@ -24,7 +32,7 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
-Status lintas repositori: collector/audit D01, kontrak/validator C01, evaluator E01, serta fondasi storage/publication S01 sudah tersedia. Pipeline parsing/graph/retrieval, mutasi backend, layanan model, gold dataset, dan acceptance produksi belum aktif. Status anak dijelaskan pada header masing-masing; audit integrity, build, dan fixture tidak membuktikan target kualitas atau latency.
+Status folder: endpoint/schema dokumen belum aktif. Transport pertanyaan dan error sudah ditangani route di atas; streaming masih terbuka. Status sistem terkini mengikuti [rencana pengembangan](../../../../../doc/development-plan.md).
 
 ## Rekomendasi implementasi anak
 
@@ -33,5 +41,5 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
 | [documents.go](documents.go) | Map document/version/job payloads without leaking SDK objects or storage paths. | Test historical versions, paging cursors and failed/partial job responses using contract fixtures. |
-| [errors.go](errors.go) | Map domain/vendor failures to stable safe error codes and retry hints, preserving trace IDs. | Test malformed input, timeout, cancellation and conflict mapping; never serialize credentials or raw vendor errors. |
-| [questions.go](questions.go) | Map public JSON to authoritative QuestionRequest/Answer/Event types with explicit optional/date/uint64 handling. | Round-trip null/absent fields and stream error/final cases against contracts; reject unsupported enums. |
+| [evidence.go](../routes/evidence.go) | Map domain/vendor failures to stable safe error codes and retry hints, preserving trace IDs. | Test malformed input, timeout, cancellation and conflict mapping; never serialize credentials or raw vendor errors. |
+| [questions.go](../routes/questions.go) | Map public JSON to authoritative QuestionRequest/Answer/Event types with explicit optional/date/uint64 handling. | Round-trip null/absent fields and stream error/final cases against contracts; reject unsupported enums. |

@@ -122,6 +122,14 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+Tipe jawaban, chunk, entitas, evidence dan relasi memakai kontrak generated C01.
+Scaffold tanpa perilaku untuk tipe tersebut telah dihapus; jangan membuat model
+paralel hanya untuk menggantikan nama file lama. Operasi aktif berada di
+[validasi jawaban](../answering/validation.go), [dokumen](document_validation.go),
+[registry](registry.go), [boundary bukti](boundaries.go) dan
+[relasi graph](graph_output_relations.go). Rekomendasi di bawah mengikuti pemilik
+fungsi tersebut; helper streaming dan merge/split tetap pekerjaan terbuka.
+
 [semantic_review.go](semantic_review.go) membawa queue dan input commit review antar
 workflow/storage Go. Ini bukan schema publik atau bukti autentikasi; principal milik
 boundary operator, byte validation milik workflow, atomic resume milik PostgreSQL.
@@ -152,7 +160,7 @@ dan memakai memori tambahan O(n); ukur peak RSS saat memuat vocabulary besar.
 
 [ontology.go](ontology.go) memuat vocabulary EXTRACT bersama dari JSONC terpin hash dan memvalidasi tipe mention, predicate, endpoint, origin, serta qualifier. [ontology_test.go](ontology_test.go) menutup drift istilah dan konfigurasi; gate deterministik ini masih membutuhkan gold set untuk mengukur kebenaran hukum.
 
-Berkas: [answers.go](answers.go), [chunks.go](chunks.go), [documents.go](documents.go), [document_validation.go](document_validation.go), [extraction_validation.go](extraction_validation.go), [entities.go](entities.go), [evidence.go](evidence.go), [relations.go](relations.go), [registry.go](registry.go), serta [operations.go](operations.go) untuk boundary job/publication S01. Validator dokumen dan ekstraksi memeriksa closure referensi, accounting, provenance source/version, identitas model/prompt, qualifier provisional, serta containment span sebelum artefak diregistrasi. [registry_test.go](registry_test.go) memverifikasi exact-key planning, sedangkan [documents_test.go](documents_test.go) memverifikasi binding regulation/provision, provenance, completeness, dan structural closure. Validator wire dan boundary lintas record dijelaskan pada bagian C01 di bawah.
+Berkas: [documents.go](documents.go), [document_validation.go](document_validation.go), [extraction_validation.go](extraction_validation.go), [registry.go](registry.go), serta [operations.go](operations.go) untuk boundary job/publication S01. Validator dokumen dan ekstraksi memeriksa closure referensi, accounting, provenance source/version, identitas model/prompt, qualifier provisional, serta containment span sebelum artefak diregistrasi. [registry_test.go](registry_test.go) memverifikasi exact-key planning, sedangkan [documents_test.go](documents_test.go) memverifikasi binding regulation/provision, provenance, completeness, dan structural closure. Validator wire dan boundary lintas record dijelaskan pada bagian C01 di bawah.
 
 Validator `RegistryCandidateBatch` memeriksa coverage mention, konteks/sumber, hasil dan revisi per scope, scope ID length-prefixed yang sama dengan adapter PostgreSQL/Rust, alias bersumber untuk setiap kandidat positif, tipe/scope kandidat, serta batas referensi bersarang. Producer tetap harus memakai snapshot registry tepercaya; input eksternal harus dibatasi dengan `DecodeWire` sebelum persist atau kerja mahal. Hasil lookup PostgreSQL dan akurasi kandidat belum dibuktikan oleh validator struktural ini.
 [index_filters.go](index_filters.go) mewajibkan format paired dan policy
@@ -234,13 +242,12 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
-| [answers.go](answers.go) | Construct claim/citation/stream state helpers over authoritative wire types; preserve semantic vs transport completion. | Test byte-accurate claim spans, unknown evidence refs and exactly one terminal stream event. |
-| [chunks.go](chunks.go) | Construct chunk and parent views retaining provision version, source spans and tokenizer identity. | Test missing parents, split Unicode and overlong units without source loss; avoid redundant conversion/allocation across batches. |
+| [validation.go](../answering/validation.go) | Pertahankan validasi klaim/citation pada wire types; integrasi streaming berikutnya harus membedakan completion semantik dan transport. | Test byte-accurate claim spans, unknown evidence refs and exactly one terminal stream event. |
+| [document_validation.go](document_validation.go) | Pertahankan closure chunk/parent, provision version, source spans dan tokenizer identity ketika kebijakan chunk berubah. | Test missing parents, split Unicode and overlong units without source loss; avoid redundant conversion/allocation across batches. |
 | [documents.go](documents.go) | Pertahankan planner/materializer registry-bound dan hubungkan melalui workflow durable tanpa melemahkan provenance, structural coverage, atau uncertainty temporal. | Uji persistence/replay, batch parsial, cross-language semantic closure, workload besar, p95/p99, dan peak RSS. |
-| [entities.go](entities.go) | Expose scoped canonical identity/revision and resolution decision helpers without autonomous registry writes. | Test alias ambiguity, merge/split lineage and deterministic identity comparison; avoid redundant conversion/allocation across batches. |
 | [registry.go](registry.go) | Pertahankan exact-key planning dan handoff issuer→regulation fail-closed; berikutnya bangun keputusan merge/split reversible di atas registry revision. | Uji false merge/split, stale assignment, duplicate/foreign provenance, concurrent replay, serta throughput batch; semantic merge tetap membutuhkan gold set. |
-| [evidence.go](evidence.go) | Expose snapshot-bound evidence/path operations while retaining primary provenance. | Test corpus/version/snapshot mismatches and missing support hydration; avoid redundant conversion/allocation across batches. |
-| [relations.go](relations.go) | Expose assertion/support and qualifier invariants without collapsing shared evidence. | Test endpoint types, source withdrawal and negation/condition preservation; avoid redundant conversion/allocation across batches. |
+| [boundaries.go](boundaries.go) | Pertahankan validasi evidence/citation terikat snapshot dan provenance primer; hidrasi path dimiliki retrieval graph. | Test corpus/version/snapshot mismatches and missing support hydration; avoid redundant conversion/allocation across batches. |
+| [graph_output_relations.go](graph_output_relations.go) | Pertahankan admission assertion/support/qualifier tanpa menghapus shared evidence; perluas regresi saat withdrawal diimplementasikan. | Test endpoint types, source withdrawal and negation/condition preservation; avoid redundant conversion/allocation across batches. |
 | [operations.go](operations.go) | Pertahankan tipe domain job/publication tanpa dependency SDK storage. | Compile-time interface checks dan integration test adapter/workflow saat field berkembang. |
 
 ## Penambahan C01 dan panduan verifikasi
