@@ -127,7 +127,11 @@ func checkNativeGraphExecution(t *testing.T, ctx context.Context, repo *postgres
 	if len(delta.Entities) != 2 || len(delta.Mentions) != 2 || len(delta.Assertions) != 1 || len(delta.Supports) != 1 || delta.Assertions[0].SubjectId == delta.Assertions[0].ObjectId {
 		t.Fatal("native graph lost resolved endpoints or source evidence")
 	}
-	t.Run("Neo4j actual Rust output", func(t *testing.T) { checkNativeGraphNeo4j(t, ctx, prepared.Plan, delta) })
+	publicationInputs, err := workflows.PrepareCompletedGraph(ctx, admitted, files, pin, ontology)
+	if err != nil || publicationInputs == nil || len(publicationInputs.Deltas()) != 1 || !proto.Equal(publicationInputs.Deltas()[0], delta) {
+		t.Fatal("prepare complete native graph for publication", err)
+	}
+	t.Run("Neo4j actual Rust output", func(t *testing.T) { checkNativeGraphNeo4j(t, ctx, prepared.Plan, publicationInputs.Deltas()[0]) })
 	if committed, e := admitted.GraphCheckpointCommitted(ctx, response.Checkpoint); e != nil || !committed {
 		t.Fatal("native graph checkpoint not committed", e)
 	}
@@ -147,6 +151,12 @@ func checkNativeGraphExecution(t *testing.T, ctx context.Context, repo *postgres
 	}
 	if committed, e := admitted.GraphCheckpointCommitted(ctx, recovered.Checkpoint); e != nil || !committed {
 		t.Fatal("recovered checkpoint not durable", e)
+	}
+	if err = publicationInputs.Revalidate(ctx, admitted, pin); err == nil {
+		t.Fatal("prepared publication ignored replaced checkpoint after recovery")
+	}
+	if _, err = workflows.PrepareCompletedGraph(ctx, admitted, files, pin, ontology); err != nil {
+		t.Fatal("recovered graph cannot be prepared afresh", err)
 	}
 	var pinsAfter, checkpoints int
 	if err = db.QueryRow(ctx, `SELECT count(*) FROM snapshot_read_leases WHERE corpus_id=$1`, pin.CorpusID).Scan(&pinsAfter); err != nil || pinsBefore != pinsAfter {

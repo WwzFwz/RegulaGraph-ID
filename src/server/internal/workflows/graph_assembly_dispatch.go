@@ -85,62 +85,11 @@ func ExecuteGraphAssembly(ctx context.Context, authority GraphDispatchAuthority,
 	if err != nil {
 		return nil, err
 	}
-	remaining := uint64(domain.DefaultWireLimits.MaxBytes)
-	read := func(ref *pb.ArtifactRef, m proto.Message) error {
-		raw, err := readGraphBytes(bounded, reader, ref, &remaining)
-		if err != nil {
-			return err
-		}
-		if err := domain.DecodeWire(raw, m, domain.DefaultWireLimits); err != nil {
-			return errors.Join(domain.ErrPersistentIntegrity, err)
-		}
-		return nil
-	}
-	plan := new(pb.GraphAssemblyPlan)
-	if err = read(a.Reference, plan); err != nil {
+	in, err := readGraphSourceProjection(bounded, reader, a, ontology)
+	if err != nil {
 		return nil, err
 	}
-	if !proto.Equal(plan, a.Plan) || !proto.Equal(plan.OntologyHash, ontology.ContentHash()) {
-		return nil, errors.Join(domain.ErrPersistentIntegrity, errors.New("stored graph plan or ontology drift"))
-	}
-	in := domain.GraphOutputSources{Document: new(pb.DocumentBatch), Extraction: new(pb.ExtractionBatch), Resolution: new(pb.ResolutionBatch), Registry: new(pb.RegistryEntityView), NormalizedTexts: map[string][]byte{}}
-	for _, role := range []struct {
-		ref    *pb.ArtifactRef
-		target proto.Message
-	}{
-		{plan.DocumentBatch, in.Document}, {plan.ExtractionBatch, in.Extraction}, {plan.ResolutionBatch, in.Resolution}, {plan.RegistryView, in.Registry},
-	} {
-		if err = read(role.ref, role.target); err != nil {
-			return nil, err
-		}
-	}
-	if err = domain.ValidateExtractionBatchClosure(in.Extraction, in.Document, domain.DefaultWireLimits.MaxItems); err != nil {
-		return nil, errors.Join(domain.ErrPersistentIntegrity, err)
-	}
-	// Precharge required text descriptors before any text I/O, then read each once.
-	textBudget := remaining
-	if err = domain.BudgetGraphAssemblyTexts(in.Document, in.Extraction, &textBudget); err != nil {
-		return nil, errors.Join(domain.ErrPersistentIntegrity, err)
-	}
-	needed := map[string]bool{}
-	for _, m := range in.Extraction.Mentions {
-		needed[m.TextSpan.TextArtifactId] = true
-	}
-	for _, s := range in.Extraction.Supports {
-		for _, span := range s.EvidenceSpans {
-			needed[span.TextArtifactId] = true
-		}
-	}
-	for _, text := range in.Document.TextArtifacts {
-		if !needed[text.Meta.RecordId] {
-			continue
-		}
-		raw, err := readGraphBytes(bounded, reader, text.NormalizedTextRef, &remaining)
-		if err != nil {
-			return nil, err
-		}
-		in.NormalizedTexts[text.Meta.RecordId] = raw
-	}
+	plan := a.Plan
 	if err = bounded.Err(); err != nil {
 		return nil, err
 	}
