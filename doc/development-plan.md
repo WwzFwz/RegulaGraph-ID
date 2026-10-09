@@ -1,5 +1,13 @@
 # Rencana implementasi berbasis dependency
 
+Checkpoint bootstrap/EXTRACT: CLI `migrate` kini menerapkan schema aplikasi dengan
+checksum replay, transaksi per file dan cleanup lock berbatas. Model menerima
+ontology context terpin; missing/drift pin ditolak coordinator, konfigurasi dimiliki
+service, dan context masuk byte budget. Review/regresi independen lulus mekanismenya.
+Uji EXTRACT PDF nyata tetap gagal deadline; observer menunjukkan output limit profil
+demo dan kesalahan span/relasi model. Lanjutkan perbaikan profile/evidence representation
+serta checkpoint item, bukan menurunkan gate. [Laporan](verification-report-runtime-bootstrap.md).
+
 Checkpoint PDF nyata: impor PDF BPK kini teruji sampai PARSE, STRUCTURE, BIND dan
 CHUNK dengan PDFium serta tokenizer BGE aktual; 35 chunk mempertahankan sumber,
 struktur, token accounting dan provision version. Metadata policy v2 memisahkan
