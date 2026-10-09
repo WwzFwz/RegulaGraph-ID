@@ -16,12 +16,27 @@ import (
 	"regulagraph.local/server/internal/domain"
 )
 
-func (p *GraphJobProcessor) readInventoryInputs(ctx context.Context, in domain.GraphJobInventory) (map[string]domain.GraphJobSourceInputs, error) {
+type GraphInventoryInputStore interface {
+	LoadGraphSourceBinding(context.Context, string, string, string) (domain.GraphSourceBinding, error)
+	LoadSemanticResolutionIntent(context.Context, string, string) (domain.SemanticResolutionIntent, error)
+	LoadArtifact(context.Context, string, string) (*pb.ArtifactRef, error)
+}
+
+// ReadGraphInventoryInputs restores the same bounded, registered source bytes
+// for daemon execution and operator publication. Returned bytes are not an
+// admission capability; callers must obtain storage-owned authority afterward.
+func ReadGraphInventoryInputs(ctx context.Context, store GraphInventoryInputStore, reader DocumentArtifactReader, in domain.GraphJobInventory) (map[string]domain.GraphJobSourceInputs, error) {
+	if ctx == nil || store == nil || reader == nil {
+		return nil, errors.New("graph input dependencies required")
+	}
+	if err := domain.ValidateGraphJobInventory(in); err != nil {
+		return nil, err
+	}
 	remaining := uint64(64 << 20)
 	inputs := make(map[string]domain.GraphJobSourceInputs, len(in.Assignments))
 	for _, a := range in.Assignments {
 		corpus := a.Plan.Meta.CorpusId
-		b, err := p.store.LoadGraphSourceBinding(ctx, corpus, a.Plan.PublicationId, a.SourceJobID)
+		b, err := store.LoadGraphSourceBinding(ctx, corpus, a.Plan.PublicationId, a.SourceJobID)
 		if err != nil {
 			return nil, graphArtifactReadError(err)
 		}
@@ -36,7 +51,7 @@ func (p *GraphJobProcessor) readInventoryInputs(ctx context.Context, in domain.G
 			{b.Source.Original, &input.Source.OriginalDocument}, {b.Source.Bound, &input.Source.SnapshotDocument},
 			{b.OriginalExtraction, &input.Source.Extraction}, {b.OriginalResolution, &input.Source.Resolution}, {a.Plan.RegistryView, &input.RegistryView},
 		} {
-			raw, err := readGraphPreparationArtifact(ctx, p.store, p.reader, corpus, role.ref, &remaining)
+			raw, err := readGraphPreparationArtifact(ctx, store, reader, corpus, role.ref, &remaining)
 			if err != nil {
 				return nil, graphArtifactReadError(err)
 			}
@@ -47,14 +62,14 @@ func (p *GraphJobProcessor) readInventoryInputs(ctx context.Context, in domain.G
 			return nil, errors.Join(domain.ErrPersistentIntegrity, err)
 		}
 		if len(extraction.Mentions) > 0 {
-			intent, err := p.store.LoadSemanticResolutionIntent(ctx, corpus, a.SourceJobID)
+			intent, err := store.LoadSemanticResolutionIntent(ctx, corpus, a.SourceJobID)
 			if err != nil {
 				return nil, graphArtifactReadError(err)
 			}
 			if intent.CandidateRef == nil {
 				return nil, domain.ErrPersistentIntegrity
 			}
-			input.Candidates, err = readGraphPreparationArtifact(ctx, p.store, p.reader, corpus, intent.CandidateRef, &remaining)
+			input.Candidates, err = readGraphPreparationArtifact(ctx, store, reader, corpus, intent.CandidateRef, &remaining)
 			if err != nil {
 				return nil, graphArtifactReadError(err)
 			}

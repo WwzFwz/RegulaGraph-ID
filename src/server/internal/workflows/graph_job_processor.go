@@ -140,7 +140,7 @@ func (p *GraphJobProcessor) admitted(ctx context.Context, publication string, pi
 	if first.Meta.CorpusId != job.CorpusID || first.PublicationId != publication || first.Context.AuthScopeRef != p.scope || !proto.Equal(first.OntologyHash, p.ontology.ContentHash()) {
 		return nil, domain.ErrPersistentIntegrity
 	}
-	inputs, err := p.readInventoryInputs(ctx, in)
+	inputs, err := ReadGraphInventoryInputs(ctx, p.store, p.reader, in)
 	if err != nil {
 		return nil, err
 	}
