@@ -20,6 +20,7 @@ import (
 	"regulagraph.local/server/internal/domain"
 	"regulagraph.local/server/internal/retrieval"
 	"regulagraph.local/server/internal/retrieval/graph"
+	"regulagraph.local/server/internal/retrieval/query"
 )
 
 // HydratedCandidates is local accounting, not another wire schema. Each searched
@@ -44,6 +45,7 @@ type RAGWorkflow struct {
 }
 
 type RAGResult struct {
+	Temporal     *query.TemporalResolution
 	Search       *CandidateSearchResult
 	Evidence     *pb.EvidenceBundle
 	Answer       *EvidenceAnswerResult

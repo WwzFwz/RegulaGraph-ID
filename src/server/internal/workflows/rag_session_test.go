@@ -14,6 +14,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	pb "regulagraph.local/server/gen/regulagraph/v1"
 	"regulagraph.local/server/internal/domain"
+	"regulagraph.local/server/internal/retrieval/query"
 )
 
 type ragLeaseStore struct {
@@ -64,7 +65,7 @@ func sessionGeneration() *pb.IndexGeneration {
 }
 
 func TestRAGSessionOwnsLeaseThroughDraft(t *testing.T) {
-	for _, mode := range []string{"success", "factory failure", "lease revoked", "cleanup failure", "cancelled generation", "historical mismatch", "malformed catalog", "missing date", "unauthorized corpus"} {
+	for _, mode := range []string{"success", "current across midnight", "factory failure", "lease revoked", "cleanup failure", "cancelled generation", "historical mismatch", "malformed catalog", "missing date", "unauthorized corpus"} {
 		t.Run(mode, func(t *testing.T) {
 			w, request, input, provider := ragFixture(t)
 			store := &ragLeaseStore{index: &domain.PinnedIndex{Snapshot: proto.Clone(input.Context.SnapshotRef).(*pb.SnapshotRef), Binding: domain.IndexCatalogBinding{PublicationID: "publication:one", Fence: 1, Endpoint: "http://fixture", Collection: "fixture", Generation: sessionGeneration()}}}
@@ -113,10 +114,28 @@ func TestRAGSessionOwnsLeaseThroughDraft(t *testing.T) {
 			}
 			before := proto.Clone(call)
 			session := &RAGSession{Store: store, Factory: factory, OwnerID: "reader:test", MaximumDuration: time.Second * 20, SearchLimit: 10}
+			clockCalls := 0
+			if mode == "current across midnight" {
+				request.TemporalScope.Mode = pb.TemporalMode_TEMPORAL_MODE_CURRENT
+				request.TemporalScope.EffectiveAt = nil
+				session.TimeZone, _ = query.LoadQueryTimeZone("Asia/Jakarta")
+				session.Clock = func() time.Time {
+					clockCalls++
+					// A second sample crosses local midnight and must never happen.
+					return time.Date(2026, 1, 1, 16, 59, 59, 0, time.UTC).Add(time.Duration(clockCalls-1) * time.Second)
+				}
+			}
+			originalRequest := proto.Clone(request)
 			result, err := session.AnswerQuestion(ctx, request, call)
-			if mode == "success" {
+			if !proto.Equal(request, originalRequest) {
+				t.Fatal("session mutated original temporal request")
+			}
+			if mode == "success" || mode == "current across midnight" {
 				if err != nil || result == nil || provider.calls != 1 || len(result.Answer.Draft.Answer.Citations) != 1 {
 					t.Fatalf("draft=%v err=%v model calls=%d", result, err, provider.calls)
+				}
+				if mode == "current across midnight" && (clockCalls != 1 || result.Temporal == nil || result.Temporal.RequestedMode != "CURRENT" || !proto.Equal(result.Answer.Draft.Answer.EffectiveDates[0], result.Temporal.EffectiveDate)) {
+					t.Fatal("CURRENT date changed across stages", result.Temporal, clockCalls)
 				}
 			} else if err == nil || result != nil {
 				t.Fatal("invalid session returned an answer", mode)

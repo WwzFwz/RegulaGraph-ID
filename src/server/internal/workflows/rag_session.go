@@ -20,6 +20,7 @@ import (
 	"regulagraph.local/server/internal/adapters/qdrant"
 	"regulagraph.local/server/internal/domain"
 	"regulagraph.local/server/internal/retrieval"
+	"regulagraph.local/server/internal/retrieval/query"
 )
 
 type RAGSnapshotStore interface {
@@ -29,6 +30,8 @@ type RAGSnapshotStore interface {
 }
 type PinnedRAGFactory func(context.Context, *domain.PinnedIndex) (*RAGWorkflow, error)
 type RAGSession struct {
+	TimeZone        *time.Location
+	Clock           func() time.Time // Trusted injectable clock; defaults to time.Now.
 	Store           RAGSnapshotStore
 	Factory         PinnedRAGFactory
 	OwnerID         string
@@ -58,10 +61,20 @@ func (s *RAGSession) runPinned(ctx context.Context, request *pb.QuestionRequest,
 			return nil, e
 		}
 	}
-	if request.CorpusId != call.CorpusId || call.SnapshotRef != nil || request.TemporalScope == nil || request.TemporalScope.Mode != pb.TemporalMode_TEMPORAL_MODE_AS_OF || request.TemporalScope.EffectiveAt == nil || len(request.TemporalScope.CompareDates) != 0 || request.ResponseMode != pb.ResponseMode_RESPONSE_MODE_COMPLETE ||
+	if request.CorpusId != call.CorpusId || call.SnapshotRef != nil || request.ResponseMode != pb.ResponseMode_RESPONSE_MODE_COMPLETE ||
 		(request.RequestedProfile != pb.RetrievalProfile_RETRIEVAL_PROFILE_VECTOR_RAG && request.RequestedProfile != pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_RAG && request.RequestedProfile != pb.RetrievalProfile_RETRIEVAL_PROFILE_GRAPH_RAG && request.RequestedProfile != pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_GRAPH_RAG) {
-		return nil, errors.New("RAG session requires authorized corpus, unset snapshot and supported complete AS_OF profile")
+		return nil, errors.New("RAG session requires authorized corpus, unset snapshot and supported complete retrieval profile")
 	}
+	clock := s.Clock
+	if clock == nil {
+		clock = time.Now
+	}
+	scope, temporal, err := query.ResolveTemporalScope(request.TemporalScope, s.TimeZone, clock)
+	if err != nil {
+		return nil, err
+	}
+	request = proto.Clone(request).(*pb.QuestionRequest)
+	request.TemporalScope = scope
 	deadline := time.Now().Add(s.MaximumDuration)
 	if call.Deadline.AsTime().Before(deadline) {
 		deadline = call.Deadline.AsTime()
@@ -141,5 +154,6 @@ func (s *RAGSession) runPinned(ctx context.Context, request *pb.QuestionRequest,
 	if err = leased.Err(); err != nil {
 		return nil, err
 	}
+	result.Temporal = temporal
 	return result, nil
 }
