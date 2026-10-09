@@ -157,30 +157,47 @@ func (r *Repository) ScheduleIndexJobs(ctx context.Context, inventory domain.Ind
 }
 
 func (r *Repository) LoadIndexJobInventory(ctx context.Context, publicationID string) (domain.IndexJobInventory, error) {
+	return loadIndexJobInventory(ctx, r.pool, publicationID)
+}
+
+// The same immutable inventory decoder is used under a snapshot lease transaction.
+func loadIndexJobInventory(ctx context.Context, query interface {
+	indexQuerier
+	Query(context.Context, string, ...any) (pgx.Rows, error)
+}, publicationID string) (domain.IndexJobInventory, error) {
 	var result domain.IndexJobInventory
 	var snapshotBytes []byte
 	var corpus, digest string
 	var fence int64
 	var expected int
-	err := r.pool.QueryRow(ctx, `SELECT corpus_id,fence,auth_scope,snapshot_payload,inventory_hash,job_count FROM index_job_inventories WHERE publication_id=$1`, publicationID).Scan(&corpus, &fence, &result.AuthScope, &snapshotBytes, &digest, &expected)
+	err := query.QueryRow(ctx, `SELECT corpus_id,fence,auth_scope,
+ CASE WHEN octet_length(snapshot_payload)<=65536 THEN snapshot_payload ELSE NULL END,
+ inventory_hash,job_count FROM index_job_inventories WHERE publication_id=$1`, publicationID).Scan(&corpus, &fence, &result.AuthScope, &snapshotBytes, &digest, &expected)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return result, ErrNotFound
 	}
 	if err != nil {
 		return result, err
 	}
+	if expected < 1 || expected > 256 || len(snapshotBytes) == 0 {
+		return result, domain.ErrPersistentIntegrity
+	}
 	result.Snapshot = new(pb.SnapshotRef)
 	if err = domain.DecodeWire(snapshotBytes, result.Snapshot, domain.DefaultWireLimits); err != nil {
 		return result, err
 	}
-	result.Binding, err = r.LoadIndexGeneration(ctx, corpus, result.Snapshot.RepresentationGeneration)
+	result.Binding, err = loadIndexBinding(ctx, query, corpus, result.Snapshot.RepresentationGeneration)
 	if err != nil {
 		return result, err
 	}
 	if result.Binding.PublicationID != publicationID || result.Binding.Fence != uint64(fence) {
 		return result, domain.ErrPersistentIntegrity
 	}
-	rows, err := r.pool.Query(ctx, `SELECT job_id,source_job_id,ordinal,plan_payload,plan_reference FROM index_job_assignments WHERE publication_id=$1 ORDER BY ordinal LIMIT 257`, publicationID)
+	rows, err := query.Query(ctx, `SELECT job_id,source_job_id,ordinal,
+ CASE WHEN octet_length(plan_payload)<=16777216 AND SUM(octet_length(plan_payload)::bigint) OVER ()<=67108864
+ THEN plan_payload ELSE NULL END,
+ CASE WHEN octet_length(plan_reference)<=65536 THEN plan_reference ELSE NULL END
+ FROM index_job_assignments WHERE publication_id=$1 ORDER BY ordinal LIMIT 257`, publicationID)
 	if err != nil {
 		return result, err
 	}
@@ -192,7 +209,7 @@ func (r *Repository) LoadIndexJobInventory(ctx context.Context, publicationID st
 		if err = rows.Scan(&a.JobID, &a.SourceJobID, &ordinal, &plan, &ref); err != nil {
 			return result, err
 		}
-		if ordinal != len(result.Assignments) || len(result.Assignments) >= 256 {
+		if ordinal != len(result.Assignments) || len(result.Assignments) >= 256 || len(plan) == 0 || len(ref) == 0 {
 			return result, domain.ErrPersistentIntegrity
 		}
 		a.Plan = new(pb.IndexBuildPlan)

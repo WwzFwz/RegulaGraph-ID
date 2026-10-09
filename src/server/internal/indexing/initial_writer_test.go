@@ -67,7 +67,7 @@ func TestInitialIndexPublicationAgainstStores(t *testing.T) {
 
 func runInitialIndexPublication(t *testing.T, requireGraph, contentAddressed bool, storageMode string) {
 	dsn, endpoint := os.Getenv("REGULAGRAPH_TEST_POSTGRES_DSN"), os.Getenv("REGULAGRAPH_TEST_QDRANT_ENDPOINT")
-	if storageMode != "" && endpoint == "" {
+	if storageMode != "" && storageMode != "graph-membership" && endpoint == "" {
 		endpoint = "http://127.0.0.1:6333" // routing metadata only; no backend calls
 	}
 	if dsn == "" || endpoint == "" {
@@ -202,7 +202,7 @@ func runInitialIndexPublication(t *testing.T, requireGraph, contentAddressed boo
 	snapshot.Sequence = reservation.Sequence
 	plan.TargetSnapshot, plan.SourceSnapshot = proto.Clone(snapshot).(*pb.SnapshotRef), proto.Clone(snapshot).(*pb.SnapshotRef)
 	source.Context.SnapshotRef = proto.Clone(snapshot).(*pb.SnapshotRef)
-	if storageMode == "source-binding" || storageMode == "snapshot-preparation" {
+	if storageMode == "source-binding" || storageMode == "snapshot-preparation" || storageMode == "graph-membership" {
 		source.Context.SnapshotRef = nil
 	}
 	batch.Context.SnapshotRef = proto.Clone(snapshot).(*pb.SnapshotRef)
@@ -294,9 +294,13 @@ func runInitialIndexPublication(t *testing.T, requireGraph, contentAddressed boo
 		checkInitialSnapshotPreparation(t, ctx, repo, artifacts, corpus, pub+":prepared", plan.Generation.Meta.RecordId, source.Context.AuthScopeRef, job, plan.DocumentBatch)
 		return
 	}
-	if storageMode == "source-binding" {
+	var graphSourceBinding *domain.IndexSourceBinding
+	if storageMode == "source-binding" || storageMode == "graph-membership" {
+		original := proto.Clone(plan.DocumentBatch).(*pb.ArtifactRef)
 		boundRef, boundSource := checkSnapshotSourceBinding(t, ctx, repo, conn, pub, reservation.Fence, snapshot, job, plan.DocumentBatch, artifacts, source.Context.AuthScopeRef)
 		plan.DocumentBatch, source = boundRef, boundSource
+		graphSourceBinding = &domain.IndexSourceBinding{PublicationID: pub, Fence: reservation.Fence, Snapshot: snapshot,
+			SourceJobID: job, AuthScope: source.Context.AuthScopeRef, Original: original, Bound: boundRef}
 	}
 	load("lexical-analyzer-artifact-v1.pb", analyzer)
 	analyzer.Meta.RecordId += suffix
@@ -592,6 +596,9 @@ func runInitialIndexPublication(t *testing.T, requireGraph, contentAddressed boo
 	}
 	verifyPublishedHydration(t, ctx, repo, physical, p, artifacts, source)
 	verifyPublishedRAG(t, ctx, repo, physical, p, artifacts, source.DependencyManifest.ProducerManifest)
+	if graphSourceBinding != nil {
+		checkPublishedGraphMembership(t, ctx, repo, *graphSourceBinding)
+	}
 }
 
 func verifyPublishedHydration(t *testing.T, ctx context.Context, repo *postgres.Repository, physical *qdrant.Store, p *PreparedInitialIndex, artifacts indexMemoryArtifacts, source *pb.DocumentBatch) {
