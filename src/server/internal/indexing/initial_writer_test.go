@@ -598,6 +598,7 @@ func runInitialIndexPublication(t *testing.T, requireGraph, contentAddressed boo
 	verifyPublishedRAG(t, ctx, repo, physical, p, artifacts, source.DependencyManifest.ProducerManifest)
 	if graphSourceBinding != nil {
 		checkPublishedGraphMembership(t, ctx, repo, *graphSourceBinding)
+		checkGraphSourceBindingReceipt(t, ctx, repo, conn, parsed.String(), *graphSourceBinding, artifacts)
 	}
 }
 
