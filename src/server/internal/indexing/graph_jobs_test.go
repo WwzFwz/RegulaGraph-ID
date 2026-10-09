@@ -164,6 +164,7 @@ CREATE TRIGGER graph_child_fixture BEFORE INSERT ON jobs FOR EACH ROW EXECUTE FU
 	if err != nil || reclaimed.LeaseFence <= claimed.LeaseFence || reclaimed.Attempt <= claimed.Attempt {
 		t.Fatalf("graph crash recovery did not advance fence/attempt: %+v %v", reclaimed, err)
 	}
+	checkGraphDispatchAuthority(t, ctx, single, db, pin, stored, inputs, reclaimed, claimed, fresh)
 	if _, err = db.Exec(ctx, `UPDATE graph_job_inventories SET fence=fence WHERE publication_id=$1`, binding.PublicationID); err == nil {
 		t.Fatal("graph inventory mutable")
 	}
