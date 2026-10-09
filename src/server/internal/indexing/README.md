@@ -1,5 +1,11 @@
 # src/server/internal/indexing
 
+`graph_jobs_test.go` melanjutkan fixture published source ke admission/inventory/claim
+graph dengan PostgreSQL/Qdrant nyata. Ia menguji rollback child insert, replay, caller
+mutation, registry drift termasuk lock wait, source cancellation dan reclaim. Graph
+execution tetap milik workflow/Rust; fixture ini tidak mengimplementasikan writer
+graph di indexing dan tidak membuktikan source nonempty atau kualitas model.
+
 `graph_registry_fixture_test.go` menambah metadata/edisi BIND dan row identity
 sintetis yang eksplisit ke fixture indeks sebelum registrasi. Pengujian preparation
 memastikan perubahan key penerbit ditolak meski hash artefak/receipt tetap sama;

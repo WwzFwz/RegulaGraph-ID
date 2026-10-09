@@ -10,7 +10,8 @@ candidate lookup pada revision target yang sama. EXTRACT asli wajib source-only
 sesuai worker saat ini; dependency eksternal/registry yang belum punya reader ditolak.
 Jalur empty RESOLVE tidak mengarang lookup/ledger. Byte kandidat dipakai ulang dari
 reader receipt; budget alias dibagi menurut unique scopes. Reaffirmation lintas
-revision dan admission atomik tetap pekerjaan terpisah.
+revision tetap pekerjaan terpisah. Admission inventory atomik kini tersedia di adapter
+PostgreSQL; selection/budget/dependency helpers dibagi lewat domain agar gate sama.
 
 `graph_resolution_receipt.go` membaca RESOLVE asli dan menuntut rekonstruksi exact
 dari intent/kandidat/ledger committed; jalur mention-free tidak mengarang operasi.
@@ -24,8 +25,9 @@ dan scheduling tidak tersirat oleh hasil preparation. Lihat
 domain, termasuk preservation model/assignment, dependency, remap diagnostic root dan
 replay. `graph_source_binding.go` menyimpan envelope dan dependency immutable lalu
 meminta receipt transactional dengan pemeriksaan ulang authority. Retry setelah
-interruption/lost acknowledgement memakai artefak yang sama. Scheduling ASSEMBLE
-belum tersedia; receipt transform tidak menggantikan receipt keputusan atau freshness
+interruption/lost acknowledgement memakai artefak yang sama. Library scheduling ASSEMBLE
+tersedia melalui [inventory](../../../../doc/graph-job-inventory.md), tetapi dispatch/output
+belum tersambung; receipt transform tidak menggantikan receipt keputusan atau freshness
 registry. Lihat [kontrak coordinator](../../../../doc/graph-assembly-coordinator.md).
 
 Orchestration alur ingestion, pembaruan incremental, dan tanya jawab. Folder ini mengatur urutan tahap, percabangan, checkpoint, retry, dan pelaporan status. Implementasi runtime berada di Go. Dokumen ini mendefinisikan superset tanggung jawab folder dan kontrak integrasi anaknya.

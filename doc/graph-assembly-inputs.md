@@ -123,9 +123,10 @@ Coordinator kini memverifikasi receipt keputusan RESOLVE, menentukan union canon
 mengekspor view dan menyimpannya immutable melalui FileStore. Logical ID
 `view.meta.record_id` harus sama dengan `plan.registry_view.artifact_id`;
 content address penyimpanan tetap terikat hash/size. Plan harus dipersist dan diikat
-ke inventory/checkpoint/job secara durable sebelum dispatch. Tahap admission tersebut
-masih harus mengulang gate BIND/EXTRACT/kandidat secara atomik serta mengikat keputusan lintas revision,
-bukan hanya exact recorded revision. Worker membaca tepat
+ke inventory/checkpoint/job secara durable sebelum dispatch. [Admission inventory](graph-job-inventory.md)
+kini mengulang gate BIND/EXTRACT/kandidat melalui preflight dan registry stamp yang
+diperiksa di bawah lock saat scheduling. Binding keputusan lintas revision tetap
+terbuka; implementasi menerima exact recorded revision. Worker membaca tepat
 bytes keempat role dan teks sumber terverifikasi, lalu menulis delta immutable.
 Output artifact dan checkpoint belum boleh dianggap published; Go memegang fencing,
 recovery serta receipts backend dan visibility record bersama.

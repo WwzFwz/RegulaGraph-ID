@@ -1,5 +1,13 @@
 # src/server/internal/adapters/postgres
 
+`graph_job_verification.go` menghasilkan admission opaque setelah autentikasi seluruh
+source/receipt/view; `graph_jobs.go` memeriksa stamp registry dan authority di bawah
+lock sebelum menyimpan inventory serta child jobs atomik. `graph_job_claim.go`
+memisahkan claim ASSEMBLE dari generic worker. Migration 0020 wajib diterapkan sebelum
+binary claim baru. Namespace alias `lookup:` hanya ditulis writer versioned, termasuk
+scope yang sebelumnya kosong. [Kontrak inventory](../../../../../doc/graph-job-inventory.md)
+menjelaskan replay, pool satu koneksi dan batas dispatch/output yang masih terbuka.
+
 `document_registry_dependencies.go` mengautentikasi DocumentBatch terdaftar lalu
 memeriksa exact key/type dan lifetime BIND pada retained registry revision dalam
 transaksi read-only RepeatableRead. Penambahan tak terkait tidak memaksa replan;

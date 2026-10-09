@@ -1,5 +1,10 @@
 # doc
 
+[graph-job-inventory.md](graph-job-inventory.md) menjelaskan admission opaque dengan
+registry stamp, inventory/child jobs atomik, claim ASSEMBLE dan batas worker/Neo4j.
+[Laporan verifikasi](verification-report-graph-job-inventory.md) mencatat rollback,
+lock race, review independen dan koreksi writer alias tanpa stamp.
+
 [verification-report-graph-resolution-view.md](verification-report-graph-resolution-view.md)
 mencatat integrasi receipt/konteks kandidat, dependency EXTRACT dan koreksi budget lookup.
 

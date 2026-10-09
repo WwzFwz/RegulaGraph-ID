@@ -164,7 +164,8 @@ gate belum mengesahkan alias/resolusi atau menggantikan recheck dalam admission 
    yang sama. Kegagalan antar-object boleh menyisakan orphan, tidak mengaktifkan job
    dengan sebagian input yang belum lengkap.
    Ekspor/persistence deterministik tersedia melalui `PrepareGraphAssembly`; inventory
-   atomik dan penghubung admission dependency freshness tetap pekerjaan berikutnya.
+   atomik dan admission dependency freshness pada recorded revision tersedia melalui
+   [GraphJobAdmission](graph-job-inventory.md). Reaffirmation lintas revision belum tersedia.
 5. Claim child ASSEMBLE, jalankan worker dengan deadline/cancellation, verifikasi delta
    terhadap plan dan source, kemudian commit checkpoint/output STAGED secara atomik
    dengan pemeriksaan ulang authority. Rekonsiliasi acknowledgement yang hilang.

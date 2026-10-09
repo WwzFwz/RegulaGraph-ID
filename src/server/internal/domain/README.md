@@ -1,5 +1,11 @@
 # src/server/internal/domain
 
+`graph_jobs.go` memvalidasi inventory ASSEMBLE lokal: ownership ID, urutan source,
+kesamaan publication/registry/producer dan hash plan. `graph_source_dependencies.go`
+menyatukan canonical selection, batas normalized text dan gate dependency EXTRACT
+yang dipakai preparation maupun admission storage. Keduanya tidak memberi authority
+database; lihat [kontrak inventory](../../../../doc/graph-job-inventory.md).
+
 `document_registry_dependencies.go` merekonstruksi exact key penerbit, regulasi dan
 pasal yang dikonsumsi BIND dari metadata sumber/edisi/path. Closure, fingerprint
 penerbit dan satu observasi registry wajib utuh. Hasil hanya rencana pemeriksaan;

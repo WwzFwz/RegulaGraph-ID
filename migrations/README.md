@@ -14,6 +14,12 @@ Anak tidak boleh mengubah kontrak input/output secara tersembunyi. Perubahan ben
 
 ## Isi saat ini
 
+[0020_graph_job_inventory.up.sql](0020_graph_job_inventory.up.sql) menambah inventory
+dan assignment ASSEMBLE append-only dengan batas payload dan foreign keys. Terapkan
+sebelum binary generic claim terbaru, yang mengecualikan assignment graph. Tidak ada
+backfill; abort mempertahankan audit. Penerapan transactional dan scheduling rollback
+diuji pada PostgreSQL disposable; pertumbuhan/lock workload produksi belum diukur.
+
 [0019_graph_source_bindings.up.sql](0019_graph_source_bindings.up.sql) menambah
 receipt transform graph source append-only dengan foreign keys, payload berhash dan
 batas 64 KiB. Tidak ada backfill atau perubahan artefak lama. Jalankan sebelum memakai

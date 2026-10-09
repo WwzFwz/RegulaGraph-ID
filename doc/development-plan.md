@@ -1,5 +1,13 @@
 # Rencana implementasi berbasis dependency
 
+Lanjutan K01: [inventory ASSEMBLE](graph-job-inventory.md) kini memiliki preflight
+source/receipt/view, admission dengan registry stamp di bawah lock, child jobs atomik,
+replay dan claim terpisah. PostgreSQL/Qdrant menguji rollback, pool satu koneksi,
+registry lock race dan cancellation/reclaim. Dispatch/output commit, source nonempty
+end-to-end, reaffirmation lintas revision serta Neo4j publication tetap diperlukan.
+[Laporan inventory](verification-report-graph-job-inventory.md) memisahkan hasil fixture
+dan review independen dari acceptance release.
+
 Lanjutan K01: freshness kandidat RESOLVE kini tersambung ke preparation pada revision
 hasil commit. Seluruh positive/negative scopes dibandingkan; EXTRACT dengan dependency
 eksternal tak didukung ditolak. Receipt historis dan bytes asli tidak diubah.

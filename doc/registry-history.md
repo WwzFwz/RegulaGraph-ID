@@ -7,6 +7,12 @@ Neo4j, perubahan canonical CREATE/MERGE/SPLIT, atau entity linker request.
 
 ## Input, proses, output
 
+Namespace `lookup:` milik alias versioned. `AdvanceLookupScope` generik menolaknya
+termasuk ketika scope belum ada, agar negative lookup tidak berubah tanpa registry
+stamp. Gunakan writer alias yang menyimpan revision/count history atomik; generic
+scope nonalias tetap tersedia. [Verifikasi](verification-report-graph-job-inventory.md)
+mencatat regresi jalur ini dan kaitannya dengan admission inventory.
+
 Coordinator memanggil `BindPublicationRegistry(publication, corpus, fence,
 expectedRevision)` ketika publication masih STAGING/VALIDATING. Adapter mengunci
 snapshot lalu corpus, memastikan fence publisher dan revision saat ini cocok,
