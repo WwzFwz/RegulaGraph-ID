@@ -27,6 +27,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	pb "regulagraph.local/server/gen/regulagraph/v1"
 	"regulagraph.local/server/internal/adapters/inference"
+	"regulagraph.local/server/internal/adapters/postgres"
 	serverconfig "regulagraph.local/server/internal/config"
 	"regulagraph.local/server/internal/domain"
 )
@@ -56,6 +57,7 @@ type runtimeConfig struct {
 	maximumCacheBytes        int
 	maximumMessageBytes      int
 	localBinding             *inference.LlamaModelBinding
+	replayPostgres           bool
 }
 
 func main() {
@@ -87,6 +89,21 @@ func run(ctx context.Context) error {
 		return errors.New("REGULAGRAPH_SEMANTIC_PRINT_PRODUCER must be true or false")
 	}
 	var structured inference.StructuredProvider = provider
+	var replay domain.ModelCompletionStore
+	if config.replayPostgres {
+		if printProducer == "true" {
+			// Export declares replay policy without opening storage. A zero
+			// repository fails closed if accidentally used for an operation.
+			replay = &postgres.Repository{}
+		} else {
+			repo, openErr := postgres.Open(ctx, postgres.Config{DSN: os.Getenv("REGULAGRAPH_POSTGRES_DSN"), MaxConnections: 4, ConnectTimeout: 5 * time.Second, HealthTimeout: 5 * time.Second})
+			if openErr != nil {
+				return errors.New("open semantic replay PostgreSQL failed")
+			}
+			defer repo.Close()
+			replay = repo
+		}
+	}
 	if config.localBinding != nil && printProducer != "true" {
 		startup, cancel := context.WithTimeout(ctx, config.providerTimeout)
 		structured, err = inference.AdmitLlama(startup, provider, *config.localBinding, config.maximumInputBytes)
@@ -108,6 +125,7 @@ func run(ctx context.Context) error {
 		MaximumOutputTokens: uint32(config.maximumOutputTokens),
 		MaximumConcurrent:   config.maximumConcurrent, MaximumCacheEntries: config.maximumCacheEntries,
 		MaximumCacheBytes: int64(config.maximumCacheBytes),
+		ExtractionStore:   replay,
 	})
 	if err != nil {
 		return fmt.Errorf("configure semantic service: %w", err)
@@ -176,6 +194,16 @@ func loadConfig() (runtimeConfig, []byte, json.RawMessage, *pb.ContentHash, erro
 		schemaPath:       os.Getenv(prefix + "OUTPUT_SCHEMA"),
 		ontologyVersion:  os.Getenv(prefix + "ONTOLOGY_VERSION"),
 		build:            os.Getenv("REGULAGRAPH_BUILD_ID"),
+	}
+	switch os.Getenv("REGULAGRAPH_SEMANTIC_REPLAY") {
+	case "", "disabled":
+	case "postgres":
+		if modelTask != pb.ModelTask_MODEL_TASK_EXTRACT {
+			return runtimeConfig{}, nil, nil, nil, errors.New("durable completion replay supports EXTRACT only")
+		}
+		config.replayPostgres = true
+	default:
+		return runtimeConfig{}, nil, nil, nil, errors.New("semantic replay must be disabled or postgres")
 	}
 	if config.listen == "" || config.providerEndpoint == "" || config.promptPath == "" || config.schemaPath == "" ||
 		config.ontologyVersion == "" || config.build == "" {
@@ -291,6 +319,7 @@ func loadConfig() (runtimeConfig, []byte, json.RawMessage, *pb.ContentHash, erro
 		ModelID           string                       `json:"model_id"`
 		ModelVersion      string                       `json:"model_version"`
 		LocalBinding      *inference.LlamaModelBinding `json:"local_binding,omitempty"`
+		ReplayPostgres    bool                         `json:"replay_postgres,omitempty"`
 	}{
 		ProviderEndpoint: config.providerEndpoint, ProviderTimeout: config.providerTimeout.String(),
 		MaxResponseBytes: config.providerMaxResponseBytes, OntologyVersion: config.ontologyVersion, OntologyHash: config.ontology.ContentHash().Sha256,
@@ -299,7 +328,8 @@ func loadConfig() (runtimeConfig, []byte, json.RawMessage, *pb.ContentHash, erro
 		MaximumConcurrent: config.maximumConcurrent, MaximumCacheItems: config.maximumCacheEntries,
 		MaximumCacheBytes: config.maximumCacheBytes, PromptHash: promptHash.Sha256,
 		SchemaHash: hashBytes(schemaBytes), ModelID: modelID, ModelVersion: modelVersion,
-		LocalBinding: config.localBinding,
+		LocalBinding:   config.localBinding,
+		ReplayPostgres: config.replayPostgres,
 	}
 	encodedConfig, err := json.Marshal(publicConfig)
 	if err != nil {

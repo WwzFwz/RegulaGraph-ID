@@ -1,5 +1,13 @@
 # src/server/cmd/semantic-gateway
 
+`REGULAGRAPH_SEMANTIC_REPLAY=postgres` mengaktifkan completion replay EXTRACT
+lintas restart, memakai `REGULAGRAPH_POSTGRES_DSN` dan migration 0024. Default
+`disabled` tetap cache memori. Producer/config berubah saat mode diaktifkan;
+ekspor producer baru dan submit dengan pin baru. Mode print tidak membuka DB.
+RESOLVE menolak opsi ini sampai replay resolusi tersedia. Store failure tidak
+diam-diam fallback ke model; completion tersimpan tetap divalidasi ulang. Lihat
+[kontrak dan cara menjalankan](../../../../doc/semantic-completion-replay.md).
+
 Gateway menyediakan mode lokal `REGULAGRAPH_SEMANTIC_ADMISSION=llama.cpp` untuk
 EXTRACT/RESOLVE. Set `REGULAGRAPH_SEMANTIC_GGUF_PATH` ke path absolut,
 `REGULAGRAPH_SEMANTIC_LLAMA_BUILD` ke build server, dan
@@ -53,6 +61,6 @@ Mode `REGULAGRAPH_SEMANTIC_PRINT_PRODUCER=true` mencetak manifest ProtoJSON yang
 
 Listener wajib loopback sampai autentikasi transport/TLS tersedia. Provider eksternal wajib HTTPS; provider HTTP hanya diterima pada loopback. API key hanya berasal dari environment dan tidak dimasukkan ke fingerprint atau log. Shutdown menunggu RPC aktif paling lama sepuluh detik sebelum menghentikan server.
 
-Gateway mengimplementasikan EXTRACT atau RESOLVE sesuai task terpin. `SummarizeBatch` tetap unimplemented. Cache operation-key masih berada di memori proses, dibatasi jumlah operasi dan total byte; item sukses/error terminal dipakai kembali ketika item lain dalam batch perlu retry. Coordinator bertanggung jawab atas replay durable dan commit artefak lintas restart. Ketika kapasitas operasi penuh, request baru mendapat `ResourceExhausted` agar antrean/goroutine tidak tumbuh tanpa batas. Keakuratan ekstraksi dan target latency/biaya tetap **REQUIRED_UNMEASURED** sampai dijalankan dengan provider, model, corpus snapshot, dan evaluation split yang dibekukan.
+Gateway mengimplementasikan EXTRACT atau RESOLVE sesuai task terpin. `SummarizeBatch` tetap unimplemented. Cache operation-key masih berada di memori proses, dibatasi jumlah operasi dan total byte; item sukses/error terminal dipakai kembali ketika item lain dalam batch perlu retry. Completion EXTRACT dapat disimpan di PostgreSQL melalui opsi di atas; coordinator tetap memiliki checkpoint job dan commit artefak. Ketika kapasitas operasi penuh, request baru mendapat `ResourceExhausted` agar antrean/goroutine tidak tumbuh tanpa batas. Keakuratan ekstraksi dan target latency/biaya tetap **REQUIRED_UNMEASURED** sampai dijalankan dengan provider, model, corpus snapshot, dan evaluation split yang dibekukan.
 
 `REGULAGRAPH_SEMANTIC_TASK=RESOLVE` memilih task resolusi dengan variabel model/schema berprefix `REGULAGRAPH_WORKER_RESOLUTION_`. Jalankan proses terpisah untuk EXTRACT dan RESOLVE agar model/prompt serta kapasitasnya dapat dipin sendiri. Default task tetap EXTRACT; task lain ditolak. [Panduan lokal dan batas integrasi](../../../../doc/semantic-resolution.md) menjelaskan setup dan prasyarat model.

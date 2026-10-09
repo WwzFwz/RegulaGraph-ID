@@ -47,3 +47,26 @@ func TestLocalSemanticAdmissionPins(t *testing.T) {
 		t.Fatal("relative path accepted")
 	}
 }
+
+func TestSemanticReplayModeFingerprint(t *testing.T) {
+	configureFixture(t)
+	t.Setenv("REGULAGRAPH_SEMANTIC_REPLAY", "disabled")
+	_, _, _, before, err := loadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("REGULAGRAPH_SEMANTIC_REPLAY", "postgres")
+	config, _, _, after, err := loadConfig()
+	if err != nil || !config.replayPostgres || before.Sha256 == after.Sha256 {
+		t.Fatalf("replay policy not pinned: %v", err)
+	}
+	t.Setenv("REGULAGRAPH_POSTGRES_DSN", "secret-not-a-dsn")
+	_, _, _, secretChanged, err := loadConfig()
+	if err != nil || secretChanged.Sha256 != after.Sha256 {
+		t.Fatalf("storage secret entered fingerprint: %v", err)
+	}
+	t.Setenv("REGULAGRAPH_SEMANTIC_REPLAY", "unknown")
+	if _, _, _, _, err = loadConfig(); err == nil {
+		t.Fatal("unknown replay mode accepted")
+	}
+}
