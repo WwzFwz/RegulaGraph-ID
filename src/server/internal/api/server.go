@@ -13,8 +13,8 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: evidence server aktif; livez hanya process liveness, readyz memeriksa
-// snapshot/model/backend. Generation jawaban/streaming belum tersedia.
-// Integrasi berikutnya: answer endpoints dan distributed observability.
+// snapshot/model/backend. Optional complete draft answers active; streaming pending.
+// Integrasi berikutnya: streaming dan distributed observability.
 // Bukti verifikasi: Exercise slow clients, cancelled streams, overload and shutdown with in-flight requests; measure queue-inclusive latency.
 // Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
 
@@ -45,6 +45,7 @@ func NewEvidenceServer(address string, service routes.EvidenceService, cfg route
 	}
 	mux := http.NewServeMux()
 	mux.Handle("/v1/evidence", evidence)
+	mux.Handle("/v1/questions", evidence)
 	mux.Handle("/readyz", evidence)
 	mux.HandleFunc("/livez", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -70,10 +71,10 @@ func NewEvidenceServer(address string, service routes.EvidenceService, cfg route
 		mux.ServeHTTP(meter, r)
 		// Never log query text, tokens, credentials or arbitrary URL parameters.
 		route := "unknown"
-		if r.URL.Path == "/v1/evidence" || r.URL.Path == "/readyz" || r.URL.Path == "/livez" {
+		if r.URL.Path == "/v1/evidence" || r.URL.Path == "/v1/questions" || r.URL.Path == "/readyz" || r.URL.Path == "/livez" {
 			route = r.URL.Path
 		}
-		logger.Info("http_request", "route", route, "status", meter.status, "duration_ms", float64(time.Since(start).Microseconds())/1000, "request_id", id, "evidence_id", w.Header().Get("X-Evidence-ID"))
+		logger.Info("http_request", "route", route, "status", meter.status, "duration_ms", float64(time.Since(start).Microseconds())/1000, "request_id", id, "evidence_id", w.Header().Get("X-Evidence-ID"), "answer_id", w.Header().Get("X-Answer-ID"))
 	})
 	return &http.Server{Addr: address, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: cfg.Timeout, WriteTimeout: cfg.Timeout + 5*time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10}, nil
 }

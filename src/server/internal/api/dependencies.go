@@ -17,8 +17,8 @@
 //
 // Status: empat profil evidence dengan shared clients dan snapshot-bound graph
 // resources. Retired resources survive active borrowers; leases remain per request.
-// Answering belum diaktifkan. Close dipanggil setelah request selesai/drain.
-// Integrasi berikutnya: generator/tokenizer terpin dan acceptance corpus nyata.
+// Optional local answering shares one admitted generator; Close runs after drain.
+// Integrasi berikutnya: streaming dan acceptance corpus nyata.
 // Bukti verifikasi: Test partial startup cleanup and dependency failure without opening connections during package initialization.
 // Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
 
@@ -61,6 +61,8 @@ type EvidenceRuntimeConfig struct {
 	Limit                                                        int
 	Timeout                                                      time.Duration
 	GraphPath, GraphHash, GraphUsername, GraphPassword           string
+	EnableAnswers                                                bool
+	AnswerPath, AnswerHash, AnswerKey                            string
 }
 
 type EvidenceRuntime struct {
@@ -74,6 +76,7 @@ type EvidenceRuntime struct {
 	preparing   chan struct{}
 	resources   queryResourceCache
 	graphConfig *config.QueryGraphConfig
+	answer      *workflows.LocalAnswerRuntime
 }
 
 // Set only by this process's HTTP middleware, never from a caller header.
@@ -104,6 +107,25 @@ func OpenEvidenceRuntime(ctx context.Context, cfg EvidenceRuntimeConfig) (*Evide
 			return nil, err
 		}
 	}
+	var answerConfig *config.AnswerGeneratorConfig
+	if cfg.EnableAnswers {
+		answerConfig, err = config.LoadAnswerGenerator(cfg.AnswerPath, cfg.AnswerHash, cfg.Corpus)
+		if err != nil {
+			return nil, err
+		}
+		branches := 1
+		if cfg.Profile == pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_RAG {
+			branches = 2
+		}
+		if cfg.Profile == pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_GRAPH_RAG {
+			branches = 3
+		}
+		if answerConfig.MaximumEvidence < branches*cfg.Limit {
+			return nil, errors.New("answer evidence budget must cover retrieval candidates")
+		}
+	} else if cfg.AnswerPath != "" || cfg.AnswerHash != "" || cfg.AnswerKey != "" {
+		return nil, errors.New("answer configuration requires explicit answer capability")
+	}
 	// Exclude credentials from the observable fingerprint. Include the behavior
 	// and route pins; the actual model generation is added from the catalog.
 	raw, _ := json.Marshal(struct {
@@ -112,11 +134,19 @@ func OpenEvidenceRuntime(ctx context.Context, cfg EvidenceRuntimeConfig) (*Evide
 		Limit                                int
 		Timeout                              time.Duration
 		GraphHash                            string
-	}{cfg.Corpus, cfg.AuthScope, cfg.Build, cfg.NativeEndpoint, cfg.QdrantEndpoint, cfg.Profile, cfg.Limit, cfg.Timeout, cfg.GraphHash})
+		AnswerHash                           string
+	}{cfg.Corpus, cfg.AuthScope, cfg.Build, cfg.NativeEndpoint, cfg.QdrantEndpoint, cfg.Profile, cfg.Limit, cfg.Timeout, cfg.GraphHash, cfg.AnswerHash})
 	hash := sha256.Sum256(raw)
 	r := &EvidenceRuntime{config: cfg, fingerprint: &pb.ContentHash{Sha256: hex.EncodeToString(hash[:])}, preparing: make(chan struct{}, 1), graphConfig: graphConfig}
+	if answerConfig != nil {
+		r.answer, err = workflows.OpenLocalAnswer(ctx, answerConfig, cfg.AnswerKey, cfg.Build, cfg.Timeout)
+		if err != nil {
+			return nil, err
+		}
+	}
 	r.repo, err = postgres.Open(ctx, postgres.Config{DSN: cfg.DSN, MaxConnections: 8, ConnectTimeout: 5 * time.Second, HealthTimeout: 5 * time.Second})
 	if err != nil {
+		r.Close()
 		return nil, err
 	}
 	r.files, err = storage.NewFileStore(cfg.ArtifactRoot)
@@ -141,6 +171,9 @@ func (r *EvidenceRuntime) Close() {
 		return
 	}
 	r.resources.close()
+	if r.answer != nil {
+		r.answer.Close()
+	}
 	if r.connection != nil {
 		r.connection.Close()
 	}
@@ -246,7 +279,11 @@ func (r *EvidenceRuntime) prepare(ctx context.Context, index *domain.PinnedIndex
 	if r.config.Profile == pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_GRAPH_RAG {
 		branches = 3
 	}
-	resource.prepared, err = workflows.PreparePublishedQuery(ctx, index, r.repo, r.files, resource.native, nil, workflows.PublishedQueryConfig{QdrantCredentials: map[string]string{r.config.QdrantEndpoint: r.config.QdrantKey}, HTTPClient: r.http, Profile: r.config.Profile, MaximumLexicalBytes: 64 << 20, Graph: graphConfig, Fusion: retrieval.RRFConfig{K: 60, MaximumPerBranch: n, MaximumTotalInputs: branches * n, Weights: map[pb.RetrieverKind]float64{pb.RetrieverKind_RETRIEVER_KIND_DENSE: 1, pb.RetrieverKind_RETRIEVER_KIND_BM25: 1, pb.RetrieverKind_RETRIEVER_KIND_GRAPH: 1}}, Hydration: retrieval.HydrationConfig{MaximumCandidates: branches * n, MaximumArtifactBytes: 64 << 20, MaximumEvidenceBytes: 4 << 20, Producer: producer}})
+	var answerWorkflow *workflows.EvidenceAnswerWorkflow
+	if r.answer != nil {
+		answerWorkflow = r.answer.Workflow
+	}
+	resource.prepared, err = workflows.PreparePublishedQuery(ctx, index, r.repo, r.files, resource.native, answerWorkflow, workflows.PublishedQueryConfig{QdrantCredentials: map[string]string{r.config.QdrantEndpoint: r.config.QdrantKey}, HTTPClient: r.http, Profile: r.config.Profile, MaximumLexicalBytes: 64 << 20, Graph: graphConfig, Fusion: retrieval.RRFConfig{K: 60, MaximumPerBranch: n, MaximumTotalInputs: branches * n, Weights: map[pb.RetrieverKind]float64{pb.RetrieverKind_RETRIEVER_KIND_DENSE: 1, pb.RetrieverKind_RETRIEVER_KIND_BM25: 1, pb.RetrieverKind_RETRIEVER_KIND_GRAPH: 1}}, Hydration: retrieval.HydrationConfig{MaximumCandidates: branches * n, MaximumArtifactBytes: 64 << 20, MaximumEvidenceBytes: 4 << 20, Producer: producer}})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -260,6 +297,21 @@ func (r *EvidenceRuntime) prepare(ctx context.Context, index *domain.PinnedIndex
 }
 
 func (r *EvidenceRuntime) Search(ctx context.Context, question *pb.QuestionRequest) (*pb.EvidenceBundle, error) {
+	result, err := r.query(ctx, question, false)
+	if err != nil {
+		return nil, err
+	}
+	return result.Evidence, nil
+}
+func (r *EvidenceRuntime) AnswerEnabled() bool { return r != nil && r.answer != nil }
+
+func (r *EvidenceRuntime) Answer(ctx context.Context, question *pb.QuestionRequest) (*workflows.RAGResult, error) {
+	if r.answer == nil {
+		return nil, errors.New("answer capability is disabled")
+	}
+	return r.query(ctx, question, true)
+}
+func (r *EvidenceRuntime) query(ctx context.Context, question *pb.QuestionRequest, answer bool) (*workflows.RAGResult, error) {
 	if question == nil || question.CorpusId != r.config.Corpus || question.RequestedProfile != r.config.Profile {
 		return nil, errors.New("unauthorized corpus or unsupported profile")
 	}
@@ -283,18 +335,22 @@ func (r *EvidenceRuntime) Search(ctx context.Context, question *pb.QuestionReque
 		release = done
 		return resource.prepared.Bind(c, index)
 	}}
-	result, err := session.SearchQuestion(ctx, question, call)
-	if err != nil {
-		return nil, err
+	if answer {
+		return session.AnswerQuestion(ctx, question, call)
 	}
-	return result.Evidence, nil
+	return session.SearchQuestion(ctx, question, call)
 }
 
 // Ready checks current snapshot/catalog, native capabilities and collection
-// shape without claiming corpus quality or answer-generator readiness.
+// shape plus admitted generator when enabled; this does not prove corpus quality.
 func (r *EvidenceRuntime) Ready(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
+	if r.answer != nil {
+		if err := r.answer.Ready(ctx); err != nil {
+			return err
+		}
+	}
 	call, err := r.call(ctx)
 	if err != nil {
 		return err

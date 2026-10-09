@@ -20,6 +20,14 @@ import (
 
 type lifecycleEvidence struct{ entered, release chan struct{} }
 
+func TestAnswerServerRejectsEvidenceOnlyRuntime(t *testing.T) {
+	service := &EvidenceRuntime{}
+	cfg := routes.EvidenceConfig{Token: "operator-test-token-with-32-characters", Corpus: "corpus:test", Profile: pb.RetrievalProfile_RETRIEVAL_PROFILE_GRAPH_RAG, Concurrent: 1, Timeout: time.Second, EnableAnswers: true}
+	if _, err := NewEvidenceServer("127.0.0.1:0", service, cfg, slog.New(slog.NewJSONHandler(io.Discard, nil))); err == nil {
+		t.Fatal("advertised unavailable answer capability")
+	}
+}
+
 func (s *lifecycleEvidence) Search(ctx context.Context, _ *pb.QuestionRequest) (*pb.EvidenceBundle, error) {
 	close(s.entered)
 	select {

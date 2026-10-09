@@ -29,6 +29,7 @@ type EvidenceService interface {
 
 type EvidenceConfig struct {
 	Token, Corpus string
+	EnableAnswers bool
 	Profile       pb.RetrievalProfile
 	Concurrent    int
 	Timeout       time.Duration
@@ -36,6 +37,7 @@ type EvidenceConfig struct {
 
 type Evidence struct {
 	service EvidenceService
+	answers AnswerService
 	config  EvidenceConfig
 	token   [32]byte
 	slots   chan struct{}
@@ -50,7 +52,15 @@ func NewEvidence(service EvidenceService, cfg EvidenceConfig) (*Evidence, error)
 	}
 	token := sha256.Sum256([]byte(cfg.Token))
 	cfg.Token = ""
-	return &Evidence{service: service, config: cfg, token: token, slots: make(chan struct{}, cfg.Concurrent)}, nil
+	var answers AnswerService
+	if cfg.EnableAnswers {
+		var ok bool
+		answers, ok = service.(AnswerService)
+		if !ok || !answers.AnswerEnabled() {
+			return nil, errors.New("answer service required when enabled")
+		}
+	}
+	return &Evidence{service: service, answers: answers, config: cfg, token: token, slots: make(chan struct{}, cfg.Concurrent)}, nil
 }
 
 func ValidateEvidenceConfig(cfg EvidenceConfig) error {
@@ -96,7 +106,8 @@ func (h *Evidence) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ready := r.URL.Path == "/readyz"
-	if !ready && r.URL.Path != "/v1/evidence" {
+	answer := r.URL.Path == "/v1/questions" && h.answers != nil
+	if !ready && !answer && r.URL.Path != "/v1/evidence" {
 		evidenceError(w, 404, "not_found")
 		return
 	}
@@ -129,7 +140,11 @@ func (h *Evidence) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = io.WriteString(w, "{\"status\":\"ready\",\"capability\":\"evidence\"}\n")
+		capability := "evidence"
+		if h.answers != nil {
+			capability = "evidence_and_answer_draft"
+		}
+		_, _ = io.WriteString(w, "{\"status\":\"ready\",\"capability\":\""+capability+"\"}\n")
 		return
 	}
 	media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
@@ -164,6 +179,10 @@ func (h *Evidence) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if request.RequestedProfile != h.config.Profile || request.ResponseMode != pb.ResponseMode_RESPONSE_MODE_COMPLETE || request.TemporalScope == nil || request.TemporalScope.Mode != pb.TemporalMode_TEMPORAL_MODE_AS_OF || request.TemporalScope.EffectiveAt == nil || len(request.TemporalScope.CompareDates) != 0 {
 		evidenceError(w, 400, "unsupported_query_mode")
+		return
+	}
+	if answer {
+		h.serveAnswer(ctx, w, request)
 		return
 	}
 	result, err := h.service.Search(ctx, request)
