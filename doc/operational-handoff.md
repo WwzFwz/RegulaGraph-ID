@@ -383,6 +383,32 @@ File request saja tidak membuktikan proses masih hidup atau telah selesai.
 serta konteks sumber/kandidat. **Output:** keputusan canonical dengan provenance
 dan checkpoint RESOLVE yang dapat dipakai ASSEMBLE.
 
+**Audit integrasi pada `c8b03c7`:** masalah model dan kelengkapan registry adalah
+dua pekerjaan yang perlu dibuktikan terpisah. `RegisterCanonicalAliases` tersedia
+di adapter PostgreSQL, tetapi pemanggil yang ditemukan dalam source Go masih
+berupa tes. `BindingExecutionStore` dan executor BIND mengalokasikan identitas
+exact tanpa mendaftarkan profil/alias tersebut sebagai kandidat RESOLVE.
+Karena itu, lookup alias kosong **belum membuktikan entitas baru**. Pergantian
+model tidak menutup celah wiring ini dengan sendirinya.
+
+Sebelum menambah CREATE otomatis, sambungkan pengisian profil/alias bersumber
+untuk identitas yang memang sudah ada. Pertahankan authority BIND melalui
+`PlanDocumentRegistryDependencies` dan pemeriksaan registry terkait. Jangan
+menganggap `SourceRefs.RegulationId` adalah entitas yang disebut sebuah mention:
+field itu dapat menunjuk dokumen yang memuat rujukan ke regulasi lain. Teks sama
+atau lokasi di dokumen yang sama juga bukan bukti identitas.
+
+Perhatikan kontrak evidence saat menentukan implementasi: reader
+`LoadResolutionEvidenceSources` saat ini mencari support **mention EXTRACT**
+dari checkpoint sukses. Alias dari judul/metadata BIND tidak otomatis memiliki
+support yang bisa dihidrasi reader itu. Jangan membuat ID mention fiktif agar
+lookup terlihat lengkap. Jalur dukungan metadata/struktur memerlukan integrasi
+reader dan validator tersendiri, atau gunakan mention EXTRACT terverifikasi
+dengan keputusan pemetaan canonical yang eksplisit. Pengujian harus membuktikan
+alias terdaftar dapat menjadi kandidat, konteks sumbernya terbaca, dan kasus
+lintas corpus/scope serta revision stale ditolak. Temuan ini adalah backlog
+integrasi, bukan klaim implementasi atau acceptance yang sudah selesai.
+
 1. Bekukan `scopes_by_type` untuk tipe yang benar-benar dikeluarkan extractor.
    Jangan menyamakan nomor regulasi tanpa issuer/type/year, atau alias sama dengan
    entitas sama. Konfigurasi domain yang ambigu perlu dikonfirmasi kepada pengguna.
