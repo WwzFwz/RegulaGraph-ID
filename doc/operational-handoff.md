@@ -296,6 +296,14 @@ Lihat [kontrak coordinator](../src/server/cmd/ingestion-worker/README.md).
 
 ## Pekerjaan A — selesaikan ekstraksi sumber nyata
 
+**Checkpoint lanjutan:** tersedia v3 opsional dengan rentang sumber bernomor;
+default v1/v2 tidak berubah. Tes boundary/replay lulus, tetapi eksperimen Qwen CPU
+pada full chunk yang sama timeout 600 detik, belum ada completion valid.
+[Laporan](verification-report-indexed-extraction.md). Pengguna menyatakan model
+lebih kuat dapat dipilih nanti; gunakan [panduan pergantian model](semantic-model-profiles.md)
+dan jangan mengulang sampling Qwen tanpa perubahan yang beralasan. Ini tidak
+menghilangkan kewajiban menghubungkan EXTRACT ke RESOLVE/graph saat model siap.
+
 **Input:** DocumentBatch CHUNK, teks normalisasi, provenance, ontology dan manifest
 model/prompt/schema yang benar-benar digunakan. **Output:** ExtractionBatch valid
 untuk seluruh item, terdaftar dan di-checkpoint coordinator.

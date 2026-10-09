@@ -14,6 +14,14 @@ The persistent PP 12/2006 trial now has 35 chunks indexed with native BGE-M3 and
 
 **Latest extraction work:** EXTRACT/RESOLVE send an explicit, producer-pinned output token cap. The optional v2 extraction schema lets the gateway compute byte offsets from unique exact quotations and adjacent context. Boundary tests pass, but a local model replay still produced four invalid locators and was rejected. Model integration remains unfinished. See [quote-extraction verification](doc/verification-report-quote-extraction.md) and [completion-budget verification](doc/verification-report-semantic-budget.md).
 
+An optional v3 extraction format now lets models select numbered source ranges;
+the gateway derives exact source text and byte offsets while retaining ontology,
+provenance, and replay checks. Defaults are unchanged. Its CPU model diagnostic
+timed out, so this is a tested boundary option, not a verified quality improvement.
+[Model replacement and format choices](doc/semantic-model-profiles.md) explain
+how to change models without rewriting the pipeline; [verification](doc/verification-report-indexed-extraction.md)
+records the remaining limitations.
+
 Validation errors now identify invalid locator fields without including source quotations. Two local correction experiments still failed source validation, so automatic model retries remain disabled. See the [feedback experiment report](doc/verification-report-extraction-feedback.md).
 
 Further local extraction diagnostics remain unsuccessful: the same chunk timed out on a CPU-only llama.cpp run, while a copying-example prompt on Ollama repeated mentions until its output was truncated. Neither experiment changed the production prompt or acceptance targets. See the [runtime experiment report](doc/verification-report-extraction-runtime.md).

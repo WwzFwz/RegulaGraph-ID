@@ -1,5 +1,13 @@
 # Rencana implementasi berbasis dependency
 
+Checkpoint EXTRACT v3 opsional: model dapat memilih rentang unit sumber, gateway
+menghasilkan exact surface/byte spans. Boundary/replay/legacy tests lulus; default
+tidak berubah. Satu eksperimen full chunk Qwen CPU timeout 600 detik tanpa output
+lengkap, sehingga kualitas model/projection aktual belum terukur. Sesuai arahan
+pengguna, model lebih baik dapat dipasang nanti melalui profil/pin baru; jangan
+menunda integrasi lain demi mengulang prompt khusus Qwen. [Pilihan model](semantic-model-profiles.md),
+[bukti dan keterbatasan](verification-report-indexed-extraction.md).
+
 Checkpoint operasional 2026-10-09: PDF PP 12/2006 telah menjadi 35 chunk,
 diindeks dengan BGE-M3/BM25 dan published pada snapshot v2. Hybrid query serta
 CLI/API GENERATE model lokal menghasilkan satu draft bersitasi dengan status

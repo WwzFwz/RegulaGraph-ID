@@ -1,5 +1,12 @@
 # doc
 
+[Pilihan format dan pergantian model](semantic-model-profiles.md) membedakan
+EXTRACT, RESOLVE, GENERATE dan embedding, dengan pin/replay serta dampak rebuild.
+EXTRACT v3 opsional memakai rentang sumber bernomor; default v1/v2 dan seluruh
+validator provenance tetap dipertahankan. Format valid belum membuktikan kualitas.
+[Verifikasi v3](verification-report-indexed-extraction.md) memisahkan tes boundary
+yang lulus dari diagnostic Qwen CPU yang timeout tanpa completion valid.
+
 [Generation dari PDF nyata](verification-report-real-answer.md) mencatat draft
 CLI/API dengan model lokal, pengurangan overhead metadata prompt tanpa menghapus
 dependency, serta riwayat timeout. [Handoff](operational-handoff.md) menyediakan
