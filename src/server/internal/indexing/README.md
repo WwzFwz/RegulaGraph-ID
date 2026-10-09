@@ -1,5 +1,10 @@
 # src/server/internal/indexing
 
+`graph_output_commit_test.go` melanjutkan fixture inventory ke transaksi output
+ASSEMBLE pada PostgreSQL nyata: rollback seluruh metadata/checkpoint, cancellation,
+registry movement saat lock wait, dan exact acknowledgement reconciliation. Output
+metadata disintesis eksplisit; test tidak mengklaim Rust RPC/model nyata berjalan.
+
 `graph_jobs_test.go` melanjutkan fixture published source ke admission/inventory/claim
 graph dengan PostgreSQL/Qdrant nyata. Ia menguji rollback child insert, replay, caller
 mutation, registry drift termasuk lock wait, source cancellation dan reclaim. Graph

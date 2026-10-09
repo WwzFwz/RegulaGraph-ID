@@ -1,11 +1,15 @@
 # src/server/internal/workflows
 
+`graph_assembly_commit.go` meneruskan hanya hasil opaque `ExecuteGraphAssembly`
+ke commit storage atomik. Salinan request/response/dependencies menjaga hasil admission;
+error acknowledgement memicu bounded exact-checkpoint read tanpa write/inference ulang.
+Ini belum executor restart/reclaim, daemon ASSEMBLE atau Neo4j publication.
+
 `graph_assembly_dispatch.go` menjalankan port batch worker dari assignment admitted,
 membaca bytes sumber/output dengan batas, memanggil validator delta dan mengulang
-authority pasca-RPC. Hasil opaque belum checkpoint durable atau publication. Test
+authority pasca-RPC. Hasil opaque dapat di-commit melalui port di atas; hasil dispatch sendiri belum durable. Test
 menggunakan actual Rust artifact bytes dengan authority/RPC sintetis; lihat
-[kontrak](../../../../doc/graph-output-admission.md). Commit/STAGED/recovery dan wiring
-daemon merupakan langkah berikutnya.
+[kontrak](../../../../doc/graph-output-admission.md). Wiring daemon dan restart/reclaim merupakan langkah berikutnya.
 
 Preparation graph kini memanggil `VerifyDocumentRegistryView` sebelum ekspor/write.
 Tes `document_registry_integration_test.go` memakai binder/allocator produksi dan
@@ -34,7 +38,7 @@ replay. `graph_source_binding.go` menyimpan envelope dan dependency immutable la
 meminta receipt transactional dengan pemeriksaan ulang authority. Retry setelah
 interruption/lost acknowledgement memakai artefak yang sama. Library scheduling ASSEMBLE
 tersedia melalui [inventory](../../../../doc/graph-job-inventory.md); library dispatch/output
-admission tersedia di atas, sedangkan commit/daemon belum tersambung. Receipt transform tidak menggantikan receipt keputusan atau freshness
+admission tersedia di atas, sedangkan daemon belum tersambung. Receipt transform tidak menggantikan receipt keputusan atau freshness
 registry. Lihat [kontrak coordinator](../../../../doc/graph-assembly-coordinator.md).
 
 Orchestration alur ingestion, pembaruan incremental, dan tanya jawab. Folder ini mengatur urutan tahap, percabangan, checkpoint, retry, dan pelaporan status. Implementasi runtime berada di Go. Dokumen ini mendefinisikan superset tanggung jawab folder dan kontrak integrasi anaknya.

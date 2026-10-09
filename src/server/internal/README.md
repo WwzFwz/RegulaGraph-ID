@@ -2,7 +2,7 @@
 
 Library ASSEMBLE kini menghubungkan authority inventory, pembentukan request worker,
 pembacaan artefak serta admission delta source-bound. Workflow memiliki RPC/deadline;
-domain memeriksa projection canonical dan provenance. Commit durable, daemon dan
+domain memeriksa projection canonical dan provenance. Commit durable metadata/checkpoint/STAGED tersedia; daemon dan
 Neo4j belum tersambung; lihat [kontrak](../../../doc/graph-output-admission.md).
 
 Komponen internal aplikasi Go, dipisah menurut fungsi domain, API, workflow, retrieval, answering, ingestion, indexing, dan adapter. Dokumen ini mendefinisikan superset tanggung jawab folder dan kontrak integrasi anaknya.

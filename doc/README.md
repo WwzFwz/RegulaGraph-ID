@@ -1,5 +1,9 @@
 # doc
 
+[verification-report-graph-output-commit.md](verification-report-graph-output-commit.md)
+mencatat commit output/dependency/checkpoint/STAGED atomik, race authority dan recovery
+acknowledgement. Scope ini belum daemon ASSEMBLE, Neo4j atau benchmark release.
+
 [graph-output-admission.md](graph-output-admission.md) menjelaskan RPC workflow dan
 validasi delta terhadap source projection. [Laporan](verification-report-graph-output.md)
 mencatat parity Rust/Go, kasus adversarial dan batas sebelum commit/publication.

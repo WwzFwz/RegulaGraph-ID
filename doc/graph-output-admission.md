@@ -29,9 +29,32 @@ dipakai ulang sebagai physical output ID.
 
 Setelah admission delta, authority diperiksa lagi dan assignment harus tetap exact.
 `VerifiedGraphOutput` memiliki salinan data; accessor juga mengembalikan salinan.
-Library belum mendaftarkan output, menyimpan checkpoint atau menjalankan publication.
-Commit wajib mengulang live fence/cancellation/source/publication di bawah lock;
-read pasca-RPC tidak memberi izin yang berlaku selamanya.
+`VerifiedGraphOutput.Commit` menyerahkan salinan request, response dan dependencies
+ke `GraphJobAdmission.CommitGraphOutput`. Port metadata ini hanya untuk workflow
+internal setelah hash/size dan projection tervalidasi, bukan endpoint penerimaan
+output tak tepercaya. Read pasca-RPC tidak memberi izin yang berlaku selamanya.
+
+## Commit durable dan recovery acknowledgement
+
+Adapter PostgreSQL menyimpan metadata output, dependency manifest, checkpoint dan
+transisi STAGED dalam satu transaksi. Blob worker sudah tersimpan sebelum transaksi;
+rollback dapat menyisakan blob tanpa metadata, tetapi tidak membuat graph published.
+Producer/dependency immutable harus exact bila artefak sudah terdaftar. Logical owner
+manifest tetap di dalam delta asli; salinan untuk reverse dependency database memakai
+physical artifact ID, sama dengan locator yang diikat checkpoint.
+
+Urutan lock adalah target snapshot, corpus, source job, child job, reader lease,
+lalu artifact. Authority diperiksa ulang sesudah lock dan sebelum transisi terakhir:
+inventory, owner/attempt/fence/expiry, cancellation, source checkpoint, publication/base,
+registry stamp/floor dan pin harus masih valid. Context dibatasi deadline request,
+pin, claim dan caller. Helper transaksi tidak membuka koneksi pool tambahan.
+
+Jika hasil COMMIT tidak diterima, workflow membaca `GraphCheckpointCommitted` dengan
+context terpisah maksimal dua detik. Hanya checkpoint exact pada child STAGED dengan
+inventory dan fence yang sesuai dianggap committed. Gagal membaca atau checkpoint
+berbeda tetap error; tidak ada write retry atau inference ulang tersembunyi. Ini
+recovery acknowledgement pada pemanggilan commit, bukan executor restart/reclaim
+lengkap. STAGED juga belum berarti Neo4j sudah ditulis atau siap dibaca.
 
 ## Pemeriksaan isi delta
 
@@ -71,6 +94,7 @@ test export dasar dan rich ke direktori berbeda agar output tidak saling menimpa
 
 Workflow tests memakai actual Rust-produced bytes tetapi authority/RPC ports sintetis.
 Itu membuktikan return boundary, bukan jaringan worker bersama PostgreSQL. Lanjutkan
-commit checkpoint/STAGED/recovery, daemon dan real-RPC integration; Neo4j serta benchmark
-release tetap terbuka. [Laporan](verification-report-graph-output.md) menyimpan bukti
+daemon, restart/reclaim processor dan real-RPC integration; Neo4j serta benchmark
+release tetap terbuka. Commit atomik dan recovery acknowledgement mempunyai
+[laporan terpisah](verification-report-graph-output-commit.md). [Laporan](verification-report-graph-output.md) menyimpan bukti
 scoped PASS. Target [required](../configs/benchmark-targets.yaml) tidak berubah.

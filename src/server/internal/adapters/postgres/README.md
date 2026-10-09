@@ -1,12 +1,19 @@
 # src/server/internal/adapters/postgres
 
+`graph_job_output.go` menyimpan metadata output ASSEMBLE, dependencies immutable,
+checkpoint dan STAGED dalam transaksi yang sama. Publication/corpus/source/child/pin
+terkunci sebelum recheck authority; helper checkpoint/artifact ikut transaksi tanpa
+nested pool acquisition. Port internal mengandalkan byte/projection admission dari
+workflow. `GraphCheckpointCommitted` hanya merekonsiliasi checkpoint exact, bukan
+mengizinkan pekerjaan baru atau publication Neo4j.
+
 `graph_job_verification.go` menghasilkan admission opaque setelah autentikasi seluruh
 source/receipt/view; `graph_jobs.go` memeriksa stamp registry dan authority di bawah
 lock sebelum menyimpan inventory serta child jobs atomik. `graph_job_claim.go`
 memisahkan claim ASSEMBLE dari generic worker. Migration 0020 wajib diterapkan sebelum
 binary claim baru. Namespace alias `lookup:` hanya ditulis writer versioned, termasuk
 scope yang sebelumnya kosong. [Kontrak inventory](../../../../../doc/graph-job-inventory.md)
-menjelaskan replay, pool satu koneksi dan batas dispatch/output yang masih terbuka.
+menjelaskan replay, pool satu koneksi dan batas daemon/publication yang masih terbuka.
 
 `graph_job_dispatch.go` memeriksa digest inventory, current stamp, child/source claim,
 publication/base dan reader pin melalui satu statement sebelum RPC. Assignment yang

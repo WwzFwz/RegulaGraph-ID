@@ -1,5 +1,14 @@
 # Rencana implementasi berbasis dependency
 
+Checkpoint terbaru K01: output ASSEMBLE yang telah diverifikasi dapat di-commit
+melalui `VerifiedGraphOutput.Commit`: metadata artefak, dependency, checkpoint dan
+STAGED atomik, dengan recheck authority di bawah lock dan recovery acknowledgement.
+[Laporan commit](verification-report-graph-output-commit.md) membatasi bukti pada
+workflow fixture Rust dan transaksi PostgreSQL/Qdrant. Daemon/restart-reclaim,
+RPC nyata bersama PostgreSQL, source nonempty end-to-end, Neo4j dan acceptance
+masih terbuka. Catatan di bawah merupakan riwayat kemajuan, bukan daftar status
+terkini yang semuanya harus dikerjakan ulang.
+
 Lanjutan K01: [dispatch/admission output](graph-output-admission.md) tersedia sebagai
 library Go dari authority inventory ke RPC port dan GraphDelta terverifikasi. Projection
 source/canonical/support/dependency diuji dengan fixture worker Rust aktual, termasuk
