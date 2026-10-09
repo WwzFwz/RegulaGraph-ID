@@ -1,5 +1,7 @@
 # src/server/internal/retrieval/query
 
+`normalizer.go` kini aktif untuk original-v1/mechanical-v1 dengan perlindungan kutipan dan trace byte UTF-8. Tidak mengoreksi typo atau memilih intent. [Kontrak dan integrasi](../../../../../doc/query-normalization.md).
+
 `entity_linker.go` dan `entity_linker_validation.go` kini menyediakan exact-alias
 phrase discovery, snapshot-pinned lookup dan validasi key/revision/alias closure.
 Semua alternatif ambigu dipertahankan. Fuzzy/model disambiguation dan quality
@@ -72,4 +74,4 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | --- | --- | --- |
 | [classifier.go](classifier.go) | Resolve query intent/temporal mode into an auditable RetrievalPlan with an uncertainty path. | Evaluate per-intent confusion and routing cost; ambiguity must not silently pick a legal date or skip relevant retrieval branches. |
 | [entity_linker.go](entity_linker.go) | Integrasikan policy serving dan ukur exact-alias coverage sebelum fuzzy/model disambiguation. | Homonym, scopes, offset, corrupt reads dan budget diuji; candidate recall/false exclusions memerlukan gold. |
-| [normalizer.go](normalizer.go) | Preserve original question and normalize mechanical variants while keeping negation, article numbers, years and quoted terms. | Test informal/typo/Indonesian-English cases and destructive normalization counterexamples; record original-to-normalized trace. |
+| [normalizer.go](normalizer.go) | Active: original-v1/mechanical-v1 with byte trace; next compare retrieval quality on fixed gold before changing the default. | Test informal/typo/Indonesian-English cases and destructive normalization counterexamples; record original-to-normalized trace. |
