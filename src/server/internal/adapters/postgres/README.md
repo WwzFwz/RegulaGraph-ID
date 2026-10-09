@@ -1,5 +1,10 @@
 # src/server/internal/adapters/postgres
 
+`graph_readiness.go` menyimpan receipt, applied intent dan authority atomik;
+`graph_publication.go` memeriksa stamp registry/source/child di transaksi CAS.
+Migration 0022 diperlukan; catalog bukan pengganti guard ini. Lihat
+[kontrak](../../../../../doc/graph-readiness.md).
+
 `graph_catalog.go` mereservasi route/write set immutable dan operation planned dalam
 transaksi source-admitted yang sama melalui `withCompletedGraph`. Migration 0021
 wajib tersedia; pembacaan catalog historis bukan serving admission. Lihat

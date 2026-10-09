@@ -1,8 +1,13 @@
 # src/server/internal/indexing
 
+`graph_readiness.go` menambahkan acknowledgement durable setelah exact readback.
+Tes receipt dan activation memeriksa rollback, recovery, output swap dan stale
+authority. Graph activation masih memerlukan carry-forward indeks yang sah;
+lihat [kontrak](../../../../doc/graph-readiness.md).
+
 `graph_writer.go` menghubungkan pure preflight, catalog/intent atomik, Neo4j write/seal
 dan source revalidation. `graph_catalog_test.go` menguji rollback, lost acknowledgement,
-exact retry dan proof salah pada backend nyata. Receipt/activation belum tercakup;
+exact retry dan proof salah pada backend nyata. Receipt berada pada entrypoint acknowledgement;
 lihat [kontrak](../../../../doc/graph-generation-catalog.md).
 
 `graph_results_test.go` menguji collection output ASSEMBLE terhadap PostgreSQL

@@ -14,6 +14,10 @@ Anak tidak boleh mengubah kontrak input/output secara tersembunyi. Perubahan ben
 
 ## Isi saat ini
 
+Migration 0022 menambah authority stamp graph saat receipt. Receipt/catalog tetap
+immutable, stamp dapat di-refresh melalui admission baru; tidak ada backfill
+receipt lama. Terapkan sebelum writer acknowledgement; lihat [kontrak](../doc/graph-readiness.md).
+
 Migration 0021 menambah `graph_generations` append-only untuk route/write set dan
 reservasi atomik dengan operation ledger. Terapkan sebelum memakai writer graph.
 Tidak ada backfill atau penghapusan history; schema disposable telah diuji,

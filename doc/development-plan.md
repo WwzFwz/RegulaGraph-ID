@@ -10,7 +10,9 @@ checkpoint baru sesudah recovery membatalkan hasil prepared lama.
 [Catalog/write-intent graph](graph-generation-catalog.md) kini immutable dan atomik;
 writer menguji lost acknowledgement, retry dan exact proof pada backend nyata.
 [Bukti](verification-report-graph-catalog.md) belum mencakup activation.
-Berikutnya receipt graph PostgreSQL, publication dengan indeks
+[Receipt graph dan final authority guard](graph-readiness.md) kini tersedia:
+acknowledgement recovery serta cancellation/registry/checkpoint drift diperiksa.
+Berikutnya publication dengan indeks
 snapshot dasar yang sah, operator preparation/scheduling, traversal dan jawaban.
 Graph SEALED belum menjadi snapshot query aktif. K01/Hybrid GraphRAG belum selesai.
 

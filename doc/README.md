@@ -1,5 +1,9 @@
 # doc
 
+[graph-readiness.md](graph-readiness.md) menjelaskan receipt/applied intent atomik
+dan final authority sebelum CAS; [laporan](verification-report-graph-readiness.md)
+membedakan native backend proof dari fixture isolasi activation guard.
+
 [graph-generation-catalog.md](graph-generation-catalog.md) menjelaskan catalog route/write set
 immutable dan intent atomik sebelum Neo4j; [verifikasi](verification-report-graph-catalog.md)
 mencakup rollback, real write/retry dan blokir activation sebelum receipt.
