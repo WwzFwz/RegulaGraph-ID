@@ -4,6 +4,10 @@
 untuk memverifikasi receipt sumber snapshot sebelum dipakai oleh graph preparation.
 Kode assembly tetap milik domain/workflow; pengujian di sini membuktikan batas keluar
 komponen indexing tanpa menambahkan algoritma graph ke writer indeks.
+`graph_source_bindings_test.go` meneruskan fixture publication tersebut ke receipt
+graph dan workflow persistence: race cancellation/released pin saat lock tertahan,
+crash sebelum commit, lost acknowledgement, immutable replay dan audit sesudah abort.
+EXTRACT/RESOLVE kosong dan checkpoint disintesis eksplisit; ini bukan uji kualitas LLM.
 
 `initial_snapshot.go` mengubah pilihan CHUNK terautentikasi menjadi snapshot awal
 dan corpus-facts manifest, lalu mengikat sumber melalui receipt. Identitas

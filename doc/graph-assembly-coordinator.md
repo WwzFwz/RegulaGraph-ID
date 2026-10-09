@@ -83,9 +83,41 @@ publication atau yang tidak tercantum dalam inventory bukan bukti membership pub
 Membership ini merupakan fakta snapshot historis; source cancellation/current RESOLVE
 checkpoint dan otoritas target graph tetap diperiksa terpisah. Scope saat ini memakai
 receipt initial-index yang tersedia, bukan reuse bebas antar snapshot incremental.
-Penyimpanan receipt baru original-to-bound EXTRACT/RESOLVE, komposisi seluruh gate dan
-penjadwalan ASSEMBLE masih harus diselesaikan. Jangan menganggap hasil helper murni atau
-membership lama sebagai izin publikasi graph.
+Receipt original-to-bound EXTRACT/RESOLVE dan workflow penyimpanannya kini tersedia
+seperti di bawah. Komposisi seluruh gate dan penjadwalan ASSEMBLE masih harus diselesaikan.
+Jangan menganggap hasil helper murni atau membership lama sebagai izin publikasi graph.
+
+## Penyimpanan envelope dan receipt graph
+
+`workflows.BindGraphSource` menerima binding target tanpa output, pin base hidup,
+registered references CHUNK asli/bound serta EXTRACT/RESOLVE asli, reader dan writer
+artefak. Input gabungan dibatasi 16 MiB sebelum I/O. Workflow memeriksa membership
+dan checkpoint, membaca byte terverifikasi, lalu menghasilkan dua envelope deterministik.
+Byte disimpan immutable, referensi didaftarkan, dan dependency manifest diindeks dengan
+owner physical artifact ID; manifest di dalam byte tetap memakai logical batch ID.
+Lookup observations dan producer asli tidak diubah oleh pemetaan owner storage tersebut.
+
+`RegisterGraphSourceBinding` menghitung ulang transform dari empat input asli sebelum
+mengambil lock. Output references wajib identik. Transaksi mengambil lock target snapshot,
+corpus, lalu source job; memeriksa ulang publication/base/registry binding, checkpoint
+RESOLVE terbaru, cancellation, published membership dan semua referensi terdaftar.
+Live lease diperiksa sebelum commit. Migration 0019 menyimpan satu receipt immutable
+per `(publication_id, source_job_id)` dengan payload berhash, batas 64 KiB dan foreign keys.
+Replay exact diterima; perubahan checkpoint/output/target binding tidak menimpa receipt.
+
+Crash sebelum receipt commit dapat meninggalkan artefak/dependency orphan yang identik
+untuk retry. Acknowledgement yang hilang sesudah commit juga direplay tanpa inference.
+Target yang sudah aborted menolak admission baru; `LoadGraphSourceBinding` tetap dapat
+membaca receipt untuk audit. Reader memeriksa hash, bentuk canonical JSON dan konsistensi
+kolom terhadap payload. Ia tidak memberikan live authority. Pemanggil mengautentikasi
+akses corpus; belum ada CLI atau inventory ASSEMBLE yang otomatis memakai workflow ini.
+
+Receipt ini membuktikan transform dan sumber, bukan freshness keputusan. Recorded revision
+RESOLVE tidak boleh lebih besar dari target, tetapi nilai yang lebih kecil **belum** boleh
+dipakai untuk melonggarkan guard GraphDelta. Receipt committed, dependency BIND/EXTRACT,
+revalidasi kandidat dan reaffirmation lintas revision tetap gate terpisah. Prasyarat target
+yang gagal pada commit dapat menyisakan orphan bounded; tidak ada job graph yang dijadwalkan.
+Lihat [hasil verifikasi](verification-report-graph-source-receipt.md).
 
 ## Integrasi yang perlu diselesaikan
 
@@ -96,8 +128,9 @@ membership lama sebagai izin publikasi graph.
    belum memiliki snapshot. Pertahankan original-to-bound mapping, bytes/hash asli,
    canonical/provision/source ID dan dependency. Jangan mengganti context/refs di
    artefak lama atau menganggap source tanpa snapshot otomatis anggota corpus.
-   Transform envelope dan reader membership initial-index sudah tersedia di atas;
-   persistence receipt graph dan workflow yang menggabungkannya belum tersedia.
+   Transform envelope, membership initial-index, persistence artefak/dependency dan
+   receipt graph sudah tersedia di atas; integrasikan dengan gate receipt/freshness
+   sebelum menganggap sumber siap untuk penjadwalan ASSEMBLE.
 3. Pilih satu registry revision publication. Receipt dari beberapa dokumen bisa
    berasal dari revision berbeda karena setiap CAS RESOLVE menaikkan revision global.
    Guard delta saat ini masih mensyaratkan revision sama. Sebelum memperluasnya ke

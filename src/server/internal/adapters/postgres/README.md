@@ -1,5 +1,12 @@
 # src/server/internal/adapters/postgres
 
+`graph_source_bindings.go` menyimpan receipt transform EXTRACT/RESOLVE immutable
+melalui migration 0019. Writer menghitung ulang transform dan memeriksa source
+checkpoint, membership, pin serta target fence di bawah lock snapshot/corpus/source.
+Reader audit tetap bekerja sesudah abort; receipt tidak membuktikan registry freshness.
+Replay dan late cancellation diuji dengan backend nyata; lihat
+[verifikasi receipt](../../../../../doc/verification-report-graph-source-receipt.md).
+
 `graph_source_membership.go` memeriksa receipt CHUNK original/bound terhadap inventory
 generation yang sudah published dan pin pembaca hidup. Reader berbagi decoder inventory
 dalam transaksi yang sama dengan batas payload SQL. Ini membuktikan sumber pada base

@@ -1,5 +1,9 @@
 # doc
 
+[verification-report-graph-source-receipt.md](verification-report-graph-source-receipt.md)
+mencatat persistence envelope/receipt, recovery dan race PostgreSQL nyata, beserta batas
+review independen dan integrasi ASSEMBLE yang masih terbuka.
+
 [verification-report-graph-source-envelope.md](verification-report-graph-source-envelope.md)
 mencatat transform envelope EXTRACT/RESOLVE dan pembuktian keanggotaan sumber pada
 inventory snapshot terpublikasi, termasuk review provenance dan regresi backend nyata.

@@ -1,5 +1,13 @@
 # Rencana implementasi berbasis dependency
 
+Lanjutan K01: persistence envelope/dependency dan receipt graph source kini tersedia,
+dengan replay setelah crash/lost acknowledgement serta pemeriksaan ulang source/target
+di bawah lock PostgreSQL. Tes backend nyata lulus; review independen perubahan terakhir
+belum terverifikasi karena batas pemakaian agent. Inventory/dispatch ASSEMBLE, dependency
+freshness lintas revision dan publication Neo4j masih terbuka. Lihat
+[kontrak coordinator](graph-assembly-coordinator.md) dan
+[bukti pemeriksaan](verification-report-graph-source-receipt.md).
+
 Lanjutan K01 2026-10-09: reader receipt RESOLVE historis dan authority awal source/
 publication ASSEMBLE tersedia di Go/PostgreSQL. [Verifikasi](verification-report-assembly-authority.md)
 mencakup corruption, stale fence, cancellation, parent/revision drift dan backend nyata.
@@ -21,8 +29,8 @@ Submilestone K01 writer PostgreSQL menyimpan receipt LINK/DEFER secara atomik de
 Pembaruan graph source 2026-10-09: transform envelope CHUNK-to-EXTRACT/RESOLVE dan
 reader membership pada published index inventory tersedia serta diuji. Hasil model,
 assignment dan revisi historis dipertahankan; diagnostic root refs diremap secara
-terbatas. Persistence receipt graph, dependency lintas revision, inventory/dispatch
-ASSEMBLE dan writer Neo4j masih terbuka. Lihat
+terbatas. Persistence receipt graph dilanjutkan dalam pembaruan di awal dokumen;
+dependency lintas revision, inventory/dispatch ASSEMBLE dan writer Neo4j masih terbuka. Lihat
 [laporan verifikasi](verification-report-graph-source-envelope.md).
 
 Pembaruan K01 2026-10-09: [review/resume lokal](semantic-review.md) tersambung dari

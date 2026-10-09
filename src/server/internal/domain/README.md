@@ -1,5 +1,10 @@
 # src/server/internal/domain
 
+`graph_source_binding.go` mendefinisikan request dan receipt storage lokal untuk
+transform graph source. Request belum memiliki derived refs; receipt mengikat kedua
+output, source checkpoint dan target publication. Schema wire C01 tetap authority;
+validasi bentuk ini tidak menggantikan verifikasi byte, storage atau registry freshness.
+
 [graph_source_envelope.go](graph_source_envelope.go) membentuk envelope EXTRACT/RESOLVE
 baru dari rantai artefak asli dan CHUNK snapshot-bound yang exact. Model output dan
 keputusan dipertahankan; hanya metadata envelope, dependency dan diagnostic root refs

@@ -14,6 +14,13 @@ Anak tidak boleh mengubah kontrak input/output secara tersembunyi. Perubahan ben
 
 ## Isi saat ini
 
+[0019_graph_source_bindings.up.sql](0019_graph_source_bindings.up.sql) menambah
+receipt transform graph source append-only dengan foreign keys, payload berhash dan
+batas 64 KiB. Tidak ada backfill atau perubahan artefak lama. Jalankan sebelum memakai
+workflow graph source binding. Abort publication mempertahankan receipt audit; GC
+memerlukan kebijakan retirement terpisah. Penambahan tabel/trigger berjalan dalam
+transaksi migration; gagal berarti rollback, kemudian ulangi file checksum yang sama.
+
 [0018_registry_history.up.sql](0018_registry_history.up.sql) mempertahankan count
 lookup dan binding publication immutable. Corpus existing dibatasi mulai revision
 saat upgrade; data sebelum itu dan binding snapshot lama tidak direka. Upgrade
