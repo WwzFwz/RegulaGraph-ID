@@ -8,6 +8,7 @@ package domain
 
 import (
 	"errors"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"math"
 	pb "regulagraph.local/server/gen/regulagraph/v1"
@@ -15,6 +16,34 @@ import (
 
 const RegistryEntityViewMediaType = "application/x-protobuf; message=regulagraph.v1.RegistryEntityView"
 const GraphAssemblyPlanMediaType = "application/x-protobuf; message=regulagraph.v1.GraphAssemblyPlan"
+
+// RegistryEntityExport is the local control-plane request for an exact historical
+// selection. The response remains the shared C01 RegistryEntityView message.
+type RegistryEntityExport struct {
+	ViewID, CorpusID, PublicationID string
+	Fence, Revision                 uint64
+	EntityIDs                       []string
+	Producer                        *pb.ProducerManifest
+	MaximumEntities, MaximumBytes   int
+}
+
+// ValidateGraphResolutionSource admits the immutable original RESOLVE chain.
+// It checks structure, not committed registry authority or source-text semantics.
+func ValidateGraphResolutionSource(source *pb.ExtractionBatch, sourceRef *pb.ArtifactRef, resolution *pb.ResolutionBatch, maximumEdges int) error {
+	for _, message := range []proto.Message{source, sourceRef, resolution} {
+		if err := ValidateWire(message, DefaultWireLimits); err != nil {
+			return err
+		}
+		if !graphAssemblyKnownFields(message.ProtoReflect()) {
+			return errors.New("unknown graph resolution fields")
+		}
+	}
+	if source.Meta.SchemaVersion != 1 || resolution.Meta.SchemaVersion != 1 || source.Meta.Visibility != nil || resolution.Meta.Visibility != nil ||
+		source.Completeness != pb.Completeness_COMPLETENESS_COMPLETE || resolution.Completeness != pb.Completeness_COMPLETENESS_COMPLETE {
+		return errors.New("complete graph resolution source required")
+	}
+	return ValidateResolutionBatchClosure(resolution, source, sourceRef, maximumEdges)
+}
 
 func ValidateRegistryEntityView(view *pb.RegistryEntityView, maximumEntities, maximumBytes int) error {
 	if view == nil || maximumEntities <= 0 || maximumEntities > DefaultWireLimits.MaxItems || maximumBytes <= 0 || maximumBytes > DefaultWireLimits.MaxBytes {

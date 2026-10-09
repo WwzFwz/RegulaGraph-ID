@@ -22,13 +22,7 @@ import (
 )
 
 // RegistryEntityExport holds internal control-plane arguments, not another wire schema.
-type RegistryEntityExport struct {
-	ViewID, CorpusID, PublicationID string
-	Fence, Revision                 uint64
-	EntityIDs                       []string
-	Producer                        *pb.ProducerManifest
-	MaximumEntities, MaximumBytes   int
-}
+type RegistryEntityExport = domain.RegistryEntityExport
 
 func (r *Repository) ExportRegistryEntityView(ctx context.Context, request RegistryEntityExport) (*pb.RegistryEntityView, error) {
 	if !storageIDPattern.MatchString(request.ViewID) || !storageIDPattern.MatchString(request.CorpusID) || !storageIDPattern.MatchString(request.PublicationID) ||

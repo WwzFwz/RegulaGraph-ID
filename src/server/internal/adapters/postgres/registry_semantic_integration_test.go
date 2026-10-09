@@ -187,6 +187,11 @@ func TestEmptySemanticResolutionAgainstPostgres(t *testing.T) {
 		len(output.Batch.Decisions) != 0 || output.Batch.ItemCounts.Expected != 0 {
 		t.Fatalf("empty RESOLVE did not checkpoint: output=%v err=%v", output, err)
 	}
+	verifiedEmpty, err := workflows.ReadGraphResolutionReceipt(ctx, repo, fileStore, corpusID, jobID,
+		output.Checkpoint.Meta.RecordId, sourceRef, output.Artifact, 64, 8)
+	if err != nil || !proto.Equal(verifiedEmpty, output.Batch) {
+		t.Fatalf("empty graph receipt reconstruction: %v", err)
+	}
 	var after int64
 	if err = repo.pool.QueryRow(ctx, `SELECT registry_revision FROM corpus_state WHERE corpus_id=$1`,
 		corpusID).Scan(&after); err != nil || after != before {
@@ -772,6 +777,12 @@ func TestSemanticRegistryAgainstPostgres(t *testing.T) {
 	}
 	// Historical receipt reads authorize ASSEMBLE inputs without reacquiring the
 	// original RESOLVE lease or changing its terminal state/revision.
+	verifiedResolution, err := workflows.ReadGraphResolutionReceipt(ctx, repo, fileStore, corpusID, jobID,
+		output.Checkpoint.Meta.RecordId, sourceRef, output.Artifact, 64, 8)
+	if err != nil || !proto.Equal(verifiedResolution, output.Batch) {
+		t.Fatalf("graph receipt reconstruction differs from committed RESOLVE: %v", err)
+	}
+	checkGraphReceiptRejections(t, ctx, repo, fileStore, corpusID, jobID, output.Checkpoint.Meta.RecordId, sourceRef, output.Artifact)
 	historical, err := repo.ReadCommittedSemanticResolution(ctx, input, request, approval, 64, 8)
 	if err != nil || !proto.Equal(historical, response) {
 		t.Fatalf("read committed receipt after staging: receipt=%v err=%v", historical, err)
