@@ -1,5 +1,10 @@
 # src/server/internal/retrieval/query
 
+`entity_linker.go` dan `entity_linker_validation.go` kini menyediakan exact-alias
+phrase discovery, snapshot-pinned lookup dan validasi key/revision/alias closure.
+Semua alternatif ambigu dipertahankan. Fuzzy/model disambiguation dan quality
+acceptance tetap terbuka; lihat [kontrak](../../../../../doc/query-entity-linking.md).
+
 Persiapan pertanyaan melalui normalisasi, klasifikasi, dan pengaitan penyebutan ke entitas graph yang sudah ada. Implementasi runtime berada di Go. Dokumen ini mendefinisikan superset tanggung jawab folder dan kontrak integrasi anaknya.
 
 ## Batas tanggung jawab
@@ -55,8 +60,9 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 Analyzer lexical query dan encoder sparse frozen BM25 aktif sebagai library dengan
 batas input/term/term-count. Loader artefak verified, pembuktian dictionary ancestor
-tepercaya, query planner, snapshot-pinned entity linking, retrieval backend, gold
-dataset, serta acceptance belum aktif. Fixture parity tidak membuktikan kualitas pencarian.
+tepercaya, query planner menyeluruh, gold dataset, serta acceptance belum lengkap.
+Exact-alias linking terpin aktif sebagai library; fixture parity tidak membuktikan
+kualitas pencarian atau kelengkapan linking.
 
 ## Rekomendasi implementasi anak
 
@@ -65,5 +71,5 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
 | [classifier.go](classifier.go) | Resolve query intent/temporal mode into an auditable RetrievalPlan with an uncertainty path. | Evaluate per-intent confusion and routing cost; ambiguity must not silently pick a legal date or skip relevant retrieval branches. |
-| [entity_linker.go](entity_linker.go) | Resolve query mentions against snapshot-pinned canonical registry and aliases with scope and confidence. | Test homonyms, same article number across laws and unresolved mentions; measure candidate recall and false merges. |
+| [entity_linker.go](entity_linker.go) | Integrasikan policy serving dan ukur exact-alias coverage sebelum fuzzy/model disambiguation. | Homonym, scopes, offset, corrupt reads dan budget diuji; candidate recall/false exclusions memerlukan gold. |
 | [normalizer.go](normalizer.go) | Preserve original question and normalize mechanical variants while keeping negation, article numbers, years and quoted terms. | Test informal/typo/Indonesian-English cases and destructive normalization counterexamples; record original-to-normalized trace. |

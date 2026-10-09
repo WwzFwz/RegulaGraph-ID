@@ -1,5 +1,8 @@
 # doc
 
+[query-entity-linking.md](query-entity-linking.md) menjelaskan exact-alias seed
+discovery, namespace policy, audit revision dan ambiguity.
+
 [graph-fusion.md](graph-fusion.md) menjelaskan empat profil query, source candidate
 fusion, graph authority akhir dan snapshot-bound prepared resources;
 [verifikasi](verification-report-graph-fusion.md) mencatat run native dengan seed fixture.

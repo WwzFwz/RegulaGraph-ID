@@ -1,5 +1,11 @@
 # Rencana implementasi berbasis dependency
 
+Checkpoint query linking: exact-alias seed discovery dari pertanyaan kini memakai
+registry snapshot-bound dengan audit key positif/negatif dan alternatif ambigu.
+Native kedua profil graph memakai lookup PostgreSQL hingga draft. Lihat
+[kontrak](query-entity-linking.md); API/CLI graph configuration, semantic query
+disambiguation dan quality/performance acceptance tetap belum selesai.
+
 Checkpoint Q01: admission graph, typed reader dan discovery traversal kini teruji
 dengan output Rust aktual, scope/pin, cycle/alternate path serta corruption rejection.
 Graph evidence hydration kini terhubung ke source lookup Qdrant dan autentikasi
@@ -10,7 +16,7 @@ generator/citation/final validation; [kontrak](graph-context.md) dan
 [verifikasi](verification-report-graph-context.md). Graph branch/fusion serta
 factory empat profil kini teruji sampai cited draft dengan fixed seed fixture:
 [kontrak](graph-fusion.md), [verifikasi](verification-report-graph-fusion.md).
-Berikutnya automatic query seed linking, konfigurasi API/CLI graph,
+Berikutnya semantic query disambiguation, konfigurasi API/CLI graph,
 applicability/dependency resolution dan acceptance.
 
 Checkpoint terbaru K01: [adapter Neo4j](neo4j-graph-store.md) menulis generation

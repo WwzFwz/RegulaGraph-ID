@@ -1,12 +1,16 @@
 # src/server/internal/indexing
 
+Native published graph test memperoleh seed melalui exact-alias lookup PostgreSQL
+dari teks pertanyaan. Alias/model tetap sintetis; kedua profil graph diuji sampai
+draft tanpa klaim candidate recall pada corpus nyata.
+
 `published_graph_test.go` melanjutkan fixture native ke admission scope/pin dan
 pembacaan record Neo4j, discovery traversal dan hidrasi support dari snapshot terbit.
 Lookup Qdrant diteruskan ke verifikasi PostgreSQL/artefak sumber; pencabutan pin pada
 admission akhir menggagalkan hasil. [Kontrak bukti](../../../../doc/graph-evidence.md).
 `published_graph_answer_test.go` melanjutkan hidrasi ke prompt graph dan draft
 bersitasi memakai generator/tokenizer sintetis. Factory GRAPH_RAG dan
-HYBRID_GRAPH_RAG kini diuji dengan 1/3 cabang, reranking, fixed seed fixture,
+HYBRID_GRAPH_RAG kini diuji dengan 1/3 cabang, reranking, query alias lookup nyata,
 ownership metadata dan empty-seed abstention. Lihat [fusion](../../../../doc/graph-fusion.md),
 [rendering](../../../../doc/graph-context.md) serta
 [bukti pembacaan](../../../../doc/verification-report-graph-read.md).

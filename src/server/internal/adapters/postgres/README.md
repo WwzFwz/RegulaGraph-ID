@@ -1,5 +1,9 @@
 # src/server/internal/adapters/postgres
 
+Query linker memakai `LookupPinnedCanonicalAliases` melalui DTO domain; nama
+`RegistryLookupResult` adapter tetap alias kompatibel. Policy dan discovery milik
+query/workflow, bukan adapter; lihat [kontrak](../../../../../doc/query-entity-linking.md).
+
 `graph_read.go` mengikat published manifest, scope asal indeks, retained registry,
 Neo4j receipt dan applied intent di bawah deadline pin. Snapshot index-only dan
 scope/lease salah ditolak; lihat [reader graph](../../../../../doc/graph-read.md).

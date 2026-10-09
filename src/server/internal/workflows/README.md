@@ -6,8 +6,9 @@ Traversal harus berasal dari reader terautentikasi, bukan input klien/model.
 `graph_candidates.go`, `graph_fusion.go` dan published query factory kini
 menyambungkan empat profil retrieval, shared hydration, reranking, immutable
 rendering serta authority check setelah generation. Resolver seed adalah port
-read-only eksplisit; linking otomatis dan konfigurasi endpoint graph belum
-tersambung. Lihat [graph fusion](../../../../doc/graph-fusion.md),
+read-only eksplisit; `query_graph_seeds.go` menghubungkan exact-alias lookup terpin
+dari pertanyaan. Konfigurasi graph API/CLI belum tersambung. Lihat
+[linking](../../../../doc/query-entity-linking.md), [graph fusion](../../../../doc/graph-fusion.md),
 [kontrak bukti](../../../../doc/graph-evidence.md) dan [rendering](../../../../doc/graph-context.md).
 
 `graph_completed.go` menyiapkan seluruh output ASSEMBLE committed untuk penulisan

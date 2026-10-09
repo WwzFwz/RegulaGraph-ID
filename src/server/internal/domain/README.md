@@ -1,5 +1,9 @@
 # src/server/internal/domain
 
+`semantic_candidates.go` memiliki `RegistryLookupResult` untuk observasi exact key
+bersama PostgreSQL/query linker. DTO tidak memberi authority sendiri; reader
+memeriksa live pin dan revision publication.
+
 `graph_neighborhood.go` mendefinisikan batch discovery lokal: snapshot, assertion,
 support, entity, anggaran read dan sinyal frontier terpotong. Protobuf C01 tetap
 sumber payload; DTO ini bukan bukti temporal atau permission baru.

@@ -4,8 +4,9 @@ Discovery [graph/traversal.go](graph/traversal.go) kini menelusuri batch neighbo
 terpin dengan jalur alternatif dan batas resource eksplisit. Branch graph kini
 membawa kandidat source beserta discovery ke fusion, shared hydration dan draft.
 Lihat [traversal](../../../../doc/graph-traversal.md) dan
-[integrasi fusion](../../../../doc/graph-fusion.md). Seed linking otomatis dan
-konfigurasi graph pada entrypoint tetap pekerjaan berikutnya.
+[integrasi fusion](../../../../doc/graph-fusion.md). Baseline
+[exact-alias linking](../../../../doc/query-entity-linking.md) aktif; konfigurasi
+graph entrypoint serta disambiguasi semantik tetap pekerjaan berikutnya.
 
 Pengubahan pertanyaan menjadi kumpulan kandidat bukti melalui pencarian lexical, dense, graph, fusion, filtering, dan reranking. Implementasi runtime berada di Go. Dokumen ini mendefinisikan superset tanggung jawab folder dan kontrak integrasi anaknya.
 
