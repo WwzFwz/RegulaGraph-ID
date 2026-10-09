@@ -1,5 +1,10 @@
 # src/server/internal/indexing
 
+`graph_writer.go` menghubungkan pure preflight, catalog/intent atomik, Neo4j write/seal
+dan source revalidation. `graph_catalog_test.go` menguji rollback, lost acknowledgement,
+exact retry dan proof salah pada backend nyata. Receipt/activation belum tercakup;
+lihat [kontrak](../../../../doc/graph-generation-catalog.md).
+
 `graph_results_test.go` menguji collection output ASSEMBLE terhadap PostgreSQL
 nyata: cancellation, fence, pin, stamp, pool satu koneksi dan cancellation saat
 lock wait. Pipeline native kini melewati preparation seluruh output sebelum Neo4j

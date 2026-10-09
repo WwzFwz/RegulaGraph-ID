@@ -1,5 +1,10 @@
 # src/server/internal/adapters/postgres
 
+`graph_catalog.go` mereservasi route/write set immutable dan operation planned dalam
+transaksi source-admitted yang sama melalui `withCompletedGraph`. Migration 0021
+wajib tersedia; pembacaan catalog historis bukan serving admission. Lihat
+[kontrak](../../../../../doc/graph-generation-catalog.md).
+
 `graph_job_results.go` mengumpulkan seluruh output STAGED dari admission ASSEMBLE
 di bawah lock publication/registry/source/child/pin. Registry drift, cancellation,
 checkpoint mismatch dan coverage parsial ditolak; pool satu koneksi didukung.

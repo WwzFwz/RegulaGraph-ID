@@ -14,6 +14,11 @@ Anak tidak boleh mengubah kontrak input/output secara tersembunyi. Perubahan ben
 
 ## Isi saat ini
 
+Migration 0021 menambah `graph_generations` append-only untuk route/write set dan
+reservasi atomik dengan operation ledger. Terapkan sebelum memakai writer graph.
+Tidak ada backfill atau penghapusan history; schema disposable telah diuji,
+rehearsal upgrade produksi belum diukur. Lihat [kontrak](../doc/graph-generation-catalog.md).
+
 [0020_graph_job_inventory.up.sql](0020_graph_job_inventory.up.sql) menambah inventory
 dan assignment ASSEMBLE append-only dengan batas payload dan foreign keys. Terapkan
 sebelum binary generic claim terbaru, yang mengecualikan assignment graph. Tidak ada

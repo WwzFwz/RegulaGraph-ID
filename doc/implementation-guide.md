@@ -14,7 +14,8 @@ tanpa RPC ulang. [Adapter Neo4j](neo4j-graph-store.md) kini menyimpan delta ters
 ke generation additive, memeriksa isi exact dan melakukan seal; [bukti native](verification-report-neo4j.md)
 tidak menjadi izin publication. [Preparation output committed](graph-publication-preparation.md)
 kini mengumpulkan seluruh checkpoint/output dengan authority dan source validation
-ulang tanpa model/RPC. Lanjutkan catalog/write-intent/receipt graph,
+ulang tanpa model/RPC. [Catalog/write-intent](graph-generation-catalog.md) dan writer
+ber-retry kini tersedia. Lanjutkan receipt graph dan final authority activation,
 publication dengan indeks snapshot dasar, operator preparation/scheduling dan
 graph retrieval. Reaffirmation lintas registry revision,
 canonical mutations dan acceptance kualitas/performa K01 tetap terbuka.

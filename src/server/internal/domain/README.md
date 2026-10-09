@@ -1,5 +1,9 @@
 # src/server/internal/domain
 
+`graph_catalog.go` memiliki binding hash v1, validasi route/count/output budget dan
+expected backend generation. Neo4j memakai tipe yang sama; DTO ini tidak memberi
+authority storage atau izin activation. Lihat [kontrak](../../../../doc/graph-generation-catalog.md).
+
 `graph_completed.go` memvalidasi coverage lengkap checkpoint/output terhadap inventory
 ASSEMBLE, exact producer, role ownership dan aggregate byte budget. DTO ini memakai
 C01 yang ada; storage authority dan source-byte validation tetap milik adapter/workflow.

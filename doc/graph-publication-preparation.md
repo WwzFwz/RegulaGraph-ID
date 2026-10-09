@@ -53,8 +53,8 @@ Output tidak boleh memakai ID role input atau output child lain. Canonical entit
 yang sama boleh muncul pada delta sumber berbeda; konsistensi isi lintas delta
 tetap diperiksa writer/seal generation, bukan disamakan dengan kepemilikan artefak.
 
-Langkah berikutnya adalah catalog/write intent immutable, pemeriksaan gabungan
-record lintas delta sebelum remote mutation, receipt backend authoritative serta
+[Catalog/write intent immutable](graph-generation-catalog.md) dan pemeriksaan gabungan
+record lintas delta sebelum remote mutation kini tersedia. Berikutnya receipt backend authoritative serta
 publication graph bersama indeks snapshot dasar. Prepared inventory tidak boleh
 langsung digunakan untuk memindahkan active pointer atau mengabaikan backend lain.
 Carry-forward indeks harus mempertahankan generation, source membership, statistik

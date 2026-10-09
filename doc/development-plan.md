@@ -7,7 +7,10 @@ termasuk replay dan cold recovery; lihat [laporan](verification-report-neo4j.md)
 [Collection/preparation graph committed](graph-publication-preparation.md) kini
 menyatukan output STAGED lengkap dengan revalidasi source/projection dan authority;
 checkpoint baru sesudah recovery membatalkan hasil prepared lama.
-Berikutnya catalog/write-intent/receipt graph PostgreSQL, publication dengan indeks
+[Catalog/write-intent graph](graph-generation-catalog.md) kini immutable dan atomik;
+writer menguji lost acknowledgement, retry dan exact proof pada backend nyata.
+[Bukti](verification-report-graph-catalog.md) belum mencakup activation.
+Berikutnya receipt graph PostgreSQL, publication dengan indeks
 snapshot dasar yang sah, operator preparation/scheduling, traversal dan jawaban.
 Graph SEALED belum menjadi snapshot query aktif. K01/Hybrid GraphRAG belum selesai.
 

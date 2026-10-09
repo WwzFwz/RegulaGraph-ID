@@ -1,0 +1,13 @@
+# Catalog generation graph dan durable write intent
+
+Dokumen ini menjelaskan penghubung output ASSEMBLE committed dengan penulisan Neo4j. Catalog mengikat lokasi dan seluruh write set secara immutable; keberadaannya bukan receipt kesiapan atau izin melayani query.
+
+`DescribePreparedGraph` memakai projection yang sama dengan `VerifyAndSeal` untuk menghitung union record, edge dan operation sebelum I/O backend. Entity bersama boleh berulang dengan payload identik; konflik lintas delta ditolak sebelum mutation. `GraphCatalogBinding` menyimpan corpus/publication/fence, base snapshot, target sequence, registry revision, endpoint/database, binding hash v1, operations/inventory hash dan output references. Credential tidak disimpan. Jumlah expected backend adalah record unik ditambah edge, bukan jumlah delta.
+
+`GraphJobAdmission.ReserveGraphGeneration` membaca ulang inventory lengkap dengan lock publication, registry, source, checkpoint child dan pin. Manifest harus menunjuk parent yang sama, tanpa closure, dan mempunyai expected Neo4j generation/checksum/count yang cocok. Migration 0021 menyimpan catalog append-only; catalog dan operation berstatus `planned` di-commit dalam transaksi yang sama. Retry harus mempertahankan route dan bytes exact. Kegagalan insert operation membatalkan catalog juga. Pembacaan catalog memeriksa hash, canonical JSON dan kolom identitas; API pembacaan historis ini bukan serving admission.
+
+`WritePreparedGraph` melakukan describe, reservasi intent, schema readiness, apply semua delta, exact verification/seal, lalu revalidasi source authority. Backend proof wajib identik dengan hasil describe. Lost acknowledgement dapat diulang tanpa inference/assembly ulang. Kegagalan tidak mengubah operation menjadi applied atau snapshot menjadi aktif. Remote write tidak menahan lock SQL; kehilangan authority dapat meninggalkan generation terisolasi yang harus ditangani recovery.
+
+Intake dibatasi 256 delta, 16 MiB per output, 64 MiB output gabungan, serta 16 MiB metadata referensi dan catalog serialized. Ini bukan batas peak RSS. Ukur admission/lock/write/seal p95/p99, pool wait dan RSS menurut [benchmark required](../configs/benchmark-targets.yaml); acceptance tetap NOT_MEASURED.
+
+Tahap berikutnya adalah receipt durable dan applied operation secara atomik, pemeriksaan ulang authority saat activation, carry-forward indeks snapshot dasar, lalu admission baca/traversal. Takeover, incremental closure dan production compensation/GC belum tersedia. Lihat [persiapan output](graph-publication-preparation.md) dan [bukti verifikasi](verification-report-graph-catalog.md).

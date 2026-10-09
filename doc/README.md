@@ -1,5 +1,9 @@
 # doc
 
+[graph-generation-catalog.md](graph-generation-catalog.md) menjelaskan catalog route/write set
+immutable dan intent atomik sebelum Neo4j; [verifikasi](verification-report-graph-catalog.md)
+mencakup rollback, real write/retry dan blokir activation sebelum receipt.
+
 [graph-publication-preparation.md](graph-publication-preparation.md) menjelaskan
 collection graph committed dan validasi ulang seluruh sumber/output sebelum writer.
 [Laporan](verification-report-graph-completed.md) mencatat pending/cancellation,

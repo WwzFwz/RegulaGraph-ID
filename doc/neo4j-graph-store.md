@@ -78,7 +78,7 @@ menulis langsung ke database berada di luar proteksi lock aplikasi.
 
 [Laporan verifikasi](verification-report-neo4j.md) mencatat backend nyata, replay
 bersamaan, rollback, shared support, corruption, budget dan output Rust aktual.
-Selanjutnya sambungkan catalog/write-intent/receipt graph, carry-forward indeks
+[Catalog/write-intent](graph-generation-catalog.md) kini tersedia. Selanjutnya receipt graph, carry-forward indeks
 snapshot dasar yang sah, publication/recovery, lalu traversal dan evidence hydration.
 Proof tidak boleh diubah menjadi receipt dari input caller tanpa recheck authority.
 

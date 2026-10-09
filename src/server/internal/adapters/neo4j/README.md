@@ -22,6 +22,10 @@ ID/hash, sedangkan [readiness.go](readiness.go) memeriksa seluruh inventory dan
 menutup generation terhadap penulisan baru. [store_test.go](store_test.go) menguji
 boundary projection serta backend Neo4j nyata secara opt-in.
 
+`Describe` memakai projection inventory yang sama dengan seal tanpa koneksi backend,
+sehingga konflik lintas delta ditolak sebelum write. `description_test.go` menguji
+union, konflik, replay ordering dan clone binding; domain memiliki binding hash v1.
+
 Caller harus melakukan admission source/registry sebelum menyerahkan delta. Binding
 mengikat corpus, generation, publication/fence, base snapshot, target sequence dan
 registry revision. `New` tidak membuka koneksi; bootstrap memanggil `EnsureSchema`
@@ -42,7 +46,8 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 Penulisan additive ke generation awal terisolasi, replay, shared support dan exact
 verification/seal tersedia. Output Rust aktual telah diuji hingga PostgreSQL STAGED
 dan Neo4j; lihat [bukti](../../../../../doc/verification-report-neo4j.md). Integrasi
-catalog/receipt publication PostgreSQL, traversal query, closure incremental dan
+catalog/write-intent PostgreSQL kini tersedia melalui [writer](../../indexing/graph_writer.go).
+Receipt publication PostgreSQL, traversal query, closure incremental dan
 readiness cluster belum tersedia. Tes fixture tidak membuktikan kualitas model,
 coverage corpus atau target latency/throughput.
 
@@ -52,5 +57,5 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
-| [store.go](store.go), [readiness.go](readiness.go) | Sambungkan proof generation ke catalog/receipt publication authoritative; tambah pembacaan untuk retrieval setelah admission snapshot. | Crash/retry antar-backend, stale fence, publication atomik pada pointer PostgreSQL dan isolasi snapshot. |
+| [store.go](store.go), [readiness.go](readiness.go) | Sambungkan proof generation ke receipt publication authoritative; tambah pembacaan untuk retrieval setelah admission snapshot. | Crash/retry antar-backend, stale fence, publication atomik pada pointer PostgreSQL dan isolasi snapshot. |
 | [write.go](write.go), [records.go](records.go) | Tambah incremental closure/support changes dengan dependency manifest dan historical visibility yang sah. | Equivalence terhadap rebuild, retensi shared support dan versi lama; ukur fan-out, commit, peak RSS dan contention. |
