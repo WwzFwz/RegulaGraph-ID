@@ -1,9 +1,19 @@
 # Rencana implementasi berbasis dependency
 
+Checkpoint operasional 2026-10-09: PDF PP 12/2006 telah menjadi 35 chunk,
+diindeks dengan BGE-M3/BM25 dan published pada snapshot v2. Hybrid query serta
+CLI/API GENERATE model lokal menghasilkan satu draft bersitasi dengan status
+PARTIAL/UNREVIEWED; run CPU CLI 182 detik dan API 155 detik, bukan acceptance latency. Graph dari
+EXTRACT/RESOLVE PDF ini tetap terbuka. Fokus berikut: perbaikan model
+extraction, resolusi dan publication graph. Gold/benchmark mengikuti setelah
+jalur operasional tersedia. [Indeks](verification-report-real-index.md),
+[generation](verification-report-real-answer.md), [handoff](operational-handoff.md).
+
 Checkpoint penjadwalan: `REGULAGRAPH_EXTRACT_ENABLED=false` menunda claim EXTRACT
 tanpa mengubah pending job, sehingga dokumen dan indeks dapat dipersiapkan ketika
-profil model belum siap. Default tetap true. Tes/review scheduler lulus; run
-indeks corpus nyata masih berikutnya. [Bukti](verification-report-extraction-suspension.md).
+profil model belum siap. Default tetap true. Tes/review scheduler lulus; indeks
+corpus contoh nyata kini published seperti checkpoint di atas.
+[Bukti scheduler](verification-report-extraction-suspension.md).
 
 [Panduan operasional/handoff](operational-handoff.md) merinci dependency PDF nyata
 hingga aplikasi dapat digunakan, status saat ini, gap registry/model, lokasi kode,

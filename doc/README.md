@@ -1,9 +1,15 @@
 # doc
 
+[Generation dari PDF nyata](verification-report-real-answer.md) mencatat draft
+CLI/API dengan model lokal, pengurangan overhead metadata prompt tanpa menghapus
+dependency, serta riwayat timeout. [Handoff](operational-handoff.md) menyediakan
+konfigurasi dan langkah start/query/stop untuk snapshot yang sudah published.
+Graph nyata serta acceptance kualitas/performa tetap terbuka.
+
 [Indeks PDF nyata dan pemulihan](verification-report-real-index.md) mencatat
 abort inventory gagal melalui CLI, publication 35 chunk dengan BGE-M3/BM25,
-serta perbaikan hidrasi dan hybrid query dengan PARTIAL eksplisit. Ini belum
-graph/jawaban LLM nyata atau acceptance kualitas/performa.
+serta perbaikan hidrasi dan hybrid query dengan PARTIAL eksplisit. Laporan indeks
+itu sendiri belum membuktikan graph/jawaban LLM atau acceptance kualitas/performa.
 
 [Penundaan claim EXTRACT](verification-report-extraction-suspension.md) mencatat
 flag coordinator untuk menyiapkan dokumen/indeks tanpa mengubah pending job atau

@@ -6,7 +6,7 @@ aktual, urutan pekerjaan, lokasi kode, cara verifikasi, dan titik berhenti yang
 aman. Ini bukan pernyataan bahwa pipeline lengkap sudah berjalan. Pembagian
 pekerjaan mengikuti dependency, tidak dibatasi nomor tahap pada percakapan.
 
-**Checkpoint: 2026-10-09; baseline kode `264b6d7`.** Periksa `git status` dan
+**Checkpoint: 2026-10-09; baseline answering `fb6c02c`.** Periksa `git status` dan
 `git log` sebelum melanjutkan karena commit setelah baseline dapat menutup bagian
 yang masih terbuka di sini. Status terbaru berada di [development-plan](development-plan.md)
 dan laporan verifikasi bertanggal; beberapa dokumen desain lama masih mempunyai
@@ -60,7 +60,7 @@ Itu kemajuan operasional, tetapi belum berarti seluruh Hybrid GraphRAG siap.
 | RESOLVE | Kandidat, konteks bukti, proposal LINK/DEFER, review dan registry commit tersedia | Entitas tanpa kandidat membutuhkan jalur pembuatan canonical yang sah; CREATE/MERGE/SPLIT semantik lengkap belum tersedia |
 | Native embedding/reranking | BGE-M3 C++/ONNX sudah mengindeks 35 chunk PDF nyata; reranking mempunyai bukti fixture | Reranking pada corpus ini dan acceptance model belum dibuktikan |
 | Index + graph publication | Indeks dense/BM25 PP 12/2006 published dan dapat dibaca; graph teruji pada fixture | Graph dari ekstraksi/resolusi PDF nyata belum published |
-| Retrieval + draft answer | Hybrid evidence query pada snapshot PDF nyata berhasil, dengan PARTIAL eksplisit | Jawaban LLM dan profil graph pada corpus ini belum diuji |
+| Retrieval + draft answer | Hybrid evidence, CLI `-answer`, dan API `/v1/questions` pada snapshot PDF nyata berhasil; satu claim/citation, PARTIAL dan UNREVIEWED eksplisit | Graph nyata, cakupan pertanyaan dan kecepatan interaktif belum terbukti |
 
 ### Checkpoint inventory persisten PP 12/2006
 
@@ -146,7 +146,121 @@ Raw evidence berada pada `logs/query-hybrid-v2.json`, `logs/query-effective-v2.j
 dan `logs/publish-index-v2.json`; metadata v2 pada `preparation-v2/`. PowerShell
 redirect pada run ini menghasilkan UTF-16, bukan ProtoJSON UTF-8 wire files.
 Lihat [laporan pemulihan dan query nyata](verification-report-real-index.md).
-Pekerjaan berikutnya: generator lokal untuk `-answer`, serta A/B untuk graph nyata.
+CLI `-answer` kini berhasil pada pertanyaan tanggal berlaku tersebut. Lihat
+[laporan generation nyata](verification-report-real-answer.md) untuk hasil,
+riwayat timeout, pin konfigurasi dan batas pembuktian. Pekerjaan A/B untuk graph
+nyata tetap diperlukan; keberhasilan GENERATE tidak berarti EXTRACT sudah valid.
+
+### Memakai snapshot yang sudah tersedia
+
+Tidak perlu download atau membangun ulang PP 12/2006 untuk mencoba jalur ini.
+Clone baru tetap memerlukan model, artifact store dan database; direktori
+`artifacts/operational/pp12-v1/` hanya checkpoint lokal yang diabaikan Git.
+Periksa layanan yang sudah hidup sebelum menjalankan instance lain.
+
+| Layanan | Endpoint checkpoint | Dibutuhkan untuk |
+| --- | --- | --- |
+| PostgreSQL | `127.0.0.1:55448`, schema `regulagraph_ops_pp12_v1` | Registry, snapshot dan read lease |
+| Qdrant | `http://127.0.0.1:56348` | Dense/BM25 dari collection v2 |
+| Native BGE-M3 | `127.0.0.1:55072` | Embedding pertanyaan |
+| llama.cpp Qwen | `http://127.0.0.1:55110`, context 8192 | GENERATE dengan tokenizer aktual |
+| Go API | `http://127.0.0.1:58097` | HTTP evidence/draft, memakai bearer token |
+
+Untuk query snapshot ini, ingestion coordinator/worker dan semantic gateway
+tidak perlu dijalankan. Neo4j baru diperlukan saat memakai profil graph yang
+sudah dipublikasikan. Runtime BGE dan model GENERATE berbeda dan keduanya
+dibutuhkan untuk hybrid answer.
+
+Konfigurasi GENERATE yang berhasil berada di `answer/config-compact.json` di
+root run, dengan SHA-256
+`eb1a0cac9365aadc8fed4aa5b37b361c38ff7e8a0dc7aa44349526fd21760099`.
+Key server model checkpoint disimpan lokal pada `answer/model-key.local`;
+token client API pada `answer/api-token.local`. Keduanya diabaikan Git. Untuk
+runtime baru buat secret sendiri dan pasang nilai yang sama di server/client
+pasangannya; tidak memerlukan API key cloud untuk profil lokal ini.
+Gunakan binary yang memuat `fb6c02c` atau implementasi kompatibel; `cli.exe`
+lama tidak memuat prompt baru. `config.json` (4096) dan `config-8192.json`
+(prompt lama) disimpan sebagai riwayat, bukan konfigurasi terbaru.
+
+Di PowerShell dari root repo, setelah backend/native/model siap:
+
+```powershell
+# Isi DSN lokal beserta search_path schema di atas; jangan commit credential.
+$env:REGULAGRAPH_POSTGRES_DSN = '<DSN operasional dari konfigurasi lokal>'
+. ./artifacts/operational/pp12-v1/environment.ps1
+$env:REGULAGRAPH_BUILD_ID = (git rev-parse --short HEAD).Trim()
+$env:REGULAGRAPH_ANSWER_CONFIG = (Resolve-Path './artifacts/operational/pp12-v1/answer/config-compact.json').Path
+$env:REGULAGRAPH_ANSWER_CONFIG_SHA256 = (Get-FileHash $env:REGULAGRAPH_ANSWER_CONFIG).Hash.ToLowerInvariant()
+$env:REGULAGRAPH_ANSWER_API_KEY = (Get-Content './artifacts/operational/pp12-v1/answer/model-key.local' -Raw).Trim()
+go run ./src/server/cmd/cli query-evidence -answer -question 'Kapan PP Nomor 12 Tahun 2006 mulai berlaku?' -as-of 2026-01-01 -profile hybrid -unresolved report -limit 20 -timeout 5m
+```
+
+Output yang dibuktikan berupa `mode: answer_draft`, satu claim/citation,
+`COMPLETION_STATUS_SUCCEEDED`, `SEMANTIC_STATUS_PARTIAL`, dan
+`SUPPORT_STATUS_UNREVIEWED`; daftar `missingEvidence` tetap lengkap.
+Satu run CLI memerlukan sekitar 182 detik di CPU; API 200 sekitar 155 detik,
+bukan hasil benchmark release atau perbandingan cold/warm yang terkontrol.
+Untuk evidence saja, hilangkan `-answer`; model GENERATE tidak diperlukan.
+
+Jika llama.cpp belum hidup, jalankan di terminal tersendiri. Isi key lokal
+lebih dahulu, sama dengan terminal CLI/API. Binary dan GGUF di bawah adalah
+artefak checkpoint, bukan bagian yang otomatis tersedia setelah clone:
+
+```powershell
+$answerConfig = Get-Content './artifacts/operational/pp12-v1/answer/config-compact.json' -Raw | ConvertFrom-Json
+$env:REGULAGRAPH_ANSWER_API_KEY = (Get-Content './artifacts/operational/pp12-v1/answer/model-key.local' -Raw).Trim()
+./.cache/llama-b11515/bin/llama-server.exe --model $answerConfig.gguf_path --alias regulagraph-local-qwen --host 127.0.0.1 --port 55110 --ctx-size 8192 --parallel 1 --threads 4 --threads-batch 4 --n-gpu-layers 0 --no-context-shift --api-key $env:REGULAGRAPH_ANSWER_API_KEY
+```
+
+Cara menyiapkan BGE/CUDA tersedia pada [native inference](native-inference.md).
+Gunakan bundle `artifacts/models/bge-m3-fp16-ort1220`, listener `127.0.0.1:55072`,
+dan manifest pin
+`ac099586f048edb5caa1e13fa10ccbaaad5aef3e13f07c1b9bc88e1f279ca35d`.
+Jangan mengganti model/query manifest tanpa memeriksa kesesuaian indeks published.
+
+Untuk API, di terminal dengan environment query/answer di atas, gunakan:
+
+```powershell
+$env:REGULAGRAPH_API_LISTEN = '127.0.0.1:58097'
+$env:REGULAGRAPH_API_AUTH_SCOPE = 'operator:pp12-operational-v1'
+$env:REGULAGRAPH_API_PROFILE = 'hybrid'
+$env:REGULAGRAPH_API_ANSWERS = 'true'
+$env:REGULAGRAPH_API_TIMEOUT = '5m'
+$env:REGULAGRAPH_API_TOKEN = (Get-Content './artifacts/operational/pp12-v1/answer/api-token.local' -Raw).Trim()
+go run ./src/server/cmd/api
+```
+
+Di terminal client, isi token yang sama, lalu kirim request C01. JSON HTTP memakai
+snake_case; query date tidak menyatakan bahwa status keberlakuan sudah tervalidasi.
+
+```powershell
+$headers = @{ Authorization = 'Bearer ' + (Get-Content './artifacts/operational/pp12-v1/answer/api-token.local' -Raw).Trim() }
+Invoke-RestMethod 'http://127.0.0.1:58097/readyz' -Headers $headers
+$request = @{
+  corpus_id = 'corpus:pp12-operational-v1'
+  question = 'Kapan PP Nomor 12 Tahun 2006 mulai berlaku?'
+  response_mode = 'RESPONSE_MODE_COMPLETE'
+  requested_profile = 'RETRIEVAL_PROFILE_HYBRID_RAG'
+  temporal_scope = @{
+    mode = 'TEMPORAL_MODE_AS_OF'
+    effective_at = @{ year = 2026; month = 1; day = 1 }
+    unresolved_policy = 'UNRESOLVED_POLICY_REPORT'
+  }
+} | ConvertTo-Json -Depth 5
+Invoke-RestMethod 'http://127.0.0.1:58097/v1/questions' -Method Post -Headers $headers -ContentType 'application/json' -Body $request -TimeoutSec 315
+```
+
+Checkpoint API compact berhasil HTTP 200 dengan input di atas; catatan proses
+ada pada `answer/api-compact-process.json` (PID saat run 33976, jangan diasumsikan
+tetap hidup). Model tercatat pada `answer/process-8192.json` (PID saat run 39844).
+`answer/api-token.local` memuat token run yang diabaikan Git; jangan membagikannya.
+
+`/v1/evidence` dengan request sama hanya mengambil bukti. `readyz` yang berhasil
+tidak sendirian membuktikan generation atau kualitas jawaban. Ctrl+C menghentikan
+proses foreground; untuk proses background gunakan pengecekan PID/path di bagian
+operasi bawah. Jangan `docker compose down -v` atau menghapus schema saat berhenti;
+data/snapshot dibutuhkan untuk resume. Menyalakan kembali query tidak memerlukan
+ulang download, embedding atau extraction apabila snapshot masih utuh.
 
 ## Urutan dependency yang benar
 
