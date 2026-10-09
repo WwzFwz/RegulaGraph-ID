@@ -2,6 +2,8 @@
 // The file owns corpus, C01 model, local server/template and answer limits, but
 // never credentials. Loading validates configuration without contacting a server;
 // inference admission separately hashes GGUF and checks resident properties.
+// The answer profile accepts GENERATE only; shared local admission also supports
+// semantic tasks, which must not broaden the answering configuration boundary.
 // Required quality/latency remains benchmark-targets.yaml, not a config assertion.
 package config
 
@@ -94,6 +96,9 @@ func LoadAnswerGenerator(path, expectedHash, corpus string) (*AnswerGeneratorCon
 	model := new(pb.ModelManifest)
 	if err = protojson.Unmarshal(root["model"], model); err != nil {
 		return nil, err
+	}
+	if model.Task != pb.ModelTask_MODEL_TASK_GENERATE {
+		return nil, errors.New("answer generator requires a GENERATE model")
 	}
 	if !proto.Equal(model.PromptHash, answering.DraftPromptHash()) {
 		return nil, errors.New("answer system prompt pin mismatch")
