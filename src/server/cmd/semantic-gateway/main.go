@@ -48,6 +48,7 @@ type runtimeConfig struct {
 	build                    string
 	maximumItems             int
 	maximumInputBytes        int
+	maximumOutputTokens      int
 	maximumConcurrent        int
 	maximumCacheEntries      int
 	maximumCacheBytes        int
@@ -83,7 +84,8 @@ func run(ctx context.Context) error {
 		SchemaName: semanticSchemaName(config.model.Task), Software: "regulagraph-semantic-gateway",
 		Build: config.build, ConfigHash: configHash, TokenizerID: config.model.ModelId + ":provider",
 		MaximumItems: config.maximumItems, MaximumInputBytes: config.maximumInputBytes,
-		MaximumConcurrent: config.maximumConcurrent, MaximumCacheEntries: config.maximumCacheEntries,
+		MaximumOutputTokens: uint32(config.maximumOutputTokens),
+		MaximumConcurrent:   config.maximumConcurrent, MaximumCacheEntries: config.maximumCacheEntries,
 		MaximumCacheBytes: int64(config.maximumCacheBytes),
 	})
 	if err != nil {
@@ -229,6 +231,7 @@ func loadConfig() (runtimeConfig, []byte, json.RawMessage, *pb.ContentHash, erro
 		{"REGULAGRAPH_SEMANTIC_PROVIDER_MAX_RESPONSE_BYTES", 4 << 20, &config.providerMaxResponseBytes},
 		{"REGULAGRAPH_SEMANTIC_MAX_ITEMS", 256, &config.maximumItems},
 		{"REGULAGRAPH_SEMANTIC_MAX_INPUT_BYTES", 4 << 20, &config.maximumInputBytes},
+		{"REGULAGRAPH_SEMANTIC_MAX_OUTPUT_TOKENS", 4096, &config.maximumOutputTokens},
 		{"REGULAGRAPH_SEMANTIC_MAX_CONCURRENT", 8, &config.maximumConcurrent},
 		{"REGULAGRAPH_SEMANTIC_CACHE_ENTRIES", 4096, &config.maximumCacheEntries},
 		{"REGULAGRAPH_SEMANTIC_CACHE_BYTES", 256 << 20, &config.maximumCacheBytes},
@@ -243,6 +246,9 @@ func loadConfig() (runtimeConfig, []byte, json.RawMessage, *pb.ContentHash, erro
 	if config.maximumInputBytes >= config.maximumMessageBytes {
 		return runtimeConfig{}, nil, nil, nil, errors.New("semantic maximum input bytes must be smaller than gRPC maximum message bytes")
 	}
+	if uint64(config.maximumOutputTokens) >= uint64(config.model.MaxTokens) {
+		return runtimeConfig{}, nil, nil, nil, errors.New("semantic output token cap must be smaller than the model context limit")
+	}
 	if uint64(config.maximumConcurrent) > math.MaxUint32/2 {
 		return runtimeConfig{}, nil, nil, nil, errors.New("semantic maximum concurrency exceeds the gRPC stream limit")
 	}
@@ -255,6 +261,7 @@ func loadConfig() (runtimeConfig, []byte, json.RawMessage, *pb.ContentHash, erro
 		Build             string `json:"build"`
 		MaximumItems      int    `json:"maximum_items"`
 		MaximumInput      int    `json:"maximum_input_bytes"`
+		MaximumOutput     int    `json:"maximum_output_tokens"`
 		MaximumConcurrent int    `json:"maximum_concurrent"`
 		MaximumCacheItems int    `json:"maximum_cache_entries"`
 		MaximumCacheBytes int    `json:"maximum_cache_bytes"`
@@ -266,6 +273,7 @@ func loadConfig() (runtimeConfig, []byte, json.RawMessage, *pb.ContentHash, erro
 		ProviderEndpoint: config.providerEndpoint, ProviderTimeout: config.providerTimeout.String(),
 		MaxResponseBytes: config.providerMaxResponseBytes, OntologyVersion: config.ontologyVersion, OntologyHash: config.ontology.ContentHash().Sha256,
 		Build: config.build, MaximumItems: config.maximumItems, MaximumInput: config.maximumInputBytes,
+		MaximumOutput:     config.maximumOutputTokens,
 		MaximumConcurrent: config.maximumConcurrent, MaximumCacheItems: config.maximumCacheEntries,
 		MaximumCacheBytes: config.maximumCacheBytes, PromptHash: promptHash.Sha256,
 		SchemaHash: hashBytes(schemaBytes), ModelID: modelID, ModelVersion: modelVersion,

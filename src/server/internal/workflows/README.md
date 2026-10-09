@@ -4,6 +4,10 @@ EXTRACT preflight dan output admission sekarang mewajibkan rendered ontology
 context pin yang sama dengan versi runtime. Request/producer lama tanpa pin
 memerlukan ekspor producer dan submit baru; output historis tidak ditulis ulang.
 Hash hanya dibuktikan sebagai konfigurasi, bukan attestation perilaku provider.
+Admission juga membandingkan konfigurasi producer aktual dengan request tersimpan,
+bukan hanya fingerprint context yang di-echo worker. Semua input hash producer
+aktual harus diotorisasi oleh pin request; pemeriksaan memakai set linear. Drift
+completion budget/config ditolak sebelum durable acceptance, termasuk recovery.
 
 `acquisition_pipeline_integration_test.go` menguji PDF collector aktual melalui
 import, PostgreSQL terisolasi, worker PDFium/struktur, BIND dan tokenizer CHUNK.

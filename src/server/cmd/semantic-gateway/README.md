@@ -1,5 +1,15 @@
 # src/server/cmd/semantic-gateway
 
+`REGULAGRAPH_SEMANTIC_MAX_OUTPUT_TOKENS` menetapkan completion cap eksplisit
+(default 4096) untuk setiap panggilan EXTRACT maupun RESOLVE. Nilainya harus
+positif dan lebih kecil dari konteks model terpin. Cap dikirim sebagai `max_tokens`,
+masuk fingerprint konfigurasi dan producer InputHashes, sehingga profil demo
+provider tidak lagi menentukan batas secara diam-diam. Setelah mengganti cap,
+ekspor producer baru dan submit job dengan pin baru; jangan ubah artefak historis.
+Cap bukan pengukuran full prompt: prompt, schema, ontology, input dan completion
+harus tetap muat dalam konteks provider. Ukur truncation, usage, latency serta
+validitas output bersama; menaikkan cap tidak membuktikan akurasi atau throughput.
+
 EXTRACT menyediakan ontology context terpin ke model sebagai pesan system kedua.
 Ekspor producer kini membawa hash exact rendering, di samping schema/ontology
 hash. Pasangkan gateway/coordinator baru dan ekspor ulang producer; pin lama

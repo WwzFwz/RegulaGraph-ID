@@ -40,6 +40,12 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
+SemanticConfig mewajibkan `MaximumOutputTokens` positif di bawah context limit.
+EXTRACT/RESOLVE meneruskan cap ke provider dan mencatat identitasnya pada producer;
+adapter HTTP menolak completion usage yang melampaui cap eksplisit. Ini menghindari
+pewarisan limit output profil demo. Exact full-prompt admission untuk semantic
+tetap pekerjaan terpisah; cap tidak membuktikan seluruh input/output muat.
+
 EXTRACT kini mengirim vocabulary ontology tervalidasi sebagai system context
 terpisah dari prompt dasar dan teks sumber. Exact rendered context dipin pada
 producer InputHashes; coordinator menolak missing/drift pin pada request/output.
@@ -64,6 +70,7 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 `semantic_resolution.go`, `semantic_resolution_cache.go`, dan `semantic_resolution_client.go` mengimplementasikan gateway/context projection, bounded replay cache, dan client gRPC RESOLVE. Satu gateway memakai task EXTRACT atau RESOLVE terpin; producer/model/schema/context/candidate identity divalidasi. LINK harus merujuk konteks yang mencakup mention dan support kandidat terpilih; metadata label saja tidak cukup. Tes membuktikan projection, malformed input, provenance, cancellation, eviction/coalescing, dan RPC; kualitas model tetap belum diukur. `semantic_provider_integration_test.go` menyediakan smoke endpoint nyata opt-in; konfigurasi serta batas pembuktiannya berada di [panduan resolusi](../../../../../doc/semantic-resolution.md).
 
 `StructuredRequest.MaxOutputTokens` menambahkan output cap eksplisit untuk
-generator jawaban; adapter mengirim `max_tokens` jika nonzero. Nilai nol
-mempertahankan policy provider lama untuk EXTRACT/RESOLVE. Adapter tetap
+generator jawaban dan semantic; adapter mengirim `max_tokens` jika nonzero.
+Adapter generik masih menerima nol untuk kompatibilitas caller lain, tetapi
+gateway EXTRACT/RESOLVE mewajibkan cap eksplisit. Adapter tetap
 memeriksa model, finish reason, usage dan batas bytes tanpa retry implisit.

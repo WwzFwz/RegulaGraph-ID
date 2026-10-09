@@ -61,6 +61,34 @@ func TestStructuredChatRejectsInvalidTrustedContext(t *testing.T) {
 	}
 }
 
+func TestOpenAICompatibleProviderEnforcesExplicitCompletionBudget(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body chatRequest
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+		}
+		if body.MaxTokens != 4 && body.MaxTokens != 3 {
+			t.Errorf("missing explicit cap: %d", body.MaxTokens)
+		}
+		_, _ = w.Write([]byte(`{"model":"model","choices":[{"message":{"content":"{}"},"finish_reason":"stop"}],"usage":{"prompt_tokens":12,"completion_tokens":4}}`))
+	}))
+	defer server.Close()
+	provider, err := NewOpenAICompatibleProvider(OpenAICompatibleConfig{Endpoint: server.URL, Timeout: time.Second, MaximumResponseBytes: 4096})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := StructuredRequest{ModelID: "model", SystemPrompt: "prompt", ItemID: "item", Text: "text", SchemaName: "schema", Schema: json.RawMessage(`{}`), MaxOutputTokens: 4}
+	if _, err := provider.Generate(context.Background(), request); err != nil {
+		t.Fatal(err)
+	}
+	request.MaxOutputTokens = 3
+	_, err = provider.Generate(context.Background(), request)
+	var rejected *ProviderError
+	if !errors.As(err, &rejected) || rejected.Code != "output_budget" {
+		t.Fatalf("accepted provider cap overrun: %v", err)
+	}
+}
+
 func TestOpenAICompatibleProviderRejectsOversizedResponse(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
 		_, _ = response.Write([]byte(strings.Repeat("x", 65)))

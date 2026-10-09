@@ -172,10 +172,12 @@ func modelWorkflowFixture(t *testing.T) (*SemanticResolutionHandoff, domain.JobR
 		Model: model, Ontology: parseTestOntology(), OutputSchemaHash: schemaRef.ContentHash, SystemPrompt: prompt, OutputSchema: schema,
 		SchemaName: "resolve", Software: producer.Software, Build: producer.Build, ConfigHash: producer.ConfigHash,
 		TokenizerID: "fixture:tokenizer", MaximumItems: 10, MaximumInputBytes: 1 << 20, MaximumConcurrent: 2,
+		MaximumOutputTokens: 1024,
 		MaximumCacheEntries: 10, MaximumCacheBytes: 1 << 20})
 	if err != nil {
 		t.Fatal(err)
 	}
+	producer = gateway.ProducerManifest()
 	handoff, err := NewSemanticResolutionHandoff(store, artifacts, 1<<20, 1000, 10)
 	if err != nil {
 		t.Fatal(err)

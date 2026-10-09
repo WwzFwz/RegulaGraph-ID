@@ -28,6 +28,39 @@ type providerDouble struct {
 
 type vocabularyProvider struct{ request StructuredRequest }
 
+func TestSemanticCompletionBudgetIsRequiredPinnedAndForwarded(t *testing.T) {
+	provider := new(vocabularyProvider)
+	service, request := semanticFixture(provider)
+	if _, err := service.ExtractBatch(context.Background(), request); err != nil {
+		t.Fatal(err)
+	}
+	if provider.request.MaxOutputTokens != 1024 {
+		t.Fatal("EXTRACT inherited provider completion policy")
+	}
+	config := service.config
+	config.MaximumOutputTokens = 2048
+	changed, err := NewSemanticService(provider, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if proto.Equal(service.ProducerManifest(), changed.ProducerManifest()) {
+		t.Fatal("completion cap change left producer identity unchanged")
+	}
+	for _, invalid := range []uint32{0, config.Model.MaxTokens, ^uint32(0)} {
+		config.MaximumOutputTokens = invalid
+		if _, err := NewSemanticService(provider, config); err == nil {
+			t.Fatalf("accepted invalid completion cap %d", invalid)
+		}
+	}
+	resolution, resolutionRequest := resolutionFixture(provider)
+	if _, err := resolution.ResolveBatch(context.Background(), resolutionRequest); err != nil {
+		t.Fatal(err)
+	}
+	if provider.request.MaxOutputTokens != 1024 {
+		t.Fatal("RESOLVE inherited provider completion policy")
+	}
+}
+
 func TestSemanticServiceOwnsPinnedConfiguration(t *testing.T) {
 	provider := new(vocabularyProvider)
 	base, request := semanticFixture(provider)
@@ -132,6 +165,7 @@ func semanticFixture(provider StructuredProvider) (*SemanticService, *pb.Extract
 		SystemPrompt: prompt, OutputSchema: schema, SchemaName: "extract_v1",
 		Software: "semantic-gateway", Build: "test", ConfigHash: semanticHash("c"), TokenizerID: "tokenizer:fixture",
 		MaximumItems: 16, MaximumInputBytes: 4096, MaximumConcurrent: 2,
+		MaximumOutputTokens: 1024,
 		MaximumCacheEntries: 8, MaximumCacheBytes: 1 << 20,
 	})
 	if err != nil {

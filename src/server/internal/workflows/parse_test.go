@@ -229,6 +229,23 @@ func TestExtractExecutorRejectsUntrustedExtractionBoundaries(t *testing.T) {
 		name  string
 		setup func(*parseStoreFake, *parseWorkerFake)
 	}{
+		{name: "gateway config changed despite echoed request config", setup: func(store *parseStoreFake, worker *parseWorkerFake) {
+			store.mutateExtraction = func(batch *pb.ExtractionBatch) {
+				batch.Dependencies.ProducerManifest.ConfigHash = parseHash("9")
+			}
+			worker.mutateResponse = func(response *pb.ProcessBatchResponse) {
+				response.Checkpoint.Manifest.ConfigHash = parseHash("9")
+			}
+		}},
+		{name: "gateway completion policy pin changed", setup: func(store *parseStoreFake, worker *parseWorkerFake) {
+			store.request.ConfigManifest.InputHashes = append(store.request.ConfigManifest.InputHashes, parseHash("8"))
+			store.mutateExtraction = func(batch *pb.ExtractionBatch) {
+				batch.Dependencies.ProducerManifest.InputHashes = append(batch.Dependencies.ProducerManifest.InputHashes, parseHash("9"))
+			}
+			worker.mutateResponse = func(response *pb.ProcessBatchResponse) {
+				response.Checkpoint.Manifest.InputHashes = append(response.Checkpoint.Manifest.InputHashes, parseHash("9"))
+			}
+		}},
 		{name: "missing persisted vocabulary pin", setup: func(store *parseStoreFake, _ *parseWorkerFake) {
 			store.request.ConfigManifest.InputHashes = []*pb.ContentHash{parseTestOntology().ContentHash()}
 		}},

@@ -460,9 +460,24 @@ func (e *ParseExecutor) verifyExtractionOutput(
 		return nil, invalidExtractionOutput("ExtractionBatch corpus, source, or producer differs from its request/checkpoint")
 	}
 	if !proto.Equal(batch.Context.ConfigFingerprint, expectedConfig.ConfigHash) ||
+		!proto.Equal(manifest.ConfigHash, expectedConfig.ConfigHash) ||
 		!containsExpectedModel(expectedConfig.Models, batch.ModelManifest) ||
 		!containsExpectedHash(expectedConfig.PromptHashes, batch.PromptHash) {
 		return nil, invalidExtractionOutput("ExtractionBatch model, prompt, or config differs from the persisted ingestion request")
+	}
+	// Request context is echoed by the worker, so it cannot attest the gateway's
+	// active settings. Every actual model input pin must also be authorized by the
+	// persisted producer (which may additionally pin registry/candidate policies).
+	allowedInputs := make(map[string]struct{}, len(expectedConfig.InputHashes))
+	for _, pin := range expectedConfig.InputHashes {
+		if digest := pin.GetSha256(); digest != "" {
+			allowedInputs[digest] = struct{}{}
+		}
+	}
+	for _, pin := range manifest.InputHashes {
+		if _, allowed := allowedInputs[pin.GetSha256()]; !allowed {
+			return nil, invalidExtractionOutput("ExtractionBatch producer input is not pinned by the persisted request")
+		}
 	}
 	if !containsExpectedHash(expectedConfig.InputHashes, e.config.Ontology.ContentHash()) ||
 		!containsExpectedHash(manifest.InputHashes, e.config.Ontology.ContentHash()) {

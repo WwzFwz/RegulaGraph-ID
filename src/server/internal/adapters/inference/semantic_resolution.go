@@ -145,6 +145,7 @@ func (s *SemanticService) executeResolve(ctx context.Context, request *pb.Semant
 			generated, err := s.provider.Generate(ctx, StructuredRequest{
 				ModelID: s.config.Model.ModelId, SystemPrompt: s.config.SystemPrompt, ItemID: item.ItemId,
 				Text: string(payload), SchemaName: s.config.SchemaName, Schema: s.config.OutputSchema,
+				MaxOutputTokens: s.config.MaximumOutputTokens,
 			})
 			outcomes[index].providerNs = uint64(time.Since(providerStarted))
 			outcomes[index].inputTokens, outcomes[index].outputTokens = generated.InputTokens, generated.OutputTokens

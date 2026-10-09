@@ -75,6 +75,26 @@ func TestLoadConfigSupportsPinnedResolutionTask(t *testing.T) {
 	}
 }
 
+func TestLoadConfigPinsOutputTokenBudget(t *testing.T) {
+	configureFixture(t)
+	t.Setenv("REGULAGRAPH_SEMANTIC_MAX_OUTPUT_TOKENS", "2048")
+	config, _, _, first, err := loadConfig()
+	if err != nil || config.maximumOutputTokens != 2048 {
+		t.Fatalf("output cap not loaded: %+v %v", config, err)
+	}
+	t.Setenv("REGULAGRAPH_SEMANTIC_MAX_OUTPUT_TOKENS", "4096")
+	_, _, _, second, err := loadConfig()
+	if err != nil || first.Sha256 == second.Sha256 {
+		t.Fatalf("changed completion policy reused producer config: %v", err)
+	}
+	for _, invalid := range []string{"0", "-1", "8192", "4294967296", "invalid"} {
+		t.Setenv("REGULAGRAPH_SEMANTIC_MAX_OUTPUT_TOKENS", invalid)
+		if _, _, _, _, err := loadConfig(); err == nil {
+			t.Fatalf("accepted invalid output cap %s", invalid)
+		}
+	}
+}
+
 func TestLoadConfigPinsPromptAndExcludesAPIKeyFromFingerprint(t *testing.T) {
 	prompt, _ := configureFixture(t)
 	config, loadedPrompt, schema, firstFingerprint, err := loadConfig()

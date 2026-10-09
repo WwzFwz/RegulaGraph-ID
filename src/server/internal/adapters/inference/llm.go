@@ -26,7 +26,7 @@ type StructuredRequest struct {
 	Text            string
 	SchemaName      string
 	Schema          json.RawMessage
-	MaxOutputTokens uint32 // Zero preserves existing provider policy; answering sets an explicit reserve.
+	MaxOutputTokens uint32 // Zero preserves provider policy; production answering/semantic callers set a cap.
 }
 
 type StructuredResponse struct {
@@ -187,6 +187,9 @@ func (p *OpenAICompatibleProvider) Generate(ctx context.Context, request Structu
 	}
 	if decoded.Usage == nil || decoded.Usage.PromptTokens == nil || decoded.Usage.CompletionTokens == nil {
 		return StructuredResponse{}, &ProviderError{Code: "missing_usage", Safe: "provider omitted token usage"}
+	}
+	if request.MaxOutputTokens > 0 && *decoded.Usage.CompletionTokens > uint64(request.MaxOutputTokens) {
+		return StructuredResponse{}, &ProviderError{Code: "output_budget", Safe: "provider exceeded the requested completion token cap"}
 	}
 	raw := json.RawMessage(decoded.Choices[0].Message.Content)
 	if !json.Valid(raw) {

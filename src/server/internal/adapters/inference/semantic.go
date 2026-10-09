@@ -4,6 +4,8 @@
 // durable replay across restarts remains a coordinator storage task. Required quality/latency is unmeasured.
 // EXTRACT sends a separate trusted ontology context, pinned by exact bytes in producer inputs.
 // Model/schema configuration is owned at construction; source text never enters system context.
+// A positive, producer-pinned completion cap is sent on every model call; it does not replace
+// full-prompt token admission. Measure truncation, token usage and latency together.
 package inference
 
 import (
@@ -42,6 +44,7 @@ type SemanticConfig struct {
 	TokenizerID         string
 	MaximumItems        int
 	MaximumInputBytes   int
+	MaximumOutputTokens uint32
 	MaximumConcurrent   int
 	MaximumCacheEntries int
 	MaximumCacheBytes   int64
@@ -79,6 +82,9 @@ func NewSemanticService(provider StructuredProvider, config SemanticConfig) (*Se
 	if config.Model.PromptHash.Sha256 != sha256String([]byte(config.SystemPrompt)) {
 		return nil, errors.New("semantic system prompt differs from pinned prompt hash")
 	}
+	if config.MaximumOutputTokens == 0 || config.MaximumOutputTokens >= config.Model.MaxTokens {
+		return nil, errors.New("semantic output token cap must be positive and smaller than the model context limit")
+	}
 	// Own configuration before constructing manifests/cache identity. A caller must
 	// not be able to mutate model/schema after startup while retaining old pins.
 	config.Model = proto.Clone(config.Model).(*pb.ModelManifest)
@@ -96,6 +102,8 @@ func NewSemanticService(provider StructuredProvider, config SemanticConfig) (*Se
 		InputHashes:  []*pb.ContentHash{proto.Clone(config.OutputSchemaHash).(*pb.ContentHash), config.Ontology.ContentHash()},
 	}
 	var extractionContext string
+	producer.InputHashes = append(producer.InputHashes, &pb.ContentHash{Sha256: sha256String([]byte(
+		fmt.Sprintf("regulagraph-semantic-output-budget-v1:%d", config.MaximumOutputTokens)))})
 	if config.Model.Task == pb.ModelTask_MODEL_TASK_EXTRACT {
 		extractionContext = config.Ontology.ExtractionModelContext()
 		producer.InputHashes = append(producer.InputHashes, config.Ontology.ExtractionModelContextHash())
@@ -226,8 +234,9 @@ func (s *SemanticService) executeExtract(ctx context.Context, request *pb.Extrac
 			}
 			generated, generateErr := s.provider.Generate(ctx, StructuredRequest{
 				ModelID: s.config.Model.ModelId, SystemPrompt: s.config.SystemPrompt,
-				SystemContext: s.extractionContext,
-				ItemID:        item.ItemId, Text: item.Text, SchemaName: s.config.SchemaName, Schema: s.config.OutputSchema,
+				SystemContext:   s.extractionContext,
+				MaxOutputTokens: s.config.MaximumOutputTokens,
+				ItemID:          item.ItemId, Text: item.Text, SchemaName: s.config.SchemaName, Schema: s.config.OutputSchema,
 			})
 			outcomes[index].inputTokens = generated.InputTokens
 			outcomes[index].outputTokens = generated.OutputTokens
