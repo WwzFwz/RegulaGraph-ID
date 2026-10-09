@@ -412,6 +412,21 @@ func (r *Repository) SaveCheckpoint(ctx context.Context, checkpoint *pb.Checkpoi
 // The callback never commits; any catalog failure rolls back checkpoint and job pointer.
 func (r *Repository) saveCheckpoint(ctx context.Context, checkpoint *pb.Checkpoint, ownerID string,
 	afterSave func(context.Context, pgx.Tx) error) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin checkpoint: %w", err)
+	}
+	defer tx.Rollback(ctx)
+	if err = saveCheckpointTx(ctx, tx, checkpoint, ownerID, afterSave); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// saveCheckpointTx joins a caller transaction after its stage-owned locks.
+// It does not commit or acquire another pool connection.
+func saveCheckpointTx(ctx context.Context, tx pgx.Tx, checkpoint *pb.Checkpoint, ownerID string,
+	afterSave func(context.Context, pgx.Tx) error) error {
 	if checkpoint == nil || checkpoint.GetMeta() == nil || checkpoint.GetJobId() == "" || checkpoint.GetFence() == 0 {
 		return errors.New("complete checkpoint required")
 	}
@@ -429,11 +444,6 @@ func (r *Repository) saveCheckpoint(ctx context.Context, checkpoint *pb.Checkpoi
 	}
 	digestBytes := sha256.Sum256(payload)
 	digest := hex.EncodeToString(digestBytes[:])
-	tx, err := r.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("begin checkpoint: %w", err)
-	}
-	defer tx.Rollback(ctx)
 	var currentFence int64
 	var currentStage int16
 	err = tx.QueryRow(ctx, `SELECT lease_fence,stage FROM jobs WHERE job_id=$1 AND lease_owner=$2
@@ -474,7 +484,7 @@ func (r *Repository) saveCheckpoint(ctx context.Context, checkpoint *pb.Checkpoi
 			return err
 		}
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (r *Repository) TransitionJob(ctx context.Context, jobID, ownerID string, fence uint64, expected, next pb.JobState) error {

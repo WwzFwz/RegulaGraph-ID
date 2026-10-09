@@ -55,15 +55,23 @@ func (r *Repository) EnsureArtifactDependencyManifest(ctx context.Context, corpu
 }
 
 func (r *Repository) saveArtifactDependencyManifest(ctx context.Context, corpusID, artifactID string, manifest *pb.DependencyManifest, immutable bool) error {
+	dependencies, err := artifactManifestDependencies(artifactID, manifest, immutable)
+	if err != nil {
+		return err
+	}
+	return r.saveArtifactDependencies(ctx, corpusID, artifactID, dependencies, immutable)
+}
+
+func artifactManifestDependencies(artifactID string, manifest *pb.DependencyManifest, immutable bool) ([]ArtifactDependency, error) {
 	if manifest == nil || manifest.GetProducerManifest() == nil {
-		return errors.New("dependency manifest and producer are required")
+		return nil, errors.New("dependency manifest and producer are required")
 	}
 	if err := domain.ValidateWire(manifest, domain.DefaultWireLimits); err != nil {
-		return fmt.Errorf("validate dependency manifest: %w", err)
+		return nil, fmt.Errorf("validate dependency manifest: %w", err)
 	}
 	producer, err := proto.MarshalOptions{Deterministic: true}.Marshal(manifest.ProducerManifest)
 	if err != nil {
-		return fmt.Errorf("marshal dependency producer: %w", err)
+		return nil, fmt.Errorf("marshal dependency producer: %w", err)
 	}
 	digest := sha256.Sum256(producer)
 	producerHash := hex.EncodeToString(digest[:])
@@ -81,9 +89,9 @@ func (r *Repository) saveArtifactDependencyManifest(ctx context.Context, corpusI
 		})
 	}
 	if immutable && manifest.ArtifactId != artifactID {
-		return errors.New("dependency manifest owner mismatch")
+		return nil, errors.New("dependency manifest owner mismatch")
 	}
-	return r.saveArtifactDependencies(ctx, corpusID, artifactID, dependencies, immutable)
+	return dependencies, nil
 }
 
 func (r *Repository) RegisterArtifact(ctx context.Context, corpusID string, ref *pb.ArtifactRef) error {
@@ -99,6 +107,14 @@ func (r *Repository) RegisterArtifact(ctx context.Context, corpusID string, ref 
       ON CONFLICT (corpus_id) DO NOTHING`, corpusID); err != nil {
 		return fmt.Errorf("ensure artifact corpus: %w", err)
 	}
+	if err = registerArtifactTx(ctx, tx, corpusID, ref); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// Caller validates the reference and owns the transaction/corpus lock.
+func registerArtifactTx(ctx context.Context, tx pgx.Tx, corpusID string, ref *pb.ArtifactRef) error {
 	tag, err := tx.Exec(ctx, `INSERT INTO artifacts(artifact_id,corpus_id,algorithm,digest,storage_key,
       media_type,byte_size,schema_version) VALUES ($1,$2,'sha256',$3,$4,$5,$6,$7)
       ON CONFLICT (artifact_id) DO NOTHING`, ref.ArtifactId, corpusID, ref.ContentHash.Sha256,
@@ -119,7 +135,7 @@ func (r *Repository) RegisterArtifact(ctx context.Context, corpusID string, ref 
 			return fmt.Errorf("artifact id reused with different immutable metadata: %w", ErrConflict)
 		}
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 // LoadArtifact reconstructs immutable metadata for a checkpoint-bound artifact.
@@ -168,8 +184,15 @@ func (r *Repository) saveArtifactDependencies(ctx context.Context, corpusID, art
 		return err
 	}
 	defer tx.Rollback(ctx)
+	if err = saveArtifactDependenciesTx(ctx, tx, corpusID, artifactID, dependencies, immutable); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func saveArtifactDependenciesTx(ctx context.Context, tx pgx.Tx, corpusID, artifactID string, dependencies []ArtifactDependency, immutable bool) error {
 	var lockedArtifact string
-	if err = tx.QueryRow(ctx, `SELECT artifact_id FROM artifacts WHERE artifact_id=$1 AND corpus_id=$2 FOR UPDATE`, artifactID, corpusID).Scan(&lockedArtifact); err == pgx.ErrNoRows {
+	if err := tx.QueryRow(ctx, `SELECT artifact_id FROM artifacts WHERE artifact_id=$1 AND corpus_id=$2 FOR UPDATE`, artifactID, corpusID).Scan(&lockedArtifact); err == pgx.ErrNoRows {
 		return ErrNotFound
 	} else if err != nil {
 		return fmt.Errorf("lock artifact dependency owner: %w", err)
@@ -210,10 +233,10 @@ func (r *Repository) saveArtifactDependencies(ctx context.Context, corpusID, art
 			if count != len(expected) {
 				return ErrConflict
 			}
-			return tx.Commit(ctx)
+			return nil
 		}
 	}
-	if _, err = tx.Exec(ctx, `DELETE FROM artifact_dependencies WHERE artifact_id=$1`, artifactID); err != nil {
+	if _, err := tx.Exec(ctx, `DELETE FROM artifact_dependencies WHERE artifact_id=$1`, artifactID); err != nil {
 		return fmt.Errorf("clear artifact dependencies: %w", err)
 	}
 	for _, dependency := range dependencies {
@@ -241,14 +264,14 @@ func (r *Repository) saveArtifactDependencies(ctx context.Context, corpusID, art
 		if dependency.Fingerprint != "" {
 			fingerprint = dependency.Fingerprint
 		}
-		if _, err = tx.Exec(ctx, `INSERT INTO artifact_dependencies(corpus_id,artifact_id,dependency_kind,
+		if _, err := tx.Exec(ctx, `INSERT INTO artifact_dependencies(corpus_id,artifact_id,dependency_kind,
 		  dependency_key,dependency_revision,producer_manifest_hash,empty_result,dependency_fingerprint)
 		  VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`, corpusID, artifactID, dependency.Kind, dependency.Key,
 			revision, dependency.ProducerHash, dependency.EmptyResult, fingerprint); err != nil {
 			return fmt.Errorf("insert artifact dependency: %w", err)
 		}
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (r *Repository) AdvanceLookupScope(ctx context.Context, corpusID, scopeKey string, expectedRevision uint64) (uint64, error) {
