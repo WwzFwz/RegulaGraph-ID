@@ -40,6 +40,12 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 
 ## Status
 
+Kegagalan quote v2 kini membawa field-path diagnostik, misalnya
+`mentions[1].span` atau `supports[0].spans[0]`, dan alasan validator statis tanpa
+kutipan sumber. Maksimum 32 detail; bila melebihi batas, detail terakhir menyatakan
+truncation diagnostik. Seluruh item tetap ditolak, bukan menerbitkan sebagian fakta.
+Ini mendukung diagnosis/eksperimen feedback; retry model otomatis belum diaktifkan.
+
 `semantic_quote_spans.go` memproyeksikan schema EXTRACT v2 melalui locator kutipan
 unik dengan prefix/suffix persis. Offset dihitung dalam byte sumber, kemudian
 diperiksa lagi oleh projector C01 bersama. Cache locator per item menghindari

@@ -261,10 +261,15 @@ func (s *SemanticService) executeExtract(ctx context.Context, request *pb.Extrac
 				proposalErr = s.config.Ontology.ValidateExtractionRecords(s.config.Ontology.Version(), proposal.Mentions, proposal.Assertions)
 			}
 			if proposalErr != nil {
+				details := []*pb.ErrorDetail{{FieldPath: "structured_output", Reason: proposalErr.Error()}}
+				var quoteErrors *quoteProjectionError
+				if errors.As(proposalErr, &quoteErrors) {
+					details = quoteErrors.details
+				}
 				outcomes[index].result = itemError(item.ItemId, &pb.OperationError{
 					Code: pb.ErrorCode_ERROR_CODE_INVALID_ARGUMENT, SafeMessage: "provider output failed semantic projection",
 					Stage: "semantic.extract", Retryable: false, ItemId: proto.String(item.ItemId),
-					Details: []*pb.ErrorDetail{{FieldPath: "structured_output", Reason: proposalErr.Error()}},
+					Details: details,
 				})
 				s.cache.storeItem(request.Batch.OperationKey, item.ItemId, fingerprint, outcomes[index])
 				return

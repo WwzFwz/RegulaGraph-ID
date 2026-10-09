@@ -47,7 +47,21 @@ func TestQuotedExtractionSavedModelProjection(t *testing.T) {
 	var input struct {
 		Text string `json:"document_text"`
 	}
-	if err = json.Unmarshal([]byte(sent.Messages[len(sent.Messages)-1].Content), &input); err != nil || input.Text == "" {
+	for _, message := range sent.Messages {
+		if message.Role != "user" {
+			continue
+		}
+		var candidate struct {
+			Text string `json:"document_text"`
+		}
+		if json.Unmarshal([]byte(message.Content), &candidate) == nil && candidate.Text != "" {
+			if input.Text != "" {
+				t.Fatal("saved diagnostic has multiple source documents")
+			}
+			input.Text = candidate.Text
+		}
+	}
+	if input.Text == "" {
 		t.Fatal("saved source text missing")
 	}
 	service, request := quotedFixture(t, &providerDouble{raw: json.RawMessage(received.Choices[0].Message.Content)})
@@ -62,6 +76,49 @@ func TestQuotedExtractionSavedModelProjection(t *testing.T) {
 	}
 	proposal := result.Results[0].GetProposal()
 	t.Logf("projection only: mentions=%d assertions=%d supports=%d; fixture identities, no quality acceptance", len(proposal.Mentions), len(proposal.Assertions), len(proposal.Supports))
+}
+
+func TestQuotedExtractionReportsBoundedSourceSafeLocatorPaths(t *testing.T) {
+	bad := strings.Replace(string(validQuotedProposal()), `"quote":"Badan"`, `"quote":"private-marker-not-in-source"`, 1)
+	bad = strings.Replace(bad, `"quote":"izin"`, `"quote":"another-private-marker"`, 1)
+	bad = strings.Replace(bad, `"quote":"Badan wajib izin"`, `"quote":"private-support-marker"`, 1)
+	service, request := quotedFixture(t, &providerDouble{raw: json.RawMessage(bad)})
+	response, err := service.ExtractBatch(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	problem := response.Results[0].GetError()
+	if problem == nil || len(problem.Details) != 3 || problem.Details[0].FieldPath != "mentions[0].span" || problem.Details[1].FieldPath != "mentions[1].span" || problem.Details[2].FieldPath != "supports[0].spans[0]" {
+		t.Fatalf("locator errors missing: %v", problem)
+	}
+	if strings.Contains(problem.String(), "private-") || response.Results[0].GetProposal() != nil {
+		t.Fatal("source text leaked or partial proposal accepted")
+	}
+	var raw quotedProposal
+	if err = json.Unmarshal(validQuotedProposal(), &raw); err != nil {
+		t.Fatal(err)
+	}
+	mentions := make([]quotedMention, maximumQuoteDiagnostics+10)
+	for i := range mentions {
+		mentions[i] = (*raw.Mentions)[0]
+		mentions[i].Span = &quotedSpan{Quote: quoteText("missing"), Prefix: quoteText(""), Suffix: quoteText("")}
+	}
+	raw.Mentions = &mentions
+	encoded, err := json.Marshal(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, request = quotedFixture(t, &providerDouble{raw: encoded})
+	response, err = service.ExtractBatch(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := len(response.Results[0].GetError().GetDetails()); got != maximumQuoteDiagnostics {
+		t.Fatalf("diagnostic cap not enforced: %d", got)
+	}
+	if !strings.Contains(response.Results[0].GetError().Details[maximumQuoteDiagnostics-1].Reason, "omitted") {
+		t.Fatal("diagnostic truncation not disclosed")
+	}
 }
 
 func TestSemanticSchemaSelectionRejectsAmbiguousOrWrongTaskIdentity(t *testing.T) {

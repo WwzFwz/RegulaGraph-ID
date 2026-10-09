@@ -4,12 +4,14 @@
 // retains source IDs, absolute spans, ontology checks, and support closure. Per-item cached searches
 // have a bounded scan budget; measure alignment failures and throughput with model quality under
 // configs/benchmark-targets.yaml. Matching text proves location, not legal entailment.
+// Failed items expose bounded field-path diagnostics without quoted source text; no partial facts commit.
 package inference
 
 import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"unicode/utf8"
 
@@ -19,6 +21,22 @@ import (
 const quotedExtractionSchemaID = "https://regulagraph.local/schema/extraction-output-v2.json"
 const maximumQuoteContextBytes = 1024
 const maximumQuoteScanBytes = 64 << 20
+const maximumQuoteDiagnostics = 32
+
+// Diagnostics expose locations and static validator reasons, never source excerpts.
+// The whole item remains rejected even when the number of details is capped.
+type quoteProjectionError struct{ details []*pb.ErrorDetail }
+
+func (e *quoteProjectionError) Error() string {
+	return "one or more quote locators failed exact-source validation"
+}
+func (e *quoteProjectionError) add(path string, err error) {
+	if len(e.details) < maximumQuoteDiagnostics {
+		e.details = append(e.details, &pb.ErrorDetail{FieldPath: path, Reason: err.Error()})
+	} else {
+		e.details[maximumQuoteDiagnostics-1] = &pb.ErrorDetail{FieldPath: "structured_output", Reason: "additional quote locator errors omitted from diagnostics; entire item rejected"}
+	}
+}
 
 type quotedSpan struct {
 	Quote  *string `json:"quote"`
@@ -98,26 +116,33 @@ func projectQuotedExtractionProposal(request *pb.ExtractBatchRequest, item *pb.T
 	align := quoteAlignment{text: item.Text, remaining: maximumQuoteScanBytes, positions: make(map[string]int)}
 	mentions := make([]rawMention, 0, len(*quoted.Mentions))
 	supports := make([]rawSupport, 0, len(*quoted.Supports))
-	for _, mention := range *quoted.Mentions {
+	problems := &quoteProjectionError{}
+	for index, mention := range *quoted.Mentions {
 		span, err := align.relative(mention.Span)
 		if err != nil {
-			return nil, err
+			problems.add(fmt.Sprintf("mentions[%d].span", index), err)
+			continue
 		}
 		mentions = append(mentions, rawMention{LocalID: mention.LocalID, SurfaceForm: mention.SurfaceForm, CandidateType: mention.CandidateType, Span: &span})
 	}
-	for _, support := range *quoted.Supports {
+	for index, support := range *quoted.Supports {
 		if support.Spans == nil {
-			return nil, errors.New("support spans must be an array")
+			problems.add(fmt.Sprintf("supports[%d].spans", index), errors.New("support spans must be an array"))
+			continue
 		}
 		spans := make([]rawSpan, 0, len(*support.Spans))
 		for i := range *support.Spans {
 			span, err := align.relative(&(*support.Spans)[i])
 			if err != nil {
-				return nil, err
+				problems.add(fmt.Sprintf("supports[%d].spans[%d]", index, i), err)
+				continue
 			}
 			spans = append(spans, span)
 		}
 		supports = append(supports, rawSupport{AssertionLocalID: support.AssertionLocalID, Spans: &spans})
+	}
+	if len(problems.details) > 0 {
+		return nil, problems
 	}
 	return projectRawExtractionProposal(request, item, rawProposal{Mentions: &mentions, Assertions: quoted.Assertions, Supports: &supports, Warnings: quoted.Warnings}, producer, ontologyVersion)
 }
