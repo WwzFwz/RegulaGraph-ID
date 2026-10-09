@@ -1,5 +1,7 @@
 # src/server/internal/retrieval/query
 
+`temporal.go` merencanakan CURRENT menjadi scope AS_OF dengan satu sampel clock pada zona operator; AS_OF tidak membaca clock. Audit memakai protobuf CalendarDate yang sama, bukan schema tanggal baru. [Kontrak](../../../../../doc/current-query.md).
+
 `normalizer.go` kini aktif untuk original-v1/mechanical-v1 dengan perlindungan kutipan dan trace byte UTF-8. Tidak mengoreksi typo atau memilih intent. [Kontrak dan integrasi](../../../../../doc/query-normalization.md).
 
 `entity_linker.go` dan `entity_linker_validation.go` kini menyediakan exact-alias

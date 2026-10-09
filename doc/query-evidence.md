@@ -46,7 +46,7 @@ Setelah prasyarat terpenuhi, jalankan dari root:
 go run ./src/server/cmd/cli query-evidence -question "Apa ketentuan perizinannya?" -as-of 2026-01-01 -profile hybrid -unresolved report -limit 20 -timeout 30s
 ```
 
-`-question`, `-as-of` dan `-profile` wajib. Profil: `vector`, `hybrid`, `graph`,
+`-question` dan `-profile` wajib; pilih `-as-of` atau `-current` dengan zona operator ([panduan](current-query.md)). Profil: `vector`, `hybrid`, `graph`,
 atau `hybrid-graph`; cabang gagal tidak diganti dengan profil lain. Tanggal YYYY-MM-DD.
 `-snapshot` opsional harus sama dengan snapshot aktif yang dipin; historical
 snapshot lain belum didukung. `-unresolved` default `report`, dengan pilihan

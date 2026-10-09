@@ -1,5 +1,7 @@
 # src/server/internal/workflows
 
+`RAGSession` menerima CURRENT dengan zona operator eksplisit, membekukan tanggal sebelum pin dan meneruskan scope AS_OF milik session ke seluruh tahap. RAGResult membawa audit terpisah; caller request tetap utuh. [Kontrak](../../../../doc/current-query.md).
+
 `CandidateSearch` menerapkan policy normalisasi sekali sebelum branch retrieval; graph, hidrasi, reranker dan generator mempertahankan pertanyaan asli. Trace disalin pada boundary hidrasi. `PublishedQueryConfig.Normalization` mengikat policy operator. [Kontrak](../../../../doc/query-normalization.md).
 
 `alias_target.go` menghidrasi bukti target provisional existing menggunakan budget

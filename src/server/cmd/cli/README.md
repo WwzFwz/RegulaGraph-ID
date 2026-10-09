@@ -1,5 +1,7 @@
 # src/server/cmd/cli
 
+`query-evidence -current` memakai zona eksplisit REGULAGRAPH_QUERY_TIME_ZONE dan mengembalikan temporal_resolution. Jangan gabungkan dengan -as-of; tanggal jawaban diverifikasi untuk kedua mode. [Panduan](../../../../doc/current-query.md).
+
 `query-evidence` membaca REGULAGRAPH_QUERY_NORMALIZATION dan menampilkan report `query_normalization` dari workflow pada JSON hasil. Pertanyaan asli tetap diteruskan untuk answering. [Policy dan contoh](../../../../doc/query-normalization.md).
 
 `review-alias -target-provisional -canonical ...` menampilkan occurrence sumber
@@ -119,7 +121,7 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | [audit.go](audit.go) | Pertahankan flag bounded dan exit integrity; tambahkan opsi output hanya bila format manifest tetap kompatibel. | Uji root/write/stdout failure, cancellation, dan invalid inventory tidak pernah exit 0. |
 
 [query.go](query.go) menyediakan `query-evidence` untuk operator lokal: pertanyaan,
-tanggal AS_OF dan profil eksplisit masuk ke RAGSession, native embedding, dense/BM25
+tanggal AS_OF atau CURRENT terkonfigurasi dan profil eksplisit masuk ke RAGSession, native embedding, dense/BM25
 serta hidrasi sumber. Output adalah evidence ProtoJSON dengan penolakan eksplisit,
 bukan jawaban model. Konfigurasi, prasyarat snapshot terpublikasi, cold setup dan
 exit code dijelaskan di [panduan query](../../../../doc/query-evidence.md).

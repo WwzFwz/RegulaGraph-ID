@@ -1,5 +1,7 @@
 # Rencana implementasi berbasis dependency
 
+Checkpoint temporal Q01: CURRENT eksplisit tersedia pada CLI/API bila zona operator dikonfigurasi. Session membekukan satu tanggal AS_OF; output memeriksa kesesuaian audit/tanggal jawaban. COMPARE, classifier dan semantic expansion tetap terbuka. [Cara pakai dan bukti](current-query.md).
+
 Checkpoint Q01: normalisasi mekanis opt-in dan trace UTF-8 sudah terhubung ke CLI/API serta workflow. Default tetap original; graph/reranker/generator mempertahankan input asli. Classifier, semantic expansion dan temporal CURRENT/COMPARE tetap terbuka. [Kontrak](query-normalization.md), [verifikasi](verification-report-query-normalization.md).
 
 Checkpoint provisional graph: source-reviewed identity kini teruji dalam satu

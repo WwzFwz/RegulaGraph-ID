@@ -1,5 +1,7 @@
 # doc
 
+[Query CURRENT](current-query.md) menjelaskan zona operator, pembekuan tanggal sekali sebelum pin, audit/headers, verifikasi midnight, serta batas tzdb dan kualitas.
+
 [Normalisasi query](query-normalization.md) mendokumentasikan mode operator, trace byte, perlindungan pertanyaan asli, dan batas kualitas; [bukti](verification-report-query-normalization.md) memisahkan tes deterministik dari acceptance.
 
 [Verifikasi provisional sampai graph](verification-report-provisional-graph.md)

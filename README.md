@@ -1,5 +1,7 @@
 # RegulaGraph-ID
 
+**Current-date queries:** CLI `-current` and API `TEMPORAL_MODE_CURRENT` now freeze one calendar date using an explicitly configured `REGULAGRAPH_QUERY_TIME_ZONE`. The same date reaches retrieval and generation and is exposed in the output audit/headers. [Configuration and limits](doc/current-query.md). COMPARE and automatic intent routing remain unfinished.
+
 **Query preparation:** CLI/API support optional `REGULAGRAPH_QUERY_NORMALIZATION=mechanical-v1` for NFC and whitespace normalization outside quotes. The default `original-v1` preserves exact input. Dense/BM25 use the search form; graph linking, reranking and generation keep the original. [Policy and audit output](doc/query-normalization.md). Retrieval quality impact remains unmeasured.
 
 RegulaGraph-ID is a **Hybrid GraphRAG project for Indonesian regulations**. It transforms PDFs and source metadata into structure-based chunks, consistent regulation and provision identities, lexical and dense indexes, and a knowledge graph backed by source evidence. Questions are answered against a consistent corpus snapshot, with retrieved evidence assembled into context for cited answers. This README covers the architecture, component boundaries, technology choices, project structure, and local operation.
@@ -97,7 +99,7 @@ SVGs are rendered from PlantUML and stored in the repository so GitHub can displ
 
 | Stage / component | Input → processing → output | Main location | Rationale / current limits |
 | --- | --- | --- | --- |
-| 1. Admission | Question + corpus/date → auth/budget/profile validation → context | `server/internal/api`, `config` | Trusted scope comes from the server. The API accepts explicit AS_OF requests; CURRENT/COMPARE and streaming are not active. |
+| 1. Admission | Question + corpus/date → auth/budget/profile validation → context | `server/internal/api`, `config` | Trusted scope comes from the server. The API accepts AS_OF and configured CURRENT requests; COMPARE and streaming are not active. |
 | 2. Preparation | Context → snapshot pinning, normalization, lexical/entity lookup → query plan | `workflows`, `retrieval/query` | Each answer uses a consistent corpus view. Profiles are explicit; there is no automatic factual/relational classifier yet. |
 | 3. Retrieval | Plan → dense/BM25/graph retrieval for the selected profile → sourced candidates | `retrieval`, `retrieval/graph`, adapters | Dense retrieval handles paraphrases, BM25 handles exact terms/numbers, and graph retrieval follows cross-document relationships. |
 | 4. Filter/fusion | Candidates + scope/version → filtering, evidence/version deduplication, RRF → ranking | `retrieval/fusion.go`, domain boundaries | Raw scores from different engines use different scales. Date filtering does not imply all legal amendments have been modeled. |
@@ -407,7 +409,7 @@ $env:REGULAGRAPH_API_TOKEN = [Convert]::ToBase64String($tokenBytes)
 go run ./src/server/cmd/api
 ```
 
-`/livez` checks process liveness; `/readyz` requires a bearer token for readiness checks. `/v1/evidence` accepts a question, corpus, profile, and AS_OF date. Graph profiles require route configuration/hash and Neo4j credentials matching the catalog; graph-only retrieval does not require embeddings. Full request/error examples: [evidence API](doc/evidence-api.md).
+`/livez` checks process liveness; `/readyz` requires a bearer token for readiness checks. `/v1/evidence` accepts a question, corpus, profile, and AS_OF date or explicitly configured CURRENT scope. Graph profiles require route configuration/hash and Neo4j credentials matching the catalog; graph-only retrieval does not require embeddings. Full request/error examples: [evidence API](doc/evidence-api.md).
 
 Draft answers at `/v1/questions` require `REGULAGRAPH_API_ANSWERS=true` and a pinned generator. Follow [local-answer](doc/local-answer.md) for model, tokenizer, prompt, and token budgets. The `query-evidence` CLI offers reranker/generation options: [guide](doc/query-evidence.md). The evidence API can run without a generator.
 

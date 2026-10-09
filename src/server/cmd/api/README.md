@@ -1,5 +1,7 @@
 # src/server/cmd/api
 
+REGULAGRAPH_QUERY_TIME_ZONE mengaktifkan CURRENT pada runtime dan admission HTTP; nilai kosong mempertahankan mode itu nonaktif. [Panduan](../../../../doc/current-query.md).
+
 `REGULAGRAPH_QUERY_NORMALIZATION` memilih original-v1 (default) atau mechanical-v1; nilai lain menggagalkan startup sebelum backend dibuka. [Policy](../../../../doc/query-normalization.md).
 
 Entry point layanan HTTP Go untuk request, response, dan integrasi streaming.
