@@ -1,5 +1,9 @@
 # doc
 
+[graph-read.md](graph-read.md) menjelaskan admission snapshot/scope dan pembacaan
+record Neo4j bertipe/berbatas; [verifikasi](verification-report-graph-read.md)
+mencatat native published reader serta penolakan korupsi tipe sebelum transfer.
+
 [index-reuse.md](index-reuse.md) menjelaskan reuse generation dense/BM25 untuk
 snapshot graph; [laporan](verification-report-index-reuse.md) mencatat publication
 backend nyata sampai query/draft dengan source snapshot asli tetap terikat.

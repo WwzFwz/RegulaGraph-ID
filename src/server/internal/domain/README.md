@@ -1,5 +1,9 @@
 # src/server/internal/domain
 
+`graph_read.go` membawa view graph yang diotorisasi PostgreSQL di bawah pin hidup.
+Snapshot/catalog/scope dipertahankan; DTO bukan izin permanen atau pengganti
+recheck lease. Lihat [kontrak](../../../../doc/graph-read.md).
+
 `index_reuse.go` memvalidasi target/parent/source snapshot serta unchanged index
 binding. `PinnedIndex.EvidenceSnapshot()` menunjuk source envelope asal, sedangkan
 Snapshot tetap visibility query. Authority mapping berada di PostgreSQL.

@@ -1,5 +1,9 @@
 # src/server/internal/adapters/postgres
 
+`graph_read.go` mengikat published manifest, scope asal indeks, retained registry,
+Neo4j receipt dan applied intent di bawah deadline pin. Snapshot index-only dan
+scope/lease salah ditolak; lihat [reader graph](../../../../../doc/graph-read.md).
+
 `index_reuse.go` menyimpan mapping/receipt atomik dan memeriksa origin serta jobs
 saat final CAS. `index_read_page.go` menyediakan keyset 64 record/512 KiB dengan
 deadline pin; reader target memisahkan source snapshot dari visibility snapshot.

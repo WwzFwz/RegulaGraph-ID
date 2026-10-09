@@ -1,5 +1,10 @@
 # Rencana implementasi berbasis dependency
 
+Checkpoint Q01: admission graph dari snapshot terbit dan typed Neo4j reader kini
+teruji dengan output Rust aktual, scope/pin dan corruption rejection. Traversal,
+graph evidence hydration dan branch graph ke jawaban masih perlu disambungkan;
+lihat [kontrak](graph-read.md) dan [verifikasi](verification-report-graph-read.md).
+
 Checkpoint terbaru K01: [adapter Neo4j](neo4j-graph-store.md) menulis generation
 additive terisolasi, mempertahankan shared support, memverifikasi inventory exact dan
 melakukan seal. Output Rust aktual kini lulus Rust → PostgreSQL STAGED → Neo4j,

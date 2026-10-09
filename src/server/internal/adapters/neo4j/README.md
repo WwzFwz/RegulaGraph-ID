@@ -1,5 +1,10 @@
 # src/server/internal/adapters/neo4j
 
+`read.go` membuka generation sealed melalui admission PostgreSQL, lalu membaca
+record bertipe dalam batch dengan guard tipe/ukuran, SHA256 dan exact projection.
+`read_test.go` menguji backend nyata termasuk korupsi string-list sebelum transfer.
+Caller melakukan final pin recheck; [kontrak](../../../../../doc/graph-read.md).
+
 Adapter persistensi node, relasi, provenance, dan pembacaan graph melalui Neo4j. Adapter Go memakai koneksi yang dipakai ulang. Dokumen ini mendefinisikan superset tanggung jawab folder dan kontrak integrasi anaknya.
 
 ## Batas tanggung jawab

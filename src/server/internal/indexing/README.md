@@ -1,5 +1,9 @@
 # src/server/internal/indexing
 
+`published_graph_test.go` melanjutkan fixture native ke admission scope/pin dan
+pembacaan record Neo4j dari snapshot terbit. Ini belum graph retrieval; lihat
+[bukti pembacaan](../../../../doc/verification-report-graph-read.md).
+
 `index_reuse.go` memverifikasi semua halaman catalog terhadap Qdrant dan mencatat
 receipt reuse tanpa embedding/upsert. Native graph test kini benar-benar mengaktifkan
 snapshot gabungan lalu menjalankan dense/BM25 RAG sampai cited fixture draft.
