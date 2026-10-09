@@ -105,14 +105,20 @@ func (store *Store) search(ctx context.Context, using string, vector any, scope 
 	if status == http.StatusNotFound || len(result.Points) == 0 || string(result.Points) == "null" {
 		return nil, errors.New("qdrant query lacks a points array")
 	}
-	var points []struct {
-		ID      string       `json:"id"`
-		Score   *float64     `json:"score"`
-		Payload pointPayload `json:"payload"`
-	}
+	var points []searchPoint
 	if err := json.Unmarshal(result.Points, &points); err != nil || points == nil || len(points) > scope.Limit {
 		return nil, errors.New("qdrant query collection missing or result exceeds limit")
 	}
+	return store.decodeHits(points, scope)
+}
+
+type searchPoint struct {
+	ID      string       `json:"id"`
+	Score   *float64     `json:"score"`
+	Payload pointPayload `json:"payload"`
+}
+
+func (store *Store) decodeHits(points []searchPoint, scope SearchScope) ([]Hit, error) {
 	hits := make([]Hit, 0, len(points))
 	seen := make(map[string]bool, len(points))
 	for _, point := range points {
