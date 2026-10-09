@@ -27,6 +27,10 @@ func TestSealedGraphReaderAgainstNeo4j(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	b, delta := graphFixture(fmt.Sprintf("corpus:graph-read:%d", time.Now().UnixNano()))
+	secondSupport := proto.Clone(delta.Supports[0]).(*pb.SupportRecord)
+	secondSupport.Meta.RecordId = "support:second"
+	delta.Supports = append(delta.Supports, secondSupport)
+	delta.ValidationReport.CheckedRecords++
 	config := Config{URI: uri, Username: "neo4j", Password: os.Getenv("REGULAGRAPH_TEST_NEO4J_PASSWORD"), Database: "neo4j", PoolSize: 2, Timeout: 5 * time.Second}
 	s, err := New(config, b)
 	if err != nil {
@@ -117,6 +121,13 @@ func TestSealedGraphReaderAgainstNeo4j(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	var entityProps map[string]any
+	for _, record := range projection.records {
+		if record.id == "entity:a" {
+			entityProps = record.props
+		}
+	}
+	checkNeighborhood(t, ctx, s, reader)
 	for _, mutation := range []string{"SET n.label='corrupt'", "SET n.payload=$large", "SET n.hash='invalid'", "SET n.from_seq=999", "SET n.hash=$strings", "SET n.payload=$strings", "SET n.payload=$integers"} {
 		if err = s.transaction(ctx, true, func(c context.Context, tx bolt.ExplicitTransaction) error {
 			p := s.params()
@@ -153,7 +164,7 @@ func TestSealedGraphReaderAgainstNeo4j(t *testing.T) {
 				if row.Values[column] != nil {
 					return fmt.Errorf("metadata returned substituted property: column %d", column)
 				}
-				p["selection"] = []any{map[string]any{"id": "entity:a", "hash": projection.records[0].hash, "bytes": int64(64)}}
+				p["selection"] = []any{map[string]any{"id": "entity:a", "hash": entityProps["hash"], "bytes": int64(64)}}
 				row, e = one(c, tx, graphReadPayload, p)
 				if e == nil && row.Values[1] != nil {
 					return fmt.Errorf("payload query transferred substituted property")
@@ -165,11 +176,14 @@ func TestSealedGraphReaderAgainstNeo4j(t *testing.T) {
 		}
 		if err = s.transaction(ctx, true, func(c context.Context, tx bolt.ExplicitTransaction) error {
 			p := s.params()
-			p["props"] = projection.records[0].props
+			p["props"] = entityProps
 			_, e := one(c, tx, `MATCH(n:RGRecord {corpus:$corpus,generation:$generation,id:$props.id}) SET n=$props RETURN count(n)`, p)
 			return e
 		}); err != nil {
 			t.Fatal(err)
+		}
+		if _, e := reader.ReadRecords(ctx, "entity", []string{"entity:a"}, 1024); e != nil {
+			t.Fatal("fixture record was not restored", mutation, e)
 		}
 	}
 	reader.expires = time.Now().Add(-time.Second)

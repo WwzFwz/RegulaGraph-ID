@@ -49,6 +49,9 @@ func (s *Store) EnsureSchema(ctx context.Context) error {
 			return err
 		}
 	}
+	if err := s.ensureTraversalIndexes(ctx); err != nil {
+		return err
+	}
 	s.schemaReady.Store(true)
 	return nil
 }

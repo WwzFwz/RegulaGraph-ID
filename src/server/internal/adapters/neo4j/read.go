@@ -28,6 +28,7 @@ type Reader struct {
 	operationsHash string
 	operations     uint64
 	expires        time.Time
+	snapshot       *pb.SnapshotRef
 }
 
 // Keep both stages guarded: a sealed generation may still be corrupted outside
@@ -56,7 +57,7 @@ func (s *Store) OpenReader(ctx context.Context, admitted *domain.PinnedGraph) (*
 	if c.Endpoint != s.endpoint || c.Database != s.database || c.BindingHash != s.bindingHash || admitted.Pin.CorpusID != s.binding.CorpusID || admitted.Pin.SnapshotID != admitted.Snapshot.SnapshotId || admitted.Pin.Sequence != s.binding.Sequence || admitted.Snapshot.CorpusId != s.binding.CorpusID || admitted.Snapshot.Sequence != s.binding.Sequence || admitted.Pin.LeaseID == "" || admitted.Pin.OwnerID == "" || admitted.Pin.ExpiresAt.IsZero() {
 		return nil, ErrGraphConflict
 	}
-	r := &Reader{store: s, operationsHash: c.OperationsHash, operations: c.Operations, expires: admitted.Pin.ExpiresAt}
+	r := &Reader{store: s, operationsHash: c.OperationsHash, operations: c.Operations, expires: admitted.Pin.ExpiresAt, snapshot: proto.Clone(admitted.Snapshot).(*pb.SnapshotRef)}
 	ctx, cancel := context.WithDeadline(ctx, r.expires)
 	defer cancel()
 	if err := s.transaction(ctx, false, r.verifySeal); err != nil {
@@ -84,6 +85,12 @@ func (r *Reader) verifySeal(ctx context.Context, tx bolt.ExplicitTransaction) er
 // records fail the entire selection. Callers must recheck their PostgreSQL pin
 // before exposing evidence because an in-flight lease may be revoked explicitly.
 func (r *Reader) ReadRecords(ctx context.Context, kind string, ids []string, maximumBytes uint64) ([]proto.Message, error) {
+	return r.readRecords(ctx, kind, ids, maximumBytes, nil)
+}
+
+// actualBytes is written only on success and counts the wire payload rather than
+// reserialized protobuf size (noncanonical protobuf can decode to fewer bytes).
+func (r *Reader) readRecords(ctx context.Context, kind string, ids []string, maximumBytes uint64, actualBytes *uint64) ([]proto.Message, error) {
 	if r == nil || r.store == nil || ctx == nil || len(ids) == 0 || len(ids) > 256 || maximumBytes == 0 || maximumBytes > 16<<20 {
 		return nil, errors.New("bounded graph read selection required")
 	}
@@ -103,6 +110,7 @@ func (r *Reader) ReadRecords(ctx context.Context, kind string, ids []string, max
 	ctx, cancel := context.WithDeadline(ctx, r.expires)
 	defer cancel()
 	var out []proto.Message
+	var transferred uint64
 	err := r.store.transaction(ctx, false, func(ctx context.Context, tx bolt.ExplicitTransaction) error {
 		if err := r.verifySeal(ctx, tx); err != nil {
 			return err
@@ -124,8 +132,11 @@ func (r *Reader) ReadRecords(ctx context.Context, kind string, ids []string, max
 			id, idOK := row.Values[0].(string)
 			hash, hashOK := row.Values[2].(string)
 			size, sizeOK := row.Values[3].(int64)
-			if !idOK || !seen[id] || row.Values[1] != true || !hashOK || !sizeOK || size <= 0 || uint64(size) > remaining || metadata[id].size != 0 {
+			if !idOK || !seen[id] || row.Values[1] != true || !hashOK || !sizeOK || size <= 0 || metadata[id].size != 0 {
 				return ErrGraphConflict
+			}
+			if uint64(size) > remaining {
+				return domain.ErrGraphReadBudget
 			}
 			metadata[id] = recordSize{hash, size}
 			remaining -= uint64(size)
@@ -136,6 +147,7 @@ func (r *Reader) ReadRecords(ctx context.Context, kind string, ids []string, max
 		if len(metadata) != len(ids) {
 			return ErrGraphConflict
 		}
+		transferred = maximumBytes - remaining
 		selection := make([]any, 0, len(ids))
 		for _, id := range ids {
 			m := metadata[id]
@@ -207,6 +219,9 @@ func (r *Reader) ReadRecords(ctx context.Context, kind string, ids []string, max
 	})
 	if err != nil {
 		return nil, err
+	}
+	if actualBytes != nil {
+		*actualBytes = transferred
 	}
 	return out, nil
 }
