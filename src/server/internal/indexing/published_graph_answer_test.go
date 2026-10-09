@@ -162,4 +162,5 @@ func checkPublishedGraphAnswer(t *testing.T, ctx context.Context, repo *postgres
 			}
 		}
 	}
+	checkPublishedGraphCLI(t, ctx, repo, backend, index, scope, "Apa hubungan "+hydrated.Mapping.Bundle.Items[0].Text[:1]+"?", artifacts)
 }
