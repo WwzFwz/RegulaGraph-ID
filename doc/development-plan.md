@@ -1,5 +1,13 @@
 # Rencana implementasi berbasis dependency
 
+Checkpoint reaffirmation: sumber RESOLVE dari revision berbeda kini dapat disusun
+pada satu target retained view melalui [policy eksplisit](graph-reaffirmation.md).
+Keputusan/proposal/model asli dipertahankan; historical ledger, seluruh candidate
+context dan BIND identities diperiksa, lalu receipt disimpan dengan registry stamp
+di bawah lock. Native Rust/publication/retrieval teruji pada fixture, termasuk
+frozen-view replay. Perubahan konteks tetap meminta replan; corpus/model/gold,
+semantic/temporal query lengkap, streaming, incremental dan acceptance masih terbuka.
+
 Checkpoint persiapan operator: [prepare-graph](graph-preparation.md) membaca semua
 anggota snapshot indeks awal, memverifikasi RESOLVE, menyimpan envelope/plan dan
 menjadwalkan child ASSEMBLE atomik. Executable preparation hingga Rust, publication

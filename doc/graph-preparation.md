@@ -12,9 +12,10 @@ indeks awal, bukan snapshot graph yang mewarisi indeks. Semua source job yang
 tercantum dalam inventory indeks harus mempunyai checkpoint RESOLVE sukses,
 artefak asli, intent/receipt keputusan bila nonempty, dan canonical assignment
 yang dapat dieksekusi. Scope dan ontology harus sama dengan pipeline sumber.
-Saat ini semua RESOLVE wajib mempunyai registry revision yang sama; binding
-publication baru juga mensyaratkan revision tersebut masih current. Reaffirmation
-lintas revision merupakan pekerjaan berikutnya, bukan alasan mengubah receipt lama.
+RESOLVE boleh berasal dari revision berbeda yang tidak lebih baru daripada target.
+[Reaffirmation](graph-reaffirmation.md) memeriksa ledger serta seluruh dependency
+kandidat/dokumen sebelum membuat envelope turunan; keputusan asli tetap immutable.
+Publication baru memilih current retained revision dan membekukannya melalui CAS.
 
 ```powershell
 $env:REGULAGRAPH_POSTGRES_DSN = '<local DSN>'
@@ -39,8 +40,9 @@ Go mem-pin parent, membaca inventory indeks dan memulihkan exact source receipts
 Receipt persiapan yang tidak menjadi anggota indeks diabaikan. Seluruh anggota
 indeks wajib ditemukan; tidak ada pemilihan hanya dokumen yang kebetulan siap.
 Preflight memverifikasi checkpoint, hash, historical resolution ledger, kandidat
-registry dan assignment. DEFER, checkpoint gagal/hilang, cancellation dan revision
-berbeda menghentikan persiapan. Tahap ini belum mereservasi target.
+registry dan assignment. DEFER, checkpoint gagal/hilang, cancellation, perubahan
+konteks kandidat dan revision lebih baru dari target menghentikan persiapan.
+Tahap ini belum mereservasi target.
 
 Sesudah preflight, coordinator mereservasi target/fence, membekukan registry view,
 mengikat envelope sumber ke parent, mengekspor canonical view, dan menulis plan
@@ -87,5 +89,5 @@ sintetis. Lihat [laporan](verification-report-graph-prepare.md).
 Pemilik kode: `workflows/graph_preparation.go` menyusun proses;
 `adapters/postgres/graph_source_selection.go` membaca membership;
 `cmd/cli/prepare_graph.go` memiliki konfigurasi/lifecycle dan memanggil admission
-penjadwalan yang sudah ada. Incremental graph, reafirmasi lintas revision,
-mutasi canonical dan acceptance corpus tetap pekerjaan terpisah.
+penjadwalan yang sudah ada. Incremental graph, mutasi canonical dan acceptance
+corpus tetap pekerjaan terpisah.

@@ -1,5 +1,10 @@
 # src/server/internal/adapters/postgres
 
+`graph_resolution_reaffirmation.go` berbagi historical ledger/candidate gate antara
+source receipt dan job admission. Policy reaffirmation pada writer source memeriksa
+BIND identities serta membandingkan registry stamp di bawah lock; replay mempertahankan
+view publication yang sudah dibekukan. [Kontrak](../../../../../doc/graph-reaffirmation.md).
+
 `graph_source_selection.go` membaca seluruh anggota inventory indeks terpublikasi
 melalui source receipt terdaftar di bawah lease. Query hanya memilih anggota exact,
 membatasi byte sebelum transfer, dan menolak missing/corrupt receipt. Ini discovery,

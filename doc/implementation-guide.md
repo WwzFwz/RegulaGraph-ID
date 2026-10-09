@@ -4,6 +4,12 @@ Dokumen ini memandu agent implementasi berikutnya, termasuk Sol 5.6, untuk merea
 
 ## Mulai setiap sesi
 
+Checkpoint terbaru: [graph reaffirmation](graph-reaffirmation.md) sudah menyambung
+source preparation, receipt/admission dan native ASSEMBLE untuk RESOLVE historis.
+Jangan mengulang implementasi lintas revision yang konteksnya tetap sama. Berikutnya
+jalankan corpus/model aktual dan tangani source replan ketika konteks berubah;
+query semantic/temporal, streaming, incremental dan acceptance tetap dibutuhkan.
+
 Checkpoint terbaru: [prepare-graph](graph-preparation.md) kini menyambungkan
 published source membership, completed RESOLVE, source envelope dan plan ke
 penjadwalan ASSEMBLE atomik. Selanjutnya worker dan `publish-graph` melayani query.

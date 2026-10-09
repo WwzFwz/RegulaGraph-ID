@@ -1,5 +1,11 @@
 # src/server/internal/workflows
 
+Graph preparation memilih current view atau view publication yang sudah terikat.
+Sumber historis yang seluruh dependensinya sama memakai policy reaffirmation;
+`graph_source_binding.go` membawa kandidat asli untuk authenticated receipt, dan
+assembly mengonsumsi envelope target tanpa mengubah decision revision historis.
+[Kontrak](../../../../doc/graph-reaffirmation.md).
+
 `graph_preparation.go` mengomposisikan complete source discovery, preflight RESOLVE,
 reservation, envelope binding dan plan deterministik. Hasil inventory tetap
 memerlukan fresh storage admission serta Schedule atomik; [panduan](../../../../doc/graph-preparation.md).

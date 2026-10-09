@@ -1,5 +1,10 @@
 # src/server/internal/indexing
 
+`TestNativeGraphCrossRevisionReaffirmation` menguji actual registry allocation di
+antara RESOLVE dan preparation, frozen-view retry, receipt lock race, lalu Rust
+ASSEMBLE/publication/retrieval. Aktifkan native prerequisites dan executable
+`REGULAGRAPH_TEST_PREPARE_GRAPH_CLI`; data/model tetap fixture.
+
 Native test opt-in `REGULAGRAPH_TEST_PREPARE_GRAPH_CLI` menjalankan executable dari
 source RESOLVE sebelum graph reservation. Pengujian mencakup extra/corrupt source
 receipt, scope/base/cancellation, scheduling replay lalu actual Rust/publication.

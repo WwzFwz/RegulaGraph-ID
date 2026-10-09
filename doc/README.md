@@ -1,5 +1,9 @@
 # doc
 
+[Reaffirmation graph](graph-reaffirmation.md) menjelaskan reuse RESOLVE pada registry
+view baru tanpa mengubah keputusan historis. [Verifikasi](verification-report-graph-reaffirm.md)
+mencatat native assembly/publication dan penolakan registry stamp yang berubah.
+
 [Persiapan graph](graph-preparation.md) menjelaskan `prepare-graph`, source selection
 lengkap, penjadwalan atomik dan batas revision. [Verifikasi](verification-report-graph-prepare.md)
 memisahkan bukti executable/native dari acceptance corpus dan benchmark.

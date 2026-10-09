@@ -1,5 +1,11 @@
 # Coordinator ASSEMBLE: authority dan handoff
 
+Pembaruan: operator preparation/scheduling/publication kini tersedia melalui
+[prepare-graph](graph-preparation.md) dan [publish-graph](graph-publication.md).
+[Reaffirmation](graph-reaffirmation.md) menambahkan receipt policy lintas revision
+untuk context yang tetap identik; uraian equality-only di bawah adalah riwayat
+baseline sebelum fitur tersebut, bukan batas implementasi terkini.
+
 Dokumen ini menjelaskan batas authority Go di depan [worker ASSEMBLE](assembly-worker.md)
 dan pekerjaan integrasi berikutnya. Reader/gate PostgreSQL di bawah sudah tersedia;
 persiapan plan/view, inventory job, dispatch dan commit output graph belum dirangkai

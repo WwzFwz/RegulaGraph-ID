@@ -18,7 +18,8 @@ HTTP opsional dengan model reusable, status UNREVIEWED/PARTIAL atau ABSTAIN.
 inventory ASSEMBLE lengkap bersama indeks terverifikasi, dengan retry dan
 perlindungan terhadap publication parsial. [prepare-graph](doc/graph-preparation.md)
 menyiapkan seluruh sumber indeks yang sudah selesai RESOLVE dan menjadwalkan
-ASSEMBLE secara atomik; sumber lintas registry revision masih memerlukan reafirmasi.
+ASSEMBLE secara atomik. [Reaffirmation](doc/graph-reaffirmation.md) mendukung sumber
+lintas registry revision ketika seluruh konteks kandidat/dokumennya tetap valid.
 
 **Status: graph/index publication, empat profil retrieval, native embedding/reranker,
 serta jawaban draft lokal melalui CLI/API tersedia; acceptance release Hybrid

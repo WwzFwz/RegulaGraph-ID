@@ -1,5 +1,10 @@
 # src/server/internal/domain
 
+`graph_source_reaffirmation.go` menghasilkan envelope registry view turunan dengan
+keputusan/proposal/model tetap historis dan identity policy+target deterministik.
+Transform tidak memberi authority; storage menyimpan receipt setelah dependency
+dan live stamp diperiksa. [Kontrak](../../../../doc/graph-reaffirmation.md).
+
 `semantic_candidates.go` memiliki `RegistryLookupResult` untuk observasi exact key
 bersama PostgreSQL/query linker. DTO tidak memberi authority sendiri; reader
 memeriksa live pin dan revision publication.
