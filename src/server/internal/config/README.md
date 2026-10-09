@@ -14,6 +14,11 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+`answer_generator.go` memuat profile jawaban schema 1 maksimal 64 KiB dengan
+corpus, C01 manifest, local route, GGUF/build/template dan budget lengkap.
+Hash config/prompt wajib cocok; draft diaktifkan eksplisit. Loader tidak membuka
+backend dan secret dipasok terpisah. [Panduan](../../../../doc/local-answer.md).
+
 `query_graph.go` memuat JSON query graph schema 1 maksimal 64 KiB, memeriksa
 hash byte, corpus, route, exact fields dan policy linking/traversal. Credential
 tetap environment; loader tidak membuka database. Lihat

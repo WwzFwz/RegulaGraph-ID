@@ -2,7 +2,8 @@
 
 Dokumen ini menjelaskan penghitung token untuk generator jawaban dan batas bukti
 integrasinya. Model, prompt, chat template dan tokenizer harus diikat sebelum
-menilai kualitas/performa. Ini belum panduan command jawaban operasional.
+menilai kualitas/performa. [Jawaban lokal](local-answer.md) menjelaskan admission
+dan mode CLI yang menggunakan counter ini.
 
 `inference.LlamaTokenCounter` memakai client generation yang sama untuk URL,
 credential, timeout dan larangan redirect. `CountPrompt` mengirim body identik
@@ -25,16 +26,17 @@ error. Array token dibaca per ID dengan batas jumlah sehingga banyak ID pendek
 tidak memicu alokasi slice besar. Duplicate keys, null, ID negatif dan noninteger
 ditolak. Batas bytes berlaku setelah serialisasi, termasuk ekspansi escape JSON.
 
-Sebelum wiring runtime, operator masih perlu memverifikasi GGUF, build server,
+`AdmitLlama` memverifikasi GGUF, build server,
 model alias, template dan context window. Counter sendiri **tidak membuktikan
 identitas model** dari respons hitungan. Pada GGUF, tokenizer tertanam dalam
 container; pin container hash mengikat bytes tokenizer beserta bobotnya, sedangkan
 template runtime tetap harus dipin terpisah. Native test membaca ulang hash GGUF;
-startup server dan properti disimpan di laporan, bukan admission produksi.
+startup server dan properti kini juga diperiksa oleh admission runtime. Server
+lokal dipercaya dalam boundary akun OS; ini bukan attestation memori model.
 
 Uji lokal opt-in berada di `answering/generator_native_test.go`, diaktifkan dengan
 `REGULAGRAPH_TEST_LLAMA=1` dan suffix environment `_ENDPOINT`, `_MODEL`, `_BUILD`,
-`_GGUF`, `_SHA256`, serta `_KEY` bila server memakai credential. Endpoint harus
+`_GGUF`, `_SHA256`, `_TEMPLATE_SHA256`, serta `_KEY` bila server memakai credential. Endpoint harus
 literal loopback. Jalankan
 `go test ./src/server/internal/answering -run '^TestNativeLlamaCitedDraft$' -count=1 -v`.
 Fixture evidence sintetis diteruskan ke packing, model nyata, citation dan final

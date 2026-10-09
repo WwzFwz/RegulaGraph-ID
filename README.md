@@ -10,7 +10,8 @@ baseline BM25 + model lokal dari PDF nyata, contoh pertanyaan, dan batasnya.
 query vector/hybrid/graph/hybrid-graph pada snapshot yang sudah published, dengan
 koneksi reusable. Graph-only tidak membutuhkan embedding service.
 [Verifikasi](doc/verification-report-graph-api.md) mencakup request concurrent,
-provenance dan cleanup lease; command/API generator jawaban masih perlu disambungkan.
+provenance dan cleanup lease. [CLI jawaban lokal](doc/local-answer.md) kini
+tersambung dengan model/tokenizer terpin; HTTP generation masih berikutnya.
 
 **Status: collector/audit D01, kontrak C01, evaluator E01, storage/publication S01, pipeline durable sampai EXTRACT, Semantic EXTRACT Gateway, ontology EXTRACT bersama, serta native embedding/reranker tersedia; Hybrid GraphRAG end-to-end belum aktif.** Go/Rust/C++ memegang runtime produk; Python untuk evaluasi/tooling offline. Audit D01 telah memverifikasi provenance dan blob lokal sekitar 3 GB, tetapi coverage queue/reference, connector JDIHN, stratifikasi format, dan gold data masih belum lengkap. Rust menghasilkan artefak dokumen, chunk, dan proposal ekstraksi berbukti; Go memegang exact identity, orchestration, gateway model, validasi commit EXTRACT, serta control-plane. Canonical resolution, graph/index, retrieval/answering menyeluruh, pemilihan seluruh model produksi, dan acceptance benchmark masih harus diselesaikan. Mulai kelanjutan dari [panduan implementasi](doc/implementation-guide.md), [runner evaluasi](doc/evaluation-runner.md), dan [protokol verifikasi](doc/verification.md).
 

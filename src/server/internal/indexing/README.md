@@ -11,6 +11,10 @@ native graph opt-in; tanpa variabel tersebut pemeriksaan executable tidak dijala
 `REGULAGRAPH_TEST_GRAPH_API=1` mengaktifkan pemeriksaan HTTP graph-only dari
 fixture yang sama tanpa native endpoint: cold requests concurrent, warm queries,
 readiness, graph paths dan pelepasan lease. CLI dan API dapat diaktifkan terpisah.
+`REGULAGRAPH_TEST_LLAMA_GRAPH_ANSWER=1` menambahkan executable `-answer` dengan
+generator/tokenizer lokal terpin. Fixture memakai deadline/pin lebih panjang
+khusus smoke CPU ini; target benchmark tidak berubah. Model dapat abstain pada
+pertanyaan sintetis yang tidak didukung. [Panduan](../../../../doc/local-answer.md).
 
 `published_graph_test.go` melanjutkan fixture native ke admission scope/pin dan
 pembacaan record Neo4j, discovery traversal dan hidrasi support dari snapshot terbit.

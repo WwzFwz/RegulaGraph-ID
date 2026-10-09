@@ -2,8 +2,8 @@
 
 Dokumen ini menjelaskan perintah operator `query-evidence`, pemilihan route dari
 katalog, dan batas verifikasinya. Perintah menjalankan retrieval/hidrasi produksi
-tanpa generation jawaban. Ia memungkinkan pemeriksaan bukti sebelum tokenizer
-prompt generator dan antarmuka jawaban disambungkan.
+tanpa generation jawaban secara default. Mode eksplisit `-answer` menyambungkan
+generator/tokenizer lokal terpin; lihat [panduan jawaban lokal](local-answer.md).
 
 ## Prasyarat dan penggunaan
 

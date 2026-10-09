@@ -1,5 +1,10 @@
 # doc
 
+[Jawaban lokal](local-answer.md) menjelaskan admission generator dan mode CLI
+`-answer` dari snapshot terpublikasi, beserta batas kepercayaan/kualitasnya.
+[Laporan verifikasi](verification-report-generator-admission.md) mencatat uji
+admission, actual CLI graph-to-model serta cited draft dengan model lokal.
+
 [Tokenisasi generator lokal](generator-tokenization.md) menjelaskan shared prompt
 encoding, batas input dan invariant count/usage untuk generation nyata;
 [laporan verifikasi](verification-report-generator-tokenizer.md) mencatat fixture

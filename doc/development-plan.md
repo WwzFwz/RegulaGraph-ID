@@ -1,5 +1,13 @@
 # Rencana implementasi berbasis dependency
 
+Checkpoint jawaban lokal: admission GGUF/build/template/window dan profile config
+terpin tersedia. CLI `query-evidence -answer` memakai session snapshot yang sama
+sampai generation/final citation validation, tanpa fallback ketika model gagal.
+Native Rust/PostgreSQL/Neo4j/Qdrant/CLI/Qwen lulus pada fixture sintetis; model
+abstain pada pertanyaan graph tanpa dukungan cukup. [Panduan](local-answer.md).
+API jawaban, corpus/model/gold acceptance dan optimasi target required tetap
+terbuka; catatan checkpoint di bawah adalah riwayat, bukan semuanya backlog aktif.
+
 Checkpoint generator lokal: counter llama.cpp memakai body chat yang sama dengan
 generation. Uji Qwen GGUF nyata melewati packing konteks, full-prompt count/usage
 parity dan cited draft UNREVIEWED/PARTIAL dari evidence sintetis. [Kontrak](generator-tokenization.md).

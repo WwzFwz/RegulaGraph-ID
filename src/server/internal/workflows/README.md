@@ -7,9 +7,14 @@ Traversal harus berasal dari reader terautentikasi, bukan input klien/model.
 menyambungkan empat profil retrieval, shared hydration, reranking, immutable
 rendering serta authority check setelah generation. Resolver seed adalah port
 read-only eksplisit; `query_graph_seeds.go` menghubungkan exact-alias lookup terpin
-dari pertanyaan. Konfigurasi graph API belum tersambung. Lihat
+dari pertanyaan. Konfigurasi graph API kini tersambung. Lihat
 [linking](../../../../doc/query-entity-linking.md), [graph fusion](../../../../doc/graph-fusion.md),
 [kontrak bukti](../../../../doc/graph-evidence.md) dan [rendering](../../../../doc/graph-context.md).
+
+`local_answer.go` melakukan startup admission generator/tokenizer resident dan
+menghasilkan `EvidenceAnswerWorkflow` reusable. Caller memiliki timeout, scope,
+lease snapshot dan drain sebelum Close. CLI `-answer` memakainya tanpa menyalin
+algoritma retrieval/hydration; [panduan](../../../../doc/local-answer.md).
 
 `graph_completed.go` menyiapkan seluruh output ASSEMBLE committed untuk penulisan
 graph tanpa worker/model call. `graph_source_reader.go` berbagi hash/budget/source

@@ -2,8 +2,11 @@
 
 `query-evidence` menerima `graph` dan `hybrid-graph` dengan file route/policy
 terpin; graph-only tanpa reranker tidak membuka native inference. Command
-tetap evidence-only. Scope operator berasal dari konfigurasi, bukan pertanyaan.
+default evidence-only; `-answer` mengaktifkan generator lokal terpin dan draft
+bersitasi dari snapshot yang sama. `query_answer.go` memvalidasi C01 output dan
+menolak promosi status model menjadi verified. Scope operator berasal dari konfigurasi, bukan pertanyaan.
 Lihat [penggunaan](../../../../doc/query-evidence.md).
+Konfigurasi model/tokenizer/template ada pada [jawaban lokal](../../../../doc/local-answer.md).
 
 `semantic_review.go` menyediakan `review-resolution` untuk inspeksi dan acceptance
 batch LINK/DEFER exact. Akun OS menjadi identitas audit; corpus/scope dan kredensial
