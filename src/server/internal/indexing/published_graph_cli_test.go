@@ -103,4 +103,5 @@ func checkPublishedGraphCLI(t *testing.T, ctx context.Context, repo *postgres.Re
 		t.Fatal("CLI graph lost snapshot/source proof")
 	}
 	t.Log("actual CLI graph evidence PASS: independent pin + exact alias + Neo4j/Qdrant source hydration, no native endpoint")
+	checkPublishedGraphLocalAnswer(t, ctx, binary, env, index, question)
 }

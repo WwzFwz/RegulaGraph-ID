@@ -9,6 +9,7 @@ package indexing
 import (
 	"context"
 	"net/http"
+	"os"
 	"testing"
 	"time"
 
@@ -28,7 +29,11 @@ func checkPublishedGraphRead(t *testing.T, ctx context.Context, repo *postgres.R
 	if _, err := repo.LoadPinnedGraph(ctx, basePin, scope); err == nil {
 		t.Fatal("index-only parent admitted graph")
 	}
-	pin, err := repo.PinActiveSnapshot(ctx, basePin.CorpusID, "read:graph:"+basePin.CorpusID, "reader:graph", 20*time.Second)
+	readLease := 20 * time.Second
+	if os.Getenv("REGULAGRAPH_TEST_LLAMA_GRAPH_ANSWER") == "1" {
+		readLease = 4 * time.Minute
+	}
+	pin, err := repo.PinActiveSnapshot(ctx, basePin.CorpusID, "read:graph:"+basePin.CorpusID, "reader:graph", readLease)
 	if err != nil {
 		t.Fatal(err)
 	}

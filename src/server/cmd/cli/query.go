@@ -2,7 +2,8 @@
 // Inputs select question/date/profile; storage routing comes from the published
 // catalog and must match an explicitly allowed Qdrant origin. Secrets stay in
 // environment variables and backend errors are not dumped to stdout/stderr.
-// This command returns evidence, never an LLM answer or quality PASS. Reuse the
+// Default output is evidence; explicit -answer returns an unreviewed cited draft.
+// Neither mode claims quality PASS. Reuse the
 // native process; CLI cold setup is included in wall time and measured separately
 // from warm latency under configs/benchmark-targets.yaml (REQUIRED_UNMEASURED).
 // Four profiles are explicit. Graph-only does not open native inference unless
@@ -51,6 +52,9 @@ type queryOptions struct {
 	rerankManifest, rerankHash                                   string
 	graphPath, graphHash, graphUser, graphPassword, authScope    string
 	graphConfig                                                  *config.QueryGraphConfig
+	Answer                                                       bool
+	answerPath, answerHash, answerKey                            string
+	answerConfig                                                 *config.AnswerGeneratorConfig
 }
 
 func runQueryEvidence(ctx context.Context, args []string, out, errOut io.Writer) int {
@@ -68,6 +72,7 @@ func runQueryEvidenceWith(ctx context.Context, args []string, out, errOut io.Wri
 	fs.StringVar(&opts.Snapshot, "snapshot", "", "Optional exact active snapshot ID; mismatch fails")
 	fs.IntVar(&opts.Limit, "limit", 20, "Candidates per branch, 1..128; not a recall guarantee")
 	fs.DurationVar(&opts.Timeout, "timeout", 30*time.Second, "Total deadline including startup, at most 5m")
+	fs.BoolVar(&opts.Answer, "answer", false, "Generate an explicitly unreviewed cited draft with pinned local model")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -88,6 +93,11 @@ func runQueryEvidenceWith(ctx context.Context, args []string, out, errOut io.Wri
 	opts.graphUser = env("REGULAGRAPH_NEO4J_USERNAME")
 	opts.graphPassword = env("REGULAGRAPH_NEO4J_PASSWORD")
 	opts.authScope = env("REGULAGRAPH_QUERY_AUTH_SCOPE")
+	if opts.Answer {
+		opts.answerPath = env("REGULAGRAPH_ANSWER_CONFIG")
+		opts.answerHash = env("REGULAGRAPH_ANSWER_CONFIG_SHA256")
+		opts.answerKey = env("REGULAGRAPH_ANSWER_API_KEY")
+	}
 	if opts.authScope == "" {
 		opts.authScope = "operator:local-query"
 	}
@@ -103,6 +113,24 @@ func runQueryEvidenceWith(ctx context.Context, args []string, out, errOut io.Wri
 			return 2
 		}
 	}
+	if opts.Answer {
+		opts.answerConfig, err = config.LoadAnswerGenerator(opts.answerPath, opts.answerHash, opts.Corpus)
+		if err != nil {
+			fmt.Fprintln(errOut, "Invalid pinned answer configuration")
+			return 2
+		}
+		branches := 1
+		if opts.Profile == "hybrid" {
+			branches = 2
+		}
+		if opts.Profile == "hybrid-graph" {
+			branches = 3
+		}
+		if opts.answerConfig.MaximumEvidence < branches*opts.Limit {
+			fmt.Fprintln(errOut, "Answer context must admit the configured candidate count")
+			return 2
+		}
+	}
 	bounded, cancel := context.WithTimeout(ctx, opts.Timeout)
 	defer cancel()
 	result, err := execute(bounded, opts, request)
@@ -110,7 +138,7 @@ func runQueryEvidenceWith(ctx context.Context, args []string, out, errOut io.Wri
 		fmt.Fprintln(errOut, "Evidence query failed; check published snapshot, model/generation readiness and source integrity")
 		return 1
 	}
-	if bounded.Err() != nil || result == nil || result.Evidence == nil || result.Answer != nil {
+	if bounded.Err() != nil || result == nil || result.Evidence == nil || (!opts.Answer && result.Answer != nil) || (opts.Answer && result.Answer == nil) {
 		fmt.Fprintln(errOut, "Evidence query returned an invalid or expired result")
 		return 1
 	}
@@ -133,12 +161,22 @@ func runQueryEvidenceWith(ctx context.Context, args []string, out, errOut io.Wri
 		return 1
 	}
 	// The JSON envelope is a CLI result, not a competing evidence wire contract.
+	answer, err := queryAnswerOutput(result, opts.Answer)
+	if err != nil {
+		fmt.Fprintln(errOut, "Answer output validation failed")
+		return 1
+	}
+	mode := "evidence"
+	if opts.Answer {
+		mode = "answer_draft"
+	}
 	output := struct {
 		Mode      string            `json:"mode"`
 		Evidence  json.RawMessage   `json:"evidence"`
 		Rejected  map[string]string `json:"rejected"`
 		Reranking *queryRerankJSON  `json:"reranking,omitempty"`
-	}{"evidence", raw, result.Rejected, reranking}
+		Draft     *queryAnswerJSON  `json:"draft,omitempty"`
+	}{mode, raw, result.Rejected, reranking, answer}
 	if err = json.NewEncoder(out).Encode(output); err != nil {
 		fmt.Fprintln(errOut, "Writing evidence output failed")
 		return 1
@@ -202,6 +240,15 @@ func prepareEvidenceQuestion(o queryOptions) (*pb.QuestionRequest, error) {
 }
 
 func executeEvidenceQuery(ctx context.Context, o queryOptions, request *pb.QuestionRequest) (*workflows.RAGResult, error) {
+	var answer *workflows.EvidenceAnswerWorkflow
+	if o.Answer {
+		runtime, err := workflows.OpenLocalAnswer(ctx, o.answerConfig, o.answerKey, o.Build, o.Timeout)
+		if err != nil {
+			return nil, err
+		}
+		defer runtime.Close()
+		answer = runtime.Workflow
+	}
 	var rerankModel *pb.ModelManifest
 	if o.rerankManifest != "" {
 		var err error
@@ -241,7 +288,7 @@ func executeEvidenceQuery(ctx context.Context, o queryOptions, request *pb.Quest
 	httpClient := &http.Client{Transport: transport, Timeout: o.Timeout}
 	// Config pin excludes secrets and question, includes route/limits/policy/build.
 	configBytes, _ := json.Marshal(map[string]any{"corpus": o.Corpus, "build": o.Build, "profile": o.Profile, "unresolved": o.Unresolved, "limit": o.Limit, "timeout_ns": int64(o.Timeout), "native": o.native, "qdrant": o.qdrant, "rrf_k": 60, "artifact_bytes": 64 << 20, "evidence_bytes": 4 << 20,
-		"rerank_manifest_sha256": o.rerankHash, "rerank_pairs_per_batch": 32, "rerank_maximum_request_bytes": 4 << 20, "rerank_truncation_policy": "reject", "graph_config_sha256": o.graphHash, "auth_scope": o.authScope})
+		"rerank_manifest_sha256": o.rerankHash, "rerank_pairs_per_batch": 32, "rerank_maximum_request_bytes": 4 << 20, "rerank_truncation_policy": "reject", "graph_config_sha256": o.graphHash, "auth_scope": o.authScope, "answer_config_sha256": o.answerHash})
 	hash := sha256.Sum256(configBytes)
 	fingerprint := &pb.ContentHash{Sha256: hex.EncodeToString(hash[:])}
 	var nonce [16]byte
@@ -309,7 +356,7 @@ func executeEvidenceQuery(ctx context.Context, o queryOptions, request *pb.Quest
 			linkHash, _ := o.graphConfig.Linking.Fingerprint()
 			producer.InputHashes = []*pb.ContentHash{{Sha256: o.graphHash}, {Sha256: linkHash}}
 		}
-		prepared, err := workflows.PreparePublishedQuery(c, index, repo, files, native, nil, workflows.PublishedQueryConfig{QdrantCredentials: map[string]string{o.qdrant: o.key}, HTTPClient: httpClient, Profile: request.RequestedProfile,
+		prepared, err := workflows.PreparePublishedQuery(c, index, repo, files, native, answer, workflows.PublishedQueryConfig{QdrantCredentials: map[string]string{o.qdrant: o.key}, HTTPClient: httpClient, Profile: request.RequestedProfile,
 			Fusion:    retrieval.RRFConfig{K: 60, MaximumPerBranch: o.Limit, MaximumTotalInputs: branches * o.Limit, Weights: map[pb.RetrieverKind]float64{pb.RetrieverKind_RETRIEVER_KIND_DENSE: 1, pb.RetrieverKind_RETRIEVER_KIND_BM25: 1, pb.RetrieverKind_RETRIEVER_KIND_GRAPH: 1}},
 			Hydration: retrieval.HydrationConfig{MaximumCandidates: branches * o.Limit, MaximumArtifactBytes: 64 << 20, MaximumEvidenceBytes: 4 << 20, Producer: producer}, MaximumLexicalBytes: 64 << 20, Reranker: reranker, Graph: graphConfig})
 		if err != nil {
@@ -317,5 +364,8 @@ func executeEvidenceQuery(ctx context.Context, o queryOptions, request *pb.Quest
 		}
 		return prepared.Bind(c, index)
 	}}
+	if o.Answer {
+		return session.AnswerQuestion(ctx, request, call)
+	}
 	return session.SearchQuestion(ctx, request, call)
 }

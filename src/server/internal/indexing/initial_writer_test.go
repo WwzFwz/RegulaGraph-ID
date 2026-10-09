@@ -77,7 +77,11 @@ func runInitialIndexPublication(t *testing.T, requireGraph, contentAddressed boo
 	if dsn == "" || endpoint == "" {
 		t.Skip("disposable PostgreSQL and Qdrant required")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	fixtureTimeout := 60 * time.Second
+	if graphRPC && os.Getenv("REGULAGRAPH_TEST_LLAMA_GRAPH_ANSWER") == "1" {
+		fixtureTimeout = 5 * time.Minute
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), fixtureTimeout)
 	defer cancel()
 	conn, err := pgx.Connect(ctx, dsn)
 	if err != nil {
