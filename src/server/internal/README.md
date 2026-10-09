@@ -6,7 +6,8 @@ domain memeriksa projection canonical dan provenance. Commit durable metadata/ch
 Adapter Neo4j kini menulis dan memverifikasi output Rust ke generation terisolasi;
 publication/serving graph telah tersambung sampai HTTP evidence empat profil,
 dengan [verifikasi native](../../../doc/verification-report-graph-api.md).
-Command/API jawaban dan acceptance tetap berikutnya. Lihat [kontrak output](../../../doc/graph-output-admission.md)
+CLI/API jawaban lokal serta operator `publish-graph` tersedia; operator preparation
+graph dan acceptance tetap berikutnya. Lihat [kontrak output](../../../doc/graph-output-admission.md)
 dan [graph store](../../../doc/neo4j-graph-store.md).
 
 Komponen internal aplikasi Go, dipisah menurut fungsi domain, API, workflow, retrieval, answering, ingestion, indexing, dan adapter. Dokumen ini mendefinisikan superset tanggung jawab folder dan kontrak integrasi anaknya.

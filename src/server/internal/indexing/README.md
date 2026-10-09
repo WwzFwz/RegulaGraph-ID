@@ -1,5 +1,12 @@
 # src/server/internal/indexing
 
+`graph_publish.go` mengomposisikan manifest graph+inherited index, source admission,
+dua backend receipt dan pointer CAS. Output baru sukses setelah keduanya siap;
+retry tidak mengubah generation. CLI `publish-graph` menggunakan fungsi ini.
+Native test opt-in `REGULAGRAPH_TEST_PUBLISH_GRAPH_CLI` menunjuk executable untuk
+fresh publication/replay; failure recovery menguji Qdrant readback gagal setelah
+graph write. [Kontrak operator](../../../../doc/graph-publication.md).
+
 Native graph smoke dapat mengaktifkan `REGULAGRAPH_TEST_LLAMA_API_ANSWER=1`
 bersama `REGULAGRAPH_TEST_GRAPH_API=1` untuk menguji actual HTTP answer setelah
 publication. `nativeAnswerProfile` berbagi explicit model pins dengan CLI smoke;

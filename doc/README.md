@@ -1,5 +1,9 @@
 # doc
 
+[Publication graph](graph-publication.md) menjelaskan CLI untuk mengaktifkan
+inventory ASSEMBLE lengkap bersama indeks yang diwarisi. [Verifikasi](verification-report-graph-publish.md)
+memuat fresh publication, replay serta readback failure recovery.
+
 [API jawaban](evidence-api.md) menambahkan endpoint draft opsional dengan shared
 generator terpin dan snapshot lease yang sama sampai generation.
 [Laporan verifikasi](verification-report-answer-api.md) mencatat HTTP end-to-end,

@@ -1,5 +1,12 @@
 # src/server/cmd/cli
 
+`publish_graph.go` menyediakan `publish-graph` untuk inventory ASSEMBLE lengkap.
+Corpus, reservation snapshot, graph generation, auth scope, ontology dan backend
+routes harus eksplisit. Command memanggil coordinator graph+index bersama,
+menolak partial success dan memeriksa durable replay tanpa model/embedding ulang.
+Source preparation/scheduling belum dibuat otomatis oleh command ini.
+[Panduan](../../../../doc/graph-publication.md) memuat dependency dan retry.
+
 `query-evidence` menerima `graph` dan `hybrid-graph` dengan file route/policy
 terpin; graph-only tanpa reranker tidak membuka native inference. Command
 default evidence-only; `-answer` mengaktifkan generator lokal terpin dan draft

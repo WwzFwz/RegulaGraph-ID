@@ -20,8 +20,9 @@ worker tidak mengklaim lalu menggagalkan job scope lain. Claim global masih ters
 untuk pemanggil internal, tetapi daemon selalu memakai claim berscope.
 
 Enablement tidak menyiapkan source receipts/plan, membuat inventory atau memberi
-persetujuan resolution. Preparation/scheduling masih library operator, belum satu
-perintah CLI graph lengkap. Migration/Neo4j publication tetap terpisah.
+persetujuan resolution. Preparation/scheduling masih library operator. Sesudah
+semua ASSEMBLE selesai, [publish-graph](graph-publication.md) menyediakan CLI untuk
+Neo4j+reused index receipt serta aktivasi; migration tetap terpisah.
 
 ## Input, proses, output
 

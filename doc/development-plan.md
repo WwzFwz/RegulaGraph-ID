@@ -1,5 +1,12 @@
 # Rencana implementasi berbasis dependency
 
+Checkpoint operator publication: `publish-graph` kini merangkai restore/admission,
+manifest graph+index, Neo4j write/receipt, verifikasi reuse Qdrant dan active CAS.
+Fresh publication serta retry executable memakai output Rust nyata sudah diuji;
+source/semantic label fixture tetap sintetis. [Panduan](graph-publication.md).
+Operator preparation/scheduling graph dari seluruh corpus masih perlu disambungkan;
+streaming, incremental penuh dan gold/performance acceptance tetap terbuka.
+
 Checkpoint HTTP jawaban: `/v1/questions` aktif secara opt-in; runtime generator
 diadmit sekali saat startup dan dipakai lintas request/snapshot. Evidence dan
 answer memakai satu lease sampai final admission, auth/capacity yang sama dan

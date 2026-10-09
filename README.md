@@ -14,6 +14,11 @@ provenance dan cleanup lease. [CLI jawaban lokal](doc/local-answer.md) kini
 tersambung dengan model/tokenizer terpin; `/v1/questions` menyediakan mode draft
 HTTP opsional dengan model reusable, status UNREVIEWED/PARTIAL atau ABSTAIN.
 
+**Publication graph:** [publish-graph](doc/graph-publication.md) mengaktifkan
+inventory ASSEMBLE lengkap bersama indeks terverifikasi, dengan retry dan
+perlindungan terhadap publication parsial. Preparation/scheduling graph dari
+corpus masih pekerjaan lanjutan.
+
 **Status: graph/index publication, empat profil retrieval, native embedding/reranker,
 serta jawaban draft lokal melalui CLI/API tersedia; acceptance release Hybrid
 GraphRAG belum selesai.** Go/Rust/C++ memegang runtime produk; Python untuk

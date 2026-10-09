@@ -4,6 +4,13 @@ Dokumen ini memandu agent implementasi berikutnya, termasuk Sol 5.6, untuk merea
 
 ## Mulai setiap sesi
 
+Checkpoint operator terbaru: [publish-graph](graph-publication.md) tersedia untuk
+inventory ASSEMBLE lengkap, termasuk fresh activation dan recovery setelah index
+readback gagal. Query dan draft answering tersedia melalui CLI/API. Langkah dekat
+berikutnya adalah operator source preparation/scheduling graph dari corpus aktual,
+bukan menulis ulang receipt/writer atau mengaktifkan graph dari test fixture.
+Checkpoint lama di bawah merekam riwayat; jangan membacanya sebagai backlog seluruhnya.
+
 Checkpoint ASSEMBLE: inventory/admission, output commit atomik serta
 [processor/executor/daemon opt-in](graph-job-execution.md) tersedia. Cold restore,
 cache reauthorization, snapshot pin cleanup dan checkpoint recovery diuji terpisah

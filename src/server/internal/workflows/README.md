@@ -1,5 +1,10 @@
 # src/server/internal/workflows
 
+`ReadGraphInventoryInputs` menyediakan restore sumber registry/artifact yang sama
+bagi daemon ASSEMBLE dan CLI publication, dengan budget aggregate sebelum I/O.
+Byte hasil restore bukan authority; storage admission tetap wajib sebelum
+preparation/dispatch/publication. Lihat [publication graph](../../../../doc/graph-publication.md).
+
 `graph_evidence.go` menghubungkan admitted traversal, lookup source Qdrant dan
 SourceHydrator; ia memeriksa ulang scope/pin sebelum mengembalikan mapped Evidence.
 Traversal harus berasal dari reader terautentikasi, bukan input klien/model.
