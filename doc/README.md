@@ -1,5 +1,9 @@
 # doc
 
+[Verifikasi provisional sampai graph](verification-report-provisional-graph.md)
+menghubungkan review sumber, LINK durable, Rust ASSEMBLE, recovery, publication
+Neo4j/Qdrant dan draft GraphRAG pada fixture yang batas sintetiknya dinyatakan.
+
 [Verifikasi alias target provisional](verification-report-alias-target.md) mencatat
 review bukti dua occurrence, hash approval/policy asal, replay dan penolakan korupsi
 receipt. Mode operasionalnya ada pada [panduan provisional](provisional-entity-review.md).

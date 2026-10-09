@@ -6,6 +6,12 @@ Indonesian regulations are distributed across sources, reference one another, ch
 
 **Status:** acquisition/import, document processing, native embedding/reranking, registry/resolution, graph assembly/publication, four retrieval profiles, and local draft answers through the CLI/API have implementations. Backend/native integrations have been tested on fixtures; an acquired PDF has passed PARSE → STRUCTURE → BIND → CHUNK. Database migration is available through the CLI. EXTRACT now includes pinned ontology vocabulary and rejects mismatched job/output context pins. Full-PDF extraction remains unverified: opening-chunk diagnostics encountered timeouts and invalid model output. Real-corpus acceptance, gold-set quality evaluation, all required performance targets, and several advanced features **remain unfinished**. See the [development plan](doc/development-plan.md) and [real-PDF verification](doc/verification-report-real-pdf.md).
 
+**Provisional identity integration:** source-reviewed provisional entities now have a
+verified fixture path through durable RESOLVE LINK, actual Rust ASSEMBLE,
+Neo4j/Qdrant publication, traversal and cited GraphRAG/Hybrid GraphRAG drafts.
+Identity and `UNREVIEWED` status are preserved; extraction, approvals, vectors and
+generation in this test are synthetic. See the [scoped verification report](doc/verification-report-provisional-graph.md).
+
 **Extraction experiment scope:** the reported EXTRACT diagnostics used a local
 **Qwen2.5 7B-class, Q4_K_M** model (Ollama reports 7.6B parameters). llama.cpp
 trials ran on **four CPU threads with zero GPU layers**; separate Ollama trials

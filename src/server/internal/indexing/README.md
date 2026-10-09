@@ -1,5 +1,12 @@
 # src/server/internal/indexing
 
+`native_provisional_graph_test.go` menambah varian source-reviewed provisional
+ke pipeline native: catalog checkpoint, Inspect/Accept, planner kandidat dan
+LINK durable memakai API produksi sebelum RPC Rust, recovery, publication serta
+retrieval/draft. Semua field profil dipertahankan kecuali penambahan visibility
+target yang memang diwajibkan plan. EXTRACT/BIND/vector/approval/generator tetap
+fixture sintetis; [bukti dan reproduksi](../../../../doc/verification-report-provisional-graph.md).
+
 `TestNativeGraphCrossRevisionReaffirmation` menguji actual registry allocation di
 antara RESOLVE dan preparation, frozen-view retry, receipt lock race, lalu Rust
 ASSEMBLE/publication/retrieval. Aktifkan native prerequisites dan executable

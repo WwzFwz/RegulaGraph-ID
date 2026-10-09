@@ -1,5 +1,10 @@
 # Panduan melanjutkan sampai aplikasi bisa digunakan
 
+Bukti integrasi terbaru: review provisional ? kandidat ? durable LINK ? worker
+Rust ASSEMBLE/recovery ? Neo4j/Qdrant publication ? draft GraphRAG telah lulus pada
+fixture. Ini menutup gap sambungan creation, bukan kegagalan model EXTRACT pada
+PDF nyata. [Cakupan dan cara reproduksi](verification-report-provisional-graph.md).
+
 Alias ke provisional existing kini tersedia lewat `review-alias -target-provisional`
 setelah migration 0027. Baca bukti occurrence baru dan asal target, lalu accept
 dengan hash/revision eksplisit; replan kandidat untuk RESOLVE. [Panduan](provisional-entity-review.md).

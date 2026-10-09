@@ -131,8 +131,10 @@ provisional sampai direview. Jangan memakai kosongnya lookup sebagai approval
 penyamaan makna atau keunikan global.
 
 Uji PostgreSQL membuktikan transaksi, restart replay, kandidat/evidence hydration
-dan export canonical untuk ASSEMBLE. Rangkaian durable LINK sampai worker Rust
-ASSEMBLE dari fixture baru ini belum dibuktikan sebagai satu run. EXTRACT corpus
-nyata masih bergantung pada model yang valid; tidak ada perubahan benchmark.
+dan export canonical untuk ASSEMBLE. [Run integrasi provisional](verification-report-provisional-graph.md)
+kini menyambungkan creation sampai durable LINK, worker Rust ASSEMBLE, recovery,
+publication serta draft GraphRAG/Hybrid GraphRAG. BIND/EXTRACT/vector/review dan
+generator tetap sintetis dalam run tersebut. Alias tambahan diuji terpisah;
+EXTRACT corpus nyata masih memerlukan model yang valid. Benchmark tidak berubah.
 Ukur false split/merge, lookup coverage, latency p95/p99 dan lock wait menurut
 `configs/benchmark-targets.yaml`; status required tetap **NOT_MEASURED**.

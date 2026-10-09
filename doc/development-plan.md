@@ -1,5 +1,13 @@
 # Rencana implementasi berbasis dependency
 
+Checkpoint provisional graph: source-reviewed identity kini teruji dalam satu
+run sampai candidate planning, durable LINK, actual Rust ASSEMBLE/recovery,
+Neo4j/Qdrant publication serta draft GraphRAG/Hybrid GraphRAG. Identity dan status
+UNREVIEWED bertahan. BIND/EXTRACT/vector/approval/generator masih sintetis; bukan
+penutupan corpus/model atau required acceptance. [Bukti](verification-report-provisional-graph.md).
+Checkpoint lama di bawah merupakan riwayat; gap durable LINK sampai ASSEMBLE untuk
+fixture creation telah ditutup, sedangkan alias tambahan tetap diuji terpisah.
+
 Checkpoint alias semantik existing: `review-alias -target-provisional` memakai
 receipt pembentukan asli serta evidence dua sisi untuk menambah alias tanpa
 mengubah identity/profile. Sembilan skenario PostgreSQL, unit/CLI dan review
