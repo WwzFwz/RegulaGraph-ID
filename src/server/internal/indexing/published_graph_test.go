@@ -68,7 +68,7 @@ func checkPublishedGraphRead(t *testing.T, ctx context.Context, repo *postgres.R
 			}
 		}
 	}
-	checkPublishedGraphEvidence(t, ctx, repo, pin, scope, paths, artifacts, delta.Supports[0].ExtractionManifest)
+	checkPublishedGraphEvidence(t, ctx, repo, backend, pin, scope, paths, artifacts, delta.Supports[0].ExtractionManifest)
 	if _, err = repo.LoadPinnedGraph(ctx, pin, scope); err != nil {
 		t.Fatal("final graph lease recheck", err)
 	}
@@ -82,7 +82,7 @@ func checkPublishedGraphRead(t *testing.T, ctx context.Context, repo *postgres.R
 	t.Logf("production graph traversal on actual Rust output returned %d source-supported discovery paths", len(paths.Paths))
 }
 
-func checkPublishedGraphEvidence(t *testing.T, ctx context.Context, repo *postgres.Repository, pin domain.SnapshotPin, scope string, paths *graphretrieval.TraversalResult, artifacts indexMemoryArtifacts, producer *pb.ProducerManifest) {
+func checkPublishedGraphEvidence(t *testing.T, ctx context.Context, repo *postgres.Repository, backend *neo4j.Store, pin domain.SnapshotPin, scope string, paths *graphretrieval.TraversalResult, artifacts indexMemoryArtifacts, producer *pb.ProducerManifest) {
 	t.Helper()
 	index, err := repo.LoadPinnedIndex(ctx, pin)
 	if err != nil {
@@ -118,7 +118,7 @@ func checkPublishedGraphEvidence(t *testing.T, ctx context.Context, repo *postgr
 	if _, err = h.Hydrate(ctx, request, index, "scope:other", paths); err == nil {
 		t.Fatal("graph source hydration bypassed scope")
 	}
-	checkPublishedGraphAnswer(t, ctx, pin, scope, request, paths, got)
+	checkPublishedGraphAnswer(t, ctx, repo, backend, index, scope, request, paths, got, artifacts)
 	// Revoke a separate real pin during the workflow's final admission read:
 	// successful earlier hydration must not authorize returning stale output.
 	revoked, err := repo.PinActiveSnapshot(ctx, pin.CorpusID, "read:graph:revoke:"+pin.CorpusID, "reader:revoke", 20*time.Second)

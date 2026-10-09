@@ -59,7 +59,7 @@ func (s *RAGSession) runPinned(ctx context.Context, request *pb.QuestionRequest,
 		}
 	}
 	if request.CorpusId != call.CorpusId || call.SnapshotRef != nil || request.TemporalScope == nil || request.TemporalScope.Mode != pb.TemporalMode_TEMPORAL_MODE_AS_OF || request.TemporalScope.EffectiveAt == nil || len(request.TemporalScope.CompareDates) != 0 || request.ResponseMode != pb.ResponseMode_RESPONSE_MODE_COMPLETE ||
-		(request.RequestedProfile != pb.RetrievalProfile_RETRIEVAL_PROFILE_VECTOR_RAG && request.RequestedProfile != pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_RAG) {
+		(request.RequestedProfile != pb.RetrievalProfile_RETRIEVAL_PROFILE_VECTOR_RAG && request.RequestedProfile != pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_RAG && request.RequestedProfile != pb.RetrievalProfile_RETRIEVAL_PROFILE_GRAPH_RAG && request.RequestedProfile != pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_GRAPH_RAG) {
 		return nil, errors.New("RAG session requires authorized corpus, unset snapshot and supported complete AS_OF profile")
 	}
 	deadline := time.Now().Add(s.MaximumDuration)

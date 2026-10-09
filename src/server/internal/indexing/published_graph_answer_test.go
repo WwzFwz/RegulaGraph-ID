@@ -7,14 +7,21 @@ package indexing
 
 import (
 	"context"
+	"net/http"
 	"strings"
 	"testing"
+	"time"
 
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	pb "regulagraph.local/server/gen/regulagraph/v1"
 	"regulagraph.local/server/internal/adapters/inference"
+	"regulagraph.local/server/internal/adapters/neo4j"
+	"regulagraph.local/server/internal/adapters/postgres"
+	"regulagraph.local/server/internal/adapters/qdrant"
 	"regulagraph.local/server/internal/answering"
 	"regulagraph.local/server/internal/domain"
+	"regulagraph.local/server/internal/retrieval"
 	"regulagraph.local/server/internal/retrieval/graph"
 	"regulagraph.local/server/internal/workflows"
 )
@@ -29,8 +36,9 @@ func (g *publishedGraphGenerator) Generate(ctx context.Context, r inference.Stru
 	return g.publishedGenerator.Generate(ctx, r)
 }
 
-func checkPublishedGraphAnswer(t *testing.T, ctx context.Context, pin domain.SnapshotPin, scope string, request *pb.QuestionRequest, paths *graph.TraversalResult, hydrated *workflows.HydratedGraph) {
+func checkPublishedGraphAnswer(t *testing.T, ctx context.Context, repo *postgres.Repository, backend *neo4j.Store, index *domain.PinnedIndex, scope string, request *pb.QuestionRequest, paths *graph.TraversalResult, hydrated *workflows.HydratedGraph, artifacts indexMemoryArtifacts) {
 	t.Helper()
+	pin := index.Pin
 	plan, err := answering.NewGraphContext(paths, hydrated.Mapping)
 	if err != nil {
 		t.Fatal("native graph render plan", err)
@@ -60,4 +68,82 @@ func checkPublishedGraphAnswer(t *testing.T, ctx context.Context, pin domain.Sna
 		t.Fatal(err)
 	}
 	t.Log("actual graph traversal/source text rendered into production generator prompt; cited fixture draft retains unresolved graph dependencies")
+	for _, profile := range []pb.RetrievalProfile{pb.RetrievalProfile_RETRIEVAL_PROFILE_GRAPH_RAG, pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_GRAPH_RAG} {
+		emptySeeds := false
+		vector := make([]float32, index.Binding.Generation.DenseManifest.GetDimensions())
+		vector[0] = 1
+		var embed retrieval.EmbeddingClient = publishedEmbedding{vector}
+		if profile == pb.RetrievalProfile_RETRIEVAL_PROFILE_GRAPH_RAG {
+			embed = nil
+		}
+		rankProvider := &publishedReranker{}
+		ranker, err := retrieval.NewEvidenceReranker(rankProvider, retrieval.EvidenceRerankConfig{Model: &pb.ModelManifest{ModelId: "reranker:graph-fixture", Version: "1", WeightsHash: hash, TokenizerHash: hash, Task: pb.ModelTask_MODEL_TASK_RERANK, MaxTokens: 8192, Precision: "fp32", Backend: "fixture"}, MaximumCandidates: 32, PairsPerBatch: 8, MaximumRequestBytes: 4 << 20})
+		if err != nil {
+			t.Fatal(err)
+		}
+		prepared, err := workflows.PreparePublishedQuery(ctx, index, repo, artifacts, embed, w, workflows.PublishedQueryConfig{
+			Profile: profile, HTTPClient: &http.Client{Timeout: 5 * time.Second}, QdrantCredentials: map[string]string{index.Binding.Endpoint: ""}, MaximumLexicalBytes: 16 << 20, Reranker: ranker,
+			Fusion:    retrieval.RRFConfig{K: 60, MaximumPerBranch: 8, MaximumTotalInputs: 24, Weights: map[pb.RetrieverKind]float64{pb.RetrieverKind_RETRIEVER_KIND_DENSE: 1, pb.RetrieverKind_RETRIEVER_KIND_BM25: 1, pb.RetrieverKind_RETRIEVER_KIND_GRAPH: 1}},
+			Hydration: retrieval.HydrationConfig{MaximumCandidates: 32, MaximumArtifactBytes: 16 << 20, MaximumEvidenceBytes: 1 << 20, Producer: hydrated.Mapping.Bundle.RetrievalManifest},
+			Graph: &workflows.GraphQueryConfig{Backend: backend, Seeds: func(_ context.Context, _ string, view *domain.PinnedGraph) ([]string, error) {
+				if !proto.Equal(view.Snapshot, index.Snapshot) {
+					t.Fatal("seed resolver received wrong snapshot")
+				}
+				if emptySeeds {
+					return nil, nil
+				}
+				return []string{paths.Paths[0].OrderedNodeIds[0]}, nil // Explicit fixture seed; no claim of query entity-linking quality.
+			}, Traversal: graph.TraversalConfig{MaximumHops: 3, MaximumPaths: 100, Read: domain.GraphReadLimits{Assertions: 128, Supports: 256, Bytes: 1 << 20}}},
+		})
+		if err != nil {
+			t.Fatal("prepare graph profile", profile, err)
+		}
+		changed := *index
+		changed.Snapshot = proto.Clone(index.Snapshot).(*pb.SnapshotRef)
+		changed.Snapshot.SnapshotId = "snapshot:changed"
+		changed.Pin.SnapshotID = changed.Snapshot.SnapshotId
+		if _, err := prepared.Bind(ctx, &changed); err == nil {
+			t.Fatal("graph snapshot rollover reused old prepared backend")
+		}
+		ownedInput := *index
+		ownedInput.Snapshot = proto.Clone(index.Snapshot).(*pb.SnapshotRef)
+		ownedInput.Binding.Generation = proto.Clone(index.Binding.Generation).(*pb.IndexGeneration)
+		bound, err := prepared.Bind(ctx, &ownedInput)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ownedInput.Snapshot.SnapshotId = "snapshot:caller-mutated"
+		ownedInput.Binding.Generation.Meta.RecordId = "generation:caller-mutated"
+		q := proto.Clone(request).(*pb.QuestionRequest)
+		q.RequestedProfile = profile
+		result, err := bound.AnswerPinnedQuestion(ctx, q, retrieval.SearchInput{Context: call, Question: q.Question, Generation: index.Binding.Generation, Scope: qdrant.SearchScope{SnapshotSeq: index.Snapshot.Sequence, Limit: 8}})
+		if err != nil {
+			t.Fatal("published graph RAG", profile, err)
+		}
+		branches := 1
+		if profile == pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_GRAPH_RAG {
+			branches = 3
+		}
+		if len(result.Search.Branches) != branches || result.Search.Graph == nil || result.Reranking == nil || rankProvider.calls == 0 || len(result.Answer.Draft.Answer.Citations) == 0 {
+			t.Fatal("graph fusion/reranking/citation incomplete", profile, result)
+		}
+		graphOrigin := false
+		for _, item := range result.Evidence.Items {
+			for _, origin := range item.CandidateProvenance {
+				graphOrigin = graphOrigin || origin.Retriever == pb.RetrieverKind_RETRIEVER_KIND_GRAPH
+			}
+		}
+		if !graphOrigin || !strings.Contains(provider.prompt, "Graph source relation") {
+			t.Fatal("graph branch disappeared from cited draft")
+		}
+		t.Logf("published %s: %d branches fused, %d source evidence items reranked, graph prompt and source citations retained", profile, branches, len(result.Evidence.Items))
+		if profile == pb.RetrievalProfile_RETRIEVAL_PROFILE_GRAPH_RAG {
+			emptySeeds = true
+			calls := provider.calls
+			empty, err := bound.AnswerPinnedQuestion(ctx, q, retrieval.SearchInput{Context: call, Question: q.Question, Generation: index.Binding.Generation, Scope: qdrant.SearchScope{SnapshotSeq: index.Snapshot.Sequence, Limit: 8}})
+			if err != nil || len(empty.Evidence.Items) != 0 || len(empty.Evidence.MissingDependencies) == 0 || empty.Answer.Draft.Answer.SemanticStatus != pb.SemanticStatus_SEMANTIC_STATUS_ABSTAIN || provider.calls != calls {
+				t.Fatal("unresolved seed silently fell back or reached model", err)
+			}
+		}
+	}
 }
