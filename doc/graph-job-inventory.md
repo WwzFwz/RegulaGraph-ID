@@ -58,6 +58,19 @@ serta registry binding masih retained. Generic `ClaimJob` mengecualikan child gr
 Reclaim setelah lease kedaluwarsa menaikkan fence; claim tidak membuktikan freshness
 semua evidence dan bukan pengganti recheck saat dispatch/output commit.
 
+`GraphJobAdmission.AuthorizeGraphDispatch` kini mengulang authority sebelum RPC melalui
+satu statement PostgreSQL. Digest inventory dan assignment harus cocok dengan proof;
+child claim/attempt/fence, source checkpoint/status, publication/base, registry stamp
+dan live reader pin diperiksa pada read yang sama. Proof lama setelah registry berubah
+ditolak. Heartbeat boleh memperpanjang stored expiry; caller tidak boleh mengarang
+expiry lebih panjang. Hasil berupa salinan assignment, bukan izin commit sesudah RPC.
+
+`domain.BuildGraphAssemblyRequest` membentuk C01 request dengan tepat stage ASSEMBLE,
+empat role document/extraction/resolution/view berurutan dan reference plan. Scope,
+corpus, snapshot dan config harus sama dengan plan. Request correlation baru boleh
+dipakai; deadline dibatasi expiry claim dan batas caller. Fungsi tidak memanggil worker
+atau menyatakan delta benar. Executor/output validation dan commit tetap harus disambungkan.
+
 Inventory maksimal 256 assignment; aggregate source evidence dan payload inventory
 masing-masing dibatasi 64 MiB. Worker per sumber tetap maksimal 16 MiB termasuk plan,
 empat role dan normalized text yang diperlukan. Batas byte wire bukan janji peak RSS.

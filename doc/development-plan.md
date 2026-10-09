@@ -8,6 +8,11 @@ end-to-end, reaffirmation lintas revision serta Neo4j publication tetap diperluk
 [Laporan inventory](verification-report-graph-job-inventory.md) memisahkan hasil fixture
 dan review independen dari acceptance release.
 
+Boundary dispatch berikutnya kini mempunyai live authorization satu-statement dan
+builder request empat role terikat claim/plan. Tes backend menolak publication takeover,
+source cancellation/checkpoint hilang, expired reader pin dan claim palsu. Eksekusi RPC,
+admission isi GraphDelta serta commit/recovery output masih langkah berikutnya.
+
 Lanjutan K01: freshness kandidat RESOLVE kini tersambung ke preparation pada revision
 hasil commit. Seluruh positive/negative scopes dibandingkan; EXTRACT dengan dependency
 eksternal tak didukung ditolak. Receipt historis dan bytes asli tidak diubah.

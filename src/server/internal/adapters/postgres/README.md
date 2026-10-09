@@ -8,6 +8,10 @@ binary claim baru. Namespace alias `lookup:` hanya ditulis writer versioned, ter
 scope yang sebelumnya kosong. [Kontrak inventory](../../../../../doc/graph-job-inventory.md)
 menjelaskan replay, pool satu koneksi dan batas dispatch/output yang masih terbuka.
 
+`graph_job_dispatch.go` memeriksa digest inventory, current stamp, child/source claim,
+publication/base dan reader pin melalui satu statement sebelum RPC. Assignment yang
+dikembalikan merupakan salinan; commit output wajib mengulang authority setelah RPC.
+
 `document_registry_dependencies.go` mengautentikasi DocumentBatch terdaftar lalu
 memeriksa exact key/type dan lifetime BIND pada retained registry revision dalam
 transaksi read-only RepeatableRead. Penambahan tak terkait tidak memaksa replan;

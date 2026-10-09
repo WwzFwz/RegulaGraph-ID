@@ -54,3 +54,29 @@ inventory source nonempty belum teruji penuh, meski reader/ledger/candidate gate
 memakai komponen yang mempunyai tes terpisah. Dispatch Rust, verifikasi/commit output,
 Neo4j, reaffirmation lintas revision dan end-to-end corpus belum selesai. Model/gold,
 latency/throughput/RSS workload required tetap NOT_MEASURED; tidak ada perubahan target.
+
+## Lanjutan: authorization dispatch dan request worker
+
+Revision `bdc3387` menambah `AuthorizeGraphDispatch` dan `BuildGraphAssemblyRequest`.
+Authorization membaca digest inventory, assignment ordinal, child claim, source latest
+checkpoint, publication/base, registry stamp dan reader lease dalam satu SQL statement.
+Builder memeriksa context/plan lalu menghasilkan tepat empat role pada request ASSEMBLE.
+Ini belum eksekusi RPC maupun admission isi GraphDelta.
+
+Implementer menjalankan `go test ./src/server/internal/domain -run
+'^TestGraphAssemblyWorkerRequest$' -count=1 -v` (`dispatch-domain.log`), integration
+`TestPublishedGraphSourceMembershipAgainstStores` dengan env backend yang sama
+(`dispatch-integration.log`, kemudian `dispatch-final.log`), regresi empat paket
+domain/postgres/indexing/workflows (`dispatch-regression.log`), serta `go vet` pada
+domain/postgres/indexing (`dispatch-vet.log`). Semua exit 0. Raw logs di direktori run
+yang sama. Reviewer menjalankan ulang unit serta integration pada diff akhir:
+`independent-dispatch-domain.log`, `independent-dispatch-integration.log`,
+`independent-dispatch-final.log`; semua exit 0, scoped PASS tanpa temuan blocker.
+
+Expected/actual: role order, manifest, hash plan dan deadline dipertahankan; caller
+mutation tidak mengubah proof. Previous claim, salah owner/attempt/corpus, expiry
+karangan, child/source cancellation, publication takeover, expired DB reader lease
+dan source latest checkpoint hilang ditolak. Heartbeat yang memperpanjang stored
+expiry tetap menerima request dengan deadline claim lama yang lebih pendek. Seluruh
+kasus lulus. Restoration setelah fault injection memungkinkan dispatch authorization
+valid kembali. Tidak ada klaim performa, model quality, RPC nyata atau output commit.

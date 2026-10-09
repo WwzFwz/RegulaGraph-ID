@@ -6,6 +6,10 @@ mutation, registry drift termasuk lock wait, source cancellation dan reclaim. Gr
 execution tetap milik workflow/Rust; fixture ini tidak mengimplementasikan writer
 graph di indexing dan tidak membuktikan source nonempty atau kualitas model.
 
+`graph_dispatch_test.go` memeriksa handoff claim ke builder request terhadap registry,
+publication takeover, checkpoint sumber dan live pin. Heartbeat extension tetap sah,
+sedangkan expiry/owner/attempt palsu ditolak. Fixture ini belum menjalankan RPC Rust.
+
 `graph_registry_fixture_test.go` menambah metadata/edisi BIND dan row identity
 sintetis yang eksplisit ke fixture indeks sebelum registrasi. Pengujian preparation
 memastikan perubahan key penerbit ditolak meski hash artefak/receipt tetap sama;

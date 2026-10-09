@@ -6,6 +6,10 @@ menyatukan canonical selection, batas normalized text dan gate dependency EXTRAC
 yang dipakai preparation maupun admission storage. Keduanya tidak memberi authority
 database; lihat [kontrak inventory](../../../../doc/graph-job-inventory.md).
 
+`graph_dispatch.go` membentuk request worker ASSEMBLE dari assignment yang sudah
+diotorisasi storage. Empat role, scope/snapshot/config dan claim terikat; deadline
+dibatasi lease. Pure builder tidak menggantikan live database check atau validasi delta.
+
 `document_registry_dependencies.go` merekonstruksi exact key penerbit, regulasi dan
 pasal yang dikonsumsi BIND dari metadata sumber/edisi/path. Closure, fingerprint
 penerbit dan satu observasi registry wajib utuh. Hasil hanya rencana pemeriksaan;
