@@ -2,9 +2,9 @@
 //
 // Configuration is loaded explicitly from REGULAGRAPH_* environment variables. Startup opens each
 // dependency once; the loop advances PARSE through EXTRACT, optional RESOLVE proposals
-// and inventory-owned INDEX jobs,
+// and inventory-owned INDEX/ASSEMBLE jobs,
 // emits JSON operational events, and drains through signal cancellation. RESOLVE proposals
-// wait for review; migrations, later graph stages and publication remain separate. Measure queue and
+// wait for review; migrations and backend publication remain separate. Measure queue and
 // stage p95/p99 plus retry/cancellation behavior against configs/benchmark-targets.yaml.
 package main
 
@@ -128,6 +128,10 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("configure INDEX executor: %w", err)
 	}
+	graphExecutor, err := newGraphExecutor(config, repository, artifacts, worker, ontology)
+	if err != nil {
+		return fmt.Errorf("configure ASSEMBLE executor: %w", err)
+	}
 	encoder := json.NewEncoder(os.Stdout)
 	nextAttempt := 0
 	for ctx.Err() == nil {
@@ -152,6 +156,16 @@ func run(ctx context.Context) error {
 			}, nil
 		}
 		available := []coordinatorAttempt{parseAttempt, bindingAttempt}
+		if graphExecutor != nil {
+			available = append(available, func() (domain.JobRecord, map[string]any, error) {
+				job, response, err := graphExecutor.RunOnce(ctx)
+				if err != nil {
+					return job, nil, err
+				}
+				return job, map[string]any{"level": "info", "component": "ingestion-worker", "stage": "ASSEMBLE", "job_id": job.JobID,
+					"attempt": job.Attempt, "fence": job.LeaseFence, "completion": response.Status.String(), "artifact_id": response.GraphDelta.GetArtifactId()}, nil
+			})
+		}
 		if indexExecutor != nil {
 			available = append(available, func() (domain.JobRecord, map[string]any, error) {
 				job, response, err := indexExecutor.RunOnce(ctx)
