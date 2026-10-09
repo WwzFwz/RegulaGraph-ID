@@ -57,6 +57,11 @@ Homepage yang tidak menyediakan link pagination mungkin hanya menghasilkan dokum
 
 ## Resume, refresh, dan kegagalan
 
+Record lengkap hasil download dapat masuk pipeline produksi melalui opsi
+`submit -acquisition-record ... -acquisition-root ...`; lihat
+[impor terverifikasi](acquisition-import.md). Enqueue PARSE belum membuktikan
+parsing atau publication selesai.
+
 Run ulang perintah yang sama untuk melanjutkan batch. Record complete dipakai ulang hanya bila checksum PDF/HTML cocok dan versi parser metadata sesuai. Pada partial failure, PDF yang sudah valid dipakai ulang dan file yang gagal dicoba kembali. Perubahan versi parser mengulang ekstraksi metadata; file PDF yang valid tetap dapat digunakan. Gunakan `-refresh` untuk mengambil ulang metadata dan PDF dari portal ketika mengecek pembaruan:
 
 ```powershell

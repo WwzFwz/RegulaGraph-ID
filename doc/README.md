@@ -1,5 +1,10 @@
 # doc
 
+[Impor acquisition](acquisition-import.md) menyambungkan record/PDF collector ke
+shared artifact store, registration dan submit PARSE, dengan batas dan replay.
+[Bukti verifikasi](verification-report-acquisition-import.md) memisahkan impor
+PDF aktual dari pengujian parser/model yang masih harus dijalankan.
+
 [Reaffirmation graph](graph-reaffirmation.md) menjelaskan reuse RESOLVE pada registry
 view baru tanpa mengubah keputusan historis. [Verifikasi](verification-report-graph-reaffirm.md)
 mencatat native assembly/publication dan penolakan registry stamp yang berubah.

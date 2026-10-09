@@ -1,5 +1,11 @@
 # Rencana implementasi berbasis dependency
 
+Checkpoint impor sumber: `submit` kini menerima complete acquisition record,
+memverifikasi/copy seluruh PDF ke storage bersama, meregistrasi refs corpus-scoped
+dan menyimpan observations pada job PARSE. PDF download nyata sudah diuji sampai
+enqueue/replay pada PostgreSQL terisolasi; parsing/model sampai publication corpus
+nyata tetap langkah berikutnya. [Kontrak](acquisition-import.md).
+
 Checkpoint reaffirmation: sumber RESOLVE dari revision berbeda kini dapat disusun
 pada satu target retained view melalui [policy eksplisit](graph-reaffirmation.md).
 Keputusan/proposal/model asli dipertahankan; historical ledger, seluruh candidate

@@ -1,5 +1,11 @@
 # src/server/internal/workflows
 
+`acquisition_import.go` menyiapkan provenance record collector, membatasi ekspansi
+metadata/PDF, menyalin bytes terverifikasi lalu mendaftarkan refs sebelum enqueue.
+Retry tidak menghapus artefak immutable; alamat registration corpus-scoped.
+[Kontrak impor](../../../../doc/acquisition-import.md) membedakan imported/queued
+dari keberhasilan parsing dan model.
+
 Graph preparation memilih current view atau view publication yang sudah terikat.
 Sumber historis yang seluruh dependensinya sama memakai policy reaffirmation;
 `graph_source_binding.go` membawa kandidat asli untuk authenticated receipt, dan

@@ -1,5 +1,11 @@
 # src/server/cmd/cli
 
+`submit -acquisition-record ... -acquisition-root ...` kini mengimpor PDF collector
+secara terverifikasi sebelum enqueue, dengan root `REGULAGRAPH_ARTIFACTS_DIR`
+bersama worker. `submit_acquisition.go` memuat record berbatas; workflow memiliki
+verifikasi/copy/registration. Request template harus tanpa sources/observations.
+[Panduan impor](../../../../doc/acquisition-import.md) memuat replay dan batas.
+
 `prepare_graph.go` menyediakan `prepare-graph` untuk seluruh sumber snapshot indeks
 awal yang sudah RESOLVE, dengan base/scope eksplisit dan child scheduling atomik.
 Tidak ada keputusan model/review otomatis; [panduan](../../../../doc/graph-preparation.md).
@@ -52,7 +58,7 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 Berkas: [main.go](main.go), [main_test.go](main_test.go), [audit.go](audit.go), [audit_test.go](audit_test.go), [submit.go](submit.go), dan [submit_test.go](submit_test.go).
 
-Untuk submit, set `REGULAGRAPH_POSTGRES_DSN`, `REGULAGRAPH_ONTOLOGY_PATH`, `REGULAGRAPH_ONTOLOGY_SHA256`, `REGULAGRAPH_CANDIDATE_POLICY_PATH`, dan `REGULAGRAPH_CANDIDATE_POLICY_SHA256`, lalu jalankan `go run ./src/server/cmd/cli submit -request request.json -job-id job:example`. Hash SHA-256 merujuk byte file tepat, bukan nilai yang sudah diparse. Request memuat corpus ID, referensi source blob, operasi, idempotency key, dan producer manifest. Pemanggil harus menyiapkan blob yang terdaftar; CLI memeriksa bentuk referensinya, sedangkan keberadaan dan integritas blob diperiksa pada tahap downstream. URL ditolak sampai stage ACQUIRE mempunyai dispatcher; CLI tidak mengubah hasil collect menjadi blob terdaftar otomatis. Output JSON menyatakan job ID, corpus, state, stage, dan apakah idempotent replay. Status queued bukan bukti pipeline selesai. Contoh bentuk catalog policy ada di [integrasi resolusi](../../../../doc/semantic-resolution.md).
+Untuk submit, set `REGULAGRAPH_POSTGRES_DSN`, `REGULAGRAPH_ONTOLOGY_PATH`, `REGULAGRAPH_ONTOLOGY_SHA256`, `REGULAGRAPH_CANDIDATE_POLICY_PATH`, dan `REGULAGRAPH_CANDIDATE_POLICY_SHA256`, lalu jalankan `go run ./src/server/cmd/cli submit -request request.json -job-id job:example`. Hash SHA-256 merujuk byte file tepat, bukan nilai yang sudah diparse. Request memuat corpus ID, referensi source blob, operasi, idempotency key, dan producer manifest. Tanpa opsi impor acquisition, pemanggil harus menyiapkan blob terdaftar; bentuk referensi diperiksa CLI dan integritasnya diperiksa downstream. URL ditolak sampai stage ACQUIRE mempunyai dispatcher; Opsi acquisition di atas menyediakan verifikasi/copy dan registration dari record collect lengkap sebelum enqueue. Output JSON menyatakan job ID, corpus, state, stage, dan apakah idempotent replay. Status queued bukan bukti pipeline selesai. Contoh bentuk catalog policy ada di [integrasi resolusi](../../../../doc/semantic-resolution.md).
 
 Perintah discover menerima seed katalog dan memanggil workflows.DiscoverSources untuk menghasilkan antrean persisten tanpa unduhan PDF. Input collect tetap URL detail/PDF; jangan menukar kedua jenis file. Lihat configs/listings.txt untuk seed katalog.
 
