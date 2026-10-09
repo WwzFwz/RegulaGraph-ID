@@ -14,6 +14,13 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+`prompt_dependencies.go` memproyeksikan setiap dependency yang belum tersedia
+menjadi handle lokal dan jenis untuk prompt generator. ID canonical tetap utuh
+di context/jawaban serta diikat audit hash; bukti, versi dan citation tidak
+diproyeksikan. Regresi meliputi urutan/multiplicity, collision dengan ID bukti,
+audit mapping, dan penolakan citation handle. Pin prompt berubah; ikuti
+[konfigurasi jawaban lokal](../../../../doc/local-answer.md) saat memperbarui runtime.
+
 `generator_native_test.go` menguji tokenizer dan generator Qwen lokal sebenarnya
 dengan evidence fixture: full prompt count harus cocok dengan usage dan citation
 tetap berasal dari metadata sumber. Fixture ini tidak menjadi bukti kualitas

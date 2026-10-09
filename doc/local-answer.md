@@ -86,6 +86,20 @@ waktu. Proses model/backend terpisah dan tidak dihentikan oleh CLI.
 
 ## Admission dan batas kepercayaan
 
+Metadata `missing_required_evidence` di prompt memakai handle lokal seperti
+`missing:1` dan jenis dependency, satu entri untuk setiap referensi yang hilang.
+Urutan, jumlah, dan jenis tetap dipertahankan; ID canonical lengkap tetap berada
+di ContextBundle dan Answer. Teks bukti, versi, dan ID citation yang tersedia
+tidak diubah. Handle tidak boleh bertabrakan dengan ID bukti terpilih dan tidak
+boleh dipakai sebagai citation. Ini mengurangi overhead identifier opaque tanpa
+membuang dependency atau memperkecil jumlah kandidat retrieval.
+
+Run manifest menambahkan hash payload, schema, dan daftar canonical omission
+berurutan untuk mengikat proyeksi tersebut. Perubahan system prompt mengubah
+`DraftPromptHash()`; konfigurasi lama harus dipin ulang secara eksplisit sebelum
+dipakai binary baru. Full-prompt admission dan pemeriksaan usage tetap berlaku.
+Pengurangan metadata bukan bukti kenaikan akurasi atau kelulusan benchmark.
+
 Startup memeriksa GGUF regular file, magic, ukuran terbatas dan hash seluruh
 container, lalu mencocokkan `/props`: normalized path, alias, build, template dan
 context window. Pin dicatat pada producer manifest. Go tidak memuat model.

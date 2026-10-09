@@ -150,10 +150,14 @@ func TestDraftGeneratorRecordsExactRequestWithoutMutatingProducer(t *testing.T) 
 			t.Fatal(err)
 		}
 		hashes := result.Answer.RunManifest.InputHashes
-		if len(hashes) != len(before.InputHashes)+2 {
+		if len(hashes) != len(before.InputHashes)+3 {
 			t.Fatal("request audit hashes missing or accumulated across calls")
 		}
-		for j, raw := range [][]byte{[]byte(sent.Text), sent.Schema} {
+		canonicalDependencies, err := json.Marshal(in.Context.OmittedRequiredRefs)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for j, raw := range [][]byte{[]byte(sent.Text), sent.Schema, canonicalDependencies} {
 			digest := sha256.Sum256(raw)
 			if hashes[len(before.InputHashes)+j].Sha256 != hex.EncodeToString(digest[:]) {
 				t.Fatal("audit hash differs from actual provider request")
