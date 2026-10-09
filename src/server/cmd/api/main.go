@@ -34,6 +34,7 @@ import (
 	pb "regulagraph.local/server/gen/regulagraph/v1"
 	"regulagraph.local/server/internal/api"
 	"regulagraph.local/server/internal/api/routes"
+	"regulagraph.local/server/internal/retrieval/query"
 )
 
 func main() {
@@ -54,6 +55,10 @@ func configuration(env func(string) string) (string, api.EvidenceRuntimeConfig, 
 	}
 	profile := map[string]pb.RetrievalProfile{"vector": pb.RetrievalProfile_RETRIEVAL_PROFILE_VECTOR_RAG, "hybrid": pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_RAG, "graph": pb.RetrievalProfile_RETRIEVAL_PROFILE_GRAPH_RAG, "hybrid-graph": pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_GRAPH_RAG}[env("REGULAGRAPH_API_PROFILE")]
 	runtime := api.EvidenceRuntimeConfig{DSN: env("REGULAGRAPH_POSTGRES_DSN"), ArtifactRoot: env("REGULAGRAPH_ARTIFACTS_DIR"), NativeEndpoint: env("REGULAGRAPH_QUERY_NATIVE_ENDPOINT"), QdrantEndpoint: env("REGULAGRAPH_QDRANT_URL"), QdrantKey: env("REGULAGRAPH_QDRANT_API_KEY"), Corpus: env("REGULAGRAPH_QUERY_CORPUS_ID"), AuthScope: env("REGULAGRAPH_API_AUTH_SCOPE"), Build: env("REGULAGRAPH_BUILD_ID"), Profile: profile, Limit: 20, Timeout: 30 * time.Second}
+	runtime.Normalization, err = query.ParseNormalizationMode(env("REGULAGRAPH_QUERY_NORMALIZATION"))
+	if err != nil {
+		return "", runtime, routes.EvidenceConfig{}, err
+	}
 	runtime.GraphPath = env("REGULAGRAPH_QUERY_GRAPH_CONFIG")
 	runtime.GraphHash = env("REGULAGRAPH_QUERY_GRAPH_CONFIG_SHA256")
 	runtime.GraphUsername = env("REGULAGRAPH_NEO4J_USERNAME")

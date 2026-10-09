@@ -41,10 +41,12 @@ import (
 	"regulagraph.local/server/internal/config"
 	"regulagraph.local/server/internal/domain"
 	"regulagraph.local/server/internal/retrieval"
+	"regulagraph.local/server/internal/retrieval/query"
 	"regulagraph.local/server/internal/workflows"
 )
 
 type queryOptions struct {
+	Normalization                                                query.NormalizationMode
 	Corpus, Question, AsOf, Profile, Unresolved, Snapshot, Build string
 	Limit                                                        int
 	Timeout                                                      time.Duration
@@ -79,6 +81,12 @@ func runQueryEvidenceWith(ctx context.Context, args []string, out, errOut io.Wri
 		}
 		return 2
 	}
+	normalizationMode, modeErr := query.ParseNormalizationMode(env("REGULAGRAPH_QUERY_NORMALIZATION"))
+	if modeErr != nil {
+		fmt.Fprintln(errOut, modeErr)
+		return 2
+	}
+	opts.Normalization = normalizationMode
 	opts.Corpus = env("REGULAGRAPH_QUERY_CORPUS_ID")
 	opts.Build = env("REGULAGRAPH_BUILD_ID")
 	opts.dsn = env("REGULAGRAPH_POSTGRES_DSN")
@@ -170,13 +178,18 @@ func runQueryEvidenceWith(ctx context.Context, args []string, out, errOut io.Wri
 	if opts.Answer {
 		mode = "answer_draft"
 	}
+	var normalization *query.NormalizedQuestion
+	if result.Search != nil {
+		normalization = result.Search.Normalization
+	}
 	output := struct {
-		Mode      string            `json:"mode"`
-		Evidence  json.RawMessage   `json:"evidence"`
-		Rejected  map[string]string `json:"rejected"`
-		Reranking *queryRerankJSON  `json:"reranking,omitempty"`
-		Draft     *queryAnswerJSON  `json:"draft,omitempty"`
-	}{mode, raw, result.Rejected, reranking, answer}
+		Mode          string                    `json:"mode"`
+		Normalization *query.NormalizedQuestion `json:"query_normalization,omitempty"`
+		Evidence      json.RawMessage           `json:"evidence"`
+		Rejected      map[string]string         `json:"rejected"`
+		Reranking     *queryRerankJSON          `json:"reranking,omitempty"`
+		Draft         *queryAnswerJSON          `json:"draft,omitempty"`
+	}{mode, normalization, raw, result.Rejected, reranking, answer}
 	if err = json.NewEncoder(out).Encode(output); err != nil {
 		fmt.Fprintln(errOut, "Writing evidence output failed")
 		return 1
@@ -288,7 +301,7 @@ func executeEvidenceQuery(ctx context.Context, o queryOptions, request *pb.Quest
 	httpClient := &http.Client{Transport: transport, Timeout: o.Timeout}
 	// Config pin excludes secrets and question, includes route/limits/policy/build.
 	configBytes, _ := json.Marshal(map[string]any{"corpus": o.Corpus, "build": o.Build, "profile": o.Profile, "unresolved": o.Unresolved, "limit": o.Limit, "timeout_ns": int64(o.Timeout), "native": o.native, "qdrant": o.qdrant, "rrf_k": 60, "artifact_bytes": 64 << 20, "evidence_bytes": 4 << 20,
-		"rerank_manifest_sha256": o.rerankHash, "rerank_pairs_per_batch": 32, "rerank_maximum_request_bytes": 4 << 20, "rerank_truncation_policy": "reject", "graph_config_sha256": o.graphHash, "auth_scope": o.authScope, "answer_config_sha256": o.answerHash})
+		"rerank_manifest_sha256": o.rerankHash, "rerank_pairs_per_batch": 32, "rerank_maximum_request_bytes": 4 << 20, "rerank_truncation_policy": "reject", "graph_config_sha256": o.graphHash, "auth_scope": o.authScope, "answer_config_sha256": o.answerHash, "query_normalization": o.Normalization})
 	hash := sha256.Sum256(configBytes)
 	fingerprint := &pb.ContentHash{Sha256: hex.EncodeToString(hash[:])}
 	var nonce [16]byte
@@ -356,7 +369,7 @@ func executeEvidenceQuery(ctx context.Context, o queryOptions, request *pb.Quest
 			linkHash, _ := o.graphConfig.Linking.Fingerprint()
 			producer.InputHashes = []*pb.ContentHash{{Sha256: o.graphHash}, {Sha256: linkHash}}
 		}
-		prepared, err := workflows.PreparePublishedQuery(c, index, repo, files, native, answer, workflows.PublishedQueryConfig{QdrantCredentials: map[string]string{o.qdrant: o.key}, HTTPClient: httpClient, Profile: request.RequestedProfile,
+		prepared, err := workflows.PreparePublishedQuery(c, index, repo, files, native, answer, workflows.PublishedQueryConfig{Normalization: o.Normalization, QdrantCredentials: map[string]string{o.qdrant: o.key}, HTTPClient: httpClient, Profile: request.RequestedProfile,
 			Fusion:    retrieval.RRFConfig{K: 60, MaximumPerBranch: o.Limit, MaximumTotalInputs: branches * o.Limit, Weights: map[pb.RetrieverKind]float64{pb.RetrieverKind_RETRIEVER_KIND_DENSE: 1, pb.RetrieverKind_RETRIEVER_KIND_BM25: 1, pb.RetrieverKind_RETRIEVER_KIND_GRAPH: 1}},
 			Hydration: retrieval.HydrationConfig{MaximumCandidates: branches * o.Limit, MaximumArtifactBytes: 64 << 20, MaximumEvidenceBytes: 4 << 20, Producer: producer}, MaximumLexicalBytes: 64 << 20, Reranker: reranker, Graph: graphConfig})
 		if err != nil {

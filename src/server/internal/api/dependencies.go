@@ -49,12 +49,14 @@ import (
 	"regulagraph.local/server/internal/config"
 	"regulagraph.local/server/internal/domain"
 	"regulagraph.local/server/internal/retrieval"
+	"regulagraph.local/server/internal/retrieval/query"
 	"regulagraph.local/server/internal/workflows"
 )
 
 // EvidenceRuntimeConfig is operator configuration, never a request payload.
 // This local runtime serves one explicitly authorized corpus and profile.
 type EvidenceRuntimeConfig struct {
+	Normalization                                                query.NormalizationMode
 	DSN, ArtifactRoot, NativeEndpoint, QdrantEndpoint, QdrantKey string
 	Corpus, AuthScope, Build                                     string
 	Profile                                                      pb.RetrievalProfile
@@ -83,6 +85,11 @@ type EvidenceRuntime struct {
 type evidenceRequestIdentity struct{}
 
 func OpenEvidenceRuntime(ctx context.Context, cfg EvidenceRuntimeConfig) (*EvidenceRuntime, error) {
+	mode, modeErr := query.ParseNormalizationMode(string(cfg.Normalization))
+	if modeErr != nil {
+		return nil, modeErr
+	}
+	cfg.Normalization = mode
 	graphProfile := cfg.Profile == pb.RetrievalProfile_RETRIEVAL_PROFILE_GRAPH_RAG || cfg.Profile == pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_GRAPH_RAG
 	host, port, err := net.SplitHostPort(cfg.NativeEndpoint)
 	number, portErr := strconv.Atoi(port)
@@ -130,12 +137,13 @@ func OpenEvidenceRuntime(ctx context.Context, cfg EvidenceRuntimeConfig) (*Evide
 	// and route pins; the actual model generation is added from the catalog.
 	raw, _ := json.Marshal(struct {
 		Corpus, Scope, Build, Native, Qdrant string
+		Normalization                        query.NormalizationMode
 		Profile                              pb.RetrievalProfile
 		Limit                                int
 		Timeout                              time.Duration
 		GraphHash                            string
 		AnswerHash                           string
-	}{cfg.Corpus, cfg.AuthScope, cfg.Build, cfg.NativeEndpoint, cfg.QdrantEndpoint, cfg.Profile, cfg.Limit, cfg.Timeout, cfg.GraphHash, cfg.AnswerHash})
+	}{cfg.Corpus, cfg.AuthScope, cfg.Build, cfg.NativeEndpoint, cfg.QdrantEndpoint, cfg.Normalization, cfg.Profile, cfg.Limit, cfg.Timeout, cfg.GraphHash, cfg.AnswerHash})
 	hash := sha256.Sum256(raw)
 	r := &EvidenceRuntime{config: cfg, fingerprint: &pb.ContentHash{Sha256: hex.EncodeToString(hash[:])}, preparing: make(chan struct{}, 1), graphConfig: graphConfig}
 	if answerConfig != nil {
@@ -283,7 +291,7 @@ func (r *EvidenceRuntime) prepare(ctx context.Context, index *domain.PinnedIndex
 	if r.answer != nil {
 		answerWorkflow = r.answer.Workflow
 	}
-	resource.prepared, err = workflows.PreparePublishedQuery(ctx, index, r.repo, r.files, resource.native, answerWorkflow, workflows.PublishedQueryConfig{QdrantCredentials: map[string]string{r.config.QdrantEndpoint: r.config.QdrantKey}, HTTPClient: r.http, Profile: r.config.Profile, MaximumLexicalBytes: 64 << 20, Graph: graphConfig, Fusion: retrieval.RRFConfig{K: 60, MaximumPerBranch: n, MaximumTotalInputs: branches * n, Weights: map[pb.RetrieverKind]float64{pb.RetrieverKind_RETRIEVER_KIND_DENSE: 1, pb.RetrieverKind_RETRIEVER_KIND_BM25: 1, pb.RetrieverKind_RETRIEVER_KIND_GRAPH: 1}}, Hydration: retrieval.HydrationConfig{MaximumCandidates: branches * n, MaximumArtifactBytes: 64 << 20, MaximumEvidenceBytes: 4 << 20, Producer: producer}})
+	resource.prepared, err = workflows.PreparePublishedQuery(ctx, index, r.repo, r.files, resource.native, answerWorkflow, workflows.PublishedQueryConfig{Normalization: r.config.Normalization, QdrantCredentials: map[string]string{r.config.QdrantEndpoint: r.config.QdrantKey}, HTTPClient: r.http, Profile: r.config.Profile, MaximumLexicalBytes: 64 << 20, Graph: graphConfig, Fusion: retrieval.RRFConfig{K: 60, MaximumPerBranch: n, MaximumTotalInputs: branches * n, Weights: map[pb.RetrieverKind]float64{pb.RetrieverKind_RETRIEVER_KIND_DENSE: 1, pb.RetrieverKind_RETRIEVER_KIND_BM25: 1, pb.RetrieverKind_RETRIEVER_KIND_GRAPH: 1}}, Hydration: retrieval.HydrationConfig{MaximumCandidates: branches * n, MaximumArtifactBytes: 64 << 20, MaximumEvidenceBytes: 4 << 20, Producer: producer}})
 	if err != nil {
 		return nil, nil, err
 	}

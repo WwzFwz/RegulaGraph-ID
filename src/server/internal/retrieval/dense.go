@@ -71,7 +71,7 @@ type SearchInput struct {
 	Scope      qdrant.SearchScope
 }
 
-// RetrieveDense embeds exactly one original question with QUERY purpose, rejects
+// RetrieveDense embeds exactly one supplied search question with QUERY purpose, rejects
 // truncation and model drift, then performs one bounded backend search. It never
 // changes a requested snapshot or silently retries an unsuccessful branch.
 func RetrieveDense(ctx context.Context, input SearchInput, client EmbeddingClient, index SearchIndex) (*BranchOutput, error) {

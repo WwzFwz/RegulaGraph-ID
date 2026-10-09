@@ -160,6 +160,7 @@ func (w *RAGWorkflow) SearchPinnedQuestion(ctx context.Context, request *pb.Ques
 // rewrite the expected version/identity/provenance used by the boundary gate.
 func cloneCandidateSearch(found *CandidateSearchResult) *CandidateSearchResult {
 	copy := *found
+	copy.Normalization = found.Normalization.Clone()
 	copy.Graph = cloneTraversal(found.Graph)
 	copy.Snapshot = proto.Clone(found.Snapshot).(*pb.SnapshotRef)
 	copy.Candidates = make([]retrieval.FusedCandidate, len(found.Candidates))

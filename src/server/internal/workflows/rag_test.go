@@ -19,10 +19,14 @@ import (
 	"regulagraph.local/server/internal/retrieval"
 )
 
-type ragProvider struct{ calls int }
+type ragProvider struct {
+	calls   int
+	request inference.StructuredRequest
+}
 
-func (p *ragProvider) Generate(context.Context, inference.StructuredRequest) (inference.StructuredResponse, error) {
+func (p *ragProvider) Generate(_ context.Context, request inference.StructuredRequest) (inference.StructuredResponse, error) {
 	p.calls++
+	p.request = request
 	return inference.StructuredResponse{JSON: json.RawMessage(`{"status":"answer","claims":[{"text":"Perizinan diperlukan.","evidence_ids":["index:one"]}]}`), InputTokens: 100, OutputTokens: 20}, nil
 }
 

@@ -19,25 +19,28 @@ import (
 	"regulagraph.local/server/internal/adapters/qdrant"
 	"regulagraph.local/server/internal/retrieval"
 	"regulagraph.local/server/internal/retrieval/graph"
+	"regulagraph.local/server/internal/retrieval/query"
 )
 
 type CandidateBranch func(context.Context, retrieval.SearchInput) (*retrieval.BranchOutput, error)
 
 type CandidateSearch struct {
-	Dense   CandidateBranch
-	Lexical CandidateBranch
-	Graph   CandidateBranch
-	Fusion  retrieval.RRFConfig
+	Normalization query.NormalizationMode
+	Dense         CandidateBranch
+	Lexical       CandidateBranch
+	Graph         CandidateBranch
+	Fusion        retrieval.RRFConfig
 }
 
 type CandidateSearchResult struct {
-	Profile    pb.RetrievalProfile
-	Snapshot   *pb.SnapshotRef
-	Candidates []retrieval.FusedCandidate
-	Hits       map[string]qdrant.Hit
-	Branches   []*retrieval.BranchOutput
-	Duration   time.Duration
-	Graph      *graph.TraversalResult
+	Normalization *query.NormalizedQuestion
+	Profile       pb.RetrievalProfile
+	Snapshot      *pb.SnapshotRef
+	Candidates    []retrieval.FusedCandidate
+	Hits          map[string]qdrant.Hit
+	Branches      []*retrieval.BranchOutput
+	Duration      time.Duration
+	Graph         *graph.TraversalResult
 }
 
 // SearchCandidates retains every returned candidate up to the explicit branch
@@ -78,6 +81,10 @@ func (s *CandidateSearch) SearchCandidates(ctx context.Context, input retrieval.
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	normalized, err := query.NormalizeQuestion(input.Question, s.Normalization)
+	if err != nil {
+		return nil, err
+	}
 	call, cancel := context.WithCancel(ctx)
 	defer cancel()
 	type branchRun struct {
@@ -99,6 +106,9 @@ func (s *CandidateSearch) SearchCandidates(ctx context.Context, input retrieval.
 	results := make(chan branchRun, len(branches))
 	for i, branch := range branches {
 		owned := input
+		if kinds[i] != pb.RetrieverKind_RETRIEVER_KIND_GRAPH {
+			owned.Question = normalized.Search
+		}
 		owned.Context = proto.Clone(input.Context).(*pb.RequestContext)
 		owned.Generation = proto.Clone(input.Generation).(*pb.IndexGeneration)
 		go func(i int, branch CandidateBranch, owned retrieval.SearchInput) {
@@ -170,5 +180,5 @@ func (s *CandidateSearch) SearchCandidates(ctx context.Context, input retrieval.
 	if err != nil {
 		return nil, err
 	}
-	return &CandidateSearchResult{Profile: profile, Snapshot: proto.Clone(input.Context.SnapshotRef).(*pb.SnapshotRef), Candidates: fused, Hits: hits, Branches: ordered, Duration: time.Since(started), Graph: paths}, nil
+	return &CandidateSearchResult{Normalization: normalized, Profile: profile, Snapshot: proto.Clone(input.Context.SnapshotRef).(*pb.SnapshotRef), Candidates: fused, Hits: hits, Branches: ordered, Duration: time.Since(started), Graph: paths}, nil
 }

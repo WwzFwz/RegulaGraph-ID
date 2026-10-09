@@ -7,17 +7,58 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"slices"
 	"strings"
 	"testing"
 
 	pb "regulagraph.local/server/gen/regulagraph/v1"
+	"regulagraph.local/server/internal/retrieval/query"
 	"regulagraph.local/server/internal/workflows"
 )
 
 func queryEnvironment() map[string]string {
 	return map[string]string{"REGULAGRAPH_QUERY_CORPUS_ID": "corpus:test", "REGULAGRAPH_BUILD_ID": "fixture", "REGULAGRAPH_POSTGRES_DSN": "secret-dsn", "REGULAGRAPH_ARTIFACTS_DIR": "fixture", "REGULAGRAPH_QUERY_NATIVE_ENDPOINT": "127.0.0.1:50053", "REGULAGRAPH_QDRANT_URL": "http://127.0.0.1:6333", "REGULAGRAPH_QDRANT_API_KEY": "secret-key"}
+}
+
+func TestQueryEvidenceNormalizationConfigurationAndTrace(t *testing.T) {
+	for _, mode := range []query.NormalizationMode{query.OriginalQuestion, query.MechanicalQuestion} {
+		t.Run(string(mode), func(t *testing.T) {
+			env := queryEnvironment()
+			env["REGULAGRAPH_QUERY_NORMALIZATION"] = string(mode)
+			original := "  Pasal\t11 bukan 1 "
+			var out, stderr bytes.Buffer
+			code := runQueryEvidenceWith(context.Background(), []string{"-question", original, "-as-of", "2026-01-01", "-profile", "vector"}, &out, &stderr, func(k string) string { return env[k] }, func(_ context.Context, o queryOptions, r *pb.QuestionRequest) (*workflows.RAGResult, error) {
+				if o.Normalization != mode || r.Question != original {
+					t.Fatal("lost normalization policy or original question")
+				}
+				report, err := query.NormalizeQuestion(r.Question, o.Normalization)
+				if err != nil {
+					t.Fatal(err)
+				}
+				hash := &pb.ContentHash{Sha256: strings.Repeat("a", 64)}
+				return &workflows.RAGResult{
+					Search:   &workflows.CandidateSearchResult{Normalization: report},
+					Evidence: &pb.EvidenceBundle{Meta: &pb.RecordMeta{SchemaVersion: 1, CorpusId: o.Corpus, RecordId: "evidence:test"}, Snapshot: &pb.SnapshotRef{CorpusId: o.Corpus, SnapshotId: "snapshot:test", Sequence: 1, ManifestHash: hash, RepresentationGeneration: "generation:test"}, RetrievalManifest: &pb.ProducerManifest{Software: "fixture", Build: "test", SchemaVersion: 1, ConfigHash: hash}, Completeness: pb.Completeness_COMPLETENESS_PARTIAL, MissingDependencies: []string{"parent:missing"}, CompletionStatus: pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED},
+				}, nil
+			})
+			var decoded struct {
+				Normalization *query.NormalizedQuestion `json:"query_normalization"`
+			}
+			if code != 0 || json.Unmarshal(out.Bytes(), &decoded) != nil || decoded.Normalization == nil {
+				t.Fatal(code, out.String(), stderr.String())
+			}
+			report := decoded.Normalization
+			want := original
+			if mode == query.MechanicalQuestion {
+				want = "Pasal 11 bukan 1"
+			}
+			if report.Method != mode || report.Original != original || report.Search != want || (mode == query.MechanicalQuestion && len(report.Edits) == 0) {
+				t.Fatal("incorrect CLI normalization trace", report)
+			}
+		})
+	}
 }
 
 func TestQueryEvidenceRejectsInvalidInputBeforeIO(t *testing.T) {
@@ -35,6 +76,7 @@ func TestQueryEvidenceRejectsInvalidInputBeforeIO(t *testing.T) {
 		{"remote plaintext qdrant", nil, "REGULAGRAPH_QDRANT_URL", "http://example.org"},
 		{"credential URL", nil, "REGULAGRAPH_QDRANT_URL", "https://secret@example.org"},
 		{"missing corpus", nil, "REGULAGRAPH_QUERY_CORPUS_ID", ""},
+		{"unsupported normalization", nil, "REGULAGRAPH_QUERY_NORMALIZATION", "guess"},
 		{"reranker path without pin", nil, "REGULAGRAPH_QUERY_RERANK_MANIFEST", "fixture.pb"},
 		{"reranker pin without path", nil, "REGULAGRAPH_QUERY_RERANK_MANIFEST_SHA256", strings.Repeat("a", 64)},
 		{"invalid unresolved", []string{"-question", "izin", "-as-of", "2026-01-01", "-unresolved", "guess"}, "", ""},

@@ -21,9 +21,11 @@ import (
 	"regulagraph.local/server/internal/domain"
 	"regulagraph.local/server/internal/retrieval"
 	"regulagraph.local/server/internal/retrieval/graph"
+	"regulagraph.local/server/internal/retrieval/query"
 )
 
 type PublishedQueryConfig struct {
+	Normalization query.NormalizationMode
 	// Exact origins only; never attach a default credential to arbitrary catalog URLs.
 	QdrantCredentials   map[string]string
 	HTTPClient          *http.Client
@@ -56,6 +58,11 @@ func PreparePublishedQuery(ctx context.Context, index *domain.PinnedIndex, catal
 	if ctx == nil || index == nil || catalog == nil || reader == nil || config.HTTPClient == nil {
 		return nil, errors.New("published query dependencies required")
 	}
+	mode, err := query.ParseNormalizationMode(string(config.Normalization))
+	if err != nil {
+		return nil, err
+	}
+	config.Normalization = mode
 	if err := domain.ValidateIndexCatalogBinding(index.Binding); err != nil {
 		return nil, err
 	}
@@ -111,7 +118,7 @@ func PreparePublishedQuery(ctx context.Context, index *domain.PinnedIndex, catal
 	if err = store.OpenExistingCollection(ctx); err != nil {
 		return nil, err
 	}
-	search := &CandidateSearch{Fusion: config.Fusion, Dense: func(c context.Context, in retrieval.SearchInput) (*retrieval.BranchOutput, error) {
+	search := &CandidateSearch{Normalization: config.Normalization, Fusion: config.Fusion, Dense: func(c context.Context, in retrieval.SearchInput) (*retrieval.BranchOutput, error) {
 		return retrieval.RetrieveDense(c, in, embedding, store)
 	}}
 	if config.Profile == pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_RAG || config.Profile == pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_GRAPH_RAG {

@@ -7,6 +7,27 @@ import (
 	"time"
 )
 
+func TestAPIQueryNormalizationEnvironment(t *testing.T) {
+	env := map[string]string{"REGULAGRAPH_API_TOKEN": "test-operator-token-at-least-32-characters", "REGULAGRAPH_QUERY_CORPUS_ID": "corpus:test", "REGULAGRAPH_API_PROFILE": "hybrid"}
+	for _, mode := range []string{"", "original-v1", "mechanical-v1", "guess"} {
+		env["REGULAGRAPH_QUERY_NORMALIZATION"] = mode
+		_, runtime, _, err := configuration(func(k string) string { return env[k] })
+		if mode == "guess" {
+			if err == nil {
+				t.Fatal("unknown normalization accepted")
+			}
+			continue
+		}
+		want := mode
+		if want == "" {
+			want = "original-v1"
+		}
+		if err != nil || string(runtime.Normalization) != want {
+			t.Fatal("normalization configuration lost", err)
+		}
+	}
+}
+
 func TestAPIConfiguration(t *testing.T) {
 	env := map[string]string{"REGULAGRAPH_API_TOKEN": "test-operator-token-at-least-32-characters", "REGULAGRAPH_QUERY_CORPUS_ID": "corpus:test", "REGULAGRAPH_API_PROFILE": "hybrid"}
 	read := func(k string) string { return env[k] }

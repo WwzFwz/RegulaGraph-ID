@@ -23,7 +23,7 @@ func candidateWorkflowFixture() (*CandidateSearch, retrieval.SearchInput) {
 	}
 	s := &CandidateSearch{Dense: branch(pb.RetrieverKind_RETRIEVER_KIND_DENSE), Lexical: branch(pb.RetrieverKind_RETRIEVER_KIND_BM25), Fusion: retrieval.RRFConfig{K: 60, MaximumPerBranch: 10, MaximumTotalInputs: 20,
 		Weights: map[pb.RetrieverKind]float64{pb.RetrieverKind_RETRIEVER_KIND_DENSE: 1, pb.RetrieverKind_RETRIEVER_KIND_BM25: 1}}}
-	return s, retrieval.SearchInput{Context: &pb.RequestContext{SnapshotRef: &pb.SnapshotRef{SnapshotId: "snapshot:one"}}, Generation: &pb.IndexGeneration{}, Scope: qdrant.SearchScope{Limit: 10}}
+	return s, retrieval.SearchInput{Question: "izin", Context: &pb.RequestContext{SnapshotRef: &pb.SnapshotRef{SnapshotId: "snapshot:one"}}, Generation: &pb.IndexGeneration{}, Scope: qdrant.SearchScope{Limit: 10}}
 }
 
 func TestCandidateSearchParallelFusion(t *testing.T) {
