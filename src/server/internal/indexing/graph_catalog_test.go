@@ -126,6 +126,7 @@ CREATE TRIGGER graph_intent_fixture BEFORE INSERT ON publication_operations FOR 
 	if err = db.QueryRow(ctx, `SELECT active_snapshot_id FROM corpus_state WHERE corpus_id=$1`, pin.CorpusID).Scan(&active); err != nil || active != pin.SnapshotID {
 		t.Fatal("unready graph changed active snapshot", err)
 	}
+	checkGraphReadiness(t, ctx, repo, db, authority, pin, prepared, backend)
 	return proof
 }
 

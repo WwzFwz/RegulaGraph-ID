@@ -197,6 +197,19 @@ func (r *Repository) StagePublication(ctx context.Context, manifest *pb.Publicat
 }
 
 func (r *Repository) RecordBackendReceipt(ctx context.Context, receipt *pb.BackendReceipt) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin backend receipt: %w", err)
+	}
+	defer tx.Rollback(ctx)
+	if err = recordBackendReceiptTx(ctx, tx, receipt); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// Shared by graph acknowledgement so receipt, intent and authority stay atomic.
+func recordBackendReceiptTx(ctx context.Context, tx pgx.Tx, receipt *pb.BackendReceipt) error {
 	if receipt == nil {
 		return errors.New("backend receipt is required")
 	}
@@ -210,11 +223,6 @@ func (r *Repository) RecordBackendReceipt(ctx context.Context, receipt *pb.Backe
 	if err != nil {
 		return fmt.Errorf("marshal backend receipt: %w", err)
 	}
-	tx, err := r.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("begin backend receipt: %w", err)
-	}
-	defer tx.Rollback(ctx)
 	var generation, checksum string
 	var expected, fence int64
 	var state int16
@@ -258,7 +266,7 @@ func (r *Repository) RecordBackendReceipt(ctx context.Context, receipt *pb.Backe
 			return fmt.Errorf("backend receipt changed after acknowledgement: %w", ErrConflict)
 		}
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func (r *Repository) CommitPublication(ctx context.Context, publicationID string) error {
@@ -338,6 +346,9 @@ func (r *Repository) CommitPublication(ctx context.Context, publicationID string
 		return ErrSnapshotCASConflict
 	}
 	if err = verifyIndexPublicationJobs(ctx, tx, publicationID); err != nil {
+		return err
+	}
+	if err = verifyGraphPublication(ctx, tx, publicationID); err != nil {
 		return err
 	}
 	if _, err = tx.Exec(ctx, `UPDATE snapshots SET state=$2,published_at=clock_timestamp()
