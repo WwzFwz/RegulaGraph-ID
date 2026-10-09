@@ -1,5 +1,10 @@
 # src/server/internal/workflows
 
+`acquisition_pipeline_integration_test.go` menguji PDF collector aktual melalui
+import, PostgreSQL terisolasi, worker PDFium/struktur, BIND dan tokenizer CHUNK.
+Run opt-in berhenti di CHUNK tanpa model producer; SKIP bukan bukti native.
+[Hasil dan reproduksi](../../../../doc/verification-report-real-pdf.md).
+
 `acquisition_import.go` menyiapkan provenance record collector, membatasi ekspansi
 metadata/PDF, menyalin bytes terverifikasi lalu mendaftarkan refs sebelum enqueue.
 Retry tidak menghapus artefak immutable; alamat registration corpus-scoped.
