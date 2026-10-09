@@ -127,6 +127,7 @@ func checkNativeGraphExecution(t *testing.T, ctx context.Context, repo *postgres
 	if len(delta.Entities) != 2 || len(delta.Mentions) != 2 || len(delta.Assertions) != 1 || len(delta.Supports) != 1 || delta.Assertions[0].SubjectId == delta.Assertions[0].ObjectId {
 		t.Fatal("native graph lost resolved endpoints or source evidence")
 	}
+	t.Run("Neo4j actual Rust output", func(t *testing.T) { checkNativeGraphNeo4j(t, ctx, prepared.Plan, delta) })
 	if committed, e := admitted.GraphCheckpointCommitted(ctx, response.Checkpoint); e != nil || !committed {
 		t.Fatal("native graph checkpoint not committed", e)
 	}
