@@ -10,8 +10,9 @@
 // Benchmark dan gate penerimaan:
 // Ukur p50/p95/p99, throughput, waktu antre, serta RSS/VRAM sesuai workload. Ambang wajib ada di configs/benchmark-targets.yaml (REQUIRED_UNMEASURED); ukur cold/warm terpisah dan pertahankan kualitas sumber/versi.
 //
-// Status: evidence API vector/hybrid aktif; API jawaban/streaming belum aktif.
-// Integrasi berikutnya: tokenizer/generator terpin dan graph profiles.
+// Status: evidence API empat profil aktif; API jawaban/streaming belum aktif.
+// Graph route/policy dipin sebelum startup; graph-only tidak membutuhkan native.
+// Integrasi berikutnya: tokenizer/generator terpin.
 // Bukti verifikasi: Test startup rollback, signals and graceful drain; no model load or connection at import.
 // Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
 
@@ -51,8 +52,12 @@ func configuration(env func(string) string) (string, api.EvidenceRuntimeConfig, 
 	if err != nil || e != nil || number < 1 || number > 65535 || !net.ParseIP(host).IsLoopback() {
 		return "", api.EvidenceRuntimeConfig{}, routes.EvidenceConfig{}, errors.New("loopback API address required")
 	}
-	profile := map[string]pb.RetrievalProfile{"vector": pb.RetrievalProfile_RETRIEVAL_PROFILE_VECTOR_RAG, "hybrid": pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_RAG}[env("REGULAGRAPH_API_PROFILE")]
+	profile := map[string]pb.RetrievalProfile{"vector": pb.RetrievalProfile_RETRIEVAL_PROFILE_VECTOR_RAG, "hybrid": pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_RAG, "graph": pb.RetrievalProfile_RETRIEVAL_PROFILE_GRAPH_RAG, "hybrid-graph": pb.RetrievalProfile_RETRIEVAL_PROFILE_HYBRID_GRAPH_RAG}[env("REGULAGRAPH_API_PROFILE")]
 	runtime := api.EvidenceRuntimeConfig{DSN: env("REGULAGRAPH_POSTGRES_DSN"), ArtifactRoot: env("REGULAGRAPH_ARTIFACTS_DIR"), NativeEndpoint: env("REGULAGRAPH_QUERY_NATIVE_ENDPOINT"), QdrantEndpoint: env("REGULAGRAPH_QDRANT_URL"), QdrantKey: env("REGULAGRAPH_QDRANT_API_KEY"), Corpus: env("REGULAGRAPH_QUERY_CORPUS_ID"), AuthScope: env("REGULAGRAPH_API_AUTH_SCOPE"), Build: env("REGULAGRAPH_BUILD_ID"), Profile: profile, Limit: 20, Timeout: 30 * time.Second}
+	runtime.GraphPath = env("REGULAGRAPH_QUERY_GRAPH_CONFIG")
+	runtime.GraphHash = env("REGULAGRAPH_QUERY_GRAPH_CONFIG_SHA256")
+	runtime.GraphUsername = env("REGULAGRAPH_NEO4J_USERNAME")
+	runtime.GraphPassword = env("REGULAGRAPH_NEO4J_PASSWORD")
 	httpConfig := routes.EvidenceConfig{Token: env("REGULAGRAPH_API_TOKEN"), Corpus: runtime.Corpus, Profile: profile, Concurrent: 8, Timeout: runtime.Timeout}
 	if err := routes.ValidateEvidenceConfig(httpConfig); err != nil {
 		return "", runtime, httpConfig, err
