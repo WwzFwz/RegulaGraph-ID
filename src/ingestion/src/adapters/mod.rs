@@ -16,6 +16,5 @@ pub mod document_batches;
 pub mod extraction_batches;
 pub mod inference;
 pub mod native_inference;
-pub mod pdf_engine;
 pub mod storage;
 pub mod text_artifacts;

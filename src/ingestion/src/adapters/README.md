@@ -14,12 +14,18 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+Binding PDFium, lifetime halaman dan batas parsing dimiliki
+[document/parsing/pdf.rs](../document/parsing/pdf.rs). Scaffold `pdf_engine.rs`
+yang tidak memiliki implementasi maupun konsumen telah dihapus. Perubahan engine
+wajib mempertahankan error halaman, batas resource, buffer ownership dan manifest;
+benchmark parsing tetap mengikuti target required, bukan hasil yang diasumsikan.
+
 `document_batches.rs` mempertahankan vendor media type saat menulis, dan membaca
 vendor maupun alias protobuf typed DocumentBatch yang persis dari ekspor Go lama.
 Keduanya tetap memerlukan hash/schema/semantic validation yang sama; generic media
 atau typed message lain ditolak. Ini menjaga handoff source snapshot ke worker INDEX.
 
-Berkas: [document_batches.rs](document_batches.rs), [extraction_batches.rs](extraction_batches.rs), [inference.rs](inference.rs), [mod.rs](mod.rs), [pdf_engine.rs](pdf_engine.rs), [storage.rs](storage.rs), dan [text_artifacts.rs](text_artifacts.rs).
+Berkas: [document_batches.rs](document_batches.rs), [extraction_batches.rs](extraction_batches.rs), [inference.rs](inference.rs), [mod.rs](mod.rs), [storage.rs](storage.rs), dan [text_artifacts.rs](text_artifacts.rs).
 
 ## Benchmark dan perhatian performa
 
@@ -40,7 +46,7 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | [document_batches.rs](document_batches.rs) | Integrasikan dengan response worker dan pembacaan coordinator Go tanpa mengirim blob besar melalui RPC. | Uji retry/fence/cancellation, corrupted remote object, cross-language decode, payload besar, serta p95/p99 dan peak RSS. |
 | [extraction_batches.rs](extraction_batches.rs) | Hubungkan persistence EXTRACT ke worker dan coordinator tanpa mengirim payload besar melalui RPC. | Uji corruption/hash mismatch, cross-language decode, payload besar, p95/p99, dan peak RSS. |
 | [inference.rs](inference.rs) | Tambahkan smoke test proses gRPC nyata, restart gateway, dan telemetry antre/compute pada client EXTRACT aktif. | Test timeout/cancel saat RPC nyata, partial errors, dan restart gateway; verifikasi tidak ada model load per chunk. |
-| [pdf_engine.rs](pdf_engine.rs) | Bind the parser selected by M01 with explicit buffer ownership, safe page lifetimes and bounded worker concurrency. | Test malformed/encrypted/large PDFs and native error propagation; measure pages/s and RSS without copying entire corpus. |
+| [pdf.rs](../document/parsing/pdf.rs) | Pertahankan binding PDFium, buffer ownership, page lifetime dan batas concurrency pada parser aktif; bandingkan engine sebelum mengubah manifest. | Test malformed/encrypted/large PDFs and native error propagation; measure pages/s and RSS without copying entire corpus. |
 | [storage.rs](storage.rs) | Tambahkan backend object storage dengan semantik descriptor yang sama, lifecycle temporary-object, dan integrasi descriptor ke `ArtifactRef`; pertahankan publication sebagai tanggung jawab Go. | Jalankan fault injection untuk crash sebelum/sesudah rename, filesystem penuh, permission error, retry cleanup, dan durability; ukur throughput, p95/p99, fsync cost, serta peak RSS pada workload resmi. |
 | [text_artifacts.rs](text_artifacts.rs) | Integrasikan lifecycle orphan dan input worker; pertahankan hash binding raw/normalized/mapping serta status page failure. | Uji crash antar-object, retry konkuren, cleanup aman, corpus PDF nyata, throughput, p95/p99, dan peak RSS. |
 

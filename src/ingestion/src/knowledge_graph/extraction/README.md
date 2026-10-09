@@ -14,7 +14,14 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
-Berkas: [extractor.rs](extractor.rs), [mod.rs](mod.rs), [prompts.rs](prompts.rs).
+Prompt terpin berada di [configs/prompts](../../../../../configs/prompts/README.md)
+dan pemanggilan model dimiliki gateway Go; scaffold prompt Rust telah dihapus.
+[extractor.rs](extractor.rs) tetap memvalidasi output terhadap batch sumber,
+provenance serta model/prompt manifest sebelum persistence. Versioning prompt,
+perlakuan dokumen sebagai data, uji injection dan evaluasi precision/recall tetap
+wajib; validasi struktur tidak membuktikan kualitas ekstraksi model.
+
+Berkas: [extractor.rs](extractor.rs), [mod.rs](mod.rs).
 
 ## Benchmark dan perhatian performa
 
@@ -33,4 +40,4 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
 | [extractor.rs](extractor.rs) | Pertahankan validator aktif saat menambah ontology constraints dan handoff coordinator; provenance/ID tetap tidak dipercaya dari model. | Uji negation/conditions/exceptions dan unknown ontology terms, lalu ukur precision/recall pada gold set serta biaya/throughput. |
-| [prompts.rs](prompts.rs) | Version templates and structured-output instructions against the ontology; include primary spans and treat document content as data. | Test schema-invalid output and injected source instructions; record prompt hash and compare extraction quality on frozen dev splits. |
+| [Prompt terpin](../../../../../configs/prompts/README.md) | Version templates and structured-output instructions against the ontology; include primary spans and treat document content as data. | Test schema-invalid output and injected source instructions; record prompt hash and compare extraction quality on frozen dev splits. |

@@ -9,7 +9,8 @@
 //! Benchmark dan gate penerimaan:
 //! Ukur p50/p95/p99, throughput, waktu antre, serta RSS/VRAM sesuai workload. Ambang wajib ada di configs/benchmark-targets.yaml (REQUIRED_UNMEASURED); ukur cold/warm terpisah dan pertahankan kualitas sumber/versi.
 //!
-//! Status: scaffold; belum ada pipeline atau layanan yang aktif.
+//! Status: extractor memvalidasi batch EXTRACT terhadap sumber sebelum persistence.
+//! Prompt terpin berada di configs/prompts dan dieksekusi melalui gateway Go;
+//! kelulusan validator bukan bukti kualitas model atau acceptance corpus.
 
 pub mod extractor;
-pub mod prompts;

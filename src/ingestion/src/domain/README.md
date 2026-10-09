@@ -14,7 +14,15 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
-Berkas: [chunks.rs](chunks.rs), [chunk_provenance.rs](chunk_provenance.rs), [document_batch.rs](document_batch.rs), [documents.rs](documents.rs), [document_wire.rs](document_wire.rs), [entities.rs](entities.rs), [evidence.rs](evidence.rs), [mod.rs](mod.rs), [relations.rs](relations.rs), [text_artifact_wire.rs](text_artifact_wire.rs), dan [wire.rs](wire.rs).
+Scaffold tipe dokumen/entitas/evidence/relasi yang tidak memiliki perilaku telah
+dihapus. Record wire tetap berasal dari C01; [document_batch.rs](document_batch.rs)
+memvalidasi dokumen dan [chunk_provenance.rs](chunk_provenance.rs) memproyeksikan
+bukti. Transformasi entitas/relasi dimiliki [assembly](../knowledge_graph/assembly/README.md),
+sedangkan authority canonical tetap registry Go. Rekomendasi di bawah menjaga
+ID/revision, versi historis, span dan shared support pada pemilik fungsi aktual;
+penghapusan scaffold tidak menandai merge/split atau versioning lengkap selesai.
+
+Berkas: [chunks.rs](chunks.rs), [chunk_provenance.rs](chunk_provenance.rs), [document_batch.rs](document_batch.rs), [document_wire.rs](document_wire.rs), [mod.rs](mod.rs), [text_artifact_wire.rs](text_artifact_wire.rs), dan [wire.rs](wire.rs).
 
 ## Benchmark dan perhatian performa
 
@@ -38,10 +46,10 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 | [chunk_provenance.rs](chunk_provenance.rs) | Jadikan proyeksi bukti bersama untuk EXTRACT dan INDEX; perubahan aturan coverage harus diuji pada keduanya. | Uji versi bercampur artefak, raw-vs-normalized ref, struktur asing, halaman palsu, serta p95 dan peak RSS pada PDF panjang. |
 | [document_batch.rs](document_batch.rs) | Hubungkan hasil reconstruction versioning dan metadata sumber nyata, lalu ukur assembly batch besar. | Uji dependency external/incremental, adversarial reference graph, cross-language decode, batas record/edge, p95/p99, dan peak RSS. |
 | [document_wire.rs](document_wire.rs) | Hubungkan tokenizer/model manifest produksi dan locator halaman ke structure/chunk projection. | Uji golden wire lintas bahasa, missing refs, overflow, dan alokasi batch besar. |
-| [documents.rs](documents.rs) | Construct validated document/source/provision views over generated types; keep observation time separate from legal dates. | Test stable IDs, raw/normalized mappings and historical version ambiguity; avoid redundant conversion/allocation across batches. |
-| [entities.rs](entities.rs) | Expose scoped canonical identity/revision and resolution decision helpers without autonomous registry writes. | Test alias ambiguity, merge/split lineage and deterministic identity comparison; avoid redundant conversion/allocation across batches. |
-| [evidence.rs](evidence.rs) | Expose snapshot-bound evidence/path operations while retaining primary provenance. | Test corpus/version/snapshot mismatches and missing support hydration; avoid redundant conversion/allocation across batches. |
-| [relations.rs](relations.rs) | Expose assertion/support and qualifier invariants without collapsing shared evidence. | Test endpoint types, source withdrawal and negation/condition preservation; avoid redundant conversion/allocation across batches. |
+| [document_batch.rs](document_batch.rs) | Pertahankan validasi dokumen/source/provision dari generated types; observation time tetap terpisah dari tanggal berlaku. | Test stable IDs, raw/normalized mappings and historical version ambiguity; avoid redundant conversion/allocation across batches. |
+| [builder.rs](../knowledge_graph/assembly/builder.rs) | Konsumsi keputusan canonical berscope/revision dari registry; assembly tidak menetapkan merge/split atau menulis registry sendiri. | Test alias ambiguity, merge/split lineage and deterministic identity comparison; avoid redundant conversion/allocation across batches. |
+| [chunk_provenance.rs](chunk_provenance.rs) | Pertahankan source/version/span dan konteks induk untuk bukti chunk; evidence path query dimiliki runtime Go. | Test corpus/version/snapshot mismatches and missing support hydration; avoid redundant conversion/allocation across batches. |
+| [canonical.rs](../knowledge_graph/assembly/canonical.rs) | Pertahankan assertion/support identity dan qualifier tanpa menggabungkan bukti independen; uji ulang saat withdrawal berkembang. | Test endpoint types, source withdrawal and negation/condition preservation; avoid redundant conversion/allocation across batches. |
 | [text_artifact_wire.rs](text_artifact_wire.rs) | Tambahkan hasil OCR dan locator yang telah direkonsiliasi tanpa menyamarkan halaman parsial. | Uji mapping besar, mixed text/OCR, cross-language decode, hash mismatch, dan peak RSS. |
 
 ## Penambahan C01 dan panduan verifikasi
