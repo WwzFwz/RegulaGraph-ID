@@ -2,6 +2,8 @@
 // Go owns revision CAS and operation replay; every alias keeps support references and a stable
 // lookup-scope revision so RESOLVE can invalidate prior empty results. This append-only entry
 // point does not decide whether two legal entities are equivalent or rewrite prior decisions.
+// The private sourced-review path can create a checked provisional identity in
+// this transaction; the public existing-identity registration API stays unchanged.
 // Lookup scope IDs delegate to domain's length-prefixed C01 key derivation so reader and
 // artifact validator cannot drift. Measure batch p95/p99, lock wait, index growth, and false merge/split on gold; numeric targets
 // in configs/benchmark-targets.yaml remain REQUIRED_UNMEASURED.
@@ -43,16 +45,31 @@ type checkedAliasRegistration struct {
 // fails; an existing alias/profile ID cannot silently change its meaning.
 func (r *Repository) RegisterCanonicalAliases(ctx context.Context, corpusID, operationKey string,
 	expectedRevision uint64, registrations []AliasRegistration) (uint64, error) {
-	return r.registerCanonicalAliases(ctx, corpusID, operationKey, expectedRevision, registrations, nil, nil)
+	return r.registerCanonicalAliases(ctx, corpusID, operationKey, expectedRevision, registrations, nil, nil, nil)
 }
 
 // Hooks keep sourced operator review, proof revalidation and alias mutation in
 // this same transaction. The legacy internal caller remains source-compatible.
 func (r *Repository) registerCanonicalAliases(ctx context.Context, corpusID, operationKey string,
 	expectedRevision uint64, registrations []AliasRegistration,
+	creation *domain.DocumentRegistryIdentity,
 	admit func(context.Context, pgx.Tx, bool, int64) error,
 	record func(context.Context, pgx.Tx, int64) error) (uint64, error) {
-	checked, payloadHash, err := checkAliasRegistrations(corpusID, operationKey, expectedRevision, registrations)
+	profileRevision := expectedRevision
+	if creation != nil {
+		if expectedRevision == 0 || expectedRevision >= math.MaxInt64-1 || len(registrations) != 1 || admit == nil || record == nil {
+			return 0, errors.New("bounded sourced creation and transactional review required")
+		}
+		e := registrations[0].Entity
+		if e == nil || e.GetMeta().GetRecordId() != creation.CanonicalID || e.RegistryRevision != expectedRevision+1 ||
+			creation.IdentityScope != domain.ProvisionalSourceIdentityNamespace || creation.EntityType <= 3 ||
+			creation.EntityType != aliasEntityType(e.EntityType) || len(e.IdentityKeys) != 1 ||
+			e.IdentityKeys[0].Namespace != creation.IdentityScope || e.IdentityKeys[0].Value != creation.IdentityKey {
+			return 0, errors.New("provisional identity differs from checked profile")
+		}
+		profileRevision++
+	}
+	checked, payloadHash, err := checkAliasRegistrations(corpusID, operationKey, profileRevision, registrations)
 	if err != nil {
 		return 0, err
 	}
@@ -95,6 +112,13 @@ func (r *Repository) registerCanonicalAliases(ctx context.Context, corpusID, ope
 		}
 	}
 
+	if creation != nil {
+		_, err = tx.Exec(ctx, `INSERT INTO canonical_identities(corpus_id,canonical_id,entity_type,identity_scope,identity_key,valid_from_revision)
+ VALUES($1,$2,$3,$4,$5,$6)`, corpusID, creation.CanonicalID, creation.EntityType, creation.IdentityScope, creation.IdentityKey, current+1)
+		if err != nil {
+			return 0, fmt.Errorf("create provisional identity: %w", err)
+		}
+	}
 	canonicalIDs := make([]string, 0, len(checked))
 	aliasIDs := make([]string, 0, len(checked))
 	seenCanonical := map[string]bool{}
@@ -113,7 +137,7 @@ func (r *Repository) registerCanonicalAliases(ctx context.Context, corpusID, ope
 	for _, item := range checked {
 		identity, ok := identities[item.entity.Meta.RecordId]
 		if !ok || identity.fromRevision > int64(item.entity.RegistryRevision) ||
-			identity.fromRevision > current || identity.toRevision != nil && *identity.toRevision <= current ||
+			(identity.fromRevision > current && (creation == nil || item.entity.Meta.RecordId != creation.CanonicalID || identity.fromRevision != current+1)) || identity.toRevision != nil && *identity.toRevision <= current ||
 			identity.entityType != aliasEntityType(item.entity.EntityType) ||
 			!profileContainsExactIdentity(item.entity, identity) {
 			return 0, fmt.Errorf("alias canonical identity is absent, closed, or wrong-type: %w", ErrConflict)

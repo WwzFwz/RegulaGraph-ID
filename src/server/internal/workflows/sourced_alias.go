@@ -16,6 +16,8 @@ import (
 )
 
 type SourcedAliasStore interface {
+	LoadAliasRegistryRevision(context.Context, string, uint64) (uint64, error)
+	LookupCanonicalAliasesAtRevision(context.Context, string, uint64, []domain.RegistryLookupScope, int, int) ([]domain.RegistryLookupResult, uint64, error)
 	LoadArtifact(context.Context, string, string) (*pb.ArtifactRef, error)
 	LoadAliasProfile(context.Context, string, string, uint64) (*pb.CanonicalEntity, uint64, error)
 	LoadResolutionEvidenceSources(context.Context, *pb.RequestContext, []string, int) ([]*pb.ArtifactRef, error)
@@ -24,6 +26,7 @@ type SourcedAliasStore interface {
 }
 
 type SourcedAliasOptions struct {
+	CreateProvisional                                                                                    bool
 	Corpus, AuthScope, SourceArtifactID, TargetDocumentID, MentionID, CanonicalID, Scope, PreferredLabel string
 	Revision                                                                                             uint64
 	Policy                                                                                               domain.CandidatePlanningPolicy
@@ -44,7 +47,7 @@ func (v *SourcedAliasInspection) Preview() (*domain.SourcedAliasPreview, error) 
 }
 
 func InspectSourcedAlias(ctx context.Context, store SourcedAliasStore, files SemanticResolutionArtifactReader, o SourcedAliasOptions) (*SourcedAliasInspection, error) {
-	if ctx == nil || store == nil || files == nil || o.Corpus == "" || o.AuthScope == "" || o.TargetDocumentID == "" {
+	if ctx == nil || store == nil || files == nil || o.Corpus == "" || o.AuthScope == "" || (!o.CreateProvisional && o.TargetDocumentID == "") {
 		return nil, errors.New("configured source and target stores required")
 	}
 	remaining := uint64(64 << 20)
@@ -127,15 +130,24 @@ func InspectSourcedAlias(ctx context.Context, store SourcedAliasStore, files Sem
 	if err != nil {
 		return nil, err
 	}
-	targetRef, err := store.LoadArtifact(ctx, o.Corpus, o.TargetDocumentID)
-	if err != nil {
-		return nil, err
+	target := document
+	var profile *pb.CanonicalEntity
+	var revision uint64
+	if o.CreateProvisional {
+		if o.TargetDocumentID != "" || o.CanonicalID != "" {
+			return nil, errors.New("provisional mode has no existing target")
+		}
+		revision, err = store.LoadAliasRegistryRevision(ctx, o.Corpus, o.Revision)
+	} else {
+		var targetRef *pb.ArtifactRef
+		targetRef, err = store.LoadArtifact(ctx, o.Corpus, o.TargetDocumentID)
+		if err == nil {
+			target, err = read(targetRef)
+		}
+		if err == nil {
+			profile, revision, err = store.LoadAliasProfile(ctx, o.Corpus, o.CanonicalID, o.Revision)
+		}
 	}
-	target, err := read(targetRef)
-	if err != nil {
-		return nil, err
-	}
-	profile, revision, err := store.LoadAliasProfile(ctx, o.Corpus, o.CanonicalID, o.Revision)
 	if err != nil {
 		return nil, err
 	}
@@ -155,11 +167,25 @@ func InspectSourcedAlias(ctx context.Context, store SourcedAliasStore, files Sem
 			policy.IncludeSourceRegulationType[k] = v
 		}
 	}
-	in := domain.SourcedAliasInput{Corpus: o.Corpus, AuthScope: o.AuthScope, MentionID: o.MentionID, CanonicalID: o.CanonicalID, Scope: o.Scope, PreferredLabel: o.PreferredLabel,
+	in := domain.SourcedAliasInput{CreateProvisional: o.CreateProvisional, Corpus: o.Corpus, AuthScope: o.AuthScope, MentionID: o.MentionID, CanonicalID: o.CanonicalID, Scope: o.Scope, PreferredLabel: o.PreferredLabel,
 		ExpectedRevision: revision, Source: source, Document: document, TargetDocument: target, Text: text, Policy: policy, ExistingProfile: profile}
 	preview, err := domain.BuildSourcedAliasPreview(in)
 	if err != nil {
 		return nil, err
+	}
+	if o.CreateProvisional {
+		results, observed, e := store.LookupCanonicalAliasesAtRevision(ctx, o.Corpus, revision, preview.LookupScopes, len(preview.LookupScopes), 1)
+		if e != nil {
+			return nil, e
+		}
+		if observed != revision || len(results) != len(preview.LookupScopes) {
+			return nil, domain.ErrPersistentIntegrity
+		}
+		for _, result := range results {
+			if len(result.Aliases) != 0 {
+				return nil, errors.New("existing candidates require identity review before provisional creation")
+			}
+		}
 	}
 	return &SourcedAliasInspection{input: in, preview: preview}, nil
 }

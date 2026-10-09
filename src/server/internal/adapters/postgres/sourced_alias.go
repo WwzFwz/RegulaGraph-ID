@@ -1,5 +1,6 @@
 // Commits explicitly reviewed aliases using actual EXTRACT supports and existing
-// BIND identities. Source catalog, registered bytes, target keys, policy and CAS
+// BIND identities or explicit provisional occurrence allocation. Source catalog,
+// registered bytes, BIND keys, policy and CAS
 // are checked before alias/profile/review writes in one transaction. No model or
 // filesystem work occurs while locks are held. Replay verifies the immutable
 // approval as well as every alias/profile record; it never samples or reallocates.
@@ -88,12 +89,14 @@ func (r *Repository) RegisterSourcedAlias(ctx context.Context, in domain.Sourced
 		len(reason) > 1024 || !utf8.ValidString(reason) || strings.ContainsRune(reason, 0) {
 		return 0, errors.New("explicit bounded operator approval required")
 	}
-	actual, _, err := r.LoadAliasProfile(ctx, in.Corpus, in.CanonicalID, in.ExpectedRevision)
-	if err != nil {
-		return 0, err
-	}
-	if !proto.Equal(actual, in.ExistingProfile) {
-		return 0, errors.New("reviewed profile differs from historical registry")
+	if !in.CreateProvisional {
+		actual, _, err := r.LoadAliasProfile(ctx, in.Corpus, in.CanonicalID, in.ExpectedRevision)
+		if err != nil {
+			return 0, err
+		}
+		if !proto.Equal(actual, in.ExistingProfile) {
+			return 0, errors.New("reviewed profile differs from historical registry")
+		}
 	}
 	preview, err := domain.BuildSourcedAliasPreview(in)
 	if err != nil {
@@ -101,6 +104,13 @@ func (r *Repository) RegisterSourcedAlias(ctx context.Context, in domain.Sourced
 	}
 	if preview.PlanHash != planHash {
 		return 0, errors.New("alias approval differs from inspected plan")
+	}
+	canonicalID := preview.Registration.Entity.Meta.RecordId
+	var creation *domain.DocumentRegistryIdentity
+	if in.CreateProvisional {
+		e := preview.Registration.Entity
+		creation = &domain.DocumentRegistryIdentity{CanonicalID: canonicalID, EntityType: domain.CanonicalEntityTypeCode(e.EntityType),
+			IdentityScope: e.IdentityKeys[0].Namespace, IdentityKey: e.IdentityKeys[0].Value}
 	}
 	// The source's persisted ingest request must contain this policy fingerprint.
 	policyHash, err := in.Policy.Fingerprint()
@@ -153,12 +163,17 @@ func (r *Repository) RegisterSourcedAlias(ctx context.Context, in domain.Sourced
 		if e = verifyDocumentRegistryDependencies(ctx, tx, in.Corpus, preview.TargetDependencies, in.ExpectedRevision); e != nil {
 			return e
 		}
+		if !replay && in.CreateProvisional {
+			if e = verifyProvisionalEmptyScopes(ctx, tx, in.Corpus, preview.LookupScopes); e != nil {
+				return e
+			}
+		}
 		if replay {
 			var matches bool
 			e = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM sourced_alias_reviews WHERE corpus_id=$1 AND operation_key=$2
  AND plan_hash=$3 AND expected_revision=$4 AND registry_revision=$5 AND actor=$6 AND reason=$7
- AND source_artifact_id=$8 AND mention_id=$9 AND canonical_id=$10 AND alias_id=$11 AND target_artifact_id=$12 AND policy_hash=$13)`, in.Corpus, operation, planHash,
-				int64(in.ExpectedRevision), revision, actor, reason, in.Source.Ref.ArtifactId, in.MentionID, in.CanonicalID, preview.Registration.Alias.Meta.RecordId, in.TargetDocument.Ref.ArtifactId, policyHash.Sha256).Scan(&matches)
+ AND source_artifact_id=$8 AND mention_id=$9 AND canonical_id=$10 AND alias_id=$11 AND target_artifact_id=$12 AND policy_hash=$13 AND create_provisional=$14)`, in.Corpus, operation, planHash,
+				int64(in.ExpectedRevision), revision, actor, reason, in.Source.Ref.ArtifactId, in.MentionID, canonicalID, preview.Registration.Alias.Meta.RecordId, in.TargetDocument.Ref.ArtifactId, policyHash.Sha256, in.CreateProvisional).Scan(&matches)
 			if e != nil {
 				return e
 			}
@@ -170,9 +185,9 @@ func (r *Repository) RegisterSourcedAlias(ctx context.Context, in domain.Sourced
 	}
 	record := func(ctx context.Context, tx pgx.Tx, revision int64) error {
 		_, e := tx.Exec(ctx, `INSERT INTO sourced_alias_reviews(corpus_id,operation_key,plan_hash,expected_revision,registry_revision,
- actor,reason,source_artifact_id,mention_id,canonical_id,alias_id,target_artifact_id,policy_hash) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
-			in.Corpus, operation, planHash, int64(in.ExpectedRevision), revision, actor, reason, in.Source.Ref.ArtifactId, in.MentionID, in.CanonicalID, preview.Registration.Alias.Meta.RecordId, in.TargetDocument.Ref.ArtifactId, policyHash.Sha256)
+ actor,reason,source_artifact_id,mention_id,canonical_id,alias_id,target_artifact_id,policy_hash,create_provisional) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+			in.Corpus, operation, planHash, int64(in.ExpectedRevision), revision, actor, reason, in.Source.Ref.ArtifactId, in.MentionID, canonicalID, preview.Registration.Alias.Meta.RecordId, in.TargetDocument.Ref.ArtifactId, policyHash.Sha256, in.CreateProvisional)
 		return e
 	}
-	return r.registerCanonicalAliases(ctx, in.Corpus, operation, in.ExpectedRevision, []AliasRegistration{preview.Registration}, admit, record)
+	return r.registerCanonicalAliases(ctx, in.Corpus, operation, in.ExpectedRevision, []AliasRegistration{preview.Registration}, creation, admit, record)
 }
