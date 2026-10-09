@@ -1,5 +1,10 @@
 # Rencana implementasi berbasis dependency
 
+Checkpoint usage: percobaan EXTRACT lokal Qwen2.5/Qwen3 belum lolos untuk seluruh
+PDF. Dua shape diagnostik menghasilkan JSON utuh tetapi masih mempunyai masalah
+semantik/referensi. Tidak dipromosikan ke corpus. Layanan hybrid lama dipulihkan;
+[hasil dan langkah resume](verification-report-local-extraction-profiles.md).
+
 Checkpoint COMPARE evidence: PlanComparisonScopes dan RAGSession.CompareEvidence aktif sebagai library. Satu lease/factory/discovery dipakai bersama; per-date hydration/projection/reranking dan all-or-error teruji empat profil. CLI/API COMPARE evidence tersedia; sintesis komparatif belum tersedia. [Kontrak/bukti/kelanjutan](compare-evidence.md).
 
 Checkpoint temporal Q01: CURRENT eksplisit tersedia pada CLI/API bila zona operator dikonfigurasi. Session membekukan satu tanggal AS_OF; output memeriksa kesesuaian audit/tanggal jawaban. Sintesis COMPARE, classifier dan semantic expansion tetap terbuka. [Cara pakai dan bukti](current-query.md).

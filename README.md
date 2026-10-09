@@ -1,5 +1,12 @@
 # RegulaGraph-ID
 
+**Local extraction checkpoint:** additional Qwen2.5/Qwen3-4B Q4_K_M experiments
+have not yet produced a valid full-PDF extraction. Two diagnostic formats returned
+complete JSON but still had semantic or reference defects; neither was promoted.
+The existing hybrid retrieval and answer services have been restored. Draft
+quality may remain unreviewed while source/identity validation stays mandatory.
+[Results and continuation steps](doc/verification-report-local-extraction-profiles.md).
+
 **Multi-date evidence:** CLI `query-evidence -compare-dates` and HTTP `/v1/evidence` now return separate date buckets under one snapshot lease, reusing candidate discovery across dates. Each date receives temporal hydration and graph projection, plus reranking when configured in the CLI. Comparative answer synthesis remains unfinished. [Contract, evidence and next steps](doc/compare-evidence.md).
 
 **Current-date queries:** CLI `-current` and API `TEMPORAL_MODE_CURRENT` now freeze one calendar date using an explicitly configured `REGULAGRAPH_QUERY_TIME_ZONE`. The same date reaches retrieval and generation and is exposed in the output audit/headers. [Configuration and limits](doc/current-query.md). Comparative answer generation and automatic intent routing remain unfinished.

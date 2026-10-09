@@ -1,5 +1,10 @@
 # Kondisi percobaan EXTRACT dan batas kesimpulan
 
+**Pembaruan:** [checkpoint profil lokal](verification-report-local-extraction-profiles.md)
+menambahkan percobaan Qwen3-4B-Instruct-2507/Q4_K_M dan Qwen2.5 dengan offload
+GPU/CPU. Full-PDF EXTRACT tetap belum valid. Bagian di bawah merangkum rangkaian
+Qwen2.5 sebelumnya; jangan membacanya sebagai daftar seluruh model terbaru.
+
 Dokumen ini merangkum kondisi eksperimen EXTRACT yang dilaporkan pada 2026-10-09,
 agar hasil satu setup model tidak dibaca sebagai penilaian umum atas kemampuan
 GraphRAG atau seluruh implementasi RegulaGraph-ID. Ini ringkasan bukti engineering

@@ -1,6 +1,8 @@
 # Panduan melanjutkan sampai aplikasi bisa digunakan
 
-Langkah Q01 berikutnya memakai library CompareEvidence untuk transport multi-date, lalu context dan generation komparatif. Library sudah menjaga satu snapshot, pemisahan tanggal dan kegagalan atomik; endpoint belum dibuka. [Rincian dan urutan lanjut](compare-evidence.md).
+Checkpoint lokal terbaru: percobaan Qwen2.5/Qwen3 belum menghasilkan EXTRACT penuh yang valid. Toleransi kualitas draft tidak menghapus validasi sumber/identity. Layanan hybrid lama sudah dipulihkan; [hasil, artefak dan urutan resume](verification-report-local-extraction-profiles.md).
+
+COMPARE evidence sudah tersedia melalui CLI/API dengan satu snapshot, pemisahan tanggal dan kegagalan atomik. Langkah Q01 berikutnya adalah context dan generation komparatif. [Rincian dan urutan lanjut](compare-evidence.md).
 
 CURRENT kini dapat dipakai dengan REGULAGRAPH_QUERY_TIME_ZONE dan CLI -current/API mode CURRENT. Tanpa zona, gunakan AS_OF. Tidak perlu rebuild corpus; [kontrak](current-query.md) menjelaskan tanggal beku, audit dan batas tzdb. COMPARE/routing otomatis belum ditutup.
 

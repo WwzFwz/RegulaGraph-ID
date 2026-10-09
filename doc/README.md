@@ -1,5 +1,9 @@
 # doc
 
+[Checkpoint EXTRACT lokal](verification-report-local-extraction-profiles.md)
+mencatat tujuh percobaan Qwen2.5/Qwen3, batas toleransi draft, pemulihan layanan
+hybrid, dan langkah resume; belum ada graph dari full-PDF EXTRACT yang berhasil.
+
 [Fondasi COMPARE](compare-evidence.md) menjelaskan satu lease/discovery, evidence per tanggal, budget/failure gates dan transport CLI/HTTP aktif serta sintesis yang belum aktif.
 
 [Query CURRENT](current-query.md) menjelaskan zona operator, pembekuan tanggal sekali sebelum pin, audit/headers, verifikasi midnight, serta batas tzdb dan kualitas.
