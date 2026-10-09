@@ -57,6 +57,12 @@ func TestInitialServingAgainstQdrant(t *testing.T) {
 	if err = store.VerifyInitialServing(ctx, 1, 6, point); err == nil {
 		t.Fatal("future point passed serving probe")
 	}
+	if err = store.VerifyInheritedServing(ctx, 1, 8, point); err != nil {
+		t.Fatal("visible inherited point rejected", err)
+	}
+	if err = store.VerifyInheritedServing(ctx, 1, 6, point); err == nil {
+		t.Fatal("future inherited point passed serving probe")
+	}
 	if err = store.VerifyInitialServing(ctx, 2, 7, point); err == nil {
 		t.Fatal("missing point passed exact count")
 	}
@@ -70,6 +76,9 @@ func TestInitialServingAgainstQdrant(t *testing.T) {
 	}
 	if err = store.VerifyInitialServing(ctx, 1, 7, point); err == nil {
 		t.Fatal("extra point passed complete-manifest check")
+	}
+	if err = store.VerifyInheritedServing(ctx, 1, 8, point); err == nil {
+		t.Fatal("extra inherited point passed complete-manifest check")
 	}
 	if err = store.VerifyInitialServing(ctx, 2, 7, point); err != nil {
 		t.Fatal(err)

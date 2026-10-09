@@ -132,7 +132,23 @@ func readPinnedIndex(ctx context.Context, tx pgx.Tx, pin domain.SnapshotPin) (*d
 	if err != nil {
 		return nil, err
 	}
-	if binding.PublicationID != publication || binding.Fence != uint64(fence) {
+	sourceSnapshot := manifest.SnapshotRef
+	if binding.PublicationID != publication {
+		reuse, e := loadIndexReuse(ctx, tx, publication)
+		if e != nil {
+			return nil, e
+		}
+		if !equalIndexBinding(binding, reuse.Index) {
+			return nil, domain.ErrPersistentIntegrity
+		}
+		if e = validateIndexReuseManifest(reuse, manifest); e != nil {
+			return nil, e
+		}
+		if e = verifyIndexReuseOrigin(ctx, tx, reuse); e != nil {
+			return nil, e
+		}
+		sourceSnapshot = reuse.Source
+	} else if binding.Fence != uint64(fence) {
 		return nil, domain.ErrPersistentIntegrity
 	}
 	matched := false
@@ -144,7 +160,7 @@ func readPinnedIndex(ctx context.Context, tx pgx.Tx, pin domain.SnapshotPin) (*d
 	if !matched {
 		return nil, errors.New("published snapshot has no matching Qdrant generation receipt")
 	}
-	return &domain.PinnedIndex{Pin: pin, Snapshot: proto.Clone(manifest.SnapshotRef).(*pb.SnapshotRef), Binding: binding}, nil
+	return &domain.PinnedIndex{Pin: pin, Snapshot: proto.Clone(manifest.SnapshotRef).(*pb.SnapshotRef), Binding: binding, SourceSnapshot: proto.Clone(sourceSnapshot).(*pb.SnapshotRef)}, nil
 }
 
 func (r *Repository) LoadPinnedIndexRecords(ctx context.Context, pin domain.SnapshotPin, ids []string, maximumBytes uint64) ([]domain.IndexCatalogRecord, error) {

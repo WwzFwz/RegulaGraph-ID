@@ -1,8 +1,8 @@
 // Isolates final graph authority checks inside the real PostgreSQL CAS path.
-// A SYNTHETIC Qdrant receipt opens the earlier generic readiness gate, while a
-// target-only trigger aborts at the publication UPDATE after the graph guard.
-// All CAS changes roll back; this does not prove index carry-forward or successful
-// Hybrid GraphRAG activation. Native Neo4j readiness itself comes from real I/O.
+// Actual Qdrant readback/reuse opens the earlier readiness gate. A test-schema
+// trigger aborts at the publication UPDATE to isolate stale-authority rejections.
+// Successful activation is tested afterward by the native graph caller. Model
+// inputs remain synthetic; this does not prove retrieval quality or benchmarks.
 package indexing
 
 import (
@@ -12,8 +12,6 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5"
-	"google.golang.org/protobuf/proto"
-	pb "regulagraph.local/server/gen/regulagraph/v1"
 	"regulagraph.local/server/internal/adapters/neo4j"
 	"regulagraph.local/server/internal/adapters/postgres"
 	"regulagraph.local/server/internal/domain"
@@ -23,18 +21,8 @@ import (
 func checkGraphActivationAuthority(t *testing.T, ctx context.Context, repo *postgres.Repository, db *pgx.Conn, authority *postgres.GraphJobAdmission, pin domain.SnapshotPin, prepared *workflows.PreparedGraphOutputs, backend *neo4j.Store) {
 	t.Helper()
 	pub := backend.Binding().PublicationID
-	manifest, err := repo.LoadPublicationManifest(ctx, pub)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, b := range manifest.BackendGenerations {
-		if b.Backend == pb.BackendKind_BACKEND_KIND_QDRANT {
-			r := &pb.BackendReceipt{PublicationId: pub, Backend: b.Backend, Fence: manifest.Fence, Generation: b.Generation, OperationsChecksum: proto.Clone(b.OperationsChecksum).(*pb.ContentHash), Counts: proto.Clone(b.ExpectedCounts).(*pb.Counts), DurableAck: true, SearchReady: true}
-			if err = repo.RecordBackendReceipt(ctx, r); err != nil {
-				t.Fatal("synthetic receipt fixture", err)
-			}
-		}
-	}
+	checkIndexReuseReadiness(t, ctx, repo, db, authority, pin, pub)
+	var err error
 	// The schema is private to this test. No successful activation is permitted.
 	if _, err = db.Exec(ctx, `CREATE FUNCTION block_graph_activation_fixture() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'graph-guard-passed-fixture'; END $$;
  CREATE TRIGGER graph_activation_fixture BEFORE UPDATE OF state ON snapshots FOR EACH ROW WHEN (NEW.state=4) EXECUTE FUNCTION block_graph_activation_fixture()`); err != nil {
@@ -42,9 +30,6 @@ func checkGraphActivationAuthority(t *testing.T, ctx context.Context, repo *post
 	}
 	defer func() {
 		if _, e := db.Exec(ctx, `DROP TRIGGER graph_activation_fixture ON snapshots; DROP FUNCTION block_graph_activation_fixture()`); e != nil {
-			t.Error(e)
-		}
-		if _, e := db.Exec(ctx, `DELETE FROM backend_receipts WHERE publication_id=$1 AND backend=$2`, pub, int16(pb.BackendKind_BACKEND_KIND_QDRANT)); e != nil {
 			t.Error(e)
 		}
 	}()
@@ -63,6 +48,17 @@ func checkGraphActivationAuthority(t *testing.T, ctx context.Context, repo *post
 		}
 	}
 	checkPass()
+	var indexJob string
+	if err = db.QueryRow(ctx, `SELECT a.job_id FROM snapshot_index_reuse r JOIN index_job_assignments a ON a.publication_id=r.source_publication_id WHERE r.publication_id=$1 ORDER BY a.ordinal LIMIT 1`, pub).Scan(&indexJob); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = db.Exec(ctx, `UPDATE jobs SET cancellation_requested=true WHERE job_id=$1`, indexJob); err != nil {
+		t.Fatal(err)
+	}
+	checkReject()
+	if _, err = db.Exec(ctx, `UPDATE jobs SET cancellation_requested=false WHERE job_id=$1`, indexJob); err != nil {
+		t.Fatal(err)
+	}
 	assignment := prepared.Completed().Inventory.Assignments[0]
 	for _, job := range []string{assignment.JobID, assignment.SourceJobID} {
 		if _, err = db.Exec(ctx, `UPDATE jobs SET cancellation_requested=true WHERE job_id=$1`, job); err != nil {

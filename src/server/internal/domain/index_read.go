@@ -11,6 +11,19 @@ type PinnedIndex struct {
 	Pin      SnapshotPin
 	Snapshot *pb.SnapshotRef
 	Binding  IndexCatalogBinding
+	// SourceSnapshot is the immutable build/source envelope snapshot. Snapshot
+	// remains the reader's current visibility snapshot. Nil means the same one.
+	SourceSnapshot *pb.SnapshotRef
+}
+
+func (p *PinnedIndex) EvidenceSnapshot() *pb.SnapshotRef {
+	if p == nil {
+		return nil
+	}
+	if p.SourceSnapshot != nil {
+		return p.SourceSnapshot
+	}
+	return p.Snapshot
 }
 
 type IndexCatalogRecord struct {

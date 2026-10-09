@@ -382,6 +382,7 @@ func checkGraphSourceBindingReceipt(t *testing.T, ctx context.Context, repo *pos
 	}
 	if nativeRPC {
 		checkNativeGraphExecution(t, ctx, repo, conn, files, artifacts, pin, prepared, binding, input, viewBytes, ontology)
+		return // Native path now publishes the target; open-publication abort cases run in the non-native fixture.
 	} else {
 		checkGraphJobInventory(t, ctx, repo, conn, dsn, pin, prepared, binding, input, viewBytes)
 	}

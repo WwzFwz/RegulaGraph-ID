@@ -339,8 +339,8 @@ func (l *evidenceLoader) source(ctx context.Context, r *pb.IndexRecord, index *d
 		if err = domain.DecodeWire(raw, source, domain.DefaultWireLimits); err != nil {
 			return nil, err
 		}
-		if source.Meta.CorpusId != l.corpus || !proto.Equal(source.Context.SnapshotRef, plan.SourceSnapshot) || !proto.Equal(plan.SourceSnapshot, index.Snapshot) {
-			return nil, errors.New("source evidence does not belong to pinned initial snapshot")
+		if source.Meta.CorpusId != l.corpus || !proto.Equal(source.Context.SnapshotRef, plan.SourceSnapshot) || !proto.Equal(plan.SourceSnapshot, index.EvidenceSnapshot()) {
+			return nil, errors.New("source evidence differs from admitted build snapshot")
 		}
 		view, err := domain.NewIndexSourceView(source, 1_000_000)
 		if err != nil {
@@ -387,7 +387,7 @@ func (l *evidenceLoader) plan(ctx context.Context, id string, index *domain.Pinn
 	if err = domain.ValidateIndexBuildPlan(plan); err != nil {
 		return evidencePlan{}, err
 	}
-	if plan.Meta.RecordId != id || !proto.Equal(plan.Generation, index.Binding.Generation) || !proto.Equal(plan.TargetSnapshot, index.Snapshot) {
+	if plan.Meta.RecordId != id || !proto.Equal(plan.Generation, index.Binding.Generation) || !proto.Equal(plan.TargetSnapshot, index.EvidenceSnapshot()) {
 		return evidencePlan{}, errors.New("evidence build plan differs from published snapshot")
 	}
 	checked := evidencePlan{ref: proto.Clone(ref).(*pb.ArtifactRef), plan: plan, chunks: map[string]string{}}

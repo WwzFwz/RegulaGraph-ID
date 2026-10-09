@@ -1,7 +1,7 @@
 // Uses the native graph fixture to verify atomic receipt/intent/authority commit,
 // acknowledgement recovery, stale source rejection and unchanged active snapshot.
-// Qdrant carry-forward is not fabricated here. These are backend correctness tests,
-// not graph quality, latency acceptance or a complete Hybrid GraphRAG publication.
+// Qdrant reuse is verified by the final guard helper; no receipt is fabricated.
+// These are backend correctness tests, not graph quality or latency acceptance.
 package indexing
 
 import (

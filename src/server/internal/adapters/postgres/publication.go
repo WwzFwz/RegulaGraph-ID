@@ -351,6 +351,9 @@ func (r *Repository) CommitPublication(ctx context.Context, publicationID string
 	if err = verifyGraphPublication(ctx, tx, publicationID); err != nil {
 		return err
 	}
+	if err = verifyIndexReusePublication(ctx, tx, manifest); err != nil {
+		return err
+	}
 	if _, err = tx.Exec(ctx, `UPDATE snapshots SET state=$2,published_at=clock_timestamp()
       WHERE publication_id=$1`, publicationID, int16(pb.SnapshotState_SNAPSHOT_STATE_PUBLISHED)); err != nil {
 		return fmt.Errorf("mark snapshot published: %w", err)

@@ -3,7 +3,8 @@
 // Initial vectors, EXTRACT and review approvals are explicit fixtures; RESOLVE
 // commits two LINKs through the real registry before assembly of a supported edge.
 // This establishes transport, artifact admission and durable recovery, not
-// nonempty semantic graph quality, Neo4j publication or required performance.
+// required model quality or performance. With Neo4j configured the fixture now
+// publishes graph plus reused Qdrant, then verifies source hydration/cited draft.
 // Use isolated PostgreSQL/Qdrant and a dedicated shared worker artifact root.
 package indexing
 
@@ -131,7 +132,6 @@ func checkNativeGraphExecution(t *testing.T, ctx context.Context, repo *postgres
 	if err != nil || publicationInputs == nil || len(publicationInputs.Deltas()) != 1 || !proto.Equal(publicationInputs.Deltas()[0], delta) {
 		t.Fatal("prepare complete native graph for publication", err)
 	}
-	t.Run("Neo4j actual Rust output", func(t *testing.T) { checkNativeGraphNeo4j(t, ctx, repo, db, admitted, pin, publicationInputs) })
 	if committed, e := admitted.GraphCheckpointCommitted(ctx, response.Checkpoint); e != nil || !committed {
 		t.Fatal("native graph checkpoint not committed", e)
 	}
@@ -155,7 +155,8 @@ func checkNativeGraphExecution(t *testing.T, ctx context.Context, repo *postgres
 	if err = publicationInputs.Revalidate(ctx, admitted, pin); err == nil {
 		t.Fatal("prepared publication ignored replaced checkpoint after recovery")
 	}
-	if _, err = workflows.PrepareCompletedGraph(ctx, admitted, files, pin, ontology); err != nil {
+	publicationInputs, err = workflows.PrepareCompletedGraph(ctx, admitted, files, pin, ontology)
+	if err != nil {
 		t.Fatal("recovered graph cannot be prepared afresh", err)
 	}
 	var pinsAfter, checkpoints int
@@ -169,4 +170,7 @@ func checkNativeGraphExecution(t *testing.T, ctx context.Context, repo *postgres
 		t.Fatal("completed graph job became claimable", err)
 	}
 	t.Logf("actual Rust RPC=%d; output=%s; original fence=%d; recovered fence=%d; historical checkpoints=%d", rpc.calls, response.GraphDelta.ArtifactId, job.LeaseFence, reclaimed.LeaseFence, checkpoints)
+	t.Run("Neo4j actual Rust output", func(t *testing.T) {
+		checkNativeGraphNeo4j(t, ctx, repo, db, admitted, pin, publicationInputs, artifacts)
+	})
 }

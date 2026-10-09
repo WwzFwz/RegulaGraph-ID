@@ -1,7 +1,8 @@
 // Extends the real Rust/PG graph pipeline to actual Neo4j writes and readback.
 // Output bytes were already admitted by the production coordinator; this helper
-// tests backend projection interoperability, not PostgreSQL publication or graph
-// retrieval. It uses a dedicated corpus/generation and deletes only its own data.
+// tests projection, receipts, actual publication and unchanged-index hydration.
+// Graph traversal and model quality remain outside this fixture. It uses a
+// dedicated corpus/generation and deletes only its own data after query checks.
 // A missing Neo4j test URI skips this subtest explicitly, not the RPC/PG test.
 package indexing
 
@@ -22,7 +23,7 @@ import (
 	"regulagraph.local/server/internal/workflows"
 )
 
-func checkNativeGraphNeo4j(t *testing.T, ctx context.Context, repo *postgres.Repository, db *pgx.Conn, authority *postgres.GraphJobAdmission, pin domain.SnapshotPin, prepared *workflows.PreparedGraphOutputs) {
+func checkNativeGraphNeo4j(t *testing.T, ctx context.Context, repo *postgres.Repository, db *pgx.Conn, authority *postgres.GraphJobAdmission, pin domain.SnapshotPin, prepared *workflows.PreparedGraphOutputs, artifacts indexMemoryArtifacts) {
 	t.Helper()
 	plan, delta := prepared.Completed().Inventory.Assignments[0].Plan, prepared.Deltas()[0]
 	uri := os.Getenv("REGULAGRAPH_TEST_NEO4J_URI")
@@ -79,6 +80,14 @@ func checkNativeGraphNeo4j(t *testing.T, ctx context.Context, repo *postgres.Rep
 			t.Error(e)
 			return
 		}
+		var state int16
+		if e = db.QueryRow(cleanup, `SELECT state FROM snapshots WHERE publication_id=$1`, binding.PublicationID).Scan(&state); e != nil {
+			t.Error(e)
+			return
+		}
+		if state == int16(pb.SnapshotState_SNAPSHOT_STATE_PUBLISHED) {
+			return
+		} // isolated fixture database is dropped after query checks
 		if e = repo.RecordPublicationOperation(cleanup, binding.PublicationID, pb.BackendKind_BACKEND_KIND_NEO4J, postgres.GraphWriteOperation(binding.PublicationID), catalog.OperationsHash, "compensated", binding.Fence); e != nil {
 			t.Error("fixture compensation ledger", e)
 		}
@@ -88,5 +97,6 @@ func checkNativeGraphNeo4j(t *testing.T, ctx context.Context, repo *postgres.Rep
 	if err != nil || proof.Records != expected || proof.Edges != 5 || proof.Operations != 1 {
 		t.Fatal("actual Rust delta Neo4j readback", proof, err)
 	}
-	t.Log(fmt.Sprintf("actual Rust -> PostgreSQL STAGED -> Neo4j verified: records=%d, edges=%d; PostgreSQL publication still separate", proof.Records, proof.Edges))
+	checkReusedGraphPublication(t, ctx, repo, db, pin, binding.PublicationID, artifacts, plan.ProducerManifest)
+	t.Log(fmt.Sprintf("actual Rust -> PostgreSQL STAGED -> Neo4j/Qdrant receipt -> published snapshot -> cited draft: records=%d, edges=%d", proof.Records, proof.Edges))
 }

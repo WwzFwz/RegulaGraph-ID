@@ -23,6 +23,16 @@ func (store *Store) Endpoint() string {
 }
 
 func (store *Store) VerifyInitialServing(ctx context.Context, count uint64, sequence uint64, probe Point) error {
+	return store.verifyServing(ctx, count, sequence, probe, true)
+}
+
+// VerifyInheritedServing refreshes an existing route without bootstrap or writes.
+// Full exact point readback is a caller prerequisite; a count/probe is insufficient.
+func (store *Store) VerifyInheritedServing(ctx context.Context, count uint64, sequence uint64, probe Point) error {
+	return store.verifyServing(ctx, count, sequence, probe, false)
+}
+
+func (store *Store) verifyServing(ctx context.Context, count uint64, sequence uint64, probe Point, initial bool) error {
 	if err := store.requireReady(); err != nil {
 		return err
 	}
@@ -35,12 +45,16 @@ func (store *Store) VerifyInitialServing(ctx context.Context, count uint64, sequ
 	if _, err := store.projectPoint(probe); err != nil {
 		return err
 	}
-	if probe.Record.Meta.Visibility.FromSeq != sequence || probe.Record.Meta.Visibility.ToSeq != nil {
+	if probe.Record.Meta.Visibility.FromSeq > sequence || initial && probe.Record.Meta.Visibility.FromSeq != sequence || probe.Record.Meta.Visibility.ToSeq != nil {
 		return errors.New("initial readiness probe must start at the target with open visibility")
 	}
 	// Refresh physical layout and payload-index checks; cached bootstrap success
 	// does not prove that an operator has not changed the collection meanwhile.
-	if err := store.EnsureCollection(ctx); err != nil {
+	if initial {
+		if err := store.EnsureCollection(ctx); err != nil {
+			return err
+		}
+	} else if err := store.OpenExistingCollection(ctx); err != nil {
 		return err
 	}
 	var info struct {
