@@ -100,3 +100,40 @@ func TestProvisionalAliasCommandSelection(t *testing.T) {
 		})
 	}
 }
+
+func TestExistingProvisionalAliasCommand(t *testing.T) {
+	base := []string{"-target-provisional", "-source", "artifact:new", "-mention", "mention:new", "-canonical", "canonical:existing", "-scope", "ID:national", "-label", "Original label"}
+	for _, mode := range []string{"inspect", "accept", "missing-canonical", "target-document", "create", "missing-approval"} {
+		t.Run(mode, func(t *testing.T) {
+			args := append([]string(nil), base...)
+			switch mode {
+			case "accept":
+				args = append(args, "-action", "accept", "-expected-revision", "5", "-operation", "alias:new", "-plan-sha256", strings.Repeat("a", 64), "-reason", "reviewed both sources")
+			case "missing-canonical":
+				args = append(args, "-canonical", "")
+			case "target-document":
+				args = append(args, "-target-document", "artifact:document")
+			case "create":
+				args = append(args, "-create-provisional")
+			case "missing-approval":
+				args = append(args, "-action", "accept")
+			}
+			var out, errOut bytes.Buffer
+			calls := 0
+			code := runSourcedAliasWith(context.Background(), args, &out, &errOut, func(ctx context.Context, o sourcedAliasOptions) (any, error) {
+				calls++
+				if !o.TargetProvisional || o.CreateProvisional || o.Canonical != "canonical:existing" || o.TargetDocument != "" {
+					t.Fatal("target mode lost")
+				}
+				return map[string]any{"status": "fixture"}, nil
+			})
+			if mode == "inspect" || mode == "accept" {
+				if code != 0 || calls != 1 {
+					t.Fatal(code, calls, errOut.String())
+				}
+			} else if code != 2 || calls != 0 {
+				t.Fatal("invalid selection reached execution", code, calls)
+			}
+		})
+	}
+}
