@@ -57,7 +57,7 @@ func checkGraphSourceBindingReceipt(t *testing.T, ctx context.Context, repo *pos
 	hash := &pb.ContentHash{Sha256: strings.Repeat("a", 64)}
 	model := &pb.ModelManifest{ModelId: "model:extract-fixture", Version: "1", Task: pb.ModelTask_MODEL_TASK_EXTRACT,
 		WeightsHash: hash, TokenizerHash: hash, PromptHash: hash, MaxTokens: 128, Precision: "fp32", Backend: "fixture"}
-	producer := &pb.ProducerManifest{Software: "fixture", Build: "1", SchemaVersion: 1, Models: []*pb.ModelManifest{model}, PromptHashes: []*pb.ContentHash{hash}, ConfigHash: hash}
+	producer := &pb.ProducerManifest{Software: "fixture", Build: "1", SchemaVersion: 1, Models: []*pb.ModelManifest{model}, PromptHashes: []*pb.ContentHash{hash}, InputHashes: []*pb.ContentHash{hash}, ConfigHash: hash}
 	extraction := &pb.ExtractionBatch{Meta: &pb.RecordMeta{SchemaVersion: 1, CorpusId: corpus, RecordId: "extract:empty-for-binding"},
 		Context: proto.Clone(original.Context).(*pb.RequestContext), SourceDocumentBatch: sourceBinding.Original,
 		Dependencies: &pb.DependencyManifest{ArtifactId: "dependencies:empty-extract", ProducerManifest: producer,
@@ -287,6 +287,52 @@ func checkGraphSourceBindingReceipt(t *testing.T, ctx context.Context, repo *pos
 		t.Fatal("single-connection replay", err)
 	}
 	reopened.Close()
+	artifacts[boundE.Reference.ArtifactId], artifacts[boundR.Reference.ArtifactId] = boundE.Bytes, boundR.Bytes
+	assemblyConfig := workflows.GraphAssemblyPreparationConfig{CorpusID: corpus, PublicationID: target.PublicationID,
+		SourceJobID: job, Producer: &pb.ProducerManifest{Software: "graph-assembly", Build: "fixture", SchemaVersion: 1, ConfigHash: hash},
+		OntologyHash: hash, MaximumReferences: 4096, MaximumCandidates: 32}
+	prepared, err := workflows.PrepareGraphAssembly(ctx, repo, artifacts, files, pin, assemblyConfig)
+	if err != nil {
+		t.Fatal("prepare graph plan", err)
+	}
+	wrongOntology := assemblyConfig
+	wrongOntology.OntologyHash = &pb.ContentHash{Sha256: strings.Repeat("b", 64)}
+	if _, err = workflows.PrepareGraphAssembly(ctx, repo, artifacts, files, pin, wrongOntology); err == nil {
+		t.Fatal("ontology differs from EXTRACT producer but plan accepted")
+	}
+	replayedPlan, err := workflows.PrepareGraphAssembly(ctx, repo, artifacts, files, pin, assemblyConfig)
+	if err != nil || !proto.Equal(prepared.Plan, replayedPlan.Plan) || !proto.Equal(prepared.Reference, replayedPlan.Reference) {
+		t.Fatalf("graph preparation replay differs: %v", err)
+	}
+	planBytes, err := files.ReadVerified(ctx, prepared.Reference, uint64(domain.DefaultWireLimits.MaxBytes))
+	if err != nil {
+		t.Fatal(err)
+	}
+	readPlan := new(pb.GraphAssemblyPlan)
+	if err = domain.DecodeWire(planBytes, readPlan, domain.DefaultWireLimits); err != nil || !proto.Equal(readPlan, prepared.Plan) {
+		t.Fatalf("persisted ASSEMBLE plan drift: %v", err)
+	}
+	viewBytes, err := files.ReadVerified(ctx, readPlan.RegistryView, uint64(domain.DefaultWireLimits.MaxBytes))
+	if err != nil {
+		t.Fatal(err)
+	}
+	readView := new(pb.RegistryEntityView)
+	if err = domain.DecodeWire(viewBytes, readView, domain.DefaultWireLimits); err != nil || len(readView.Entities) != 0 || domain.ValidateAssemblyRegistryBinding(readPlan, readView) != nil {
+		t.Fatalf("persisted ASSEMBLE canonical view drift: %v", err)
+	}
+	cancelling := graphPreparationCancelledStore{Repository: repo, cancel: func() error {
+		_, e := conn.Exec(ctx, `UPDATE jobs SET cancellation_requested=true WHERE job_id=$1`, job)
+		return e
+	}}
+	if _, err = workflows.PrepareGraphAssembly(ctx, cancelling, artifacts, files, pin, assemblyConfig); err == nil {
+		t.Fatal("source cancelled after artifact writes still returned prepared graph plan")
+	}
+	if _, err = conn.Exec(ctx, `UPDATE jobs SET cancellation_requested=false WHERE job_id=$1`, job); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = workflows.PrepareGraphAssembly(ctx, repo, artifacts, files, pin, assemblyConfig); err != nil {
+		t.Fatal("replay after late cancellation", err)
+	}
 	checkpoint("checkpoint:graph-binding-new")
 	changed := binding
 	changed.SourceCheckpointID = "checkpoint:graph-binding-new"
@@ -315,6 +361,21 @@ func checkGraphSourceBindingReceipt(t *testing.T, ctx context.Context, repo *pos
 
 var errGraphReceiptInterrupted = errors.New("fixture interruption before receipt commit")
 var errGraphReceiptLostAck = errors.New("fixture lost acknowledgement after receipt commit")
+
+type graphPreparationCancelledStore struct {
+	*postgres.Repository
+	cancel func() error
+}
+
+func (s graphPreparationCancelledStore) EnsureArtifactDependencyManifest(ctx context.Context, corpus, id string, manifest *pb.DependencyManifest) error {
+	if err := s.Repository.EnsureArtifactDependencyManifest(ctx, corpus, id, manifest); err != nil {
+		return err
+	}
+	if strings.HasPrefix(id, "plan:assembly:") {
+		return s.cancel()
+	}
+	return nil
+}
 
 type interruptedGraphSourceReceipt struct {
 	*postgres.Repository
