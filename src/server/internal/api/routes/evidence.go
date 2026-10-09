@@ -19,6 +19,7 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 	pb "regulagraph.local/server/gen/regulagraph/v1"
+	"regulagraph.local/server/internal/api/schemas"
 	"regulagraph.local/server/internal/domain"
 	"regulagraph.local/server/internal/retrieval/query"
 	"regulagraph.local/server/internal/workflows"
@@ -183,7 +184,7 @@ func (h *Evidence) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		evidenceError(w, 403, "corpus_not_authorized")
 		return
 	}
-	if request.RequestedProfile != h.config.Profile || request.ResponseMode != pb.ResponseMode_RESPONSE_MODE_COMPLETE || request.TemporalScope == nil || !supportedTemporalRequest(request.TemporalScope, h.config.TimeZone != "") {
+	if request.RequestedProfile != h.config.Profile || request.ResponseMode != pb.ResponseMode_RESPONSE_MODE_COMPLETE || request.TemporalScope == nil || !supportedTemporalRequest(request.TemporalScope, h.config.TimeZone != "", !answer) {
 		evidenceError(w, 400, "unsupported_query_mode")
 		return
 	}
@@ -206,7 +207,22 @@ func (h *Evidence) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		evidenceError(w, 504, "deadline_exceeded")
 		return
 	}
-	if run == nil || writeTemporalHeaders(w, request, run, h.config.TimeZone) != nil {
+	if request.TemporalScope.Mode == pb.TemporalMode_TEMPORAL_MODE_COMPARE {
+		encoded, err := schemas.MarshalEvidenceComparison(request, run, false)
+		if err != nil {
+			evidenceError(w, 502, "invalid_workflow_output")
+			return
+		}
+		if ctx.Err() != nil {
+			evidenceError(w, 504, "deadline_exceeded")
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Snapshot-ID", run.Comparison.Snapshot.SnapshotId)
+		_, _ = w.Write(encoded)
+		return
+	}
+	if run == nil || run.Comparison != nil || writeTemporalHeaders(w, request, run, h.config.TimeZone) != nil {
 		evidenceError(w, 502, "invalid_workflow_output")
 		return
 	}

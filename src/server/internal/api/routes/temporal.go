@@ -14,7 +14,11 @@ import (
 	"regulagraph.local/server/internal/workflows"
 )
 
-func supportedTemporalRequest(scope *pb.TemporalScope, current bool) bool {
+func supportedTemporalRequest(scope *pb.TemporalScope, current, compare bool) bool {
+	if compare && scope.GetMode() == pb.TemporalMode_TEMPORAL_MODE_COMPARE {
+		_, err := query.PlanComparisonScopes(scope)
+		return err == nil
+	}
 	if scope == nil || len(scope.CompareDates) != 0 {
 		return false
 	}

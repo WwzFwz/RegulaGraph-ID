@@ -38,6 +38,7 @@ import (
 	"regulagraph.local/server/internal/adapters/neo4j"
 	"regulagraph.local/server/internal/adapters/postgres"
 	"regulagraph.local/server/internal/adapters/storage"
+	"regulagraph.local/server/internal/api/schemas"
 	"regulagraph.local/server/internal/config"
 	"regulagraph.local/server/internal/domain"
 	"regulagraph.local/server/internal/retrieval"
@@ -46,6 +47,7 @@ import (
 )
 
 type queryOptions struct {
+	CompareDates                                                 string
 	Current                                                      bool
 	TimeZone                                                     string
 	Normalization                                                query.NormalizationMode
@@ -71,6 +73,7 @@ func runQueryEvidenceWith(ctx context.Context, args []string, out, errOut io.Wri
 	opts := queryOptions{}
 	fs.StringVar(&opts.Question, "question", "", "Regulatory question (UTF-8)")
 	fs.StringVar(&opts.AsOf, "as-of", "", "Legal date YYYY-MM-DD; mutually exclusive with -current")
+	fs.StringVar(&opts.CompareDates, "compare-dates", "", "2..8 distinct YYYY-MM-DD dates separated by commas; evidence only; exclusive with -as-of/-current")
 	fs.BoolVar(&opts.Current, "current", false, "Use today in explicitly configured REGULAGRAPH_QUERY_TIME_ZONE")
 	fs.StringVar(&opts.Profile, "profile", "", "Required: vector, hybrid, graph or hybrid-graph; no implicit fallback")
 	fs.StringVar(&opts.Unresolved, "unresolved", "report", "report, exclude or review")
@@ -115,7 +118,7 @@ func runQueryEvidenceWith(ctx context.Context, args []string, out, errOut io.Wri
 	}
 	request, err := prepareEvidenceQuestion(opts)
 	if err != nil || fs.NArg() != 0 {
-		fmt.Fprintln(errOut, "Invalid query configuration: require question, AS_OF date or configured CURRENT, supported profile, bounded limits, corpus/build/storage and profile-specific dependencies")
+		fmt.Fprintln(errOut, "Invalid query configuration: require question, AS_OF date, configured CURRENT or explicit COMPARE dates, supported profile, bounded limits, corpus/build/storage and profile-specific dependencies")
 		return 2
 	}
 	if opts.graphPath != "" {
@@ -150,7 +153,19 @@ func runQueryEvidenceWith(ctx context.Context, args []string, out, errOut io.Wri
 		fmt.Fprintln(errOut, "Evidence query failed; check published snapshot, model/generation readiness and source integrity")
 		return 1
 	}
-	if bounded.Err() != nil || result == nil || result.Evidence == nil || (!opts.Answer && result.Answer != nil) || (opts.Answer && result.Answer == nil) {
+	if request.TemporalScope.Mode == pb.TemporalMode_TEMPORAL_MODE_COMPARE {
+		encoded, err := schemas.MarshalEvidenceComparison(request, result, opts.rerankManifest != "")
+		if err != nil || bounded.Err() != nil {
+			fmt.Fprintln(errOut, "Comparison output validation failed or query expired")
+			return 1
+		}
+		if _, err = out.Write(append(encoded, '\n')); err != nil {
+			fmt.Fprintln(errOut, "Comparison output write failed")
+			return 1
+		}
+		return 0
+	}
+	if bounded.Err() != nil || result == nil || result.Comparison != nil || result.Evidence == nil || (!opts.Answer && result.Answer != nil) || (opts.Answer && result.Answer == nil) {
 		fmt.Fprintln(errOut, "Evidence query returned an invalid or expired result")
 		return 1
 	}
@@ -271,8 +286,11 @@ func prepareEvidenceQuestion(o queryOptions) (*pb.QuestionRequest, error) {
 	if o.Current && (o.AsOf != "" || zone == nil) {
 		return nil, errors.New("-current requires an explicit query time zone and no -as-of")
 	}
+	if o.CompareDates != "" && (o.AsOf != "" || o.Current || o.Answer || len(o.CompareDates) > 256) {
+		return nil, errors.New("comparison requires exclusive dates and evidence-only output")
+	}
 	var d time.Time
-	if !o.Current {
+	if !o.Current && o.CompareDates == "" {
 		d, err = time.Parse("2006-01-02", o.AsOf)
 		if err != nil {
 			return nil, err
@@ -287,6 +305,24 @@ func prepareEvidenceQuestion(o queryOptions) (*pb.QuestionRequest, error) {
 	if o.Current {
 		r.TemporalScope.Mode = pb.TemporalMode_TEMPORAL_MODE_CURRENT
 		r.TemporalScope.EffectiveAt = nil
+	}
+	if o.CompareDates != "" {
+		parts := strings.Split(o.CompareDates, ",")
+		if len(parts) < 2 || len(parts) > query.MaximumComparisonDates {
+			return nil, errors.New("comparison requires 2..8 dates")
+		}
+		r.TemporalScope.Mode = pb.TemporalMode_TEMPORAL_MODE_COMPARE
+		r.TemporalScope.EffectiveAt = nil
+		for _, part := range parts {
+			date, err := time.Parse("2006-01-02", strings.TrimSpace(part))
+			if err != nil {
+				return nil, err
+			}
+			r.TemporalScope.CompareDates = append(r.TemporalScope.CompareDates, &pb.CalendarDate{Year: int32(date.Year()), Month: uint32(date.Month()), Day: uint32(date.Day())})
+		}
+		if _, err := query.PlanComparisonScopes(r.TemporalScope); err != nil {
+			return nil, err
+		}
 	}
 	if o.Snapshot != "" {
 		r.SnapshotId = proto.String(o.Snapshot)
@@ -425,6 +461,13 @@ func executeEvidenceQuery(ctx context.Context, o queryOptions, request *pb.Quest
 	}}
 	if o.Answer {
 		return session.AnswerQuestion(ctx, request, call)
+	}
+	if request.GetTemporalScope().GetMode() == pb.TemporalMode_TEMPORAL_MODE_COMPARE {
+		comparison, err := session.CompareEvidence(ctx, request, call)
+		if err != nil {
+			return nil, err
+		}
+		return &workflows.RAGResult{Comparison: comparison}, nil
 	}
 	return session.SearchQuestion(ctx, request, call)
 }

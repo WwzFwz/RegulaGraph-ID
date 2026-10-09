@@ -349,6 +349,13 @@ func (r *EvidenceRuntime) query(ctx context.Context, question *pb.QuestionReques
 	if answer {
 		return session.AnswerQuestion(ctx, question, call)
 	}
+	if question.GetTemporalScope().GetMode() == pb.TemporalMode_TEMPORAL_MODE_COMPARE {
+		comparison, err := session.CompareEvidence(ctx, question, call)
+		if err != nil {
+			return nil, err
+		}
+		return &workflows.RAGResult{Comparison: comparison}, nil
+	}
 	return session.SearchQuestion(ctx, question, call)
 }
 

@@ -51,7 +51,7 @@ func answerRequest() *http.Request {
 }
 
 func TestAnswerOutputAdmission(t *testing.T) {
-	for _, mode := range []string{"success", "error", "nil", "missing draft", "foreign corpus", "foreign snapshot", "promoted", "date", "deadline", "cancelled"} {
+	for _, mode := range []string{"success", "error", "nil", "missing draft", "mixed output", "foreign corpus", "foreign snapshot", "promoted", "date", "deadline", "cancelled"} {
 		t.Run(mode, func(t *testing.T) {
 			f := &answerFake{evidenceFake: &evidenceFake{search: func(context.Context) (*pb.EvidenceBundle, error) {
 				t.Fatal("answer fell back to search")
@@ -64,6 +64,8 @@ func TestAnswerOutputAdmission(t *testing.T) {
 					return nil, errors.New("secret model path and key")
 				case "nil":
 					return nil, nil
+				case "mixed output":
+					r.Comparison = &workflows.RAGComparisonResult{}
 				case "missing draft":
 					r.Answer = nil
 				case "foreign corpus":

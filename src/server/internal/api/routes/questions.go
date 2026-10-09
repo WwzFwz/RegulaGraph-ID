@@ -75,7 +75,7 @@ func (h *Evidence) serveAnswer(ctx context.Context, w http.ResponseWriter, reque
 }
 
 func encodeAnswerDraft(request *pb.QuestionRequest, result *workflows.RAGResult) ([]byte, error) {
-	if result == nil || result.Evidence == nil || result.Answer == nil || result.Answer.Draft == nil || result.Answer.Draft.Answer == nil {
+	if result == nil || result.Comparison != nil || result.Evidence == nil || result.Answer == nil || result.Answer.Draft == nil || result.Answer.Draft.Answer == nil {
 		return nil, errors.New("missing answer draft")
 	}
 	b, draft := result.Evidence, result.Answer.Draft
