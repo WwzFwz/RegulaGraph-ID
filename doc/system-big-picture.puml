@@ -1,7 +1,7 @@
 ' Big-picture ingestion and query flow for README; render to SVG with PlantUML.
 ' Arrows describe logical data flow; notes distinguish implemented paths from planned automation.
 @startuml
-title RegulaGraph-ID - Gambaran Besar Sistem
+title RegulaGraph-ID - System Overview
 top to bottom direction
 skinparam linetype ortho
 skinparam backgroundColor white
@@ -14,17 +14,17 @@ skinparam rectangleBackgroundColor #F1F5FA
 skinparam rectangleBorderColor #375575
 skinparam ArrowColor #375575
 
-package "1. Menyiapkan corpus (offline / batch)" {
-  rectangle "Regulasi Indonesia\nPDF + metadata sumber resmi" as Sources
-  rectangle "Document Processing\nparse, normalisasi, struktur, binding versi" as Process
-  rectangle "Structural Chunking\nchunk + konteks induk + span sumber" as Chunk
-  rectangle "Entity & Relation Extraction\nLLM + validasi ontology / bukti" as Extract
-  rectangle "Entity Resolution\ncanonical identity + review keputusan" as Resolve
-  rectangle "Graph Assembly\nfakta tervalidasi + provenance" as Assemble
+package "1. Corpus Preparation (offline / batch)" {
+  rectangle "Indonesian Regulations\nPDFs + official source metadata" as Sources
+  rectangle "Document Processing\nparse, normalize, structure, version binding" as Process
+  rectangle "Structural Chunking\nchunks + parent context + source spans" as Chunk
+  rectangle "Entity & Relation Extraction\nLLM + ontology / evidence validation" as Extract
+  rectangle "Entity Resolution\ncanonical identity + decision review" as Resolve
+  rectangle "Graph Assembly\nvalidated facts + provenance" as Assemble
   rectangle "Index Building\nBM25 + dense embeddings" as Index
-  rectangle "Publication\nverifikasi output + aktifkan snapshot konsisten" as Publish
-  database "Qdrant\nindeks lexical + vector" as Qdrant
-  database "Neo4j\nknowledge graph + dukungan sumber" as Neo4j
+  rectangle "Publication\nverify outputs + activate a consistent snapshot" as Publish
+  database "Qdrant\nlexical + vector indexes" as Qdrant
+  database "Neo4j\nknowledge graph + source support" as Neo4j
   Sources --> Process
   Process --> Chunk
   Chunk --> Extract
@@ -37,19 +37,19 @@ package "1. Menyiapkan corpus (offline / batch)" {
   Publish --> Neo4j
 }
 
-package "2. Menjawab pertanyaan (online)" {
-  rectangle "User Question\npertanyaan + scope / tanggal" as Question
-  rectangle "Query Preparation\nnormalisasi + entity linking + pin snapshot" as Prepare
-  rectangle "Retrieval Routing\nprofil eksplisit saat ini" as Route
+package "2. Answering Questions (online)" {
+  rectangle "User Question\nquestion + scope / date" as Question
+  rectangle "Query Preparation\nnormalize + entity linking + snapshot pinning" as Prepare
+  rectangle "Retrieval Routing\nexplicit profile selection today" as Route
   rectangle "BM25 Retrieval" as BM25
   rectangle "Dense Retrieval" as Dense
   rectangle "Graph Retrieval" as Graph
-  rectangle "Filter + Retrieval Fusion\nversi / scope, dedup, RRF" as Fusion
-  rectangle "Hydrate + Reranker\nambil teks sumber; reranking opsional" as Rerank
+  rectangle "Filter + Retrieval Fusion\nversion / scope, deduplication, RRF" as Fusion
+  rectangle "Hydrate + Reranker\nfetch source text; optional reranking" as Rerank
   rectangle "Context Builder\nevidence + parent context + token budget" as Context
   rectangle "LLM Generation" as Generate
-  rectangle "Validate Evidence & Citations\nperiksa referensi dan dukungan yang tersedia" as Validate
-  rectangle "Draft Answer / Partial / Abstain\ncitations + evidence + graph paths jika tersedia" as Answer
+  rectangle "Validate Evidence & Citations\ncheck references and available support" as Validate
+  rectangle "Draft Answer / Partial / Abstain\ncitations + evidence + available graph paths" as Answer
   Question --> Prepare
   Prepare --> Route
   Route --> BM25
@@ -64,18 +64,18 @@ package "2. Menjawab pertanyaan (online)" {
   Generate --> Validate
   Validate --> Answer
   note right of Route
-    Rencana lanjutan:
-    klasifikasi query adaptif dan
-    retrieve-again otomatis.
-    Cabang aktif mengikuti profil.
+    Planned:
+    adaptive query classification and
+    automatic retrieval retries.
+    Active branches follow the profile.
   end note
 }
 
 Qdrant -[hidden]down-> Question
 Neo4j -[hidden]down-> Question
 legend bottom
-  Retrieval membaca indeks dan graph pada snapshot terpublikasi yang sama.
-  Workflow Go mengatur urutan; Rust memproses batch; C++ menjalankan embedding/reranking.
-  Diagram menunjukkan arsitektur; acceptance kualitas dan performa belum dinyatakan lulus.
+  Retrieval reads indexes and graph from the same published snapshot.
+  Go orchestrates workflows; Rust processes batches; C++ runs embedding/reranking.
+  Architecture view; quality and performance acceptance have not passed yet.
 endlegend
 @enduml

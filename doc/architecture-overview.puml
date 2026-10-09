@@ -3,27 +3,27 @@
 @startuml
 skinparam linetype ortho
 skinparam backgroundColor white
-title RegulaGraph-ID - ingestion dan query bersnapshot
+title RegulaGraph-ID - Ingestion and Snapshot-Based Queries
 left to right direction
 skinparam componentStyle rectangle
 skinparam shadowing false
 skinparam nodesep 65
 skinparam ranksep 80
 actor "Operator" as Operator
-actor "Pengguna" as User
-cloud "BPK / JDIH Kemkomdigi / JDIHN\n(coverage connector berbeda)" as Sources
-database "FileStore\nPDF, teks, batch immutable" as Files
+actor "User" as User
+cloud "BPK / JDIH Kemkomdigi / JDIHN\n(connector coverage varies)" as Sources
+database "FileStore\nPDFs, text, immutable batches" as Files
 database "PostgreSQL\njobs, registry, ledger, snapshot" as PG
 database "Qdrant\ndense + sparse BM25" as QD
 database "Neo4j\nentity, relation, source support" as Neo
-component "LLM lokal/provider terpin" as LLM
+component "Pinned local / provider LLM" as LLM
 package "Go - src/server" {
   component "Collector + import" as Collect
-  component "Coordinator ingestion\ncheckpoint, BIND, review RESOLVE" as Coord
-  component "Semantic gateway\nEXTRACT / proposal RESOLVE" as Semantic
+  component "Ingestion coordinator\ncheckpoints, BIND, RESOLVE review" as Coord
+  component "Semantic gateway\nEXTRACT / RESOLVE proposals" as Semantic
   component "Publication\nadmission, readback, receipts, CAS" as Publish
   component "API / CLI" as API
-  component "Workflow query\nnormalize, link, pin snapshot" as Query
+  component "Query workflow\nnormalize, link, pin snapshot" as Query
   component "Retrieval\nBM25 / dense / graph, filter, RRF" as Retrieve
   component "Answering\nhydrate, context, draft, citations" as Answer
 }
@@ -33,7 +33,7 @@ package "Rust - src/ingestion" {
   component "Batch builders\nINDEX / ASSEMBLE" as Builders
 }
 component "C++ - src/inference\nONNX embedding + reranking\nreusable models, bounded queues" as Native
-component "Python offline\ntooling + evaluation" as Offline
+component "Offline Python\ntooling + evaluation" as Offline
 Operator --> Collect
 Sources --> Collect
 Collect --> Files
@@ -67,13 +67,13 @@ API --> User
 Offline ..> Files
 Offline ..> API
 note bottom of Query
-Profile dipilih eksplisit saat ini.
-Classifier adaptif dan retrieve-again otomatis
-adalah rencana, belum jalur aktif.
+Profiles are currently selected explicitly.
+Adaptive classification and retrieval retries
+are planned, not active request paths.
 end note
 legend bottom
-  Dependency komponen; arah data dan urutan kerja dijelaskan pada tabel README.
-  Go mengatur workflow dan publication; Rust menghasilkan batch; C++ menjalankan inference.
-  Panah tidak berarti satu RPC per langkah. Model dan snapshot dipin lintas komponen.
+  Component dependencies; data flow and execution order are described in the README tables.
+  Go owns workflows and publication; Rust produces batches; C++ runs inference.
+  Arrows do not imply an RPC per step. Models and snapshots are pinned across components.
 endlegend
 @enduml
