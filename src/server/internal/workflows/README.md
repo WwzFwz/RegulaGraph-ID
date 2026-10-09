@@ -1,5 +1,10 @@
 # src/server/internal/workflows
 
+`graph_evidence.go` menghubungkan admitted traversal, lookup source Qdrant dan
+SourceHydrator; ia memeriksa ulang scope/pin sebelum mengembalikan mapped Evidence.
+Traversal harus berasal dari reader terautentikasi, bukan input klien/model.
+Graph branch/fusion/context belum tersambung; lihat [kontrak bukti](../../../../doc/graph-evidence.md).
+
 `graph_completed.go` menyiapkan seluruh output ASSEMBLE committed untuk penulisan
 graph tanpa worker/model call. `graph_source_reader.go` berbagi hash/budget/source
 reader dengan dispatch; kedua jalur memanggil validator projection domain yang sama.

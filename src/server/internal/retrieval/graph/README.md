@@ -32,8 +32,11 @@ Ikuti [kebijakan benchmark](../../../../../doc/benchmark-policy.md). Angka wajib
 ## Status
 
 Discovery traversal snapshot-bound tersedia dan diuji dengan Neo4j serta output
-Rust aktual. Resource exhaustion dilaporkan; source-text/temporal hydration,
-query seed linking, fusion branch graph dan acceptance belum lengkap. Lihat
+Rust aktual. `evidence.go` kini memetakan support ke teks terautentikasi, menjaga
+span UTF-8, source/version, seluruh alternatif support dan missing dependencies.
+`PathEvidence` mewajibkan seluruh item tetap ada setelah context selection.
+Source hydration tersedia; assertion applicability/dependency, query seed linking,
+fusion branch graph dan acceptance belum lengkap. Lihat [pemetaan bukti](../../../../../doc/graph-evidence.md),
 [kontrak](../../../../../doc/graph-traversal.md) serta
 [verifikasi](../../../../../doc/verification-report-graph-traversal.md).
 
@@ -43,5 +46,5 @@ Pekerjaan berikut melanjutkan cakupan folder ini. Header file mempertahankan sta
 
 | File | Pekerjaan berikutnya | Bukti yang perlu disiapkan |
 | --- | --- | --- |
-| [evidence.go](evidence.go) | Hydrate selected paths in batches into primary source/version spans and explicit missing dependencies. | Test unsupported edges, stale versions and source mismatch; profile database round trips and required-path coverage. |
+| [evidence.go](evidence.go) | Integrasikan membership seluruh PathEvidence ke fusion/context; lengkapi dependency applicability tanpa menghilangkan status partial. | Regresi span/source/version, alternate support dan batas ukuran tersedia; ukur coverage serta latency pada corpus/gold nyata. |
 | [traversal.go](traversal.go), [neighborhood.go](neighborhood.go) | Sambungkan seed linking terpin dan hasil discovery ke hidrasi temporal/sumber; jangan mengubah discovery PARTIAL menjadi jawaban lengkap. | Ukur path completeness dan p95/p99 pada corpus/gold nyata; uji deadline/fan-out bersama beban query. |

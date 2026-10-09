@@ -14,6 +14,11 @@ Pertahankan source/canonical/provision-version/snapshot ID dan schema version li
 
 ## Isi saat ini
 
+`sources.go` mencari chunk tanpa vector melalui nested source/version/regulation
+filter pada snapshot/generation terpin. Pagination overflow menjadi error agar
+support tidak hilang diam-diam. Kandidat wajib dihidrasi terhadap katalog dan
+artefak sumber; lihat [kontrak graph evidence](../../../../../doc/graph-evidence.md).
+
 `VerifyInheritedServing` memeriksa existing collection tanpa bootstrap, exact
 count dan dense/BM25 probe pada sequence baru. Caller wajib full point readback
 terlebih dahulu; API ini bukan pengganti provenance/publication PostgreSQL.

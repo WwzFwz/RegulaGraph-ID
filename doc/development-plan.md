@@ -2,9 +2,11 @@
 
 Checkpoint Q01: admission graph, typed reader dan discovery traversal kini teruji
 dengan output Rust aktual, scope/pin, cycle/alternate path serta corruption rejection.
-Graph evidence hydration, seed linking dan branch graph ke jawaban masih perlu
-disambungkan; lihat [kontrak traversal](graph-traversal.md) dan
-[verifikasi](verification-report-graph-traversal.md).
+Graph evidence hydration kini terhubung ke source lookup Qdrant dan autentikasi
+PostgreSQL/artefak, dengan pin recheck, span coverage dan dependency partial eksplisit.
+Lihat [kontrak bukti](graph-evidence.md) dan [verifikasi](verification-report-graph-evidence.md).
+Berikutnya seed linking, graph branch/fusion, context renderer yang mempertahankan
+seluruh membership path, applicability/dependency resolution dan acceptance.
 
 Checkpoint terbaru K01: [adapter Neo4j](neo4j-graph-store.md) menulis generation
 additive terisolasi, mempertahankan shared support, memverifikasi inventory exact dan
@@ -22,7 +24,7 @@ acknowledgement recovery serta cancellation/registry/checkpoint drift diperiksa.
 readback lengkap dan mengaktifkan snapshot graph+index. Reader/hydration menjaga
 snapshot source asal; native integration menghasilkan draft bersitasi melalui
 dense/BM25. [Bukti](verification-report-index-reuse.md) masih memakai model fixture.
-Berikutnya operator preparation/scheduling/publication, graph traversal dan
+Berikutnya operator preparation/scheduling/publication serta
 graph-to-answer; K01/Hybrid GraphRAG serta acceptance belum selesai.
 
 Checkpoint sebelumnya: integrasi nonempty sudah menjalankan allocator/alias/candidate,

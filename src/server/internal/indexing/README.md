@@ -1,14 +1,17 @@
 # src/server/internal/indexing
 
 `published_graph_test.go` melanjutkan fixture native ke admission scope/pin dan
-pembacaan record Neo4j serta discovery traversal dari snapshot terbit. Branch graph
+pembacaan record Neo4j, discovery traversal dan hidrasi support dari snapshot terbit.
+Lookup Qdrant diteruskan ke verifikasi PostgreSQL/artefak sumber; pencabutan pin pada
+admission akhir menggagalkan hasil. [Kontrak bukti](../../../../doc/graph-evidence.md).
+Branch graph
 ke jawaban belum terhubung; lihat
 [bukti pembacaan](../../../../doc/verification-report-graph-read.md).
 
 `index_reuse.go` memverifikasi semua halaman catalog terhadap Qdrant dan mencatat
 receipt reuse tanpa embedding/upsert. Native graph test kini benar-benar mengaktifkan
 snapshot gabungan lalu menjalankan dense/BM25 RAG sampai cited fixture draft.
-Traversal graph dan kualitas model belum dibuktikan; [kontrak](../../../../doc/index-reuse.md).
+Traversal dan hidrasi graph diuji pada helper di atas; kualitas model belum dibuktikan; [kontrak](../../../../doc/index-reuse.md).
 
 `graph_readiness.go` menambahkan acknowledgement durable setelah exact readback.
 Tes receipt dan activation memeriksa rollback, recovery, output swap dan stale

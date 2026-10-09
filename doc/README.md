@@ -1,5 +1,9 @@
 # doc
 
+[graph-evidence.md](graph-evidence.md) menjelaskan pemetaan path/support ke teks
+sumber terverifikasi dan kewajiban context membership. [Laporan](verification-report-graph-evidence.md)
+memisahkan fixture integrasi dari quality/benchmark acceptance.
+
 [graph-traversal.md](graph-traversal.md) menjelaskan discovery jalur dengan support,
 arah asli, cycle control dan laporan resource; [verifikasi](verification-report-graph-traversal.md)
 mencatat regresi adjacency, buffer reuse dan traversal output Rust aktual.
