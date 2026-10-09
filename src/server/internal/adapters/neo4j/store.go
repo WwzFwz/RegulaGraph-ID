@@ -24,12 +24,7 @@ package neo4j
 
 import (
 	"context"
-	"crypto/sha256"
 	"errors"
-	"fmt"
-	"math"
-	"net"
-	"net/url"
 	"sync/atomic"
 	"time"
 
@@ -44,11 +39,7 @@ var ErrGraphConflict = errors.Join(errors.New("graph generation or immutable rec
 // Binding is a local backend routing/ownership value, not a second wire schema.
 // A generation has exactly one publication/fence/base/target/revision. Publication
 // authority remains PostgreSQL; an unsealed or aborted generation is never served.
-type Binding struct {
-	CorpusID, Generation, PublicationID string
-	Fence, Sequence, RegistryRevision   uint64
-	BaseSnapshot                        *pb.SnapshotRef
-}
+type Binding = domain.GraphBinding
 
 type Config struct {
 	URI, Username, Password, Database string
@@ -59,6 +50,7 @@ type Config struct {
 type Store struct {
 	driver      bolt.DriverWithContext
 	database    string
+	endpoint    string
 	timeout     time.Duration
 	binding     Binding
 	bindingHash string
@@ -68,34 +60,17 @@ type Store struct {
 // New validates configuration without opening a connection. Direct Bolt is used
 // deliberately: this adapter has no proof of readiness across routed replicas.
 func New(config Config, binding Binding) (*Store, error) {
-	u, err := url.Parse(config.URI)
-	if err != nil || u.User != nil || u.Hostname() == "" || u.Port() == "" || u.RawQuery != "" || u.Fragment != "" || u.Path != "" ||
-		(u.Scheme != "bolt" && u.Scheme != "bolt+s") || (u.Scheme == "bolt" && !net.ParseIP(u.Hostname()).IsLoopback()) {
-		return nil, errors.New("direct Bolt URI required; unencrypted transport is loopback-only")
+	if err := domain.ValidateGraphEndpoint(config.URI); err != nil {
+		return nil, err
 	}
 	if config.Database == "" || config.Username == "" || config.Password == "" || config.PoolSize < 1 || config.PoolSize > 128 || config.Timeout <= 0 || config.Timeout > 5*time.Minute {
 		return nil, errors.New("explicit database, credentials and bounded pool/timeout required")
 	}
-	for _, id := range []string{binding.CorpusID, binding.Generation, binding.PublicationID} {
-		if err := domain.ValidateWire(&pb.RecordMeta{SchemaVersion: 1, CorpusId: binding.CorpusID, RecordId: id}, domain.DefaultWireLimits); err != nil {
-			return nil, err
-		}
-	}
-	if err := domain.ValidateWire(binding.BaseSnapshot, domain.DefaultWireLimits); err != nil {
-		return nil, err
-	}
-	if binding.BaseSnapshot.CorpusId != binding.CorpusID || binding.Sequence <= binding.BaseSnapshot.Sequence || binding.Sequence > math.MaxInt64 || binding.Fence == 0 || binding.Fence > math.MaxInt64 || binding.RegistryRevision == 0 || binding.RegistryRevision > math.MaxInt64 {
-		return nil, errors.New("bounded graph target/fence/revision and matching base required")
-	}
-	binding.BaseSnapshot = proto.Clone(binding.BaseSnapshot).(*pb.SnapshotRef)
-	raw, err := proto.MarshalOptions{Deterministic: true}.Marshal(binding.BaseSnapshot)
+	hash, err := domain.GraphBindingHash(binding)
 	if err != nil {
 		return nil, err
 	}
-	hash := sha256.New()
-	for _, v := range []string{"graph-binding-v1", binding.CorpusID, binding.Generation, binding.PublicationID, fmt.Sprint(binding.Fence), fmt.Sprint(binding.Sequence), fmt.Sprint(binding.RegistryRevision), string(raw)} {
-		fmt.Fprintf(hash, "%d:%s", len(v), v)
-	}
+	binding.BaseSnapshot = proto.Clone(binding.BaseSnapshot).(*pb.SnapshotRef)
 	driver, err := bolt.NewDriverWithContext(config.URI, bolt.BasicAuth(config.Username, config.Password, ""), func(c *bolt.Config) {
 		c.MaxConnectionPoolSize = config.PoolSize
 		c.ConnectionAcquisitionTimeout = config.Timeout
@@ -107,7 +82,15 @@ func New(config Config, binding Binding) (*Store, error) {
 	if err != nil {
 		return nil, errors.New("invalid Neo4j driver configuration")
 	}
-	return &Store{driver: driver, database: config.Database, timeout: config.Timeout, binding: binding, bindingHash: fmt.Sprintf("%x", hash.Sum(nil))}, nil
+	return &Store{driver: driver, database: config.Database, timeout: config.Timeout, binding: binding, bindingHash: hash, endpoint: config.URI}, nil
+}
+
+func (s *Store) Endpoint() string { return s.endpoint }
+func (s *Store) Database() string { return s.database }
+func (s *Store) Binding() Binding {
+	result := s.binding
+	result.BaseSnapshot = proto.Clone(result.BaseSnapshot).(*pb.SnapshotRef)
+	return result
 }
 
 func (s *Store) Close(ctx context.Context) error { return s.driver.Close(ctx) }

@@ -26,13 +26,23 @@ type ReadyProof struct {
 	Records, Edges, Operations              uint64
 }
 
-func (s *Store) VerifyAndSeal(ctx context.Context, deltas []*pb.GraphDelta) (ReadyProof, error) {
-	var proof ReadyProof
-	if !s.schemaReady.Load() {
-		return proof, ErrGraphConflict
-	}
+type preparedInventory struct {
+	proof      ReadyProof
+	nodes      map[string]record
+	edges      map[edge]bool
+	operations map[string]operation
+}
+
+// Describe verifies all cross-delta conflicts before any remote write. It is an
+// expected write-set description, not evidence that the backend is ready.
+func (s *Store) Describe(deltas []*pb.GraphDelta) (ReadyProof, error) {
+	p, err := s.prepareInventory(deltas)
+	return p.proof, err
+}
+
+func (s *Store) prepareInventory(deltas []*pb.GraphDelta) (preparedInventory, error) {
 	if len(deltas) == 0 || len(deltas) > 256 {
-		return proof, errors.New("bounded nonempty graph inventory required")
+		return preparedInventory{}, errors.New("bounded nonempty graph inventory required")
 	}
 	remaining := 64 << 20
 	nodes := map[string]record{}
@@ -41,20 +51,20 @@ func (s *Store) VerifyAndSeal(ctx context.Context, deltas []*pb.GraphDelta) (Rea
 	for _, delta := range deltas {
 		size := proto.Size(delta)
 		if size > remaining {
-			return proof, errors.New("graph inventory byte budget exceeded")
+			return preparedInventory{}, errors.New("graph inventory byte budget exceeded")
 		}
 		remaining -= size
 		p, err := s.project(delta)
 		if err != nil {
-			return proof, err
+			return preparedInventory{}, err
 		}
 		if _, ok := operations[p.id]; ok {
-			return proof, ErrGraphConflict
+			return preparedInventory{}, ErrGraphConflict
 		}
 		operations[p.id] = operation{p.hash, p.bytes}
 		for _, n := range p.records {
 			if old, ok := nodes[n.id]; ok && !reflect.DeepEqual(old.props, n.props) {
-				return proof, ErrGraphConflict
+				return preparedInventory{}, ErrGraphConflict
 			}
 			nodes[n.id] = n
 		}
@@ -72,23 +82,34 @@ func (s *Store) VerifyAndSeal(ctx context.Context, deltas []*pb.GraphDelta) (Rea
 	for _, id := range ids {
 		fmt.Fprintf(h, "%d:%s%s", len(id), id, operations[id].hash)
 	}
-	proof = ReadyProof{s.binding.Generation, s.bindingHash, fmt.Sprintf("%x", h.Sum(nil)), uint64(len(nodes)), uint64(len(edges)), uint64(len(operations))}
-	err := s.transaction(ctx, true, func(ctx context.Context, tx bolt.ExplicitTransaction) error {
+	proof := ReadyProof{s.binding.Generation, s.bindingHash, fmt.Sprintf("%x", h.Sum(nil)), uint64(len(nodes)), uint64(len(edges)), uint64(len(operations))}
+	return preparedInventory{proof, nodes, edges, operations}, nil
+}
+
+func (s *Store) VerifyAndSeal(ctx context.Context, deltas []*pb.GraphDelta) (ReadyProof, error) {
+	if !s.schemaReady.Load() {
+		return ReadyProof{}, ErrGraphConflict
+	}
+	p, err := s.prepareInventory(deltas)
+	if err != nil {
+		return ReadyProof{}, err
+	}
+	err = s.transaction(ctx, true, func(ctx context.Context, tx bolt.ExplicitTransaction) error {
 		if _, err := s.lockGeneration(ctx, tx); err != nil {
 			return err
 		}
-		if err := s.verifyRecords(ctx, tx, nodes, edges, operations); err != nil {
+		if err := s.verifyRecords(ctx, tx, p.nodes, p.edges, p.operations); err != nil {
 			return err
 		}
 		params := s.params()
-		params["digest"] = proof.OperationsHash
+		params["digest"] = p.proof.OperationsHash
 		_, err := one(ctx, tx, `MATCH (g:RGGeneration {corpus:$corpus,generation:$generation}) SET g.state='SEALED',g.operations_hash=$digest RETURN g.state`, params)
 		return err
 	})
 	if err != nil {
 		return ReadyProof{}, err
 	}
-	return proof, nil
+	return p.proof, nil
 }
 
 // operation records include serialized input size so the intake budget is replay-safe.

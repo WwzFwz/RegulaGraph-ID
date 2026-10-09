@@ -22,7 +22,7 @@ import (
 func graphFixture(corpus string) (Binding, *pb.GraphDelta) {
 	hash := &pb.ContentHash{Sha256: strings.Repeat("a", 64)}
 	base := &pb.SnapshotRef{CorpusId: corpus, SnapshotId: "snapshot:base", Sequence: 1, ManifestHash: hash, RepresentationGeneration: "generation:index"}
-	b := Binding{corpus, "generation:graph", "publication:graph", 1, 2, 3, base}
+	b := Binding{CorpusID: corpus, Generation: "generation:graph", PublicationID: "publication:graph", Fence: 1, Sequence: 2, RegistryRevision: 3, BaseSnapshot: base}
 	meta := func(id string) *pb.RecordMeta {
 		return &pb.RecordMeta{SchemaVersion: 1, CorpusId: corpus, RecordId: id, Visibility: &pb.Visibility{FromSeq: 2}}
 	}
