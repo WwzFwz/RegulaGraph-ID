@@ -4,6 +4,17 @@
 // candidate count, and p95/p99 against configs/benchmark-targets.yaml.
 package domain
 
+import pb "regulagraph.local/server/gen/regulagraph/v1"
+
+// RegistryLookupResult carries one complete positive or negative observation.
+// The revision authenticates the exact key; readers must still enforce a live pin.
+type RegistryLookupResult struct {
+	Scope      RegistryLookupScope
+	Revision   *pb.LookupScopeRevision
+	Candidates []*pb.CanonicalEntity
+	Aliases    []*pb.Alias
+}
+
 // RegistryLookupScope is an exact key in the versioned alias registry.
 type RegistryLookupScope struct {
 	EntityType       string

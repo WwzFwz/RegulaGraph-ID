@@ -27,12 +27,7 @@ import (
 type RegistryLookupScope = domain.RegistryLookupScope
 
 // RegistryLookupResult retains every alias and the revision of its exact positive/negative key.
-type RegistryLookupResult struct {
-	Scope      RegistryLookupScope
-	Revision   *pb.LookupScopeRevision
-	Candidates []*pb.CanonicalEntity
-	Aliases    []*pb.Alias
-}
+type RegistryLookupResult = domain.RegistryLookupResult
 
 // LookupCanonicalAliases returns results in input order at one corpus registry revision. A caller
 // must bind this revision and all scope observations to the immutable RESOLVE candidate batch.
