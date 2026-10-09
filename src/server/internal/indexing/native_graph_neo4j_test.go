@@ -92,6 +92,12 @@ func checkNativeGraphNeo4j(t *testing.T, ctx context.Context, repo *postgres.Rep
 			t.Error("fixture compensation ledger", e)
 		}
 	}()
+	if binary := os.Getenv("REGULAGRAPH_TEST_PUBLISH_GRAPH_CLI"); binary != "" {
+		checkPublishGraphCLI(t, ctx, repo, db, authority, pin, binary, store, prepared, plan.Context.AuthScopeRef)
+		checkReusedGraphPublication(t, ctx, repo, db, pin, binding.PublicationID, artifacts, plan.ProducerManifest)
+		checkPublishedGraphRead(t, ctx, repo, store, pin, plan.Context.AuthScopeRef, delta, artifacts)
+		return
+	}
 	proof := checkGraphCatalogWrite(t, ctx, repo, db, authority, pin, prepared, store)
 	expected := uint64(len(delta.Entities) + len(delta.Mentions) + len(delta.Assertions) + len(delta.Supports) + len(delta.Decisions))
 	if err != nil || proof.Records != expected || proof.Edges != 5 || proof.Operations != 1 {
