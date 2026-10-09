@@ -17,8 +17,9 @@
 // Target numerik required: configs/benchmark-targets.yaml; status REQUIRED_UNMEASURED.
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
-// Status: packing bukti langsung berbatas aktif; hydrasi parent, pengecualian, dan set jalur
-// yang lengkap belum aktif sehingga referensi tersebut ditandai sebagai terlewat.
+// Status: packing bukti langsung serta rendering jalur melalui GraphContext aktif.
+// Parent/pengecualian belum terhidrasi tetap omitted; path hanya tercakup bila seluruh
+// teks wajib dan anchor relasinya masuk budget serta coverage sumber lengkap.
 // Rekomendasi implementasi berikutnya:
 // Hydrasi parent/kondisi/pengecualian pada snapshot serta versi yang sama, lalu gunakan
 // tokenizer generator aktual sebelum mengizinkan completeness penuh.
@@ -48,8 +49,8 @@ type TokenCounter func(context.Context, string) (uint64, error)
 // context partial. The caller must not report a complete answer from a partial context.
 func BuildContext(ctx context.Context, bundle *pb.EvidenceBundle, recordID string,
 	tokenizerHash *pb.ContentHash, maximumTokens uint64, maximumEvidence int,
-	count TokenCounter) (*pb.ContextBundle, error) {
-	if bundle == nil || bundle.Meta == nil || bundle.Snapshot == nil ||
+	count TokenCounter, graphPlans ...*GraphContext) (*pb.ContextBundle, error) {
+	if ctx == nil || bundle == nil || bundle.Meta == nil || bundle.Snapshot == nil ||
 		bundle.CompletionStatus != pb.CompletionStatus_COMPLETION_STATUS_SUCCEEDED ||
 		maximumTokens == 0 || maximumEvidence <= 0 || count == nil || tokenizerHash == nil ||
 		recordID == "" || len(bundle.Items) > maximumEvidence {
@@ -58,6 +59,10 @@ func BuildContext(ctx context.Context, bundle *pb.EvidenceBundle, recordID strin
 	if err := domain.ValidateWire(bundle, domain.DefaultWireLimits); err != nil {
 		return nil, fmt.Errorf("invalid evidence bundle: %w", err)
 	}
+	graphPlan, err := selectGraphContext(bundle, graphPlans)
+	if err != nil {
+		return nil, err
+	}
 	result := &pb.ContextBundle{
 		Meta: &pb.RecordMeta{SchemaVersion: bundle.Meta.SchemaVersion,
 			CorpusId: bundle.Meta.CorpusId, RecordId: recordID},
@@ -65,6 +70,7 @@ func BuildContext(ctx context.Context, bundle *pb.EvidenceBundle, recordID strin
 		Snapshot:      proto.Clone(bundle.Snapshot).(*pb.SnapshotRef),
 	}
 	seenEvidence := map[string]bool{}
+	selected := map[string]bool{}
 	omitted := map[string]bool{}
 	addOmission := func(id string) {
 		if id != "" && !omitted[id] {
@@ -83,7 +89,7 @@ func BuildContext(ctx context.Context, bundle *pb.EvidenceBundle, recordID strin
 			return nil, errors.New("evidence identity, corpus, or snapshot is inconsistent")
 		}
 		seenEvidence[item.Meta.RecordId] = true
-		block := renderEvidence(item)
+		block := renderContextEvidence(item, graphPlan)
 		trial := block
 		if rendered != "" {
 			trial = rendered + "\n" + block
@@ -99,6 +105,7 @@ func BuildContext(ctx context.Context, bundle *pb.EvidenceBundle, recordID strin
 		rendered = trial
 		result.TokenCount = tokens
 		result.OrderedEvidenceIds = append(result.OrderedEvidenceIds, item.Meta.RecordId)
+		selected[item.Meta.RecordId] = true
 		result.RenderedBlocks = append(result.RenderedBlocks, &pb.ContextBlock{
 			EvidenceId: item.Meta.RecordId, RenderedText: block})
 		for _, parent := range item.ParentRefs {
@@ -110,8 +117,11 @@ func BuildContext(ctx context.Context, bundle *pb.EvidenceBundle, recordID strin
 			return nil, errors.New("nil required path set")
 		}
 		for _, pathID := range required.PathIds {
-			// A GraphPath ID alone does not render its ordered nodes, edges, or supports.
-			addOmission(pathID)
+			// Only the immutable rendering plan and all surviving text members
+			// establish path coverage; a path ID on one item is insufficient.
+			if !graphPlan.covered(pathID, selected) {
+				addOmission(pathID)
+			}
 		}
 	}
 	for _, dependency := range bundle.MissingDependencies {

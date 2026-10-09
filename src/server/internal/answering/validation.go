@@ -37,7 +37,7 @@ import (
 // ValidateGroundedAnswer enforces structural grounding at the retrieval-to-answer boundary.
 // It cannot judge whether a cited clause semantically entails the claim; that needs gold review.
 func ValidateGroundedAnswer(answer *pb.Answer, context *pb.ContextBundle,
-	evidence *pb.EvidenceBundle, trustedURLs domain.SourceURLLookup) error {
+	evidence *pb.EvidenceBundle, trustedURLs domain.SourceURLLookup, graphPlans ...*GraphContext) error {
 	if answer == nil || context == nil || evidence == nil {
 		return errors.New("answer, rendered context, and evidence are required")
 	}
@@ -46,6 +46,10 @@ func ValidateGroundedAnswer(answer *pb.Answer, context *pb.ContextBundle,
 	}
 	if err := domain.VerifyCitationEvidence(answer, evidence, trustedURLs); err != nil {
 		return fmt.Errorf("untrusted answer citation: %w", err)
+	}
+	graphPlan, err := selectGraphContext(evidence, graphPlans)
+	if err != nil {
+		return err
 	}
 	if err := validateClaimTextCoverage(answer); err != nil {
 		return err
@@ -73,7 +77,7 @@ func ValidateGroundedAnswer(answer *pb.Answer, context *pb.ContextBundle,
 		if selected[id] {
 			return errors.New("rendered context contains duplicate evidence")
 		}
-		if byID[id] == nil || context.RenderedBlocks[index].RenderedText != renderEvidence(byID[id]) {
+		if byID[id] == nil || context.RenderedBlocks[index].RenderedText != renderContextEvidence(byID[id], graphPlan) {
 			return errors.New("rendered context text differs from trusted evidence")
 		}
 		selected[id] = true
@@ -95,7 +99,9 @@ func ValidateGroundedAnswer(answer *pb.Answer, context *pb.ContextBundle,
 			return errors.New("required path set is missing")
 		}
 		for _, id := range required.PathIds {
-			expectedOmissions[id] = true
+			if !graphPlan.covered(id, selected) {
+				expectedOmissions[id] = true
+			}
 		}
 	}
 	for _, id := range evidence.MissingDependencies {
@@ -124,10 +130,13 @@ func ValidateGroundedAnswer(answer *pb.Answer, context *pb.ContextBundle,
 	if context.Completeness != expectedCompleteness {
 		return errors.New("context completeness contradicts selected evidence")
 	}
-	// Graph paths are not yet rendered by BuildContext; returning them as answer
-	// proof would let a well-shaped but invented path pass structural validation.
-	if len(answer.Paths) > 0 {
-		return errors.New("answer graph paths require rendered verified path proof")
+	seenPaths := map[string]bool{}
+	claimSets := claimMembership(answer.Claims)
+	for _, path := range answer.Paths {
+		if path == nil || seenPaths[path.PathId] || !graphPlan.covered(path.PathId, selected) || !graphPlan.claimed(path.PathId, claimSets) || !proto.Equal(path, graphPlan.paths[path.PathId]) {
+			return errors.New("answer graph path lacks exact rendered and complete source proof")
+		}
+		seenPaths[path.PathId] = true
 	}
 	missing := make(map[string]bool, len(answer.MissingEvidence))
 	for _, id := range answer.MissingEvidence {
@@ -190,7 +199,7 @@ func ValidateGroundedAnswer(answer *pb.Answer, context *pb.ContextBundle,
 		}
 	}
 	if answer.SemanticStatus == pb.SemanticStatus_SEMANTIC_STATUS_ABSTAIN &&
-		(len(answer.Claims) > 0 || len(answer.Citations) > 0 || len(answer.Conflicts) > 0) {
+		(len(answer.Claims) > 0 || len(answer.Citations) > 0 || len(answer.Conflicts) > 0 || len(answer.Paths) > 0) {
 		return errors.New("abstention cannot carry factual claims, citations, or conflicts")
 	}
 	if answer.SemanticStatus == pb.SemanticStatus_SEMANTIC_STATUS_CONFLICT &&

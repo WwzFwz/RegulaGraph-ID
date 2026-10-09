@@ -12,7 +12,8 @@
 // Target hanya boleh diubah dengan persetujuan pengguna; ikuti doc/benchmark-policy.md.
 //
 // Status: pemetaan sitasi deterministik dari evidence/context dan URL tepercaya aktif sebagai helper;
-// dukungan semantik klaim, hidrasi sumber produksi, dan generation masih belum aktif.
+// GraphContext opsional memverifikasi rendering relasi bersama teks sumber. Hidrasi
+// dan draft generation tersedia; dukungan semantik klaim belum terbukti.
 // Bukti verifikasi: panggil VerifyCitationEvidence, uji sumber ganda, locator hilang,
 // URL tidak tepercaya, serta klaim di luar konteks; ukur jumlah lookup dan p95/p99.
 // Target numerik tetap configs/benchmark-targets.yaml; ikuti doc/verification.md.
@@ -45,25 +46,25 @@ const maximumCitationClaims = 256
 // lookup is snapshot-pinned by the caller and cached per blob/version within this batch.
 // This function establishes structural provenance, never semantic entailment of a claim.
 func BuildCitations(claims []*pb.Claim, context *pb.ContextBundle, bundle *pb.EvidenceBundle,
-	lookup domain.SourceURLLookup, maximumCitations int) ([]*pb.Citation, error) {
-	return buildCitations(claims, context, bundle, lookup, maximumCitations, false)
+	lookup domain.SourceURLLookup, maximumCitations int, graphPlans ...*GraphContext) ([]*pb.Citation, error) {
+	return buildCitations(claims, context, bundle, lookup, maximumCitations, false, graphPlans...)
 }
 
 // BuildDraftCitations maps proposed references while preserving UNREVIEWED
 // support. A citation proves a source locator, not entailment; draft outputs must
 // remain explicitly PARTIAL and must not be presented as verified answers.
 func BuildDraftCitations(claims []*pb.Claim, context *pb.ContextBundle, bundle *pb.EvidenceBundle,
-	lookup domain.SourceURLLookup, maximumCitations int) ([]*pb.Citation, error) {
+	lookup domain.SourceURLLookup, maximumCitations int, graphPlans ...*GraphContext) ([]*pb.Citation, error) {
 	for _, claim := range claims {
 		if claim == nil || claim.SupportStatus != pb.SupportStatus_SUPPORT_STATUS_UNREVIEWED {
 			return nil, errors.New("draft citation requires unreviewed claims")
 		}
 	}
-	return buildCitations(claims, context, bundle, lookup, maximumCitations, true)
+	return buildCitations(claims, context, bundle, lookup, maximumCitations, true, graphPlans...)
 }
 
 func buildCitations(claims []*pb.Claim, context *pb.ContextBundle, bundle *pb.EvidenceBundle,
-	lookup domain.SourceURLLookup, maximumCitations int, draft bool) ([]*pb.Citation, error) {
+	lookup domain.SourceURLLookup, maximumCitations int, draft bool, graphPlans ...*GraphContext) ([]*pb.Citation, error) {
 	if context == nil || bundle == nil || lookup == nil || maximumCitations <= 0 {
 		return nil, errors.New("context, evidence, trusted URL lookup, and citation limit are required")
 	}
@@ -75,6 +76,10 @@ func buildCitations(claims []*pb.Claim, context *pb.ContextBundle, bundle *pb.Ev
 	}
 	if err := domain.ValidateWire(bundle, domain.DefaultWireLimits); err != nil {
 		return nil, fmt.Errorf("invalid citation evidence: %w", err)
+	}
+	graphPlan, err := selectGraphContext(bundle, graphPlans)
+	if err != nil {
+		return nil, err
 	}
 	if !proto.Equal(context.Snapshot, bundle.Snapshot) || context.Meta.CorpusId != bundle.Meta.CorpusId ||
 		context.Meta.SchemaVersion != bundle.Meta.SchemaVersion ||
@@ -102,7 +107,7 @@ func buildCitations(claims []*pb.Claim, context *pb.ContextBundle, bundle *pb.Ev
 	for index, id := range context.OrderedEvidenceIds {
 		block := context.RenderedBlocks[index]
 		if items[id] == nil || block == nil || block.EvidenceId != id ||
-			block.RenderedText != renderEvidence(items[id]) {
+			block.RenderedText != renderContextEvidence(items[id], graphPlan) {
 			return nil, errors.New("citation context was not rendered from selected evidence")
 		}
 	}

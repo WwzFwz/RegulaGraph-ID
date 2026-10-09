@@ -74,6 +74,7 @@ type DraftInput struct {
 	Context        *pb.ContextBundle
 	Evidence       *pb.EvidenceBundle
 	SourceURLs     domain.SourceURLLookup // Authenticated, snapshot-bound, prefetched metadata.
+	GraphContext   *GraphContext          // Optional admitted path rendering; never provider-supplied.
 }
 
 type DraftResult struct {
@@ -143,7 +144,7 @@ func (g *DraftGenerator) Generate(ctx context.Context, in DraftInput) (*DraftRes
 		Snapshot: in.Context.Snapshot, EffectiveDates: in.EffectiveDates, RunManifest: g.config.Producer, MissingEvidence: append([]string(nil), in.Context.OmittedRequiredRefs...)}
 	// Validate exact context rendering and source/snapshot closure before sending
 	// any text to a provider. The abstention is an application-owned preflight.
-	if err := ValidateGroundedAnswer(answer, in.Context, in.Evidence, in.SourceURLs); err != nil {
+	if err := ValidateGroundedAnswer(answer, in.Context, in.Evidence, in.SourceURLs, in.GraphContext); err != nil {
 		return nil, err
 	}
 	answer = proto.Clone(answer).(*pb.Answer)
@@ -242,12 +243,13 @@ func (g *DraftGenerator) Generate(ctx context.Context, in DraftInput) (*DraftRes
 		answer.Text = text.String()
 		answer.SemanticStatus = pb.SemanticStatus_SEMANTIC_STATUS_PARTIAL
 		answer.MissingEvidence = append(answer.MissingEvidence, "semantic-support-review-required")
-		answer.Citations, err = BuildDraftCitations(answer.Claims, in.Context, in.Evidence, in.SourceURLs, g.config.MaximumCitations)
+		answer.Citations, err = BuildDraftCitations(answer.Claims, in.Context, in.Evidence, in.SourceURLs, g.config.MaximumCitations, in.GraphContext)
 		if err != nil {
 			return nil, err
 		}
+		answer.Paths = in.GraphContext.answerPaths(in.Context.OrderedEvidenceIds, answer.Claims)
 	}
-	if err = ValidateGroundedAnswer(answer, in.Context, in.Evidence, in.SourceURLs); err != nil {
+	if err = ValidateGroundedAnswer(answer, in.Context, in.Evidence, in.SourceURLs, in.GraphContext); err != nil {
 		return nil, err
 	}
 	return &DraftResult{Answer: answer, InputTokens: response.InputTokens, OutputTokens: response.OutputTokens}, nil
