@@ -1,5 +1,10 @@
 # doc
 
+[Diagnostik runtime extraction](verification-report-extraction-runtime.md)
+mencatat timeout llama.cpp CPU dan repetition/truncation pada eksperimen contoh
+copying di Ollama. Keduanya belum memberi completion valid; prompt produksi dan
+target benchmark tidak berubah.
+
 [Completion replay EXTRACT](semantic-completion-replay.md) menjelaskan penyimpanan
 provider JSON di PostgreSQL, identity binding dan validasi ulang setelah restart.
 [Bukti](verification-report-durable-extraction.md) mencakup DB nyata dan batas

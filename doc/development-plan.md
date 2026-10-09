@@ -1,5 +1,11 @@
 # Rencana implementasi berbasis dependency
 
+Checkpoint eksperimen extraction: request chunk pembuka yang sama pada llama.cpp
+CPU timeout 300 detik; prompt dengan contoh copying pada Ollama mengulang mention
+sampai cap 4096 dan terpotong. Tidak ada output valid atau prompt baru yang
+dipromosikan. Profil/representasi extraction masih perlu diperbaiki sebelum
+full-PDF RESOLVE/publication. [Bukti dan batas](verification-report-extraction-runtime.md).
+
 Checkpoint durable EXTRACT: gateway dapat menyimpan completion model per item di
 PostgreSQL (migration 0024) dan mereplay setelah instance/pool dibuat ulang.
 Input/scope/actual producer terikat; output selalu melewati semantic validation

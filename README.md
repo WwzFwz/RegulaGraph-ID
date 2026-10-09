@@ -12,6 +12,8 @@ Indonesian regulations are distributed across sources, reference one another, ch
 
 Validation errors now identify invalid locator fields without including source quotations. Two local correction experiments still failed source validation, so automatic model retries remain disabled. See the [feedback experiment report](doc/verification-report-extraction-feedback.md).
 
+Further local extraction diagnostics remain unsuccessful: the same chunk timed out on a CPU-only llama.cpp run, while a copying-example prompt on Ollama repeated mentions until its output was truncated. Neither experiment changed the production prompt or acceptance targets. See the [runtime experiment report](doc/verification-report-extraction-runtime.md).
+
 An optional local llama.cpp mode now checks the complete EXTRACT/RESOLVE prompt against the pinned context window before inference and verifies token-usage parity afterwards. A real local-model smoke test passed these checks; full-PDF extraction and quality acceptance remain unfinished. See [semantic admission verification](doc/verification-report-semantic-admission.md).
 
 Interrupted semantic items now remain retryable instead of becoming permanently cached failures. Successful items are reused within the gateway process; optional PostgreSQL completion replay now also survives restarts and reruns semantic validation. See [durable replay](doc/semantic-completion-replay.md). See [retry verification](doc/verification-report-semantic-retry.md).
