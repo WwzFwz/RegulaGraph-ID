@@ -125,6 +125,10 @@ func checkGraphSourceBindingReceipt(t *testing.T, ctx context.Context, repo *pos
 	}
 	artifacts[extract.Reference.ArtifactId] = extract.Bytes
 	artifacts[resolve.Reference.ArtifactId] = resolve.Bytes
+	if nativeRPC && os.Getenv("REGULAGRAPH_TEST_PREPARE_GRAPH_CLI") != "" {
+		checkPrepareGraphCLI(t, ctx, repo, conn, files, sourceBinding, artifacts, ontology)
+		return
+	}
 	checkpoint := func(id string) {
 		t.Helper()
 		cp := &pb.Checkpoint{Meta: &pb.RecordMeta{SchemaVersion: 1, CorpusId: corpus, RecordId: id}, JobId: job, Stage: pb.JobStage_JOB_STAGE_RESOLVE, Fence: 2,

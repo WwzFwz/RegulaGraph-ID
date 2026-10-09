@@ -76,6 +76,13 @@ func checkNativeGraphExecution(t *testing.T, ctx context.Context, repo *postgres
 		}
 	}
 	in := domain.GraphJobInventory{Assignments: []domain.GraphJobAssignment{{JobID: "job:native-graph:" + pin.CorpusID, SourceJobID: binding.Source.SourceJobID, Plan: prepared.Plan, Reference: prepared.Reference}}}
+	if os.Getenv("REGULAGRAPH_TEST_PREPARE_GRAPH_CLI") != "" {
+		var e error
+		in, e = repo.LoadGraphJobInventory(ctx, pin.CorpusID, binding.PublicationID)
+		if e != nil {
+			t.Fatal(e)
+		}
+	}
 	intent, err := repo.LoadSemanticResolutionIntent(ctx, pin.CorpusID, binding.Source.SourceJobID)
 	if err != nil {
 		t.Fatal(err)

@@ -112,7 +112,7 @@ func runInitialIndexPublication(t *testing.T, requireGraph, contentAddressed boo
 	query := parsed.Query()
 	query.Set("search_path", schema)
 	parsed.RawQuery = query.Encode()
-	if graphRPC && (os.Getenv("REGULAGRAPH_TEST_QUERY_CLI") != "" || os.Getenv("REGULAGRAPH_TEST_GRAPH_API") == "1" || os.Getenv("REGULAGRAPH_TEST_PUBLISH_GRAPH_CLI") != "") {
+	if graphRPC && (os.Getenv("REGULAGRAPH_TEST_QUERY_CLI") != "" || os.Getenv("REGULAGRAPH_TEST_GRAPH_API") == "1" || os.Getenv("REGULAGRAPH_TEST_PUBLISH_GRAPH_CLI") != "" || os.Getenv("REGULAGRAPH_TEST_PREPARE_GRAPH_CLI") != "") {
 		t.Setenv("REGULAGRAPH_TEST_QUERY_DSN", parsed.String())
 	}
 	repo, err := postgres.Open(ctx, postgres.Config{DSN: parsed.String(), MaxConnections: 6, HealthTimeout: time.Second})
