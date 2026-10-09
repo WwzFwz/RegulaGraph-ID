@@ -1,5 +1,7 @@
 # Panduan melanjutkan sampai aplikasi bisa digunakan
 
+Langkah Q01 berikutnya memakai library CompareEvidence untuk transport multi-date, lalu context dan generation komparatif. Library sudah menjaga satu snapshot, pemisahan tanggal dan kegagalan atomik; endpoint belum dibuka. [Rincian dan urutan lanjut](compare-evidence.md).
+
 CURRENT kini dapat dipakai dengan REGULAGRAPH_QUERY_TIME_ZONE dan CLI -current/API mode CURRENT. Tanpa zona, gunakan AS_OF. Tidak perlu rebuild corpus; [kontrak](current-query.md) menjelaskan tanggal beku, audit dan batas tzdb. COMPARE/routing otomatis belum ditutup.
 
 Query preparation kini memiliki policy original-v1 (default) dan mechanical-v1 (opt-in) melalui REGULAGRAPH_QUERY_NORMALIZATION. Ini tidak membutuhkan rebuild corpus. Lihat [cara pakai](query-normalization.md); classifier/temporal penuh dan pengukuran kualitas tetap pekerjaan berikutnya.

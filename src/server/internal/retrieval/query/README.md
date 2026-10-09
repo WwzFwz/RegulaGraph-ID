@@ -1,5 +1,7 @@
 # src/server/internal/retrieval/query
 
+`comparison.go` memperluas scope COMPARE menjadi AS_OF berurutan, menolak tanggal invalid/duplikat/over-budget tanpa membaca clock. Transport dan sintesis mengikuti workflow pemilik. [Kontrak](../../../../../doc/compare-evidence.md).
+
 `temporal.go` merencanakan CURRENT menjadi scope AS_OF dengan satu sampel clock pada zona operator; AS_OF tidak membaca clock. Audit memakai protobuf CalendarDate yang sama, bukan schema tanggal baru. [Kontrak](../../../../../doc/current-query.md).
 
 `normalizer.go` kini aktif untuk original-v1/mechanical-v1 dengan perlindungan kutipan dan trace byte UTF-8. Tidak mengoreksi typo atau memilih intent. [Kontrak dan integrasi](../../../../../doc/query-normalization.md).

@@ -1,5 +1,7 @@
 # RegulaGraph-ID
 
+**Multi-date evidence foundation:** the internal `RAGSession.CompareEvidence` library now retrieves separate date buckets under one snapshot lease and reuses candidate discovery across dates. Each date still receives temporal hydration, graph projection and reranking. Public COMPARE transport and comparative answer synthesis remain unfinished. [Contract, evidence and next steps](doc/compare-evidence.md).
+
 **Current-date queries:** CLI `-current` and API `TEMPORAL_MODE_CURRENT` now freeze one calendar date using an explicitly configured `REGULAGRAPH_QUERY_TIME_ZONE`. The same date reaches retrieval and generation and is exposed in the output audit/headers. [Configuration and limits](doc/current-query.md). COMPARE and automatic intent routing remain unfinished.
 
 **Query preparation:** CLI/API support optional `REGULAGRAPH_QUERY_NORMALIZATION=mechanical-v1` for NFC and whitespace normalization outside quotes. The default `original-v1` preserves exact input. Dense/BM25 use the search form; graph linking, reranking and generation keep the original. [Policy and audit output](doc/query-normalization.md). Retrieval quality impact remains unmeasured.
