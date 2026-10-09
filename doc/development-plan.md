@@ -1,5 +1,12 @@
 # Rencana implementasi berbasis dependency
 
+Checkpoint terbaru K01: [processor/executor ASSEMBLE](graph-job-execution.md) tersedia
+bersama wiring daemon opt-in, scope-filtered claim, cold inventory restore/cache,
+recovery checkpoint dan klasifikasi kegagalan permanen. PostgreSQL/Qdrant menguji
+restore/cache/refresh/pin cleanup dan recovery output hilang menjadi FAILED. Actual
+RPC Rust bersama PostgreSQL dengan sumber nonempty, publication Neo4j, retrieval
+graph dan acceptance tetap belum selesai; ini bukan completion K01.
+
 Checkpoint terbaru K01: output ASSEMBLE yang telah diverifikasi dapat di-commit
 melalui `VerifiedGraphOutput.Commit`: metadata artefak, dependency, checkpoint dan
 STAGED atomik, dengan recheck authority di bawah lock dan recovery acknowledgement.

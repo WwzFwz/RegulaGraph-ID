@@ -1,5 +1,10 @@
 # src/server/internal/indexing
 
+`graph_processor_restore_test.go` menguji cold restore/cache/registry refresh dan
+pin cleanup pada PostgreSQL/Qdrant nyata dengan worker sentinel. Recovery terhadap
+checkpoint ber-output hilang harus menjadi FAILED dan tidak diklaim ulang. Fixture
+source kini memakai hash ontology JSONC asli; ini bukan live LLM atau Rust RPC run.
+
 `graph_output_commit_test.go` melanjutkan fixture inventory ke transaksi output
 ASSEMBLE pada PostgreSQL nyata: rollback seluruh metadata/checkpoint, cancellation,
 registry movement saat lock wait, dan exact acknowledgement reconciliation. Output

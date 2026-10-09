@@ -1,5 +1,12 @@
 # src/server/cmd/ingestion-worker
 
+[graph.go](graph.go) menambahkan ASSEMBLE opt-in melalui
+`REGULAGRAPH_ASSEMBLE_ENABLED=true`, migration0020 dan inventory graph yang sudah
+admitted. Claim difilter menurut auth scope sebelum dipilih. Processor memulihkan
+plan/receipt dari storage, mengeksekusi worker, memverifikasi delta dan commit STAGED;
+checkpoint recovery tidak mengulang RPC. Enablement tidak menjadwalkan inventory
+atau mempublikasikan Neo4j. Lihat [panduan](../../../../doc/graph-job-execution.md).
+
 [index.go](index.go) menambahkan executor INDEX opt-in melalui
 `REGULAGRAPH_INDEX_ENABLED=true`. Coordinator memakai dependency reusable yang
 sama, mengklaim hanya inventory admitted, dan menyimpan checkpoint/STAGED atomik.

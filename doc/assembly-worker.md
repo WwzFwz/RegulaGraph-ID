@@ -58,7 +58,8 @@ Tonic in-process menguji konversi Prost/rust-protobuf dan replay pada processor 
 sama; ini bukan uji jaringan lintas executable. Tidak ada claim kualitas hukum/model
 atau publication graph. Coordinator persistence/inventory/receipt serta
 [library dispatch/output admission Go](graph-output-admission.md) kini tersedia.
-Durable output commit, daemon dan Neo4j masih perlu disambungkan sebelum seluruh corpus.
+Durable output commit dan [daemon ASSEMBLE](graph-job-execution.md) kini tersedia.
+Run RPC nyata bersama PostgreSQL serta Neo4j masih diperlukan sebelum seluruh corpus.
 
 Ukur queue wait, read/decode/assembly/write latency p50/p95/p99, throughput, RSS,
 cancellation lag dan orphan rate sesuai [target required](../configs/benchmark-targets.yaml).

@@ -53,8 +53,8 @@ Jika hasil COMMIT tidak diterima, workflow membaca `GraphCheckpointCommitted` de
 context terpisah maksimal dua detik. Hanya checkpoint exact pada child STAGED dengan
 inventory dan fence yang sesuai dianggap committed. Gagal membaca atau checkpoint
 berbeda tetap error; tidak ada write retry atau inference ulang tersembunyi. Ini
-recovery acknowledgement pada pemanggilan commit, bukan executor restart/reclaim
-lengkap. STAGED juga belum berarti Neo4j sudah ditulis atau siap dibaca.
+recovery acknowledgement pada pemanggilan commit; processor restart/reclaim
+dijelaskan dalam [eksekusi job](graph-job-execution.md). STAGED juga belum berarti Neo4j sudah ditulis atau siap dibaca.
 
 ## Pemeriksaan isi delta
 
@@ -94,7 +94,8 @@ test export dasar dan rich ke direktori berbeda agar output tidak saling menimpa
 
 Workflow tests memakai actual Rust-produced bytes tetapi authority/RPC ports sintetis.
 Itu membuktikan return boundary, bukan jaringan worker bersama PostgreSQL. Lanjutkan
-daemon, restart/reclaim processor dan real-RPC integration; Neo4j serta benchmark
+real-RPC integration; [daemon/restart-reclaim processor](graph-job-execution.md) kini
+tersedia. Neo4j serta benchmark
 release tetap terbuka. Commit atomik dan recovery acknowledgement mempunyai
 [laporan terpisah](verification-report-graph-output-commit.md). [Laporan](verification-report-graph-output.md) menyimpan bukti
 scoped PASS. Target [required](../configs/benchmark-targets.yaml) tidak berubah.

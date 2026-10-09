@@ -4,13 +4,13 @@ Dokumen ini memandu agent implementasi berikutnya, termasuk Sol 5.6, untuk merea
 
 ## Mulai setiap sesi
 
-Checkpoint ASSEMBLE: inventory/claim, live authorization, builder request,
-[library dispatch/output admission](graph-output-admission.md) serta commit atomik
-output/dependency/checkpoint/STAGED tersedia. Workflow memulihkan acknowledgement
-hilang dengan exact checkpoint read. Lanjutkan processor/executor restart-reclaim,
-wiring daemon, RPC nyata bersama PostgreSQL, kemudian Neo4j publication. Lihat
-[laporan commit](verification-report-graph-output-commit.md); kualitas/performa
-produksi dan keseluruhan K01 belum dibuktikan.
+Checkpoint ASSEMBLE: inventory/admission, output commit atomik serta
+[processor/executor/daemon opt-in](graph-job-execution.md) tersedia. Cold restore,
+cache reauthorization, snapshot pin cleanup dan checkpoint recovery diuji terpisah
+pada backend nyata serta fixture output Rust. Lanjutkan actual Rust RPC bersama
+PostgreSQL hingga commit dari source nonempty, operator graph preparation/scheduling,
+lalu Neo4j publication dan graph retrieval. Reaffirmation lintas registry revision,
+canonical mutations dan acceptance kualitas/performa K01 tetap terbuka.
 
 [Registry history](registry-history.md) kini memiliki binding publication immutable
 dan lookup di bawah live snapshot lease. Migration 0018 membatasi history corpus lama

@@ -1,5 +1,10 @@
 # src/server/internal/adapters/postgres
 
+`graph_job_locator.go` memetakan claim ASSEMBLE hidup ke publication untuk restore.
+`ClaimGraphJobInScope` memilih scope dari immutable base source snapshot sebelum
+claim, sehingga daemon tidak mengambil inventory scope lain. Admission dispatch dan
+commit tetap memverifikasi seluruh authority; locator bukan izin publication.
+
 `graph_job_output.go` menyimpan metadata output ASSEMBLE, dependencies immutable,
 checkpoint dan STAGED dalam transaksi yang sama. Publication/corpus/source/child/pin
 terkunci sebelum recheck authority; helper checkpoint/artifact ikut transaksi tanpa

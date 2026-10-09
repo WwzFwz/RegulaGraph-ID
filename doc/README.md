@@ -1,5 +1,9 @@
 # doc
 
+[graph-job-execution.md](graph-job-execution.md) menjelaskan processor restore/cache,
+recovery checkpoint serta daemon ASSEMBLE berscope. [Laporan executor](verification-report-graph-executor.md)
+memisahkan backend admission, workflow fixture dan batas integrasi RPC/Neo4j.
+
 [verification-report-graph-output-commit.md](verification-report-graph-output-commit.md)
 mencatat commit output/dependency/checkpoint/STAGED atomik, race authority dan recovery
 acknowledgement. Scope ini belum daemon ASSEMBLE, Neo4j atau benchmark release.
